@@ -93,7 +93,7 @@ const int16_t sincos_tbl[48][2] = {
 #error "Need check/rebuild sin cos table for DAC"
 #endif
 
-#if 1
+#if 0
 // Define DSP accumulator value type
 typedef float acc_t;
 typedef float measure_t;

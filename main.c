@@ -337,10 +337,10 @@ VNA_SHELL_FUNCTION(cmd_reset)
 
 const uint8_t gain_table[][2] = {
     {  0,  0 },     // 1st:    0 ~  300MHz
-    { 40, 40 },     // 2nd:  300 ~  900MHz
-    { 75, 75 },     // 3th:  900 ~ 1500MHz
-    { 85, 85 },     // 4th: 1500 ~ 1800MHz
-    { 95, 95 },     // 5th: 2100 ~ 2400MHz
+    { 50, 50 },     // 2nd:  300 ~  900MHz
+    { 74, 75 },     // 3th:  900 ~ 1500MHz
+    { 82, 85 },     // 4th: 1500 ~ 1800MHz
+    { 92, 95 },     // 5th: 2100 ~ 2400MHz
 };
 
 #define DELAY_GAIN_CHANGE 4
@@ -706,8 +706,8 @@ config_t config = {
   .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
   .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-  .touch_cal =         { 338, 522, 153, 192 },  // 2.8 inch LCD panel
-//  .touch_cal =         { 252, 450, 111, 150 },  //4.0" LCD
+//  .touch_cal =         { 338, 522, 153, 192 },  // 2.8 inch LCD panel
+  .touch_cal =         { 252, 450, 111, 150 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   .vbat_offset = 500,
@@ -2444,30 +2444,17 @@ THD_FUNCTION(myshellThread, p)
 
 // I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
 static const I2CConfig i2ccfg = {
-  .timingr =     // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
-#if STM32_I2C1SW == STM32_I2C1SW_HSI
-  // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
-  // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
-  STM32_TIMINGR_PRESC(0U)  |
-  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |
-  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
-  // Old values voodoo magic 400kHz @ HSI 8MHz
-  //0x00300506,
-#elif  STM32_I2C1SW == STM32_I2C1SW_SYSCLK
-  // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
-  // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
-//  STM32_TIMINGR_PRESC(5U)  |
-//  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |
-//  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
-  // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed, but need calc timings
-  STM32_TIMINGR_PRESC(3U)  |
-  STM32_TIMINGR_SCLDEL(2U) | STM32_TIMINGR_SDADEL(2U) |
-  STM32_TIMINGR_SCLH(4U)   | STM32_TIMINGR_SCLL(4U),
-#else
-#error "Need Define STM32_I2C1SW and set correct TIMINGR settings"
-#endif
-  .cr1 = 0,     // CR1 register initialization.
-  .cr2 = 0      // CR2 register initialization.
+  .timingr  = STM32_TIMINGR_PRESC(0U)  |            /* 72MHz I2CCLK. ~ 600kHz i2c   */
+//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(4U) |
+//  STM32_TIMINGR_SCLH(31U)   | STM32_TIMINGR_SCLL(79U),
+
+  STM32_TIMINGR_SCLDEL(15U) | STM32_TIMINGR_SDADEL(15U) |
+  STM32_TIMINGR_SCLH(35U)   | STM32_TIMINGR_SCLL(85U),
+
+//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(4U) |
+//  STM32_TIMINGR_SCLH(48U)   | STM32_TIMINGR_SCLL(90U),
+  .cr1      = 0,
+  .cr2      = 0
 };
 
 static DACConfig dac1cfg1 = {

@@ -45,7 +45,7 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 // Minimum value is 2, freq change apply at next dsp measure, and need skip it
 #define DELAY_NORMAL          2
 // Delay for bands (depend set band 1 more fast (can change before next dsp buffer ready, need wait additional interval)
-#define DELAY_BAND_1_2        2
+#define DELAY_BAND_1_2        3
 #define DELAY_BAND_3_4        2
 // Band changes need set additional delay after reset PLL
 #define DELAY_BANDCHANGE_1_2  3

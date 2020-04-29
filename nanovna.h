@@ -19,6 +19,10 @@
  */
 #include "ch.h"
 
+#ifdef NANOVNA_F303
+#include "adc_F303.h"
+#endif
+
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
 
@@ -44,9 +48,9 @@
 // Optional sweep point
 #define POINTS_SET_51     51
 #define POINTS_SET_101   101
-//#define POINTS_SET_201   201
+#define POINTS_SET_201   201
 // Maximum sweep point count
-#define POINTS_COUNT     101
+#define POINTS_COUNT     201
 
 extern float measured[2][POINTS_COUNT][2];
 extern uint32_t frequencies[POINTS_COUNT];
@@ -164,21 +168,21 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  */
 
 // Offset of plot area
-#define OFFSETX 10
+#define OFFSETX 15
 #define OFFSETY  0
 
 // WIDTH better be n*(POINTS_COUNT-1)
-#define WIDTH  300
+#define WIDTH  455
 // HEIGHT = 8*GRIDY
-#define HEIGHT 232
+#define HEIGHT 304
 
 //#define NGRIDY 10
 #define NGRIDY 8
 
 #define FREQUENCIES_XPOS1 OFFSETX
-#define FREQUENCIES_XPOS2 206
-#define FREQUENCIES_XPOS3 135
-#define FREQUENCIES_YPOS  (240-7)
+#define FREQUENCIES_XPOS2 320
+#define FREQUENCIES_XPOS3 200
+#define FREQUENCIES_YPOS  (320-12)
 
 // GRIDX calculated depends from frequency span
 //#define GRIDY 29
@@ -197,14 +201,14 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 extern int16_t area_width;
 extern int16_t area_height;
 
-// font
-extern const uint8_t x5x7_bits [];
-#define FONT_GET_DATA(ch)   (&x5x7_bits[ch*7])
-#define FONT_GET_WIDTH(ch)  (8-(x5x7_bits[ch*7]&7))
-#define FONT_MAX_WIDTH      7
-#define FONT_WIDTH          5
-#define FONT_GET_HEIGHT     7
-#define FONT_STR_HEIGHT     8
+// font 7x11 font definition macros
+extern const uint8_t x7x11b_bits [];
+#define FONT_GET_DATA(ch)   (&x7x11b_bits[ch*11])
+#define FONT_GET_WIDTH(ch)  (8-(x7x11b_bits[ch*11]&7))
+#define FONT_MAX_WIDTH       8
+#define FONT_WIDTH           7
+#define FONT_GET_HEIGHT	    11
+#define FONT_STR_HEIGHT	    11
 
 extern const uint16_t numfont16x22[];
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*22])
@@ -295,10 +299,10 @@ typedef struct properties {
   int8_t _active_marker;
   uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
   uint8_t _marker_smith_format;
-  uint8_t reserved;
+  uint8_t _reserved[40];
   uint32_t checksum;
 } properties_t;
-//on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
+//on POINTS_COUNT = 201, sizeof(properties_t) == 0x2000
 
 extern int8_t previous_marker;
 extern config_t config;
@@ -361,8 +365,8 @@ extern volatile uint8_t redraw_request;
 // Define size of screen buffer in pixels (one pixel 16bit size)
 #define SPI_BUFFER_SIZE             2048
 
-#define LCD_WIDTH                   320
-#define LCD_HEIGHT                  240
+#define LCD_WIDTH                   480
+#define LCD_HEIGHT                  320
 
 #define DEFAULT_FG_COLOR            RGB565(255,255,255)
 #define DEFAULT_BG_COLOR            RGB565(  0,  0,  0)
@@ -408,6 +412,21 @@ void show_logo(void);
 
 #define FLASH_PAGESIZE 0x800
 
+#ifdef NANOVNA_F303
+#define SAVEAREA_MAX 7
+
+// Depend from config_t size, should be aligned by FLASH_PAGESIZE
+#define SAVE_CONFIG_SIZE        0x00001000
+// Depend from properties_t size, should be aligned by FLASH_PAGESIZE
+#define SAVE_PROP_CONFIG_SIZE   0x00002000
+
+// Save config_t and properties_t flash area (lash7  : org = 0x08030000, len = 64k from *.ld settings)
+// Properties save area follow after config
+// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  64k
+#define SAVE_CONFIG_ADDR        0x08030000
+#define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
+#define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
+#else
 #define SAVEAREA_MAX 5
 
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
@@ -421,6 +440,7 @@ void show_logo(void);
 #define SAVE_CONFIG_ADDR        0x08018000
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
+#endif
 
 #define CONFIG_MAGIC 0x434f4e45 /* 'CONF' */
 
@@ -521,7 +541,7 @@ int plot_printf(char *str, int, const char *fmt, ...);
 
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
-#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%06d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 60);}
+#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%06d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)

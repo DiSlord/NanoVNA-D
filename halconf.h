@@ -41,7 +41,11 @@
  * @brief   Enables the ADC subsystem.
  */
 #if !defined(HAL_USE_ADC) || defined(__DOXYGEN__)
+#if defined(NANOVNA_F303) 
+#define HAL_USE_ADC                 TRUE
+#else
 #define HAL_USE_ADC                 FALSE
+#endif
 #endif
 
 /**
@@ -179,7 +183,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(ADC_USE_WAIT) || defined(__DOXYGEN__)
-#define ADC_USE_WAIT                FALSE
+#define ADC_USE_WAIT                TRUE
 #endif
 
 /**

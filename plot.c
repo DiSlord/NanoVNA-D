@@ -111,9 +111,9 @@ static inline int
 circle_inout(int x, int y, int r)
 {
   int d = x*x + y*y - r*r;
-  if (d < -r)
+  if (d < -r+8)
     return 1;
-  if (d >  r)
+  if (d >  r-8)
     return -1;
   return 0;
 }
@@ -933,55 +933,67 @@ draw_refpos(int x, int y, int c)
   }
 }
 
-#define MARKER_WIDTH  7
-#define MARKER_HEIGHT 10
-#define X_MARKER_OFFSET 3
-#define Y_MARKER_OFFSET 10
-static const uint8_t marker_bitmap[]={
+#define MARKER_WIDTH  10
+#define MARKER_HEIGHT 13
+#define X_MARKER_OFFSET 4
+#define Y_MARKER_OFFSET 13
+static const uint16_t marker_bitmap[]={
   // Marker 1
-  0b11111110,
-  0b11101110,
-  0b11001110,
-  0b11101110,
-  0b11101110,
-  0b11101110,
-  0b11000110,
-  0b01111100,
-  0b00111000,
-  0b00010000,
+  0b1111111110000000,
+  0b1111001110000000,
+  0b1110001110000000,
+  0b1101001110000000,
+  0b1111001110000000,
+  0b1111001110000000,
+  0b1111001110000000,
+  0b1111001110000000,
+  0b1111001110000000,
+  0b0110000100000000,
+  0b0011111000000000,
+  0b0001110000000000,
+  0b0000100000000000,
   // Marker 2
-  0b11111110,
-  0b11000110,
-  0b10111010,
-  0b11111010,
-  0b11000110,
-  0b10111110,
-  0b10000010,
-  0b01111100,
-  0b00111000,
-  0b00010000,
+  0b1111111110000000,
+  0b1110000110000000,
+  0b1100110010000000,
+  0b1100110010000000,
+  0b1111100110000000,
+  0b1111001110000000,
+  0b1110011110000000,
+  0b1100111110000000,
+  0b1100000010000000,
+  0b0111111100000000,
+  0b0011111000000000,
+  0b0001110000000000,
+  0b0000100000000000,
   // Marker 3
-  0b11111110,
-  0b11000110,
-  0b10111010,
-  0b11100110,
-  0b11111010,
-  0b10111010,
-  0b11000110,
-  0b01111100,
-  0b00111000,
-  0b00010000,
+  0b1111111110000000,
+  0b1100000110000000,
+  0b1001110010000000,
+  0b1001110010000000,
+  0b1111110010000000,
+  0b1111000110000000,
+  0b1111110010000000,
+  0b1001110010000000,
+  0b1001110010000000,
+  0b0100000100000000,
+  0b0011111000000000,
+  0b0001110000000000,
+  0b0000100000000000,
   // Marker 4
-  0b11111110,
-  0b11110110,
-  0b11100110,
-  0b11010110,
-  0b10110110,
-  0b10110110,
-  0b10000010,
-  0b01110100,
-  0b00111000,
-  0b00010000,
+  0b1111111110000000,
+  0b1111100110000000,
+  0b1111000110000000,
+  0b1110000110000000,
+  0b1100100110000000,
+  0b1001100110000000,
+  0b1001100110000000,
+  0b1000000010000000,
+  0b1111100110000000,
+  0b0111100100000000,
+  0b0011111000000000,
+  0b0001110000000000,
+  0b0000100000000000,
 };
 
 static void
@@ -990,12 +1002,12 @@ draw_marker(int x, int y, int c, int ch)
   int y0 = y, j;
   for (j = 0; j < MARKER_HEIGHT; j++, y0++) {
     int x0 = x;
-    uint8_t bits = marker_bitmap[ch * MARKER_HEIGHT + j];
+    uint16_t bits = marker_bitmap[ch * MARKER_HEIGHT + j];
     bool force_color = false;
     while (bits) {
-      if (bits & 0x80) force_color = true;
+      if (bits & 0x8000) force_color = true;
       if (x0 >= 0 && x0 < CELLWIDTH && y0 >= 0 && y0 < CELLHEIGHT) {
-        if (bits & 0x80)
+        if (bits & 0x8000)
           cell_buffer[y0 * CELLWIDTH + x0] = c;
         else if (force_color)
           cell_buffer[y0 * CELLWIDTH + x0] = DEFAULT_BG_COLOR;
@@ -1481,21 +1493,21 @@ cell_draw_marker_info(int x0, int y0)
       ili9341_set_foreground(config.trace_color[t]);
       if (mk == active_marker)
         cell_drawstring(S_SARROW, xpos, ypos);
-      xpos += 5;
+      xpos += 6;
       plot_printf(buf, sizeof buf, "M%d", mk+1);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 13;
+      xpos += 19;
       //trace_get_info(t, buf, sizeof buf);
       uint32_t freq = frequencies[markers[mk].index];
       if (uistat.marker_delta && mk != active_marker) {
         uint32_t freq1 = frequencies[markers[active_marker].index];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
-        plot_printf(buf, sizeof buf, S_DELTA"%.9qHz", delta);
+        plot_printf(buf, sizeof buf, S_DELTA"%qHz", delta);
       } else {
-        plot_printf(buf, sizeof buf, "%.10qHz", freq);
+        plot_printf(buf, sizeof buf, "%qHz", freq);
       }
       cell_drawstring(buf, xpos, ypos);
-      xpos += 67;
+      xpos += 116;
       if (uistat.marker_delta && mk != active_marker)
         trace_get_value_string_delta(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index, markers[active_marker].index);
       else
@@ -1514,12 +1526,12 @@ cell_draw_marker_info(int x0, int y0)
       plot_printf(buf, sizeof buf, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       ili9341_set_foreground(DEFAULT_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 27;
+      xpos += 35;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         uint32_t freq  = frequencies[idx];
         uint32_t freq1 = frequencies[idx0];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
-        plot_printf(buf, sizeof buf, "%c%.13qHz", freq >= freq1 ? '+' : '-', delta);
+        plot_printf(buf, sizeof buf, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
         plot_printf(buf, sizeof buf, "%Fs (%Fm)", time_of_index(idx) - time_of_index(idx0), distance_of_index(idx) - distance_of_index(idx0));
       }
@@ -1535,14 +1547,14 @@ cell_draw_marker_info(int x0, int y0)
       ili9341_set_foreground(config.trace_color[t]);
       if (t == uistat.current_trace)
         cell_drawstring(S_SARROW, xpos, ypos);
-      xpos += 5;
+      xpos += FONT_WIDTH;
       plot_printf(buf, sizeof buf, "CH%d", trace[t].channel);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 19;
+      xpos += 24;
 
       int n = trace_get_info(t, buf, sizeof buf);
       cell_drawstring(buf, xpos, ypos);
-      xpos += n * 5 + 2;
+      xpos += n * FONT_WIDTH + 2;
       //xpos += 60;
       trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], idx);
       ili9341_set_foreground(DEFAULT_FG_COLOR);
@@ -1557,10 +1569,10 @@ cell_draw_marker_info(int x0, int y0)
     ili9341_set_foreground(DEFAULT_FG_COLOR);
     if (uistat.lever_mode == LM_MARKER)
       cell_drawstring(S_SARROW, xpos, ypos);
-    xpos += 5;
+    xpos += FONT_WIDTH;
     plot_printf(buf, sizeof buf, "M%d:", active_marker+1);
     cell_drawstring(buf, xpos, ypos);
-    xpos += 19;
+    xpos += 24;
 
     if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
       plot_printf(buf, sizeof buf, "%qHz", frequencies[idx]);
@@ -1614,7 +1626,7 @@ draw_frequencies(void)
     buf2[0] = S_SARROW[0];
   ili9341_drawstring(buf1, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
   ili9341_drawstring(buf2, FREQUENCIES_XPOS2, FREQUENCIES_YPOS);
-  plot_printf(buf1, sizeof(buf1), "bw:%uHz %up", get_bandwidth_frequency(), sweep_points);
+  plot_printf(buf1, sizeof(buf1), "bw:%uHz  %up", get_bandwidth_frequency(), sweep_points);
   ili9341_set_foreground(DEFAULT_GRID_COLOR);
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }
@@ -1682,7 +1694,7 @@ static void draw_battery_status(void)
   string_buf[x++] = 0b10000001;
   string_buf[x++] = 0b11111111;
   // Draw battery
-  blit8BitWidthBitmap(1, 1, 8, x, string_buf);
+  blit8BitWidthBitmap(3, 2, 8, x, string_buf);
 }
 
 void

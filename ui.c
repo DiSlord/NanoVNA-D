@@ -368,11 +368,11 @@ show_version(void)
   ili9341_set_background(DEFAULT_BG_COLOR);
 
   ili9341_clear_screen();
-  uint16_t shift = 0b0000010000111110;
+  uint16_t shift = 0b0001000011111110;
   ili9341_drawstring_size(info_about[i++], x , y, 4);
   while (info_about[i]) {
     do {shift>>=1; y+=5;} while (shift&1);
-    ili9341_drawstring(info_about[i++], x, y+=5);
+    ili9341_drawstring(info_about[i++], x, y+=9);
   }
   while (true) {
     if (touch_check() == EVT_TOUCH_PRESSED)
@@ -853,6 +853,8 @@ const menuitem_t menu_save[] = {
   { MT_CALLBACK, 2, "SAVE 2", menu_save_cb },
   { MT_CALLBACK, 3, "SAVE 3", menu_save_cb },
   { MT_CALLBACK, 4, "SAVE 4", menu_save_cb },
+  { MT_CALLBACK, 5, "SAVE 5", menu_save_cb },
+  { MT_CALLBACK, 6, "SAVE 6", menu_save_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -958,6 +960,7 @@ const menuitem_t menu_display[] = {
 const menuitem_t menu_sweep_points[] = {
   { MT_CALLBACK, POINTS_SET_51,  " 51 points", menu_points_cb },
   { MT_CALLBACK, POINTS_SET_101, "101 points", menu_points_cb },
+  { MT_CALLBACK, POINTS_SET_201, "201 points", menu_points_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1030,6 +1033,8 @@ const menuitem_t menu_recall[] = {
   { MT_CALLBACK, 2, "RECALL 2", menu_recall_cb },
   { MT_CALLBACK, 3, "RECALL 3", menu_recall_cb },
   { MT_CALLBACK, 4, "RECALL 4", menu_recall_cb },
+  { MT_CALLBACK, 5, "RECALL 5", menu_recall_cb },
+  { MT_CALLBACK, 6, "RECALL 6", menu_recall_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1046,7 +1051,7 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK, 0, "SAVE", menu_config_save_cb },
   { MT_SUBMENU,  0, "\2SWEEP\0POINTS", menu_sweep_points },
   { MT_CALLBACK, 0, "VERSION", menu_config_cb },
-  { MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
+//  { MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1144,18 +1149,18 @@ menu_invoke(int item)
 }
 
 // Maximum menu buttons count
-#define MENU_BUTTON_MAX     7
+#define MENU_BUTTON_MAX     8
 // Menu buttons size
-#define MENU_BUTTON_WIDTH  60
-#define MENU_BUTTON_HEIGHT 30
+#define MENU_BUTTON_WIDTH  80
+#define MENU_BUTTON_HEIGHT 38
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT   30
 
-#define KP_WIDTH     48
-#define KP_HEIGHT    48
+#define KP_WIDTH     64
+#define KP_HEIGHT    64
 // Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-64-KP_WIDTH*4))
-#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 12 )
+#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
+#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
 
 // Key names
 #define KP_0          0
@@ -1446,12 +1451,12 @@ draw_menu_buttons(const menuitem_t *menu)
     ili9341_set_foreground(fg);
     ili9341_set_background(bg);
     if (menu_is_multiline(menu[i].label, &l1, &l2)) {
-      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+5, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+1+FONT_GET_HEIGHT+2, bg);
-      ili9341_drawstring(l1, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+7);
-      ili9341_drawstring(l2, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+7+FONT_GET_HEIGHT+1);
+      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+4, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+1+FONT_GET_HEIGHT+2, bg);
+      ili9341_drawstring(l1, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+6);
+      ili9341_drawstring(l2, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+6+FONT_GET_HEIGHT+1);
     } else {
-      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+8, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+2, bg);
-      ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+10);
+      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+10, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+2, bg);
+      ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+12);
     }
   }
 }
@@ -2260,6 +2265,7 @@ static const EXTConfig extcfg = {
 
 static const GPTConfig gpt3cfg = {
   1000,    /* 1kHz timer clock.*/
+//  2000,    /* 2kHz timer clock.*/
   NULL,   /* Timer callback.*/
   0x0020, /* CR2:MMS=02 to output TRGO */
   0
