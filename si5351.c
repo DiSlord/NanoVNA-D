@@ -45,18 +45,18 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 // Minimum value is 2, freq change apply at next dsp measure, and need skip it
 #define DELAY_NORMAL          2
 // Delay for bands (depend set band 1 more fast (can change before next dsp buffer ready, need wait additional interval)
-#define DELAY_BAND_1_2        2
-#define DELAY_BAND_3_4        2
+#define DELAY_BAND_1_2        3
+#define DELAY_BAND_3_4        3
 // Band changes need set additional delay after reset PLL
-#define DELAY_BANDCHANGE_1_2  3
-#define DELAY_BANDCHANGE_3_4  4
+#define DELAY_BANDCHANGE_1_2  4
+#define DELAY_BANDCHANGE_3_4  5
 // Delay after set new PLL values, and send reset (on band 1 unstable if less then 900, on 2000-5000 no amplitude spike on change)
 #define DELAY_RESET_PLL_BEFORE    1000
-#define DELAY_RESET_PLL_AFTER     4000
+#define DELAY_RESET_PLL_AFTER     3500
 
 #else
 // Debug timer set
-uint16_t timings[8]={2,3,2,3,4,1000, 4000};
+uint16_t timings[16]={2,2,2,4,5,1000, 3500, 0};
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_NORMAL          timings[0]
 // Delay for bands (depend set band 1 more fast (can change before next dsp buffer ready, need wait additional interval)
@@ -66,7 +66,7 @@ void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BANDCHANGE_1_2  timings[3]
 #define DELAY_BANDCHANGE_3_4  timings[4]
 // Delay after set new PLL values, and send reset (on band 1-2 unstable if less then 900, on 2000-5000 no amplitude spike on change)
-#define DELAY_RESET_PLL_BEFORE       timings[5]
+#define DELAY_RESET_PLL_BEFORE      timings[5]
 #define DELAY_RESET_PLL_AFTER       timings[6]
 #endif
 
@@ -122,7 +122,7 @@ si5351_write(uint8_t reg, uint8_t dat)
 const uint8_t si5351_configs[] = {
   2, SI5351_REG_3_OUTPUT_ENABLE_CONTROL, 0xff,
   4, SI5351_REG_16_CLK0_CONTROL, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN,
-  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD_8PF,
+  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD_6PF|(0<<3)|(0<<0),
 // All of this init code run late on sweep
 #if 0
   // setup PLL (26MHz * 32 = 832MHz, 32/2-2=14)
@@ -483,9 +483,6 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       if (current_band != band) {
         si5351_setupPLL(SI5351_REG_PLL_A,   pll_n, 0, 1);
         si5351_setupPLL(SI5351_REG_PLL_B, PLL_N_2, 0, 1);
-        si5351_set_frequency_fixedpll(
-            2, XTALFREQ * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1,
-            SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
         delay = DELAY_BANDCHANGE_1_2;
       } else {
         delay = DELAY_BAND_1_2;
@@ -495,6 +492,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
                                     drive_strength | SI5351_CLK_PLL_SELECT_A);
       si5351_set_frequency_fixedpll(1, (uint64_t)mul * XTALFREQ * pll_n, freq, rdiv,
                                     drive_strength | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(2, XTALFREQ * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1,
+                                    SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       break;
     case 3:  // fdiv = 8, f 100-130   PLL 800-1040
     case 4:  // fdiv = 6, f 130-170   PLL 780-1050

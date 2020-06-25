@@ -61,8 +61,6 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLED_DUMP
 // Allow get threads debug info
 //#define ENABLE_THREADS_COMMAND
-// RTC time not used
-//#define ENABLE_TIME_COMMAND
 // Enable vbat_offset command, allow change battery voltage correction in config
 #define ENABLE_VBAT_OFFSET_COMMAND
 // Info about NanoVNA, need fore soft
@@ -71,7 +69,9 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_COLOR_COMMAND
 // Enable I2C command for send data to AIC3204, used for debug
 //#define ENABLE_I2C_COMMAND
+#define ENABLE_LCD_COMMAND
 
+//static void apply_error_term_at(int i);
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
 static void apply_edelay(void);
@@ -80,12 +80,10 @@ static uint16_t get_sweep_mode(void);
 static void cal_interpolate(int s);
 static void update_frequencies(void);
 static void set_frequencies(uint32_t start, uint32_t stop, uint16_t points);
-static bool sweep(bool break_on_operation);
+static bool sweep(bool break_on_operation, uint16_t sweep_mode);
 static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
-
-#define FREQ_HARMONICS (config.harmonic_freq_threshold)
 
 // Obsolete, always use interpolate
 #define  cal_auto_interpolate  TRUE
@@ -106,10 +104,10 @@ uint32_t frequencies[POINTS_COUNT];
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
-  BOARD_NAME,
+  "Board: " BOARD_NAME,
   "2016-2020 Copyright @edy555",
   "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: " VERSION,
+  "Version: 0.9.3.4 beta FAT16/FAT32/ExFAT- SD Card, by DiSlord",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -119,7 +117,7 @@ const char *info_about[]={
   0 // sentinel
 };
 
-static THD_WORKING_AREA(waThread1, 640);
+static THD_WORKING_AREA(waThread1, 768);
 static THD_FUNCTION(Thread1, arg)
 {
   (void)arg;
@@ -128,7 +126,7 @@ static THD_FUNCTION(Thread1, arg)
   while (1) {
     bool completed = false;
     if (sweep_mode&(SWEEP_ENABLE|SWEEP_ONCE)) {
-      completed = sweep(true);
+      completed = sweep(true, get_sweep_mode());
       sweep_mode&=~SWEEP_ONCE;
     } else {
       __WFI();
@@ -335,12 +333,12 @@ VNA_SHELL_FUNCTION(cmd_reset)
     ;
 }
 
-const uint8_t gain_table[][2] = {
-    {  0,  0 },     // 1st:    0 ~  300MHz
+static const uint8_t gain_table[][2] = {
+    {  5,  5 },     // 1st:    0 ~  300MHz
     { 50, 50 },     // 2nd:  300 ~  900MHz
-    { 74, 75 },     // 3th:  900 ~ 1500MHz
-    { 82, 85 },     // 4th: 1500 ~ 1800MHz
-    { 92, 95 },     // 5th: 2100 ~ 2400MHz
+    { 79, 80 },     // 3th:  900 ~ 1500MHz
+    { 84, 85 },     // 4th: 1500 ~ 2100MHz
+    { 95, 95 },     // 5th: 2100 ~ 2700MHz
 };
 
 #define DELAY_GAIN_CHANGE 4
@@ -517,17 +515,32 @@ VNA_SHELL_FUNCTION(cmd_power)
 //  set_frequency(frequency);
 }
 
-#ifdef ENABLE_TIME_COMMAND
-#if HAL_USE_RTC == FALSE
-#error "Error cmd_time require define HAL_USE_RTC = TRUE in halconf.h"
-#endif
+#ifdef __USE_RTC__
 VNA_SHELL_FUNCTION(cmd_time)
 {
-  RTCDateTime timespec;
   (void)argc;
   (void)argv;
-  rtcGetTime(&RTCD1, &timespec);
-  shell_printf("%d/%d/%d %d\r\n", timespec.year+1980, timespec.month, timespec.day, timespec.millisecond);
+  uint32_t  dt_buf[2];
+  dt_buf[0] = rtc_get_tr_bcd(); // TR should be read first for sync
+  dt_buf[1] = rtc_get_dr_bcd(); // DR should be read second
+  static const uint8_t idx_to_time[] = {6,5,4,2,  1,  0};
+  static const char       time_cmd[] = "y|m|d|h|min|sec";
+  //            0    1   2       4      5     6
+  // time[] ={sec, min, hr, 0, day, month, year, 0}
+  uint8_t   *time = (uint8_t*)dt_buf;
+
+  if (argc!=2) goto usage;
+  int idx = get_str_index(argv[0], time_cmd);
+  uint32_t val = my_atoui(argv[1]);
+  if (idx < 0 || val > 99)
+    goto usage;
+  // Write byte value in struct
+  time[idx_to_time[idx]] = ((val/10)<<4)|(val%10); // value in bcd format
+  rtc_set_time(dt_buf[1], dt_buf[0]);
+  return;
+usage:
+  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
+  shell_printf("usage: time [%s] 0-99\r\n", time_cmd);
 }
 #endif
 
@@ -623,7 +636,8 @@ VNA_SHELL_FUNCTION(cmd_dump)
   if (argc == 1)
     dump_selection = my_atoi(argv[0]);
 
-  wait_dsp(3);
+  dsp_start(3);
+  dsp_wait();
 
   len = AUDIO_BUFFER_LEN;
   if (dump_selection == 1 || dump_selection == 2)
@@ -642,18 +656,15 @@ VNA_SHELL_FUNCTION(cmd_capture)
 // read pixel count at one time (PART*2 bytes required for read buffer)
   (void)argc;
   (void)argv;
-  int i, y;
+  int y;
 #if SPI_BUFFER_SIZE < (3*LCD_WIDTH + 1)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
   for (y = 0; y < LCD_HEIGHT; y += 2) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    uint8_t *buf = (uint8_t *)spi_buffer;
     ili9341_read_memory(0, y, LCD_WIDTH, 2, 2 * LCD_WIDTH, spi_buffer);
-    for (i = 0; i < 4 * LCD_WIDTH; i++) {
-      streamPut(shell_stream, *buf++);
-    }
+    streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
   }
 }
 
@@ -840,21 +851,23 @@ static uint16_t get_sweep_mode(void){
 }
 
 // main loop for measurement
-bool sweep(bool break_on_operation)
+bool sweep(bool break_on_operation, uint16_t sweep_mode)
 {
   int delay;
-  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
-  if (break_on_operation && (sweep_mode = get_sweep_mode()) == 0)
+  if (break_on_operation && sweep_mode == 0)
     return false;
-
+//  systime_t time = chVTGetSystemTimeX();
+//  systime_t t = 0;
   // blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
   // Power stabilization after LED off, before measure
   int st_delay = 3;
   for (; p_sweep < sweep_points; p_sweep++) {         // 5300
     if (frequencies[p_sweep] == 0) break;
+//    t-= chVTGetSystemTimeX();
     delay = set_frequency(frequencies[p_sweep]);
+//    t+= chVTGetSystemTimeX();
     if (sweep_mode & SWEEP_CH0_MEASURE){
       tlv320aic3204_select(0);                   // CH0:REFLECTION, reset and begin measure
       DSP_START(delay+st_delay);
@@ -869,7 +882,7 @@ bool sweep(bool break_on_operation)
     }
     if (sweep_mode & SWEEP_CH1_MEASURE){
       tlv320aic3204_select(1);                   // CH1:TRANSMISSION, reset and begin measure
-      DSP_START(st_delay+delay);
+      DSP_START(delay+st_delay);
       //================================================
       // Place some code thats need execute while delay
       //================================================
@@ -882,6 +895,7 @@ bool sweep(bool break_on_operation)
 // Display SPI made noise on measurement (can see in CW mode)
 //    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
   }
+//  {char string_buf[32];plot_printf(string_buf, sizeof string_buf, "T:%06d:%06d", t, chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 300);}
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
   return true;
@@ -935,22 +949,24 @@ VNA_SHELL_FUNCTION(cmd_scan)
     }
     sweep_points = points;
   }
-
+  uint16_t mask = 0;
+  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+  if (argc == 4) {
+    mask = my_atoui(argv[3]);
+    sweep_mode = (mask>>1)&3;
+  }
   set_frequencies(start, stop, points);
   if (cal_auto_interpolate && (cal_status & CALSTAT_APPLY))
     cal_interpolate(lastsaveid);
   pause_sweep();
-  sweep(false);
+  sweep(false, sweep_mode);
   // Output data after if set (faster data recive)
-  if (argc == 4) {
-    uint16_t mask = my_atoui(argv[3]);
-    if (mask) {
-      for (i = 0; i < points; i++) {
-        if (mask & 1) shell_printf("%u ", frequencies[i]);
-        if (mask & 2) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
-        if (mask & 4) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
-        shell_printf("\r\n");
-      }
+  if (mask) {
+    for (i = 0; i < points; i++) {
+      if (mask & 1) shell_printf("%u ", frequencies[i]);
+      if (mask & 2) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
+      if (mask & 4) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
+      shell_printf("\r\n");
     }
   }
 }
@@ -1402,28 +1418,30 @@ static void apply_edelay(void)
 void
 cal_collect(int type)
 {
-  ensure_edit_config();
+  //ensure_edit_config();
+  active_props = &current_props;
   int dst, src;
   switch (type) {
     case CAL_LOAD:  cal_status|= CALSTAT_LOAD;  dst = CAL_LOAD;  src = 0; break;
-    case CAL_OPEN:  cal_status|= CALSTAT_OPEN;  dst = CAL_OPEN;  src = 0; cal_status&= ~(CALSTAT_ES|CALSTAT_APPLY); break;
-    case CAL_SHORT: cal_status|= CALSTAT_SHORT; dst = CAL_SHORT; src = 0; cal_status&= ~(CALSTAT_ER|CALSTAT_APPLY); break;
+    case CAL_OPEN:  cal_status|= CALSTAT_OPEN;  dst = CAL_OPEN;  src = 0; cal_status&= ~(CALSTAT_ES); break;
+    case CAL_SHORT: cal_status|= CALSTAT_SHORT; dst = CAL_SHORT; src = 0; cal_status&= ~(CALSTAT_ER); break;
     case CAL_THRU:  cal_status|= CALSTAT_THRU;  dst = CAL_THRU;  src = 1; break;
     case CAL_ISOLN: cal_status|= CALSTAT_ISOLN; dst = CAL_ISOLN; src = 1; break;
     default:
       return;
   }
-  // Run sweep for collect data (use minimum BANDWIDTH_100, or bigger if set)
+  // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config.bandwidth;  // store current setting
-  if (bw < BANDWIDTH_100)
-    config.bandwidth = BANDWIDTH_100;
-
+  uint16_t status = cal_status;
+  if (bw < BANDWIDTH_30)
+    config.bandwidth = BANDWIDTH_30;
+  cal_status&= ~(CALSTAT_APPLY);
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
-
-  sweep(false);
+  sweep(false, src == 0 ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
   config.bandwidth = bw;          // restore
+  cal_status = status;
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
   redraw_request |= REDRAW_CAL_STATUS;
@@ -1447,8 +1465,9 @@ cal_done(void)
     eterm_set(ETERM_ES, 0.0, 0.0);
     cal_status &= ~CALSTAT_SHORT;
     eterm_calc_er(-1);
-  } else {
+  } else if (!(cal_status & CALSTAT_ER)){
     eterm_set(ETERM_ER, 1.0, 0.0);
+  } else if (!(cal_status & CALSTAT_ES)) {
     eterm_set(ETERM_ES, 0.0, 0.0);
   }
     
@@ -1456,7 +1475,7 @@ cal_done(void)
     eterm_set(ETERM_EX, 0.0, 0.0);
   if (cal_status & CALSTAT_THRU) {
     eterm_calc_et();
-  } else {
+  } else if (!(cal_status & CALSTAT_ET)) {
     eterm_set(ETERM_ET, 1.0, 0.0);
   }
 
@@ -1657,7 +1676,8 @@ static const struct {
   { "REAL",   NGRIDY/2,  0.25 },
   { "IMAG",   NGRIDY/2,  0.25 },
   { "R",      NGRIDY/2, 100.0 },
-  { "X",      NGRIDY/2, 100.0 }
+  { "X",      NGRIDY/2, 100.0 },
+  { "Q",             0,  10.0 }
 };
 
 static const char * const trc_channel_name[] = {
@@ -1758,11 +1778,11 @@ VNA_SHELL_FUNCTION(cmd_trace)
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
-#if MAX_TRACE_TYPE != 12
+#if MAX_TRACE_TYPE != 13
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
-  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_OFF
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|off";
+  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|q|off";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     set_trace_type(t, type);
@@ -2020,13 +2040,14 @@ VNA_SHELL_FUNCTION(cmd_test)
   //extern int touch_x, touch_y;
   //shell_printf("adc: %d %d\r\n", touch_x, touch_y);
 #endif
-
+#if 0
   while (argc > 1) {
-    int x, y;
+    int16_t x, y;
     touch_position(&x, &y);
     shell_printf("touch: %d %d\r\n", x, y);
     chThdSleepMilliseconds(200);
   }
+#endif
 }
 
 VNA_SHELL_FUNCTION(cmd_gain)
@@ -2217,6 +2238,18 @@ VNA_SHELL_FUNCTION(cmd_i2c){
 }
 #endif
 
+#ifdef ENABLE_LCD_COMMAND
+VNA_SHELL_FUNCTION(cmd_lcd){
+  uint8_t d[VNA_SHELL_MAX_ARGUMENTS];
+  if (argc == 0) return;
+  for (int i=0;i<argc;i++)
+    d[i] =  my_atoui(argv[i]);
+  uint32_t ret = lcd_send_command(d[0], argc-1, &d[1]);
+  shell_printf("ret = 0x%08X\r\n", ret);
+  chThdSleepMilliseconds(5);
+}
+#endif
+
 #ifdef ENABLE_THREADS_COMMAND
 #if CH_CFG_USE_REGISTRY == FALSE
 #error "Threads Requite enabled CH_CFG_USE_REGISTRY in chconf.h"
@@ -2268,7 +2301,7 @@ static const VNAShellCommand commands[] =
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX},
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
     {"bandwidth"   , cmd_bandwidth   , 0},
-#ifdef ENABLE_TIME_COMMAND
+#ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
 #endif
     {"dac"         , cmd_dac         , 0},
@@ -2314,6 +2347,9 @@ static const VNAShellCommand commands[] =
 #endif
 #ifdef ENABLE_I2C_COMMAND
     {"i2c"         , cmd_i2c         , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_LCD_COMMAND
+    {"lcd"         , cmd_lcd         , CMD_WAIT_MUTEX},
 #endif
 #ifdef ENABLE_THREADS_COMMAND
     {"threads"     , cmd_threads     , 0},
@@ -2386,6 +2422,11 @@ static void VNAShell_executeLine(char *line)
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
+#if 0 // debug console log
+  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_drawstring(lp, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
+  osalThreadSleepMilliseconds(1000);
+#endif
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
     while (*lp == ' ' || *lp == '\t') lp++;
@@ -2472,6 +2513,11 @@ int main(void)
 {
   halInit();
   chSysInit();
+#ifdef __USE_RTC__
+  rtc_init(); // Initialize RTC library
+#endif
+  // Speedup flash latency
+  FLASH->ACR= FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_0;
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
@@ -2571,7 +2617,50 @@ void HardFault_Handler(void)
 
 void hard_fault_handler_c(uint32_t *sp) 
 {
+#if 0
+  uint32_t r0  = sp[0];
+  uint32_t r1  = sp[1];
+  uint32_t r2  = sp[2];
+  uint32_t r3  = sp[3];
+  register uint32_t  r4 __asm("r4");
+  register uint32_t  r5 __asm("r5");
+  register uint32_t  r6 __asm("r6");
+  register uint32_t  r7 __asm("r7");
+  register uint32_t  r8 __asm("r8");
+  register uint32_t  r9 __asm("r9");
+  register uint32_t r10 __asm("r10");
+  register uint32_t r11 __asm("r11");
+  uint32_t r12 = sp[4];
+  uint32_t lr  = sp[5];
+  uint32_t pc  = sp[6];
+  uint32_t psr = sp[7];
+  int y = 0;
+  int x = 20;
+  char buf[16];
+  ili9341_set_background(0x0000);
+  ili9341_set_foreground(0xFFFF);
+  plot_printf(buf, sizeof(buf), "SP  0x%08x",  (uint32_t)sp);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R0  0x%08x",  r0);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R1  0x%08x",  r1);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R2  0x%08x",  r2);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R3  0x%08x",  r3);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R4  0x%08x",  r4);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R5  0x%08x",  r5);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R6  0x%08x",  r6);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R7  0x%08x",  r7);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R8  0x%08x",  r8);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R9  0x%08x",  r9);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R10 0x%08x", r10);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R11 0x%08x", r11);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "R12 0x%08x", r12);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "LR  0x%08x",  lr);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "PC  0x%08x",  pc);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  plot_printf(buf, sizeof(buf), "PSR 0x%08x", psr);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+
+  shell_printf("===================================\r\n");
+#else
   (void)sp;
+#endif
   while (true) {
   }
 }

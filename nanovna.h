@@ -19,12 +19,10 @@
  */
 #include "ch.h"
 
-#ifdef NANOVNA_F303
-#include "adc_F303.h"
-#endif
-
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
+// Add RTC clock support (need enable if use SD card)
+#define __USE_RTC__
 
 /*
  * main.c
@@ -37,7 +35,7 @@
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 // Frequency offset (sin_cos table in dsp.c generated for 6k, 8k, 10k, if change need create new table )
-#define FREQUENCY_OFFSET         8000
+#define FREQUENCY_OFFSET         12000
 // Use real time build table (undef for use constant)
 //#define USE_VARIABLE_OFFSET
 // Speed of light const
@@ -124,9 +122,13 @@ extern const char *info_about[];
 // 5ms @ 96kHz
 // Define aic3204 source clock frequency (for 8MHz used fractional multiplier, and possible little phase error)
 //#define AUDIO_CLOCK_REF       ( 8000000U)
-#define AUDIO_CLOCK_REF       (10752000U)
+//#define AUDIO_CLOCK_REF       (10752000U)
+// Disable AIC PLL clock, use input as CODEC_CLKIN
+#define AUDIO_CLOCK_REF       (86016000U)
+
 // Define ADC sample rate
 #define AUDIO_ADC_FREQ        (96000)
+//#define AUDIO_ADC_FREQ        (48000)
 // Define sample count for one step measure
 #define AUDIO_SAMPLES_COUNT   (48)
 // Buffer contain left and right channel samples (need x2)
@@ -226,12 +228,12 @@ extern const uint16_t numfont16x22[];
 #define S_OHM   "\036"
 
 // trace 
-#define MAX_TRACE_TYPE 12
+#define MAX_TRACE_TYPE 13
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_OFF
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
 };
 // Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X))
+#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Q))
 
 // LOGMAG: SCALE, REFPOS, REFVAL
 // PHASE: SCALE, REFPOS, REFVAL
@@ -407,6 +409,37 @@ void show_version(void);
 void show_logo(void);
 
 /*
+ * rtc.c
+ */
+#ifdef __USE_RTC__
+#define RTC_START_YEAR          2000
+
+#define RTC_DR_YEAR(dr)         (((dr)>>16)&0xFF)
+#define RTC_DR_MONTH(dr)        (((dr)>> 8)&0xFF)
+#define RTC_DR_DAY(dr)          (((dr)>> 0)&0xFF)
+
+#define RTC_TR_HOUR(dr)         (((tr)>>16)&0xFF)
+#define RTC_TR_MIN(dr)          (((tr)>> 8)&0xFF)
+#define RTC_TR_SEC(dr)          (((tr)>> 0)&0xFF)
+
+// Init RTC
+void rtc_init(void);
+// Then read time and date TR should read first, after DR !!!
+// Get RTC time as bcd structure in 0x00HHMMSS
+#define rtc_get_tr_bcd() (RTC->TR & 0x007F7F7F)
+// Get RTC date as bcd structure in 0x00YYMMDD (remove day of week information!!!!)
+#define rtc_get_dr_bcd() (RTC->DR & 0x00FF1F3F)
+// read TR as 0x00HHMMSS in bin (TR should be read first for sync)
+uint32_t rtc_get_tr_bin(void);
+// read DR as 0x00YYMMDD in bin (DR should be read second)
+uint32_t rtc_get_dr_bin(void);
+// Read time in FAT filesystem format
+uint32_t rtc_get_FAT(void);
+// Write date and time (need in bcd format!!!)
+void rtc_set_time(uint32_t dr, uint32_t tr);
+#endif
+
+/*
  * flash.c
  */
 
@@ -420,7 +453,7 @@ void show_logo(void);
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_PROP_CONFIG_SIZE   0x00002000
 
-// Save config_t and properties_t flash area (lash7  : org = 0x08030000, len = 64k from *.ld settings)
+// Save config_t and properties_t flash area (see flash7  : org = 0x08030000, len = 64k from *.ld settings)
 // Properties save area follow after config
 // len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  64k
 #define SAVE_CONFIG_ADDR        0x08030000
@@ -433,7 +466,6 @@ void show_logo(void);
 #define SAVE_CONFIG_SIZE        0x00000800
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_PROP_CONFIG_SIZE   0x00001800
-
 // Save config_t and properties_t flash area (see flash7  : org = 0x08018000, len = 32k from *.ld settings)
 // Properties save area follow after config
 // len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00008000  32k
@@ -525,12 +557,14 @@ void enter_dfu(void);
 /*
  * adc.c
  */
+#define rccEnableWWDG(lp) rccEnableAPB1(RCC_APB1ENR_WWDGEN, lp)
+#define ADC_TOUCH_X  ADC_CHANNEL_IN3
+#define ADC_TOUCH_Y  ADC_CHANNEL_IN4
 
 void adc_init(void);
 uint16_t adc_single_read(uint32_t chsel);
-void adc_start_analog_watchdogd(uint32_t chsel);
+void adc_start_analog_watchdogd(void);
 void adc_stop(void);
-void adc_interrupt(void);
 int16_t adc_vbat_read(void);
 
 /*

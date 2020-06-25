@@ -40,9 +40,7 @@
 #define STM32_PVD_ENABLE                    FALSE
 #define STM32_PLS                           STM32_PLS_LEV0
 #define STM32_HSI_ENABLED                   FALSE
-#define STM32_LSI_ENABLED                   TRUE
 #define STM32_HSE_ENABLED                   TRUE
-#define STM32_LSE_ENABLED                   FALSE
 #define STM32_SW                            STM32_SW_PLL
 #define STM32_PLLSRC                        STM32_PLLSRC_HSE
 #define STM32_PREDIV_VALUE                  1
@@ -61,9 +59,29 @@
 //#define STM32_I2C2SW                        STM32_I2C2SW_SYSCLK
 #define STM32_TIM1SW                        STM32_TIM1SW_PCLK2
 #define STM32_TIM8SW                        STM32_TIM8SW_PCLK2
-#define STM32_RTCSEL                        STM32_RTCSEL_LSI
 #define STM32_USB_CLOCK_REQUIRED            TRUE
 #define STM32_USBPRE                        STM32_USBPRE_DIV1P5
+
+/*
+ * RTC driver system settings for stm32f303
+ */
+
+#ifndef VNA_USE_LSE
+// Use 40kHz LSI
+#define STM32_LSE_ENABLED                   FALSE
+#define STM32_LSI_ENABLED                   TRUE
+#define STM32_RTCSEL                        STM32_RTCSEL_LSI
+#define STM32_RTC_PRESA_VALUE               40
+#define STM32_RTC_PRESS_VALUE               1000
+#else
+// Use 32768Hz LSE
+#define STM32_LSE_ENABLED                   TRUE
+#define STM32_LSI_ENABLED                   FALSE
+#define STM32_RTCSEL                        STM32_RTCSEL_LSE
+#define STM32_RTC_PRESA_VALUE               32
+#define STM32_RTC_PRESS_VALUE               1024
+#define STM32_LSEDRV                        (3 << 3)
+#endif
 
 /*
  * ADC driver system settings.
@@ -195,6 +213,8 @@
 #define STM32_SPI_USE_SPI1                  TRUE
 #define STM32_SPI_USE_SPI2                  FALSE
 #define STM32_SPI_USE_SPI3                  FALSE
+#define STM32_SPI_SPI1_RX_DMA_STREAM        STM32_DMA_STREAM_ID(1, 2)
+#define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID(1, 3)
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI1_IRQ_PRIORITY         2

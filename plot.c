@@ -111,9 +111,9 @@ static inline int
 circle_inout(int x, int y, int r)
 {
   int d = x*x + y*y - r*r;
-  if (d < -r+8)
+  if (d < -r)
     return 1;
-  if (d >  r-8)
+  if (d >  r)
     return -1;
   return 0;
 }
@@ -491,6 +491,14 @@ reactance(const float *v)
   return zi;
 }
 
+static float
+qualityfactor(const float *v)
+{
+  float i = 2*v[1];
+  float r = (1+v[0])*(1-v[0]) - v[1]*v[1];
+  return fabs(i / r);
+}
+
 static void
 cartesian_scale(float re, float im, int *xp, int *yp, float scale)
 {
@@ -551,6 +559,9 @@ trace_into_index(int t, int i, float array[POINTS_COUNT][2])
   case TRC_X:
     v-= reactance(coeff) * scale;
     break;
+  case TRC_Q:
+    v-= qualityfactor(coeff) * scale;
+    break;
   case TRC_SMITH:
   //case TRC_ADMIT:
   case TRC_POLAR:
@@ -594,7 +605,7 @@ format_smith_value(char *buf, int len, const float coeff[2], uint32_t frequency)
     break;
 
   case MS_RX:
-    plot_printf(buf, len, "%F"S_OHM"%+Fj", zr, zi);
+    plot_printf(buf, len, "%F%+Fj"S_OHM, zr, zi);
     break;
 
   case MS_RLC:
@@ -652,6 +663,10 @@ trace_get_value_string(int t, char *buf, int len, float array[POINTS_COUNT][2], 
   case TRC_X:
     format = "%.2F"S_OHM;
     v = reactance(coeff);
+    break;
+  case TRC_Q:
+    format = "%.3f";
+    v = qualityfactor(coeff);
     break;
   case TRC_SMITH:
     format_smith_value(buf, len, coeff, frequencies[i]);
@@ -712,6 +727,10 @@ trace_get_value_string_delta(int t, char *buf, int len, float array[POINTS_COUNT
   case TRC_X:
     format = "%.2F"S_OHM;
     v = reactance(coeff);
+    break;
+  case TRC_Q:
+    format = "%.3f";
+    v = qualityfactor(coeff);
     break;
   //case TRC_ADMIT:
   case TRC_POLAR:
@@ -1364,7 +1383,7 @@ static void
 draw_all_cells(bool flush_markmap)
 {
   int m, n;
-//  START_PROFILE
+  START_PROFILE
   for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
     for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
       if ((markmap[0][n] | markmap[1][n]) & (1 << m)) {
@@ -1374,7 +1393,7 @@ draw_all_cells(bool flush_markmap)
 //      else
         //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(0,255,0));
     }
-//  STOP_PROFILE
+  STOP_PROFILE
   if (flush_markmap) {
     // keep current map for update
     swap_markmap();

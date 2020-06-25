@@ -112,29 +112,37 @@ static const uint8_t conf_data[] = {
 // reg, data,     // PLL clock config
   0x00, 0x00,     // Initialize to Page 0
   0x01, 0x01,     // Initialize the device through software reset
-  0x04, 0x03,     // PLL Clock Low (80MHz - 137MHz), MCLK, PLL
 //=======================================================
 // Configure PLL clock
 //            PLL_CLKIN * R * J.D
 // PLL_CLK = ---------------------
 //                     P
 #if AUDIO_CLOCK_REF == 8000000U
-  // 8.000MHz * 10.7520 = 86.016MHz,
+  // MCLK = 8.000MHz * 10.7520 = 86.016MHz,
+  0x04, 0x03,     // PLL Clock Low (80MHz - 137MHz), MCLK pin is input to PLL, PLL as CODEC_CLKIN
   0x05, 0x91,     // Power up PLL, P=1,R=1
   0x06, 0x0a,     // J=10
   0x07, 0x1D,     // D=7520 = 0x1D60
   0x08, 0x60,
 #elif AUDIO_CLOCK_REF == 10752000U
-  // 10.752MHz * 4 * 2.0 / 1 = 86.016MHz
+  // MCLK = 10.752MHz * 4 * 2.0 / 1 = 86.016MHz
+  0x04, 0x03,     // PLL Clock Low (80MHz - 137MHz),MCLK pin is input to PLL, PLL as CODEC_CLKIN
   0x05, 0x94,     // Power up PLL, P=1,R=4
   0x06, 0x02,     // J=2
   0x07, 0x00,     // D=0
   0x08, 0x00,
+#elif AUDIO_CLOCK_REF == 86016000U
+  // MCLK = 86.016MHz
+  0x04, 0x00,     // MCLK as CODEC_CLKIN
+  0x05, 0x00,     // Power down PLL
+  0x06, 0x00,     // J=0
+  0x07, 0x00,     // D=0
+  0x08, 0x00,
 #else
-#error "Need set correct PLL multiplier for aic3204"
+#error "Need set correct CODEC_CLKIN for aic3204"
 #endif
 // Configure ADC clock
-//                 PLL_CLK
+//                CODEC_CLKIN
 // ADC_fs  = --------------------
 //            NADC * MADC * AOSR
 #if AUDIO_ADC_FREQ == 48000
@@ -165,10 +173,11 @@ static const uint8_t conf_data[] = {
   0x3c, 0x01,     // Set the DAC Mode to PRB_P1
   0x25, 0x00,     // DAC power up
 
-  0x12, 0x81,     // Power up the NADC divider with value 1
+  0x12, 0x82,     // Power up the NADC divider with value 2
   0x13, 0x87,     // Power up the MADC divider with value 7
   0x14, 0x40,     // ADC Oversampling (AOSR) set OSR of ADC to 64
-  0x3d, 0x01,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
+//  0x3d, 0x01,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
+  0x3d, 0x07,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
   0x24, 0xee,     // ADC power up
 
   0x1b, 0x0c,     // Set the BCLK,WCLK as output
@@ -182,11 +191,12 @@ static const uint8_t conf_data[] = {
   0x01, 0x08,     // Disable Internal Crude AVdd in presence of external AVdd supply or before powering up internal AVdd LDO*/
   0x02, 0x01,     // Enable Master Analog Power Control
   0x7b, 0x01,     // Set the REF charging time to 40ms
-  0x14, 0x25,     // HP soft stepping settings for optimal pop performance at power up Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
-  0x0a, 0x33,     // Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to 1.65V
+//  0x14, 0x25,     // HP soft stepping settings for optimal pop performance at power up Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
+//  0x0a, 0x33,     // Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to 1.65V
+  0x0a, 0x40,     // Set the Input Common Mode to 0.75V and Output Common Mode for Headphone to 1.65V
 
-  0x3d, 0x00,     // Select ADC PTM_R4 */
-//  0x3d, 0xB6,     // Select ADC PTM_R2 */
+ // 0x3d, 0x00,     // Select ADC PTM_R4 */
+  0x3d, 0x64,     // Select ADC PTM_R3 */
   0x47, 0x32,     // Set MicPGA startup delay to 6.4ms
   0x7b, 0x01,     // Set the REF charging time to 40ms
   0x34, REG_34_IN2L_TO_LEFT_P_10k, // Route IN2L to LEFT_P with 10K
@@ -200,7 +210,7 @@ static const uint8_t conf_data[] = {
 static const uint8_t conf_data_unmute[] = {
 // reg, data,
   0x00, 0x00,     // Select Page 0
-  0x51, 0xc0,     // Power up Left and Right ADC Channels
+  0x51, 0xc2,     // Power up Left and Right ADC Channels, ADC Volume Control Soft-Stepping disabled
   0x52, 0x00,     // Unmute Left and Right ADC Digital Volume Control
   0x00, 0x01,     // Select Page 1 (should be set as default)
 };

@@ -149,7 +149,7 @@ CSRC = $(STARTUPSRC) \
        $(BOARDSRC) \
        $(STREAMSSRC) \
        usbcfg.c \
-       main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont20x22.c Font7x13b.c Font5x7.c flash.c adc.c
+       main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont20x22.c Font7x13b.c Font5x7.c flash.c adc.c rtc.c
 
 #       $(TESTSRC) \
 
@@ -240,9 +240,8 @@ CPPWARN = -Wall -Wextra -Wundef
 # List all user C define here, like -D_DEBUG=1
 ifeq ($(TARGET),F303)
  UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303 -D__FPU_PRESENT -D__FPU_USED -DST7796S
-#-DILI9488
-#-DST7796S
-#-DLED_OFF
+#Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU
+UDEFS+= -DVNA_USE_LSE
 #-DCH_DBG_STATISTICS 
 else
  UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 

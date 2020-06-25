@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2015, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, written by DiSlord dislordlive@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
 #include "hal.h"
 #include "nanovna.h"
 
-// Allow enable DMA for read display data (some problem vs use in ST7796 in fast mode)
+// Allow enable DMA for read display data
 //#define __USE_DISPLAY_DMA_RX__
 
 uint16_t spi_buffer[SPI_BUFFER_SIZE];
@@ -134,16 +134,15 @@ uint16_t background_color = 0;
 #define DISPLAY_ROTATION_0     (ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
 #define DISPLAY_ROTATION_180   (ILI9341_MADCTL_MX | ILI9341_MADCTL_MY  \
                               | ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
-
 //
 // Pin macros
 //
-#define RESET_ASSERT  palClearPad(GPIOA, 15)
-#define RESET_NEGATE  palSetPad(GPIOA, 15)
-#define CS_LOW        palClearPad(GPIOB, 6)
-#define CS_HIGH       palSetPad(GPIOB, 6)
-#define DC_CMD        palClearPad(GPIOB, 7)
-#define DC_DATA       palSetPad(GPIOB, 7)
+#define RESET_ASSERT  palClearPad(GPIOA, GPIOA_LCD_RESET)
+#define RESET_NEGATE  palSetPad(GPIOA, GPIOA_LCD_RESET)
+#define CS_LOW        palClearPad(GPIOB, GPIOB_LCD_CS)
+#define CS_HIGH       palSetPad(GPIOB, GPIOB_LCD_CS)
+#define DC_CMD        palClearPad(GPIOB, GPIOB_LCD_CD)
+#define DC_DATA       palSetPad(GPIOB, GPIOB_LCD_CD)
 
 //*****************************************************************************
 //********************************** SPI bus **********************************
@@ -159,8 +158,27 @@ uint16_t background_color = 0;
 #define SPI_CR2_8BIT  0x0700
 #define SPI_CR2_16BIT 0x0F00
 
-// SPI bus activity macros
+//*****************************************************
+// SPI bus baud rate (PPL/BR_DIV)
+//*****************************************************
+#define	SPI_BR_DIV2   (0x00000000U)
+#define	SPI_BR_DIV4   (SPI_CR1_BR_0)
+#define	SPI_BR_DIV8   (SPI_CR1_BR_1)
+#define	SPI_BR_DIV16  (SPI_CR1_BR_1|SPI_CR1_BR_0)
+#define	SPI_BR_DIV32  (SPI_CR1_BR_2)
+#define	SPI_BR_DIV64  (SPI_CR1_BR_2|SPI_CR1_BR_0)
+#define	SPI_BR_DIV128 (SPI_CR1_BR_2|SPI_CR1_BR_1)
+#define	SPI_BR_DIV256 (SPI_CR1_BR_2|SPI_CR1_BR_1|SPI_CR1_BR_0)
 
+#define LCD_SPI_SPEED        SPI_BR_DIV2
+//Not define if need use some as Tx speed
+#define LCD_SPI_RX_SPEED     SPI_BR_DIV4
+
+#define SPI_BR_SET(br)  (SPI1->CR1 = (SPI1->CR1& ~(SPI_BR_DIV256))|br)
+
+//*****************************************************
+// SPI bus activity macros
+//*****************************************************
 // The RXNE flag is set depending on the FRXTH bit value in the SPIx_CR2 register:
 // • If FRXTH is set, RXNE goes high and stays high until the RXFIFO level is greater or equal to 1/4 (8-bit).
 #define SPI_RX_IS_NOT_EMPTY  (SPI1->SR&SPI_SR_RXNE)
@@ -175,45 +193,63 @@ uint16_t background_color = 0;
 // When BSY is set, it indicates that a data transfer is in progress on the SPI (the SPI bus is busy).
 #define SPI_IS_BUSY     (SPI1->SR & SPI_SR_BSY)
 
+// Tx or Rx in process
+#define SPI_IN_TX_RX    ((SPI1->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || SPI_IS_BUSY)
+
+//*****************************************************
 // SPI send data macros
+//*****************************************************
+#define SPI_UNI_MODE    SPI1->CR1 &= ~SPI_CR1_BIDIMODE;
+#define SPI_RX_MODE     {SPI1->CR1 |= SPI_CR1_BIDIMODE;SPI1->CR1 &= ~SPI_CR1_BIDIOE;}
+#define SPI_TX_MODE     {SPI1->CR1 |= SPI_CR1_BIDIMODE;SPI1->CR1 |=  SPI_CR1_BIDIOE;}
+
 #define SPI_WRITE_8BIT(data)  *(__IO uint8_t*)(&SPI1->DR) = (uint8_t) data
-#define SPI_WRITE_16BIT(data) SPI1->DR = data
+#define SPI_WRITE_16BIT(data) *(__IO uint16_t*)(&SPI1->DR) = (uint16_t) data
 
+//*****************************************************
 // SPI read data macros
-#define SPI_READ_DATA        SPI1->DR
+//*****************************************************
+#define SPI_READ_8BIT       *(__IO uint8_t*)(&SPI1->DR)
+#define SPI_READ_16BIT      *(__IO uint16_t*)(&SPI1->DR)
 
+//*****************************************************
+// SPI DMA settings and data
+//*****************************************************
 #ifdef __USE_DISPLAY_DMA__
 static const stm32_dma_stream_t *dmatx =
     STM32_DMA_STREAM(STM32_SPI_SPI1_TX_DMA_STREAM);
-static uint32_t txdmamode =
+static const uint32_t txdmamode =
     STM32_DMA_CR_CHSEL(SPI1_TX_DMA_CHANNEL)         // Select SPI1 Tx DMA
     | STM32_DMA_CR_PL(STM32_SPI_SPI1_DMA_PRIORITY)  // Set priority
-    | STM32_DMA_CR_DIR_M2P                          // Memory to Spi
-    | STM32_DMA_CR_DMEIE                            //
-    | STM32_DMA_CR_TEIE;
+    | STM32_DMA_CR_DIR_M2P;                         // Memory to Spi
 
+// Not handle interrupt
+#if 0
 static void spi_lld_serve_tx_interrupt(SPIDriver *spip, uint32_t flags)
-{
-  (void)spip;
-  (void)flags;
-}
-
-#ifdef __USE_DISPLAY_DMA_RX__
-static const stm32_dma_stream_t  *dmarx = STM32_DMA_STREAM(STM32_SPI_SPI1_RX_DMA_STREAM);
-static uint32_t rxdmamode = STM32_DMA_CR_CHSEL(SPI1_RX_DMA_CHANNEL)
-                        | STM32_DMA_CR_PL(STM32_SPI_SPI1_DMA_PRIORITY)
-                        | STM32_DMA_CR_DIR_P2M
-                        | STM32_DMA_CR_TCIE
-                        | STM32_DMA_CR_DMEIE
-                        | STM32_DMA_CR_TEIE;
-
-static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags)
 {
   (void)spip;
   (void)flags;
 }
 #endif
 
+#ifdef __USE_DISPLAY_DMA_RX__
+static const stm32_dma_stream_t  *dmarx = STM32_DMA_STREAM(STM32_SPI_SPI1_RX_DMA_STREAM);
+static const uint32_t rxdmamode =
+    STM32_DMA_CR_CHSEL(SPI1_RX_DMA_CHANNEL)         // Select SPI1 Rx DMA
+    | STM32_DMA_CR_PL(STM32_SPI_SPI1_DMA_PRIORITY)  // Set priority
+    | STM32_DMA_CR_DIR_P2M;                         // SPI to Memory
+
+// Not handle interrupt
+#if 0
+static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags)
+{
+  (void)spip;
+  (void)flags;
+}
+#endif
+#endif
+
+// Send prepared DMA data, and wait completion
 static void dmaStreamFlush(uint32_t len)
 {
   while (len) {
@@ -227,14 +263,87 @@ static void dmaStreamFlush(uint32_t len)
 }
 #endif
 
+// SPI transmit byte to SPI
+static void spi_TxByte(uint8_t data) {
+  while (SPI_TX_IS_NOT_EMPTY);
+  SPI_WRITE_8BIT(data);
+}
+
+// Transmit word to SPI bus (if SPI in 8 bit mode LSB send first!!!!!)
+static inline void spi_TxWord(uint16_t data) {
+  while (SPI_TX_IS_NOT_EMPTY);
+  SPI_WRITE_16BIT(data);
+}
+
+// Transmit byte to SPI bus  (len should be > 0)
+static void  spi_TxBuffer(uint8_t *buffer, uint16_t len) {
+  do {
+    while (SPI_TX_IS_NOT_EMPTY);
+    SPI_WRITE_8BIT(*buffer++);
+  }while(--len);
+}
+// Receive byte from SPI bus
+static uint8_t spi_RxByte(void) {
+  // Start RX clock (by sending data)
+  SPI_WRITE_8BIT(0xFF);
+  while (SPI_RX_IS_EMPTY || SPI_IS_BUSY);
+  return SPI_READ_8BIT;
+}
+
+// Receive byte from SPI bus (len should be > 0)
+static void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
+  do{
+    SPI_WRITE_8BIT(0xFF);
+    while (SPI_RX_IS_EMPTY);
+    *buffer++ = SPI_READ_8BIT;
+  }while(--len);
+}
+
+static void spi_DropRx(void){
+  // Drop Rx buffer after tx
+  while (SPI_RX_IS_NOT_EMPTY)
+    (void)SPI_READ_8BIT;
+}
+
+#ifdef __USE_DISPLAY_DMA__
+// SPI receive byte buffer use DMA
+static void spi_DMATxBuffer(uint8_t *buffer, uint16_t len) {
+  dmaStreamSetMemory0(dmatx, buffer);
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
+  dmaStreamFlush(len);
+}
+#ifdef __USE_DISPLAY_DMA_RX__
+// SPI transmit byte buffer use DMA
+static void spi_DMARxBuffer(uint8_t *buffer, uint16_t len) {
+  uint8_t dummy_tx = 0xFF;
+  // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit)
+  dmaStreamSetMemory0(dmarx, buffer);
+  dmaStreamSetTransactionSize(dmarx, len);
+  dmaStreamSetMode(dmarx, rxdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
+  // Init dummy Tx DMA (for rx clock), size, mode (spi and mem data size is 8 bit)
+  dmaStreamSetMemory0(dmatx, &dummy_tx);
+  dmaStreamSetTransactionSize(dmatx, len);
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE);
+  // Start DMA exchange
+  dmaStreamEnable(dmarx);
+  dmaStreamEnable(dmatx);
+  // Wait DMA completion
+  dmaWaitCompletion(dmatx);
+  dmaWaitCompletion(dmarx);
+  // Skip SPI rx buffer
+//  spi_DropRx();
+}
+#endif
+#endif
+
 static void spi_init(void)
 {
   rccEnableSPI1(FALSE);
   SPI1->CR1 = 0;
   SPI1->CR1 = SPI_CR1_MSTR       // SPI is MASTER
             | SPI_CR1_SSM        // Software slave management (The external NSS pin is free for other application uses)
-            | SPI_CR1_SSI;       // Internal slave select (This bit has an effect only when the SSM bit is set. Allow use NSS pin as I/O)
-//          | SPI_CR1_BR_1;      // Baud rate control
+            | SPI_CR1_SSI        // Internal slave select (This bit has an effect only when the SSM bit is set. Allow use NSS pin as I/O)
+            | LCD_SPI_SPEED;     // Baud rate control
 
   SPI1->CR2 = SPI_CR2_8BIT       // SPI data size, set to 8 bit
             | SPI_CR2_FRXTH;     // SPI_SR_RXNE generated every 8 bit data
@@ -242,12 +351,12 @@ static void spi_init(void)
 
 #ifdef __USE_DISPLAY_DMA__
   // Tx DMA init
-  dmaStreamAllocate(dmatx, STM32_SPI_SPI1_IRQ_PRIORITY, (stm32_dmaisr_t)spi_lld_serve_tx_interrupt, NULL);
+  dmaStreamAllocate(dmatx, STM32_SPI_SPI1_IRQ_PRIORITY, NULL, NULL);
   dmaStreamSetPeripheral(dmatx, &SPI1->DR);
   SPI1->CR2|= SPI_CR2_TXDMAEN;    // Tx DMA enable
 #ifdef __USE_DISPLAY_DMA_RX__
   // Rx DMA init
-  dmaStreamAllocate(dmarx, STM32_SPI_SPI1_IRQ_PRIORITY, (stm32_dmaisr_t)spi_lld_serve_rx_interrupt, NULL);
+  dmaStreamAllocate(dmarx, STM32_SPI_SPI1_IRQ_PRIORITY, NULL, NULL);
   dmaStreamSetPeripheral(dmarx, &SPI1->DR);
   // Enable DMA on SPI
   SPI1->CR2|= SPI_CR2_RXDMAEN;   // Rx DMA enable
@@ -257,14 +366,15 @@ static void spi_init(void)
 }
 
 // Disable inline for this function
-static void __attribute__ ((noinline)) send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
+static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
+// Uncomment on low speed SPI (possible get here before previous tx complete)
+//  while (SPI_IN_TX_RX);
   CS_LOW;
-//  while (SPI_IS_BUSY);
   DC_CMD;
   SPI_WRITE_8BIT(cmd);
   // Need wait transfer complete and set data bit
-  while (SPI_IS_BUSY)
+  while (SPI_IN_TX_RX)
     ;
   // Send command data (if need)
   DC_DATA;
@@ -274,6 +384,39 @@ static void __attribute__ ((noinline)) send_command(uint8_t cmd, uint8_t len, co
     SPI_WRITE_8BIT(*data++);
   }
   //CS_HIGH;
+}
+
+// Disable inline for this function
+uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
+{
+// Uncomment on low speed SPI (possible get here before previous tx complete)
+  while (SPI_IN_TX_RX);
+  // Set read speed (if need different)
+  SPI_BR_SET(SPI_BR_DIV256);
+  CS_LOW;
+  DC_CMD;
+  SPI_WRITE_8BIT(cmd);
+  // Need wait transfer complete and set data bit
+  while (SPI_IN_TX_RX)
+    ;
+  // Send command data (if need)
+  DC_DATA;
+  while (len-- > 0) {
+    while (SPI_TX_IS_NOT_EMPTY)
+      ;
+    SPI_WRITE_8BIT(*data++);
+  }
+
+  // Skip data from rx buffer
+  spi_DropRx();
+  uint32_t ret = 0;
+  ret|= spi_RxByte();ret<<=8;
+  ret|= spi_RxByte();ret<<=8;
+  ret|= spi_RxByte();ret<<=8;
+  ret|= spi_RxByte();
+  CS_HIGH;
+  SPI_BR_SET(LCD_SPI_SPEED);
+  return ret;
 }
 
 static const uint8_t ili9488_init_seq[] = {
@@ -300,13 +443,13 @@ static const uint8_t ili9488_init_seq[] = {
   ILI9341_VCOM_CONTROL_1, 3, 0x00, 0x12, 0x80,
   // Memory Access
   ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x28,  // landscape, BGR
-//ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x20,  // landscape, RGB
+//  ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x20,  // landscape, RGB
   // Interface Pixel Format,	16bpp DPI and DBI and
   ILI9341_PIXEL_FORMAT_SET, 1, 0x55,
   // P-Gamma
-  ILI9341_POSITIVE_GAMMA_CORRECTION, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
+//  ILI9341_POSITIVE_GAMMA_CORRECTION, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
   // N-Gamma
-  ILI9341_NEGATIVE_GAMMA_CORRECTION, 15, 0x00, 0X16, 0X19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
+//  ILI9341_NEGATIVE_GAMMA_CORRECTION, 15, 0x00, 0X16, 0X19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
   //Set Image Func
 //  0xE9, 1, 0x00,
   // Set Brightness to Max
@@ -337,6 +480,8 @@ void ili9341_init(void)
 
 void ili9341_bulk_8bit(int x, int y, int w, int h, uint16_t *palette)
 {
+//uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
+//uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
@@ -345,12 +490,8 @@ void ili9341_bulk_8bit(int x, int y, int w, int h, uint16_t *palette)
 
   uint8_t *buf = (uint8_t *)spi_buffer;
   int32_t len = w * h;
-  while (len-- > 0) {
-    uint16_t color = palette[*buf++];
-    while (SPI_TX_IS_NOT_EMPTY)
-      ;
-    SPI_WRITE_16BIT(color);
-  }
+  while (len-- > 0)
+    spi_TxWord(palette[*buf++]);
 }
 
 #ifndef __USE_DISPLAY_DMA__
@@ -364,11 +505,8 @@ void ili9341_fill(int x, int y, int w, int h, uint16_t color)
   send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   int32_t len = w * h;
-  while (len-- > 0) {
-    while (SPI_TX_IS_NOT_EMPTY)
-      ;
-  SPI_WRITE_16BIT(color);
-  }
+  while (len-- > 0)
+    spi_TxWord(color);
 }
 
 void ili9341_bulk(int x, int y, int w, int h)
@@ -382,11 +520,8 @@ void ili9341_bulk(int x, int y, int w, int h)
   send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   int32_t len = w * h;
-  while (len-- > 0) {
-    while (SPI_TX_IS_NOT_EMPTY)
-      ;
-    SPI_WRITE_16BIT(*buf++);
-  }
+  while (len-- > 0)
+    spi_TxWord(*buf++);
 }
 #else
 //
@@ -395,6 +530,8 @@ void ili9341_bulk(int x, int y, int w, int h)
 // Fill region by some color
 void ili9341_fill(int x, int y, int w, int h, uint16_t color)
 {
+//uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
+//uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
@@ -424,14 +561,6 @@ void ili9341_bulk(int x, int y, int w, int h)
 #endif
 
 #ifndef __USE_DISPLAY_DMA_RX__
-static uint8_t ssp_sendrecvdata(void)
-{
-  // Start RX clock (by sending data)
-  SPI_WRITE_8BIT(0);
-  while (SPI_RX_IS_EMPTY && SPI_IS_BUSY)
-    ;
-  return SPI_READ_DATA;
-}
 
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 {
@@ -442,69 +571,69 @@ void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
   send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
   send_command(ILI9341_MEMORY_READ, 0, NULL);
-
   // Skip data from rx buffer
-  while (SPI_RX_IS_NOT_EMPTY)
-    (void) SPI_READ_DATA;
+  spi_DropRx();
+  // Set read speed (if need different)
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI_RX_SPEED);
+#endif
   // require 8bit dummy clock
-  ssp_sendrecvdata();
-  while (len-- > 0) {
-    // read data is always 16bit
-    uint8_t r = ssp_sendrecvdata();
-    uint8_t g = ssp_sendrecvdata();
-    *out++ = (g << 8) | r;
-  }
+  spi_RxByte();
+  // receive pixel data to buffer
+  spi_RxBuffer((uint8_t *)out, len * 2);
+  // restore speed if need
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI_SPEED);
+#endif
   CS_HIGH;
 }
 
 #else
 // Copy screen data to buffer
-// Warning!!! buffer size must be greater then 2*len + 1 bytes
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 {
-  uint16_t dummy_tx = 0;
+  uint16_t dummy_tx = 0x0000;
   uint8_t *rgbbuf = (uint8_t *)out;
-  uint16_t data_size = len*2 + 1;
+  uint16_t data_size = len*2;
+  //uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
+  //uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
-  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
+  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
   send_command(ILI9341_MEMORY_READ, 0, NULL);
-  // Skip SPI rx buffer
-  while (SPI_RX_IS_NOT_EMPTY) (void)SPI_READ_DATA;
+
   // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit)
   dmaStreamSetMemory0(dmarx, rgbbuf);
   dmaStreamSetTransactionSize(dmarx, data_size);
-  dmaStreamSetMode(dmarx, rxdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE |
-                              STM32_DMA_CR_MINC);
+  dmaStreamSetMode(dmarx, rxdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
   // Init dummy Tx DMA (for rx clock), size, mode (spi and mem data size is 8 bit)
   dmaStreamSetMemory0(dmatx, &dummy_tx);
   dmaStreamSetTransactionSize(dmatx, data_size);
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE);
-
+  // Skip SPI rx buffer
+  spi_DropRx();
+  // Set read speed (if need different)
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI_RX_SPEED);
+#endif
+  // require 8bit dummy clock
+  spi_RxByte();
   // Start DMA exchange
-  dmaStreamEnable(dmatx);
   dmaStreamEnable(dmarx);
+  dmaStreamEnable(dmatx);
   // Wait DMA completion
   dmaWaitCompletion(dmatx);
   dmaWaitCompletion(dmarx);
+  // restore speed if need
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI_SPEED);
+#endif
   CS_HIGH;
-
-  // Parce recived data
-  // Skip dummy 8-bit read
-  rgbbuf++;
-  while (len-- > 0) {
-    uint8_t r, g;
-    // read data is always 16bit
-    r = rgbbuf[0];
-    g = rgbbuf[1];
-    *out++ = (g << 8) | r;
-    rgbbuf += 2;
-  }
 }
 #endif
 
-void ili9341_clear_screen(void) 
+void ili9341_clear_screen(void)
 {
   ili9341_fill(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT, background_color);
 }
