@@ -407,6 +407,7 @@ void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
 void show_version(void);
 void show_logo(void);
+uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
 
 /*
  * rtc.c
