@@ -1383,7 +1383,7 @@ static void
 draw_all_cells(bool flush_markmap)
 {
   int m, n;
-  START_PROFILE
+//  START_PROFILE
   for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
     for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
       if ((markmap[0][n] | markmap[1][n]) & (1 << m)) {
@@ -1393,7 +1393,7 @@ draw_all_cells(bool flush_markmap)
 //      else
         //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(0,255,0));
     }
-  STOP_PROFILE
+//  STOP_PROFILE
   if (flush_markmap) {
     // keep current map for update
     swap_markmap();

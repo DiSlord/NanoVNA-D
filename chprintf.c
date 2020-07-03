@@ -196,7 +196,7 @@ static char *ftoaS(char *p, float num, uint32_t precision) {
     prefix = num > 1e-3 ? ptr[-1] : 0;
   }
   else
-    precision++; // Add additional digit in place of prefix
+    precision++;   // Add additional digit in place of prefix
   // Auto set precision in place of value
   uint32_t l = num;
   if (l < 10)

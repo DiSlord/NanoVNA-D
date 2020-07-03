@@ -107,7 +107,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2016-2020 Copyright @edy555",
   "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: 0.9.3.4 beta FAT16/FAT32/ExFAT- SD Card, by DiSlord",// VERSION,
+  "Version: " VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -857,17 +857,14 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   if (break_on_operation && sweep_mode == 0)
     return false;
-//  systime_t time = chVTGetSystemTimeX();
-//  systime_t t = 0;
+
   // blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
   // Power stabilization after LED off, before measure
   int st_delay = 3;
   for (; p_sweep < sweep_points; p_sweep++) {         // 5300
     if (frequencies[p_sweep] == 0) break;
-//    t-= chVTGetSystemTimeX();
     delay = set_frequency(frequencies[p_sweep]);
-//    t+= chVTGetSystemTimeX();
     if (sweep_mode & SWEEP_CH0_MEASURE){
       tlv320aic3204_select(0);                   // CH0:REFLECTION, reset and begin measure
       DSP_START(delay+st_delay);
@@ -895,7 +892,6 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
 // Display SPI made noise on measurement (can see in CW mode)
 //    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
   }
-//  {char string_buf[32];plot_printf(string_buf, sizeof string_buf, "T:%06d:%06d", t, chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 300);}
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
   return true;
