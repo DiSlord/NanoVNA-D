@@ -911,6 +911,99 @@ menu_brightness(int item, uint8_t data)
   ui_mode_normal();
 }
 
+#ifdef __USE_SD_CARD__
+#define SAVE_S1P_FILE  1
+#define SAVE_S2P_FILE  2
+
+static const char s1_file_header[] =
+  "!File created by NanoVNA\r\n"\
+  "# HZ S RI R 50\r\n";
+
+static const char s1_file_param[] =
+  "%10d % f % f\r\n";
+
+static const char s2_file_header[] =
+  "!File created by NanoVNA\r\n"\
+  "# HZ S RI R 50\r\n";
+
+static const char s2_file_param[] =
+  "%10d % f % f % f % f 0 0 0 0\r\n";
+
+static void
+menu_sdcard_cb(int item, uint8_t data)
+{
+  (void)item;
+  char *buf = (char *)spi_buffer;
+//  shell_printf("S file\r\n");
+  FRESULT res = f_mount(fs_volume, "", 1);
+//  shell_printf("Mount = %d\r\n", res);
+  if (res != FR_OK)
+    return;
+  // Prepare filename = .s1p or .s2p and open for write
+#if FF_USE_LFN >= 1
+  uint32_t tr = rtc_get_tr_bcd(); // TR read first
+  uint32_t dr = rtc_get_dr_bcd(); // DR read second
+  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.s%dp", dr, tr, data);
+#else
+  plot_printf(fs_filename, FF_LFN_BUF, "%08X.s%dp", rtc_get_FAT(), data);
+#endif
+
+  int i;
+  UINT size;
+//  UINT total_size = 0;
+//  systime_t time = chVTGetSystemTimeX();
+  res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+//  shell_printf("Open %s, = %d\r\n", fs_filename, res);
+  if (res == FR_OK){
+    // Write S1P file
+    if (data == SAVE_S1P_FILE){
+      // write s1p header (not write NULL terminate at end)
+      res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
+//      total_size+=size;
+      // Write all points data
+      for (i = 0; i < sweep_points && res == FR_OK; i++) {
+        size = plot_printf(buf, 128, s1_file_param, frequencies[i], measured[0][i][0], measured[0][i][1]);
+//        total_size+=size;
+        res = f_write(fs_file, buf, size, &size);
+      }
+    }
+    // Write S2P file
+    else if (data == SAVE_S2P_FILE){
+      // Write s2p header (not write NULL terminate at end)
+      res = f_write(fs_file, s2_file_header, sizeof(s2_file_header)-1, &size);
+//      total_size+=size;
+      // Write all points data
+      for (i = 0; i < sweep_points && res == FR_OK; i++) {
+        size = plot_printf(buf, 128, s2_file_param, frequencies[i], measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+//        total_size+=size;
+        res = f_write(fs_file, buf, size, &size);
+      }
+    }
+    res = f_close(fs_file);
+//    shell_printf("Close = %d\r\n", res);
+//    testLog();
+//    time = chVTGetSystemTimeX() - time;
+//    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
+  }
+
+  ili9341_fill(LCD_WIDTH/2-96, LCD_HEIGHT/2-30, 96*2, 60, config.menu_normal_color);
+  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
+  ili9341_set_background(config.menu_normal_color);
+  ili9341_drawstring("SAVE TRACE", LCD_WIDTH/2-5*FONT_WIDTH, LCD_HEIGHT/2-20);
+  ili9341_drawstring(res == FR_OK ? fs_filename : "  Fail write  ", LCD_WIDTH/2-76, LCD_HEIGHT/2);
+  chThdSleepMilliseconds(2000);
+  request_to_redraw_grid();
+  ui_mode_normal();
+}
+
+static const menuitem_t menu_sdcard[] = {
+  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
+  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
+  { MT_CANCEL,   0, S_LARROW" BACK", NULL },
+  { MT_NONE,     0, NULL, NULL } // sentinel
+};
+#endif
+
 static const menuitem_t menu_calop[] = {
   { MT_CALLBACK, CAL_OPEN,  "OPEN",  menu_calop_cb },
   { MT_CALLBACK, CAL_SHORT, "SHORT", menu_calop_cb },
@@ -1139,6 +1232,9 @@ const menuitem_t menu_top[] = {
   { MT_SUBMENU, 0, "STIMULUS", menu_stimulus },
   { MT_SUBMENU, 0, "CAL", menu_cal },
   { MT_SUBMENU, 0, "RECALL", menu_recall },
+#ifdef __USE_SD_CARD__
+  { MT_SUBMENU, 0, "SD CARD", menu_sdcard },
+#endif
   { MT_SUBMENU, 0, "CONFIG", menu_config },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1230,14 +1326,24 @@ menu_invoke(int item)
 // Menu buttons size
 #define MENU_BUTTON_WIDTH  80
 #define MENU_BUTTON_HEIGHT 38
-// Height of numerical input field (at bottom)
-#define NUM_INPUT_HEIGHT   30
+#define MENU_BUTTON_BORDER  1
 
+// Height of numerical input field (at bottom)
+#define NUM_INPUT_HEIGHT   32
+
+#if 1
+#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
+#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
+#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
+#else
 #define KP_WIDTH     64
 #define KP_HEIGHT    64
 // Key x, y position (0 - 15) on screen
 #define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
 #define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
+#endif
 
 // Key names
 #define KP_0          0
@@ -1346,6 +1452,18 @@ static const char * const keypad_mode_label[] = {
 };
 
 static void
+draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t border_colour, uint16_t bg_colour)
+{
+// background
+  const uint16_t bw = MENU_BUTTON_BORDER;
+  ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2), bg_colour);
+  ili9341_fill(x,          y,          w,  bw, border_colour);   // top
+  ili9341_fill(x + w - bw, y,          bw,  h, border_colour);   // right
+  ili9341_fill(x,          y,          bw,  h, border_colour);   // left
+  ili9341_fill(x,          y + h - bw, w,  bw, border_colour);   // bottom
+}
+
+static void
 draw_keypad(void)
 {
   int i = 0;
@@ -1357,7 +1475,7 @@ draw_keypad(void)
     ili9341_set_background(bg);
     int x = KP_GET_X(keypads[i].x);
     int y = KP_GET_Y(keypads[i].y);
-    ili9341_fill(x+2, y+2, KP_WIDTH-4, KP_HEIGHT-4, bg);
+    draw_button(x, y, KP_WIDTH, KP_HEIGHT, DEFAULT_BG_COLOR, bg);
     ili9341_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
@@ -1430,110 +1548,90 @@ static void
 menu_item_modify_attribute(const menuitem_t *menu, int item,
                            uint16_t *fg, uint16_t *bg)
 {
+  bool swap = false;
   if (menu == menu_trace && item < TRACES_MAX) {
-    if (trace[item].enabled)
+    if (trace[item].enabled){
       *bg = config.trace_color[item];
+       if (item == selection) *fg = ~config.trace_color[item];
+    }
   } else if (menu == menu_marker_sel) {
-    if (item < 4) {
-      if (markers[item].enabled) {
-        *bg = DEFAULT_MENU_TEXT_COLOR;
-        *fg = config.menu_normal_color;
-      }
-    } else if (item == 5) {
-      if (uistat.marker_delta) {
-        *bg = DEFAULT_MENU_TEXT_COLOR;
-        *fg = config.menu_normal_color;
-      }
-    }
+    if ((item  < 4 && markers[item].enabled) ||
+        (item == 5 && uistat.marker_delta))
+      swap = true;
+    else if (item == 5 && uistat.marker_delta)
+      swap = true;
   } else if (menu == menu_marker_search) {
-    if (item == 4 && uistat.marker_tracking) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (item == 4 && uistat.marker_tracking)
+      swap = true;
   } else if (menu == menu_marker_smith) {
-
-    if (marker_smith_format == item) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (marker_smith_format == item)
+      swap = true;
   } else if (menu == menu_calop) {
     if ((item == 0 && (cal_status & CALSTAT_OPEN))
         || (item == 1 && (cal_status & CALSTAT_SHORT))
         || (item == 2 && (cal_status & CALSTAT_LOAD))
         || (item == 3 && (cal_status & CALSTAT_ISOLN))
-        || (item == 4 && (cal_status & CALSTAT_THRU))) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+        || (item == 4 && (cal_status & CALSTAT_THRU)))
+      swap = true;
   } else if (menu == menu_stimulus) {
-    if (item == 5 /* PAUSE */ && !(sweep_mode&SWEEP_ENABLE)) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (item == 5 /* PAUSE */ && !(sweep_mode&SWEEP_ENABLE))
+      swap = true;
   } else if (menu == menu_cal) {
-    if (item == 3 /* CORRECTION */ && (cal_status & CALSTAT_APPLY)) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (item == 3 /* CORRECTION */ && (cal_status & CALSTAT_APPLY))
+      swap = true;
   } else if (menu == menu_bandwidth) {
-    if (menu_bandwidth[item].data == config.bandwidth) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (menu_bandwidth[item].data == config.bandwidth)
+      swap = true;
   } else if (menu == menu_sweep_points) {
-    if (menu_sweep_points[item].data == sweep_points) {
-      *bg = DEFAULT_MENU_TEXT_COLOR;
-      *fg = config.menu_normal_color;
-    }
+    if (menu_sweep_points[item].data == sweep_points)
+      swap = true;
   } else if (menu == menu_transform) {
     if ((item == 0 && (domain_mode & DOMAIN_MODE) == DOMAIN_TIME)
        || (item == 1 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_IMPULSE)
        || (item == 2 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP)
        || (item == 3 && (domain_mode & TD_FUNC) == TD_FUNC_BANDPASS)
-       ) {
-        *bg = DEFAULT_MENU_TEXT_COLOR;
-        *fg = config.menu_normal_color;
-      }
+       ) swap = true;
   } else if (menu == menu_transform_window) {
       if ((item == 0 && (domain_mode & TD_WINDOW) == TD_WINDOW_MINIMUM)
        || (item == 1 && (domain_mode & TD_WINDOW) == TD_WINDOW_NORMAL)
        || (item == 2 && (domain_mode & TD_WINDOW) == TD_WINDOW_MAXIMUM)
-       ) {
-        *bg = DEFAULT_MENU_TEXT_COLOR;
-        *fg = config.menu_normal_color;
-      }
+       ) swap = true;
   }
+  if (swap) {uint16_t t = *bg;*bg=*fg;*fg = t;}
 }
 
 static void
 draw_menu_buttons(const menuitem_t *menu)
 {
-  int i = 0;
-  for (i = 0; i < MENU_BUTTON_MAX; i++) {
+  int i = 0, y = 0;
+  for (i = 0; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     const char *l1, *l2;
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
       continue;
-    int y = MENU_BUTTON_HEIGHT*i;
+
     uint16_t bg = config.menu_normal_color;
     uint16_t fg = DEFAULT_MENU_TEXT_COLOR;
     // focus only in MENU mode but not in KEYPAD mode
     if (ui_mode == UI_MENU && i == selection)
       bg = config.menu_active_color;
-    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT-2, bg);
-    
+
     menu_item_modify_attribute(menu, i, &fg, &bg);
     ili9341_set_foreground(fg);
     ili9341_set_background(bg);
+
+    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, fg, bg);
+
     if (menu_is_multiline(menu[i].label, &l1, &l2)) {
-      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+MENU_BUTTON_HEIGHT/2-FONT_GET_HEIGHT-3, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+1+FONT_GET_HEIGHT+2, bg);
-      ili9341_drawstring(l1, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+MENU_BUTTON_HEIGHT/2-FONT_GET_HEIGHT-1);
-      ili9341_drawstring(l2, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+MENU_BUTTON_HEIGHT/2);
+      ili9341_drawstring(l1, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+MENU_BUTTON_HEIGHT/2-FONT_GET_HEIGHT-1);
+      ili9341_drawstring(l2, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+MENU_BUTTON_HEIGHT/2);
     } else {
-      ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH+3, y+(MENU_BUTTON_HEIGHT-FONT_GET_HEIGHT-6)/2, MENU_BUTTON_WIDTH-6, 2+FONT_GET_HEIGHT+2, bg);
-      ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+5, y+(MENU_BUTTON_HEIGHT-FONT_GET_HEIGHT-6)/2+2);
+      ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+(MENU_BUTTON_HEIGHT-FONT_GET_HEIGHT-6)/2+2);
     }
+  }
+  for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
+    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, DEFAULT_BG_COLOR);
   }
 }
 
@@ -1578,7 +1676,7 @@ draw_menu(void)
 static void
 erase_menu_buttons(void)
 {
-  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX, DEFAULT_BG_COLOR);
+//  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX, DEFAULT_BG_COLOR);
 }
 
 static void
@@ -2230,6 +2328,86 @@ touch_pickup_marker(int touch_x, int touch_y)
 
   return FALSE;
 }
+
+#ifdef __USE_SD_CARD__
+//*****************************************************************************
+// Bitmap file header for 480x320 image 16bpp (v4 format allow set RGB mask)
+//*****************************************************************************
+static const uint8_t bmp_header_v4[14+56] = {
+// BITMAPFILEHEADER (14 byte size)
+  0x42, 0x4D,             // BM signature
+  0x46, 0xB0, 0x04, 0x00, // File size = 480*320*2 + 14 + 56 = 0x00004B07E
+  0x00, 0x00,             // reserved
+  0x00, 0x00,             // reserved
+  0x46, 0x00, 0x00, 0x00, // Size of all headers = 14+56
+// BITMAPINFOv4 (56 byte size)
+  0x38, 0x00, 0x00, 0x00, // Data offset after this point (56 = 0x38)
+  0xE0, 0x01, 0x00, 0x00, // Width  = 480 = 0x000001E0
+  0x40, 0x01, 0x00, 0x00, // Height = 320 = 0x00000140
+  0x01, 0x00,             // Planes
+  0x10, 0x00,             // 16bpp
+  0x03, 0x00, 0x00, 0x00, // Compression (BI_BITFIELDS)
+  0x00, 0xB0, 0x04, 0x00, // Bitmap size = 480*320*2
+  0xC4, 0x0E, 0x00, 0x00, // x Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
+  0xC4, 0x0E, 0x00, 0x00, // y Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
+  0x00, 0x00, 0x00, 0x00, // Palette size
+  0x00, 0x00, 0x00, 0x00, // Palette used
+// Extend v4 header data (color mask for RGB565)
+  0x00, 0xF8, 0x00, 0x00, // R mask = 0b11111000 00000000
+  0xE0, 0x07, 0x00, 0x00, // G mask = 0b00000111 11100000
+  0x1F, 0x00, 0x00, 0x00, // B mask = 0b00000000 00011111
+  0x00, 0x00, 0x00, 0x00  // A mask = 0b00000000 00000000
+};
+
+static int
+made_screenshot(int touch_x, int touch_y)
+{
+  int y, i;
+  UINT size;
+  if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
+    return FALSE;
+  touch_wait_release();
+//  uint32_t time = chVTGetSystemTimeX();
+//  shell_printf("Screenshot\r\n");
+  FRESULT res = f_mount(fs_volume, "", 1);
+  // fs_volume, fs_file and fs_filename stored at end of spi_buffer!!!!!
+  uint16_t *buf = spi_buffer;
+//  shell_printf("Mount = %d\r\n", res);
+  if (res != FR_OK)
+    return TRUE;
+#if FF_USE_LFN >= 1
+  uint32_t tr = rtc_get_tr_bcd(); // TR read first
+  uint32_t dr = rtc_get_dr_bcd(); // DR read second
+  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.bmp", dr, tr);
+#else
+  plot_printf(fs_filename, FF_LFN_BUF, "%08X.bmp", rtc_get_FAT());
+#endif
+  res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+//  shell_printf("Open %s, result = %d\r\n", fs_filename, res);
+  if (res == FR_OK){
+    res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
+    for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
+      ili9341_read_memory(0, y, LCD_WIDTH, 1, LCD_WIDTH, buf);
+      for (i = 0; i < LCD_WIDTH; i++)
+        buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
+      res = f_write(fs_file, buf, LCD_WIDTH*sizeof(uint16_t), &size);
+    }
+    res = f_close(fs_file);
+//    shell_printf("Close %d\r\n", res);
+//    testLog();
+  }
+//  time = chVTGetSystemTimeX() - time;
+//  shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, (LCD_WIDTH*LCD_HEIGHT*sizeof(uint16_t)+sizeof(bmp_header_v4))*10000/time);
+  ili9341_fill(LCD_WIDTH/2-96, LCD_HEIGHT/2-30, 96*2, 60, config.menu_normal_color);
+  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
+  ili9341_set_background(config.menu_normal_color);
+  ili9341_drawstring("SCREENSHOT", LCD_WIDTH/2-5*FONT_WIDTH, LCD_HEIGHT/2-20);
+  ili9341_drawstring(res == FR_OK ? fs_filename : "  Fail write  ", LCD_WIDTH/2-76, LCD_HEIGHT/2);
+  request_to_redraw_grid();
+  chThdSleepMilliseconds(2000);
+  return TRUE;
+}
+#endif
 
 static int
 touch_lever_mode_select(int touch_x, int touch_y)
