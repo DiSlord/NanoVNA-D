@@ -617,5 +617,4 @@ int plot_printf(char *str, int, const char *fmt, ...);
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)
 
-void SI4432_Init(void);
 /*EOF*/

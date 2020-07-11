@@ -24,6 +24,7 @@
 #include "si5351.h"
 #include "nanovna.h"
 #include "fft.h"
+#include "si4432.h"
 
 #include <chprintf.h>
 #include <string.h>
@@ -70,6 +71,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable I2C command for send data to AIC3204, used for debug
 //#define ENABLE_I2C_COMMAND
 #define ENABLE_LCD_COMMAND
+// Enable debug command for SI4432
+#define ENABLE_SI4432_COMMAND
 
 //static void apply_error_term_at(int i);
 static void apply_CH0_error_term_at(int i);
@@ -2246,6 +2249,25 @@ VNA_SHELL_FUNCTION(cmd_lcd){
 }
 #endif
 
+#ifdef ENABLE_LCD_COMMAND
+VNA_SHELL_FUNCTION(cmd_4432){
+  if (argc == 0 || argc > 2) return;
+  SI4432_Select();
+  if (argc == 1){ // read command from addr
+    uint8_t addr = my_atoui(argv[0]);
+    shell_printf("read 0x%02X = 0x%02X\r\n", addr, SI4432_Read_Byte(addr));
+  }
+  if (argc == 2){ // read command from addr
+    uint8_t addr = my_atoui(argv[0]);
+    uint8_t data = my_atoui(argv[1]);
+    SI4432_Write_Byte(addr, data);
+    shell_printf("write 0x%02X = 0x%02X\r\n", addr, data);
+  }
+  SI4432_Deselect();
+//  chThdSleepMilliseconds(5);
+}
+#endif
+
 #ifdef ENABLE_THREADS_COMMAND
 #if CH_CFG_USE_REGISTRY == FALSE
 #error "Threads Requite enabled CH_CFG_USE_REGISTRY in chconf.h"
@@ -2346,6 +2368,9 @@ static const VNAShellCommand commands[] =
 #endif
 #ifdef ENABLE_LCD_COMMAND
     {"lcd"         , cmd_lcd         , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_SI4432_COMMAND
+    {"si4432"      , cmd_4432        , CMD_WAIT_MUTEX},
 #endif
 #ifdef ENABLE_THREADS_COMMAND
     {"threads"     , cmd_threads     , 0},
@@ -2522,6 +2547,9 @@ int main(void)
   i2cStart(&I2CD1, &i2ccfg);
   si5351_init();
 
+  // Init si4432
+  SI4432_Init();
+
   // MCO on PA8
   //palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(0));
 /*
@@ -2613,7 +2641,7 @@ void HardFault_Handler(void)
 
 void hard_fault_handler_c(uint32_t *sp) 
 {
-#if 0
+#if 1
   uint32_t r0  = sp[0];
   uint32_t r1  = sp[1];
   uint32_t r2  = sp[2];
