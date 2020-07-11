@@ -2547,9 +2547,6 @@ int main(void)
   i2cStart(&I2CD1, &i2ccfg);
   si5351_init();
 
-  // Init si4432
-  SI4432_Init();
-
   // MCO on PA8
   //palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(0));
 /*
@@ -2571,6 +2568,10 @@ int main(void)
  * SPI LCD Initialize
  */
   ili9341_init();
+
+
+  // Init si4432 after SPI bus init
+  SI4432_Init();
 
 /* restore config */
   config_recall();
