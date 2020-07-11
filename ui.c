@@ -33,12 +33,6 @@ uistat_t uistat = {
  marker_tracking : FALSE,
 };
 
-typedef struct {
-  uint8_t x:4;
-  uint8_t y:4;
-  uint8_t c;
-} keypads_t;
-
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
 #define EVT_BUTTON_DOUBLE_CLICK     0x02
@@ -85,10 +79,23 @@ enum {
   UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
 };
 
+// Keypad structures
+// Enum for keypads_list
 enum {
   KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY, KM_NONE
 };
 
+typedef struct {
+  uint8_t x:4;
+  uint8_t y:4;
+  uint8_t c;
+} keypads_t;
+
+typedef struct {
+  const keypads_t *keypad_type;
+  const char *name;
+} keypads_list;
+// Max keyboard input length
 #define NUMINPUT_LEN 10
 
 static uint8_t ui_mode = UI_NORMAL;
@@ -475,14 +482,13 @@ enter_dfu(void)
 {
   adc_stop();
 
-  int x = 5, y = 5;
+  int x = 5, y = 20;
   ili9341_set_foreground(DEFAULT_FG_COLOR);
   ili9341_set_background(DEFAULT_BG_COLOR);
   // leave a last message 
   ili9341_clear_screen();
-  ili9341_drawstring("DFU: Device Firmware Update Mode", x, y += 10);
-  ili9341_drawstring("To exit DFU mode, please reset device yourself.", x, y += 10);
-
+  ili9341_drawstring("DFU: Device Firmware Update Mode\n"
+                     "To exit DFU mode, please reset device yourself.", x, y);
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
@@ -651,7 +657,6 @@ static UI_FUNCTION_CALLBACK(menu_transform_cb)
   (void)data;
   domain_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
-  draw_frequencies();
   ui_mode_normal();
 }
 
@@ -1050,15 +1055,15 @@ const menuitem_t menu_format[] = {
 
 const menuitem_t menu_scale[] = {
   { MT_CALLBACK, KM_SCALE, "SCALE/DIV", menu_keyboard_cb },
-  { MT_CALLBACK, KM_REFPOS, "\2REFERENCE\0POSITION", menu_keyboard_cb },
-  { MT_CALLBACK, KM_EDELAY, "\2ELECTRICAL\0DELAY", menu_keyboard_cb },
+  { MT_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_cb },
+  { MT_CALLBACK, KM_EDELAY, "ELECTRICAL\nDELAY", menu_keyboard_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
 const menuitem_t menu_channel[] = {
-  { MT_CALLBACK, 0, "\2CH0\0REFLECT", menu_channel_cb },
-  { MT_CALLBACK, 1, "\2CH1\0THROUGH", menu_channel_cb },
+  { MT_CALLBACK, 0, "CH0\nREFLECT", menu_channel_cb },
+  { MT_CALLBACK, 1, "CH1\nTHROUGH", menu_channel_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1072,12 +1077,12 @@ const menuitem_t menu_transform_window[] = {
 };
 
 const menuitem_t menu_transform[] = {
-  { MT_CALLBACK, 0, "\2TRANSFORM\0ON", menu_transform_cb },
-  { MT_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "\2LOW PASS\0IMPULSE", menu_transform_filter_cb },
-  { MT_CALLBACK, TD_FUNC_LOWPASS_STEP, "\2LOW PASS\0STEP", menu_transform_filter_cb },
+  { MT_CALLBACK, 0, "TRANSFORM\nON", menu_transform_cb },
+  { MT_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE", menu_transform_filter_cb },
+  { MT_CALLBACK, TD_FUNC_LOWPASS_STEP, "LOW PASS\nSTEP", menu_transform_filter_cb },
   { MT_CALLBACK, TD_FUNC_BANDPASS, "BANDPASS", menu_transform_filter_cb },
   { MT_SUBMENU, 0, "WINDOW", menu_transform_window },
-  { MT_CALLBACK, KM_VELOCITY_FACTOR, "\2VELOCITY\0FACTOR", menu_keyboard_cb },
+  { MT_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR", menu_keyboard_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1118,7 +1123,7 @@ const menuitem_t menu_stimulus[] = {
   { MT_CALLBACK, KM_CENTER, "CENTER", menu_keyboard_cb },
   { MT_CALLBACK, KM_SPAN, "SPAN",  menu_keyboard_cb },
   { MT_CALLBACK, KM_CW, "CW FREQ", menu_keyboard_cb },
-  { MT_CALLBACK, 0, "\2PAUSE\0SWEEP", menu_pause_cb },
+  { MT_CALLBACK, 0, "PAUSE\nSWEEP", menu_pause_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1148,8 +1153,8 @@ const menuitem_t menu_marker_search[] = {
   //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
   { MT_CALLBACK, 0, "MAXIMUM", menu_marker_search_cb },
   { MT_CALLBACK, 0, "MINIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "\2SEARCH\0" S_LARROW" LEFT", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "\2SEARCH\0" S_RARROW" RIGHT", menu_marker_search_cb },
+  { MT_CALLBACK, 0, "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
+  { MT_CALLBACK, 0, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
   { MT_CALLBACK, 0, "TRACKING", menu_marker_search_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1166,10 +1171,10 @@ const menuitem_t menu_marker_smith[] = {
 };
 
 const menuitem_t menu_marker[] = {
-  { MT_SUBMENU, 0, "\2SELECT\0MARKER", menu_marker_sel },
+  { MT_SUBMENU, 0, "SELECT\nMARKER", menu_marker_sel },
   { MT_SUBMENU, 0, "SEARCH", menu_marker_search },
   { MT_SUBMENU, 0, "OPERATIONS", menu_marker_ops },
-  { MT_SUBMENU, 0, "\2SMITH\0VALUE", menu_marker_smith },
+  { MT_SUBMENU, 0, "SMITH\nVALUE", menu_marker_smith },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1187,7 +1192,7 @@ const menuitem_t menu_recall[] = {
 };
 
 const menuitem_t menu_dfu[] = {
-  { MT_CALLBACK, 0, "\2RESET AND\0ENTER DFU", menu_dfu_cb },
+  { MT_CALLBACK, 0, "RESET AND\nENTER DFU", menu_dfu_cb },
   { MT_CANCEL, 0, S_LARROW"CANCEL", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1196,7 +1201,7 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK, 0, "TOUCH CAL", menu_config_cb },
   { MT_CALLBACK, 0, "TOUCH TEST", menu_config_cb },
   { MT_CALLBACK, 0, "SAVE", menu_config_save_cb },
-  { MT_SUBMENU,  0, "\2SWEEP\0POINTS", menu_sweep_points },
+  { MT_SUBMENU,  0, "SWEEP\nPOINTS", menu_sweep_points },
   { MT_CALLBACK, 0, "VERSION", menu_config_cb },
   { MT_CALLBACK, 0, "BRIGHTNESS", menu_brightness },
 //{ MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
@@ -1229,7 +1234,9 @@ ensure_selection(void)
   int i;
   for (i = 0; menu[i].type != MT_NONE; i++)
     ;
-  if (selection >= i)
+  if (selection < 0)
+    selection = -1;
+  else if (selection >= i)
     selection = i-1;
 }
 
@@ -1301,30 +1308,6 @@ menu_invoke(int item)
     break;
   }
 }
-
-// Maximum menu buttons count
-#define MENU_BUTTON_MAX     8
-// Menu buttons size
-#define MENU_BUTTON_WIDTH  80
-#define MENU_BUTTON_HEIGHT 38
-#define MENU_BUTTON_BORDER  1
-
-// Height of numerical input field (at bottom)
-#define NUM_INPUT_HEIGHT   32
-
-#if 1
-#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
-#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
-#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
-#else
-#define KP_WIDTH     64
-#define KP_HEIGHT    64
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
-#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
-#endif
 
 // Key names
 #define KP_0          0
@@ -1409,21 +1392,17 @@ static const keypads_t keypads_time[] = {
   { 0, 0, KP_NONE }
 };
 
-static const keypads_t * const keypads_mode_tbl[KM_NONE] = {
-  keypads_freq, // start
-  keypads_freq, // stop
-  keypads_freq, // center
-  keypads_freq, // span
-  keypads_freq, // cw freq
-  keypads_scale, // scale
-  keypads_scale, // refpos
-  keypads_time, // electrical delay
-  keypads_scale, // velocity factor
-  keypads_time // scale of delay
-};
-
-static const char * const keypad_mode_label[KM_NONE] = {
-  "START", "STOP", "CENTER", "SPAN", "CW FREQ", "SCALE", "REFPOS", "EDELAY", "VELOCITY%", "DELAY"
+static const keypads_list keypads_mode_tbl[KM_NONE] = {
+  {keypads_freq , "START"    }, // start
+  {keypads_freq , "STOP"     }, // stop
+  {keypads_freq , "CENTER"   }, // center
+  {keypads_freq , "SPAN"     }, // span
+  {keypads_freq , "CW FREQ"  }, // cw freq
+  {keypads_scale, "SCALE"    }, // scale
+  {keypads_scale, "REFPOS"   }, // refpos
+  {keypads_time , "EDELAY"   }, // electrical delay
+  {keypads_scale, "VELOCITY%"}, // velocity factor
+  {keypads_time , "DELAY"    }  // scale of delay
 };
 
 static void
@@ -1464,7 +1443,7 @@ draw_numeric_area_frame(void)
   ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, config.menu_normal_color);
   ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
   ili9341_set_background(config.menu_normal_color);
-  ili9341_drawstring(keypad_mode_label[keypad_mode], 10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2);
+  ili9341_drawstring(keypads_mode_tbl[keypad_mode].name, 10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2);
   //ili9341_drawfont(KP_KEYPAD, 300, 216);
 }
 
@@ -1509,15 +1488,13 @@ draw_numeric_input(const char *buf)
 }
 
 static int
-menu_is_multiline(const char *label, const char **l1, const char **l2)
+menu_is_multiline(const char *label)
 {
-  if (label[0] != '\2')
-    return FALSE;
-  const char *ptr = &label[1];
-  *l1 = ptr;
-  while (*ptr++ != 0);
-  *l2 = ptr;
-  return TRUE;
+  int n = 1;
+  while (*label)
+    if (*label++ == '\n')
+      n++;
+  return n;
 }
 
 static void
@@ -1581,7 +1558,6 @@ draw_menu_buttons(const menuitem_t *menu)
 {
   int i = 0, y = 0;
   for (i = 0; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
-    const char *l1, *l2;
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
@@ -1599,12 +1575,8 @@ draw_menu_buttons(const menuitem_t *menu)
 
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, fg, bg);
 
-    if (menu_is_multiline(menu[i].label, &l1, &l2)) {
-      ili9341_drawstring(l1, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+MENU_BUTTON_HEIGHT/2-FONT_GET_HEIGHT);
-      ili9341_drawstring(l2, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+MENU_BUTTON_HEIGHT/2+1);
-    } else {
-      ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+(MENU_BUTTON_HEIGHT-FONT_GET_HEIGHT-6)/2+2);
-    }
+    int lines = menu_is_multiline(menu[i].label);
+    ili9341_drawstring(menu[i].label, LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+4, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, DEFAULT_BG_COLOR);
@@ -1803,7 +1775,7 @@ ui_mode_keypad(int _keypad_mode)
 
   // keypads array
   keypad_mode = _keypad_mode;
-  keypads = keypads_mode_tbl[_keypad_mode];
+  keypads = keypads_mode_tbl[keypad_mode].keypad_type;
   int i;
   for (i = 0; keypads[i+1].c != KP_NONE; i++)
     ;
