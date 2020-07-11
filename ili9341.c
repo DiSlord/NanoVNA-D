@@ -137,8 +137,8 @@ uint16_t background_color = 0;
 //
 // Pin macros
 //
-#define RESET_ASSERT  palClearPad(GPIOA, GPIOA_LCD_RESET)
-#define RESET_NEGATE  palSetPad(GPIOA, GPIOA_LCD_RESET)
+#define RESET_ASSERT  palClearPad(GPIOB, GPIOB_LCD_RESET)
+#define RESET_NEGATE  palSetPad(GPIOB, GPIOB_LCD_RESET)
 #define CS_LOW        palClearPad(GPIOB, GPIOB_LCD_CS)
 #define CS_HIGH       palSetPad(GPIOB, GPIOB_LCD_CS)
 #define DC_CMD        palClearPad(GPIOB, GPIOB_LCD_CD)
