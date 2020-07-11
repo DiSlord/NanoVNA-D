@@ -440,8 +440,8 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__
-#include "fatfs\ff.h"
-#include "fatfs\diskio.h"
+#include "../FatFs/ff.h"
+#include "../FatFs/diskio.h"
 void testLog(void);        // debug log
 #endif
 
