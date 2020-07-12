@@ -23,7 +23,7 @@
 
 #include "spi.h"
 // Allow enable DMA for read display data
-//#define __USE_DISPLAY_DMA_RX__
+#define __USE_DISPLAY_DMA_RX__
 
 // Pin macros for LCD
 #define LCD_CS_LOW        palClearPad(GPIOB, GPIOB_LCD_CS)
