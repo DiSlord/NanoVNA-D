@@ -125,8 +125,9 @@ void SI4432_Deselect(void){
 static void SI4432_shiftOut(uint8_t val)
 {
 #ifdef USE_HARDWARE_SPI_MODE
-  while (SPI_TX_IS_NOT_EMPTY);
   SPI_WRITE_8BIT(val);
+  while (SPI_IS_BUSY) // drop rx and wait tx
+    (void)SPI_READ_8BIT;
 #else
   uint8_t i = 0;
   do {
@@ -142,8 +143,6 @@ static void SI4432_shiftOut(uint8_t val)
 static uint8_t SI4432_shiftIn(void)
 {
 #ifdef USE_HARDWARE_SPI_MODE
-  while (SPI_IS_BUSY) // drop rx and wait tx
-    (void)SPI_READ_8BIT;
   SPI_WRITE_8BIT(0xFF);
   while (SPI_RX_IS_EMPTY); //wait rx data in buffer
   return SPI_READ_8BIT;

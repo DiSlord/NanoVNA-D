@@ -2569,7 +2569,6 @@ int main(void)
  */
   ili9341_init();
 
-
   // Init si4432 after SPI bus init
   SI4432_Init();
 
