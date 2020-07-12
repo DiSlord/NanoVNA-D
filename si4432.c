@@ -21,8 +21,7 @@
 #include "nanovna.h"
 #include "si4432.h"
 
-// I can`t launch si4432 on hardware SPI mode
-// Only in software legs bitbang
+// Define for use hardware SPI mode
 //#define USE_HARDWARE_SPI_MODE
 
 #define SI4432_10MHZ 10000000U
@@ -58,7 +57,10 @@
 #define	SPI_BR_DIV128 (SPI_CR1_BR_2|SPI_CR1_BR_1)
 #define	SPI_BR_DIV256 (SPI_CR1_BR_2|SPI_CR1_BR_1|SPI_CR1_BR_0)
 
-#define LCD_SPI_SPEED   SPI_BR_DIV2
+#define LCD_SPI_SPEED      SPI_BR_DIV2
+
+#define SI4432_SPI_SPEED   SPI_BR_DIV8
+
 #define SPI_BR_SET(br)  (SPI1->CR1 = (SPI1->CR1& ~(SPI_BR_DIV256))|br)
 
 //*****************************************************
@@ -81,13 +83,6 @@
 // Tx or Rx in process
 #define SPI_IN_TX_RX    ((SPI1->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || SPI_IS_BUSY)
 
-//*****************************************************
-// SPI send data macros
-//*****************************************************
-#define SPI_UNI_MODE    SPI1->CR1 &= ~SPI_CR1_BIDIMODE;
-#define SPI_RX_MODE     {SPI1->CR1 |= SPI_CR1_BIDIMODE;SPI1->CR1 &= ~SPI_CR1_BIDIOE;}
-#define SPI_TX_MODE     {SPI1->CR1 |= SPI_CR1_BIDIMODE;SPI1->CR1 |=  SPI_CR1_BIDIOE;}
-
 #define SPI_WRITE_8BIT(data)  *(__IO uint8_t*)(&SPI1->DR) = (uint8_t) data
 #define SPI_WRITE_16BIT(data) *(__IO uint16_t*)(&SPI1->DR) = (uint16_t) data
 
@@ -98,12 +93,16 @@
 #define SPI_READ_16BIT      *(__IO uint16_t*)(&SPI1->DR)
 #endif
 
+
+#ifndef USE_HARDWARE_SPI_MODE
 static uint32_t old_port_moder;
 static uint32_t new_port_moder;
+#endif
+
 void SI4432_Select(void){
   CS_HIGH;
 #ifdef USE_HARDWARE_SPI_MODE
-  SPI_BR_SET(SPI_BR_DIV256);
+  SPI_BR_SET(SI4432_SPI_SPEED);
 #else
   // Init legs mode for software bitbang
   GPIOB->MODER = new_port_moder;
@@ -143,11 +142,10 @@ static void SI4432_shiftOut(uint8_t val)
 static uint8_t SI4432_shiftIn(void)
 {
 #ifdef USE_HARDWARE_SPI_MODE
-  while (SPI_RX_IS_NOT_EMPTY)
+  while (SPI_IS_BUSY) // drop rx and wait tx
     (void)SPI_READ_8BIT;
-  // Start RX clock (by sending data)
   SPI_WRITE_8BIT(0xFF);
-  while (SPI_RX_IS_EMPTY || SPI_IS_BUSY);
+  while (SPI_RX_IS_EMPTY); //wait rx data in buffer
   return SPI_READ_8BIT;
 #else
   uint32_t value = 0;
@@ -164,9 +162,11 @@ static uint8_t SI4432_shiftIn(void)
 
 void SI4432_Init(void){
   // Store old port settings for software SPI mode
+#ifndef USE_HARDWARE_SPI_MODE
   old_port_moder = GPIOB->MODER;
   new_port_moder = old_port_moder & ~(PIN_MODE_ANALOG(GPIOB_SPI_SCLK)|PIN_MODE_ANALOG(GPIOB_SPI_MISO)|PIN_MODE_ANALOG(GPIOB_SPI_MOSI));
   new_port_moder|= PIN_MODE_OUTPUT(GPIOB_SPI_SCLK)|PIN_MODE_INPUT(GPIOB_SPI_MISO)|PIN_MODE_OUTPUT(GPIOB_SPI_MOSI);
+#endif
 
   SI4432_Select();
   // Switch off si4432
