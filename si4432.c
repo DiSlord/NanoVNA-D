@@ -20,16 +20,25 @@
 #include "hal.h"
 #include "nanovna.h"
 #include "si4432.h"
+#include "spi.h"
 
 // Define for use hardware SPI mode
-//#define USE_HARDWARE_SPI_MODE
+#define USE_HARDWARE_SPI_MODE
 
+// 10MHz clock
 #define SI4432_10MHZ 10000000U
 // !!!! FROM ili9341.c for disable it !!!! 
-#define CS_LOW        palClearPad(GPIOB, GPIOB_LCD_CS)
-#define CS_HIGH       palSetPad(GPIOB, GPIOB_LCD_CS)
+#define LCD_CS_HIGH    palSetPad(GPIOB, GPIOB_LCD_CS)
 
-// Software SPI use
+// Hardware or software SPI use
+#ifdef USE_HARDWARE_SPI_MODE
+
+#define SI4432_SPI         SPI1
+#define SI4432_SPI_SPEED   SPI_BR_DIV8
+static uint32_t old_spi_settings;
+
+#else
+
 #define SPI_CLK_HIGH   palSetPad(GPIOB, GPIOB_SPI_SCLK)
 #define SPI_CLK_LOW    palClearPad(GPIOB, GPIOB_SPI_SCLK)
 
@@ -43,66 +52,15 @@
 #define SI_CS_LOW      palClearPad(GPIOA, GPIOA_SI_SEL)
 #define SI_CS_HIGH     palSetPad(GPIOA, GPIOA_SI_SEL)
 
-#ifdef USE_HARDWARE_SPI_MODE
-// !!!! FROM ili9341.c !!!!
-//*****************************************************
-// SPI bus baud rate (PPL/BR_DIV)
-//*****************************************************
-#define	SPI_BR_DIV2   (0x00000000U)
-#define	SPI_BR_DIV4   (SPI_CR1_BR_0)
-#define	SPI_BR_DIV8   (SPI_CR1_BR_1)
-#define	SPI_BR_DIV16  (SPI_CR1_BR_1|SPI_CR1_BR_0)
-#define	SPI_BR_DIV32  (SPI_CR1_BR_2)
-#define	SPI_BR_DIV64  (SPI_CR1_BR_2|SPI_CR1_BR_0)
-#define	SPI_BR_DIV128 (SPI_CR1_BR_2|SPI_CR1_BR_1)
-#define	SPI_BR_DIV256 (SPI_CR1_BR_2|SPI_CR1_BR_1|SPI_CR1_BR_0)
-
-#define LCD_SPI_SPEED      SPI_BR_DIV2
-
-#define SI4432_SPI_SPEED   SPI_BR_DIV8
-
-#define SPI_BR_SET(br)  (SPI1->CR1 = (SPI1->CR1& ~(SPI_BR_DIV256))|br)
-
-//*****************************************************
-// SPI bus activity macros
-//*****************************************************
-// The RXNE flag is set depending on the FRXTH bit value in the SPIx_CR2 register:
-// • If FRXTH is set, RXNE goes high and stays high until the RXFIFO level is greater or equal to 1/4 (8-bit).
-#define SPI_RX_IS_NOT_EMPTY  (SPI1->SR&SPI_SR_RXNE)
-#define SPI_RX_IS_EMPTY     (((SPI1->SR&SPI_SR_RXNE) == 0))
-
-// The TXE flag is set when transmission TXFIFO has enough space to store data to send.
-// 0: Tx buffer not empty, bit is cleared automatically when the TXFIFO level becomes greater than 1/2
-// 1: Tx buffer empty, flag goes high and stays high until the TXFIFO level is lower or equal to 1/2 of the FIFO depth
-#define SPI_TX_IS_NOT_EMPTY  (((SPI1->SR&(SPI_SR_TXE)) == 0))
-#define SPI_TX_IS_EMPTY     (SPI1->SR&SPI_SR_TXE)
-
-// When BSY is set, it indicates that a data transfer is in progress on the SPI (the SPI bus is busy).
-#define SPI_IS_BUSY     (SPI1->SR & SPI_SR_BSY)
-
-// Tx or Rx in process
-#define SPI_IN_TX_RX    ((SPI1->SR & (SPI_SR_TXE | SPI_SR_RXNE)) == 0 || SPI_IS_BUSY)
-
-#define SPI_WRITE_8BIT(data)  *(__IO uint8_t*)(&SPI1->DR) = (uint8_t) data
-#define SPI_WRITE_16BIT(data) *(__IO uint16_t*)(&SPI1->DR) = (uint16_t) data
-
-//*****************************************************
-// SPI read data macros
-//*****************************************************
-#define SPI_READ_8BIT       *(__IO uint8_t*)(&SPI1->DR)
-#define SPI_READ_16BIT      *(__IO uint16_t*)(&SPI1->DR)
-#endif
-
-
-#ifndef USE_HARDWARE_SPI_MODE
 static uint32_t old_port_moder;
 static uint32_t new_port_moder;
 #endif
 
 void SI4432_Select(void){
-  CS_HIGH;
+  LCD_CS_HIGH;
 #ifdef USE_HARDWARE_SPI_MODE
-  SPI_BR_SET(SI4432_SPI_SPEED);
+  old_spi_settings = SI4432_SPI->CR1;
+  SPI_BR_SET(SI4432_SPI, SI4432_SPI_SPEED);
 #else
   // Init legs mode for software bitbang
   GPIOB->MODER = new_port_moder;
@@ -115,7 +73,7 @@ void SI4432_Select(void){
 void SI4432_Deselect(void){
   SI_CS_HIGH;
 #ifdef USE_HARDWARE_SPI_MODE
-  SPI_BR_SET(LCD_SPI_SPEED);
+  SI4432_SPI->CR1 = old_spi_settings;
 #else
   // Restore hardware SPI
   GPIOB->MODER = old_port_moder;
@@ -125,9 +83,9 @@ void SI4432_Deselect(void){
 static void SI4432_shiftOut(uint8_t val)
 {
 #ifdef USE_HARDWARE_SPI_MODE
-  SPI_WRITE_8BIT(val);
-  while (SPI_IS_BUSY) // drop rx and wait tx
-    (void)SPI_READ_8BIT;
+  SPI_WRITE_8BIT(SI4432_SPI, val);
+  while (SPI_IS_BUSY(SI4432_SPI)) // drop rx and wait tx
+    (void)SPI_READ_8BIT(SI4432_SPI);
 #else
   uint8_t i = 0;
   do {
@@ -143,9 +101,9 @@ static void SI4432_shiftOut(uint8_t val)
 static uint8_t SI4432_shiftIn(void)
 {
 #ifdef USE_HARDWARE_SPI_MODE
-  SPI_WRITE_8BIT(0xFF);
-  while (SPI_RX_IS_EMPTY); //wait rx data in buffer
-  return SPI_READ_8BIT;
+  SPI_WRITE_8BIT(SI4432_SPI, 0xFF);
+  while (SPI_RX_IS_EMPTY(SI4432_SPI)); //wait rx data in buffer
+  return SPI_READ_8BIT(SI4432_SPI);
 #else
   uint32_t value = 0;
   uint8_t i = 0;
