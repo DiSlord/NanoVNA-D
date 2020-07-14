@@ -171,8 +171,25 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 /*
  * plot.c
  */
+// LCD display size settings
+#define LCD_WIDTH                   480
+#define LCD_HEIGHT                  320
 
-// Offset of plot area
+// Used font 7x11 font definition macros
+extern const uint8_t x7x11b_bits [];
+#define FONT_GET_DATA(ch)   (&x7x11b_bits[ch*11])
+#define FONT_GET_WIDTH(ch)  (8-(x7x11b_bits[ch*11]&7))
+#define FONT_MAX_WIDTH       8
+#define FONT_WIDTH           7
+#define FONT_GET_HEIGHT	    11
+#define FONT_STR_HEIGHT	    11
+
+extern const uint16_t numfont16x22[];
+#define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*22])
+#define NUM_FONT_GET_WIDTH      16
+#define NUM_FONT_GET_HEIGHT     22
+
+// Offset of plot area (size of additional info at left side)
 #define OFFSETX 15
 #define OFFSETY  0
 
@@ -187,13 +204,13 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1 OFFSETX
 #define FREQUENCIES_XPOS2 320
 #define FREQUENCIES_XPOS3 200
-#define FREQUENCIES_YPOS  (320-12)
+#define FREQUENCIES_YPOS  (LCD_HEIGHT-FONT_GET_HEIGHT)
 
 // GRIDX calculated depends from frequency span
 //#define GRIDY 29
 #define GRIDY (HEIGHT / NGRIDY)
 
-//
+// Need for reference marker draw
 #define CELLOFFSETX 5
 #define AREA_WIDTH_NORMAL  (CELLOFFSETX + WIDTH  + 1 + 4)
 #define AREA_HEIGHT_NORMAL (              HEIGHT + 1)
@@ -206,20 +223,33 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 extern int16_t area_width;
 extern int16_t area_height;
 
-// font 7x11 font definition macros
-extern const uint8_t x7x11b_bits [];
-#define FONT_GET_DATA(ch)   (&x7x11b_bits[ch*11])
-#define FONT_GET_WIDTH(ch)  (8-(x7x11b_bits[ch*11]&7))
-#define FONT_MAX_WIDTH       8
-#define FONT_WIDTH           7
-#define FONT_GET_HEIGHT	    11
-#define FONT_STR_HEIGHT	    11
+// Maximum menu buttons count
+#define MENU_BUTTON_MAX         8
+// Menu buttons size
+#define MENU_BUTTON_WIDTH      84
+#define MENU_BUTTON_HEIGHT     38
+#define MENU_BUTTON_BORDER      1
+#define KEYBOARD_BUTTON_BORDER  2
 
-extern const uint16_t numfont16x22[];
-#define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*22])
-#define NUM_FONT_GET_WIDTH      16
-#define NUM_FONT_GET_HEIGHT     22
+// Height of numerical input field (at bottom)
+#define NUM_INPUT_HEIGHT   32
 
+// On screen keyboard button size
+#if 1
+#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
+#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
+#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
+#else
+#define KP_WIDTH     64
+#define KP_HEIGHT    64
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
+#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
+#endif
+
+// Additional chars in fonts
 #define S_DELTA "\004"
 #define S_DEGREE "\037"
 #define S_SARROW "\030"
@@ -370,9 +400,6 @@ extern volatile uint8_t redraw_request;
 // Define size of screen buffer in pixels (one pixel 16bit size)
 #define SPI_BUFFER_SIZE             2048
 
-#define LCD_WIDTH                   480
-#define LCD_HEIGHT                  320
-
 #define DEFAULT_FG_COLOR            RGB565(255,255,255)
 #define DEFAULT_BG_COLOR            RGB565(  0,  0,  0)
 #define DEFAULT_GRID_COLOR          RGB565(128,128,128)
@@ -400,6 +427,7 @@ void ili9341_set_foreground(uint16_t fg);
 void ili9341_set_background(uint16_t fg);
 void ili9341_clear_screen(void);
 void blit8BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
+void blit16BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t *bitmap);
 void ili9341_drawchar(uint8_t ch, int x, int y);
 void ili9341_drawstring(const char *str, int x, int y);
 void ili9341_drawstringV(const char *str, int x, int y);
@@ -408,14 +436,13 @@ void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size);
 void ili9341_drawfont(uint8_t ch, int x, int y);
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
-void show_version(void);
-void show_logo(void);
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
+
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__
-#include "fatfs\ff.h"
-#include "fatfs\diskio.h"
+#include "../FatFs/ff.h"
+#include "../FatFs/diskio.h"
 void testLog(void);        // debug log
 #endif
 
@@ -556,7 +583,6 @@ void ui_show(void);
 void ui_hide(void);
 
 void touch_start_watchdog(void);
-void touch_position(int *x, int *y);
 void handle_touch_interrupt(void);
 
 #define TOUCH_THRESHOLD 2000
