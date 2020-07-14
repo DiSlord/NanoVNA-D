@@ -29,12 +29,14 @@
 #define SI4432_10MHZ 10000000U
 // !!!! FROM ili9341.c for disable it !!!! 
 #define LCD_CS_HIGH    palSetPad(GPIOB, GPIOB_LCD_CS)
+#define SI_CS_LOW      palClearPad(GPIOA, GPIOA_SI_SEL)
+#define SI_CS_HIGH     palSetPad(GPIOA, GPIOA_SI_SEL)
 
 // Hardware or software SPI use
 #ifdef USE_HARDWARE_SPI_MODE
-
 #define SI4432_SPI         SPI1
 #define SI4432_SPI_SPEED   SPI_BR_DIV8
+
 static uint32_t old_spi_settings;
 
 #else
@@ -48,9 +50,6 @@ static uint32_t old_spi_settings;
 
 #define SPI_SDO       ((palReadPort(GPIOB)>>GPIOB_SPI_MISO)&1)
 #define SPI_portSDO   (palReadPort(GPIOB)&(1<<GPIOB_SPI_MISO))
-
-#define SI_CS_LOW      palClearPad(GPIOA, GPIOA_SI_SEL)
-#define SI_CS_HIGH     palSetPad(GPIOA, GPIOA_SI_SEL)
 
 static uint32_t old_port_moder;
 static uint32_t new_port_moder;
