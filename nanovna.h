@@ -224,11 +224,12 @@ extern int16_t area_width;
 extern int16_t area_height;
 
 // Maximum menu buttons count
-#define MENU_BUTTON_MAX     8
+#define MENU_BUTTON_MAX         8
 // Menu buttons size
-#define MENU_BUTTON_WIDTH  80
-#define MENU_BUTTON_HEIGHT 38
-#define MENU_BUTTON_BORDER  1
+#define MENU_BUTTON_WIDTH      84
+#define MENU_BUTTON_HEIGHT     38
+#define MENU_BUTTON_BORDER      1
+#define KEYBOARD_BUTTON_BORDER  2
 
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT   32
@@ -426,6 +427,7 @@ void ili9341_set_foreground(uint16_t fg);
 void ili9341_set_background(uint16_t fg);
 void ili9341_clear_screen(void);
 void blit8BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
+void blit16BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t *bitmap);
 void ili9341_drawchar(uint8_t ch, int x, int y);
 void ili9341_drawstring(const char *str, int x, int y);
 void ili9341_drawstringV(const char *str, int x, int y);
@@ -434,9 +436,8 @@ void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size);
 void ili9341_drawfont(uint8_t ch, int x, int y);
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
-void show_version(void);
-void show_logo(void);
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
+
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__
@@ -582,7 +583,6 @@ void ui_show(void);
 void ui_hide(void);
 
 void touch_start_watchdog(void);
-void touch_position(int *x, int *y);
 void handle_touch_interrupt(void);
 
 #define TOUCH_THRESHOLD 2000
