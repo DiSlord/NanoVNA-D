@@ -22,9 +22,9 @@
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
 // Add RTC clock support
-#define __USE_RTC__
+//#define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
-#define __USE_SD_CARD__
+//#define __USE_SD_CARD__
 
 /*
  * main.c
@@ -38,6 +38,8 @@
 #define FREQUENCY_THRESHOLD      300000100U
 // Frequency offset (sin_cos table in dsp.c generated for 6k, 8k, 10k, if change need create new table )
 #define FREQUENCY_OFFSET         12000
+//For 48kHz
+//#define FREQUENCY_OFFSET         6000
 // Use real time build table (undef for use constant)
 //#define USE_VARIABLE_OFFSET
 // Speed of light const
@@ -124,10 +126,10 @@ extern const char *info_about[];
  */
 // 5ms @ 96kHz
 // Define aic3204 source clock frequency (for 8MHz used fractional multiplier, and possible little phase error)
-//#define AUDIO_CLOCK_REF       ( 8000000U)
+#define AUDIO_CLOCK_REF       ( 8000000U)
 //#define AUDIO_CLOCK_REF       (10752000U)
 // Disable AIC PLL clock, use input as CODEC_CLKIN
-#define AUDIO_CLOCK_REF       (86016000U)
+//#define AUDIO_CLOCK_REF       (86016000U)
 
 // Define ADC sample rate
 #define AUDIO_ADC_FREQ        (96000)
@@ -140,12 +142,20 @@ extern const char *info_about[];
 // Bandwidth depend from AUDIO_SAMPLES_COUNT and audio ADC frequency
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 96kHz one measure give 96000/48=2000Hz
 // define additional measure count
+#if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 2000
 #define BANDWIDTH_2000            (  1 - 1)
 #define BANDWIDTH_1000            (  2 - 1)
 #define BANDWIDTH_333             (  6 - 1)
 #define BANDWIDTH_100             ( 20 - 1)
 #define BANDWIDTH_30              ( 66 - 1)
 #define BANDWIDTH_10              (200 - 1)
+#elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 1000
+#define BANDWIDTH_1000            (  1 - 1)
+#define BANDWIDTH_333             (  3 - 1)
+#define BANDWIDTH_100             ( 10 - 1)
+#define BANDWIDTH_30              ( 33 - 1)
+#define BANDWIDTH_10              (100 - 1)
+#endif
 
 #ifdef ENABLED_DUMP
 extern int16_t ref_buf[];
@@ -437,7 +447,6 @@ void ili9341_drawfont(uint8_t ch, int x, int y);
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
-
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__
