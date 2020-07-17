@@ -36,8 +36,11 @@
 #define STOP_MAX                 2700000000U
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
-// Frequency offset (sin_cos table in dsp.c generated for 6k, 8k, 10k, if change need create new table )
+// See AUDIO_ADC_FREQ settings, on change possible need adjust sweep timings in si5351.c for better speed
+// Frequency offset for 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 #define FREQUENCY_OFFSET         12000
+// Frequency offset for 48k ADC (sin_cos table in dsp.c generated for 3k, 4k, 5k, 6k, if change need create new table )
+//#define FREQUENCY_OFFSET         6000
 // Use real time build table (undef for use constant)
 //#define USE_VARIABLE_OFFSET
 // Speed of light const
@@ -45,12 +48,15 @@
 // pi const
 #define VNA_PI                   3.14159265358979323846
 
-// Optional sweep point
+// Maximum sweep point count (limit by flash and RAM size)
+#define POINTS_COUNT     201
+
+// Optional sweep point (in UI menu)
 #define POINTS_SET_51     51
 #define POINTS_SET_101   101
+#if POINTS_COUNT >= 201
 #define POINTS_SET_201   201
-// Maximum sweep point count
-#define POINTS_COUNT     201
+#endif
 
 extern float measured[2][POINTS_COUNT][2];
 extern uint32_t frequencies[POINTS_COUNT];
@@ -126,7 +132,7 @@ extern const char *info_about[];
 // Define aic3204 source clock frequency (for 8MHz used fractional multiplier, and possible little phase error)
 #define AUDIO_CLOCK_REF       ( 8000000U)
 //#define AUDIO_CLOCK_REF       (10752000U)
-// Disable AIC PLL clock, use input as CODEC_CLKIN
+// Disable AIC PLL clock, use input as CODEC_CLKIN (not stable on some devices, on long work)
 //#define AUDIO_CLOCK_REF       (86016000U)
 
 // Define ADC sample rate
@@ -140,12 +146,20 @@ extern const char *info_about[];
 // Bandwidth depend from AUDIO_SAMPLES_COUNT and audio ADC frequency
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 96kHz one measure give 96000/48=2000Hz
 // define additional measure count
+#if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 2000
 #define BANDWIDTH_2000            (  1 - 1)
 #define BANDWIDTH_1000            (  2 - 1)
 #define BANDWIDTH_333             (  6 - 1)
 #define BANDWIDTH_100             ( 20 - 1)
 #define BANDWIDTH_30              ( 66 - 1)
 #define BANDWIDTH_10              (200 - 1)
+#elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 1000
+#define BANDWIDTH_1000            (  1 - 1)
+#define BANDWIDTH_333             (  3 - 1)
+#define BANDWIDTH_100             ( 10 - 1)
+#define BANDWIDTH_30              ( 33 - 1)
+#define BANDWIDTH_10              (100 - 1)
+#endif
 
 #ifdef ENABLED_DUMP
 extern int16_t ref_buf[];
@@ -230,6 +244,9 @@ extern int16_t area_height;
 #define MENU_BUTTON_HEIGHT     38
 #define MENU_BUTTON_BORDER      1
 #define KEYBOARD_BUTTON_BORDER  2
+
+// Define message box width
+#define MESSAGE_BOX_WIDTH     180
 
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT   32
@@ -413,6 +430,8 @@ extern volatile uint8_t redraw_request;
 #define DEFAULT_NORMAL_BAT_COLOR    RGB565( 31,227,  0)
 #define DEFAULT_LOW_BAT_COLOR       RGB565(255,  0,  0)
 #define DEFAULT_SPEC_INPUT_COLOR    RGB565(128,255,128);
+#define DEFAULT_RISE_EDGE_COLOR     RGB565(255,255,255);
+#define DEFAULT_FALLEN_EDGE_COLOR   RGB565(128,128,128);
 
 extern uint16_t foreground_color;
 extern uint16_t background_color;
@@ -437,7 +456,6 @@ void ili9341_drawfont(uint8_t ch, int x, int y);
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
-
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__

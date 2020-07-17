@@ -70,7 +70,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_COLOR_COMMAND
 // Enable I2C command for send data to AIC3204, used for debug
 //#define ENABLE_I2C_COMMAND
-#define ENABLE_LCD_COMMAND
+//#define ENABLE_LCD_COMMAND
 // Enable debug command for SI4432
 #define ENABLE_SI4432_COMMAND
 
@@ -720,7 +720,7 @@ config_t config = {
   .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
   .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-//  .touch_cal =         { 357, 563, 159, 198 },  // 2.8 inch LCD panel
+//  .touch_cal =        { 338, 522, 153, 192 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,

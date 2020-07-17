@@ -125,13 +125,20 @@ static int8_t  selection = 0;
 #define BUTTON_ICON_GROUP_CHECKED    3
 
 #define BUTTON_BORDER_NONE           0x00
-#define BUTTON_BORDER_WIDTH_MASK     (0x07<<0)
-#define BUTTON_BORDER_TYPE_MASK      (0x03<<3)
-#define BUTTON_BORDER_FLAT           (0x00<<3)
-#define BUTTON_BORDER_RISE           (0x01<<3)
-#define BUTTON_BORDER_FALLING        (0x02<<3)
+#define BUTTON_BORDER_WIDTH_MASK     0x0F
 
-typedef struct Button{
+// Define mask for draw border (if 1 use light color, if 0 dark)
+#define BUTTON_BORDER_TYPE_MASK      0xF0
+#define BUTTON_BORDER_TOP            0x10
+#define BUTTON_BORDER_BOTTOM         0x20
+#define BUTTON_BORDER_LEFT           0x40
+#define BUTTON_BORDER_RIGHT          0x80
+
+#define BUTTON_BORDER_FLAT           0x00
+#define BUTTON_BORDER_RISE           (BUTTON_BORDER_TOP|BUTTON_BORDER_RIGHT)
+#define BUTTON_BORDER_FALLING        (BUTTON_BORDER_BOTTOM|BUTTON_BORDER_LEFT)
+
+typedef struct {
   uint16_t bg;
   uint16_t fg;
   uint8_t  border;
@@ -181,6 +188,7 @@ static void ui_process_numeric(void);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
+void drawMessageBox(char *header, char *text, uint32_t delay);
 
 static int btn_check(void)
 {
@@ -1048,12 +1056,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
 
-  ili9341_fill(LCD_WIDTH/2-96, LCD_HEIGHT/2-30, 96*2, 60, config.menu_normal_color);
-  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
-  ili9341_set_background(config.menu_normal_color);
-  ili9341_drawstring("SAVE TRACE", LCD_WIDTH/2-5*FONT_WIDTH, LCD_HEIGHT/2-20);
-  ili9341_drawstring(res == FR_OK ? fs_filename : "  Fail write  ", LCD_WIDTH/2-76, LCD_HEIGHT/2);
-  chThdSleepMilliseconds(2000);
+  drawMessageBox("SAVE TRACE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw_grid();
   ui_mode_normal();
 }
@@ -1083,8 +1086,12 @@ const menuitem_t menu_save[] = {
   { MT_CALLBACK, 2, "SAVE 2", menu_save_cb },
   { MT_CALLBACK, 3, "SAVE 3", menu_save_cb },
   { MT_CALLBACK, 4, "SAVE 4", menu_save_cb },
+#if SAVEAREA_MAX > 5
   { MT_CALLBACK, 5, "SAVE 5", menu_save_cb },
+#endif
+#if SAVEAREA_MAX > 6
   { MT_CALLBACK, 6, "SAVE 6", menu_save_cb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1167,7 +1174,9 @@ const menuitem_t menu_transform[] = {
 };
 
 const menuitem_t menu_bandwidth[] = {
+#ifdef BANDWIDTH_2000
   { MT_ADV_CALLBACK, BANDWIDTH_2000, "2 kHz", menu_bandwidth_acb },
+#endif
   { MT_ADV_CALLBACK, BANDWIDTH_1000, "1 kHz", menu_bandwidth_acb },
   { MT_ADV_CALLBACK, BANDWIDTH_333, "333 Hz", menu_bandwidth_acb },
   { MT_ADV_CALLBACK, BANDWIDTH_100, "100 Hz", menu_bandwidth_acb },
@@ -1191,7 +1200,9 @@ const menuitem_t menu_display[] = {
 const menuitem_t menu_sweep_points[] = {
   { MT_ADV_CALLBACK, POINTS_SET_51,  " 51 point", menu_points_acb },
   { MT_ADV_CALLBACK, POINTS_SET_101, "101 point", menu_points_acb },
+#ifdef POINTS_SET_201
   { MT_ADV_CALLBACK, POINTS_SET_201, "201 point", menu_points_acb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1264,8 +1275,12 @@ const menuitem_t menu_recall[] = {
   { MT_CALLBACK, 2, "RECALL 2", menu_recall_cb },
   { MT_CALLBACK, 3, "RECALL 3", menu_recall_cb },
   { MT_CALLBACK, 4, "RECALL 4", menu_recall_cb },
+#if SAVEAREA_MAX > 5
   { MT_CALLBACK, 5, "RECALL 5", menu_recall_cb },
+#endif
+#if SAVEAREA_MAX > 6
   { MT_CALLBACK, 6, "RECALL 6", menu_recall_cb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1489,23 +1504,31 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
-// background
   uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
   ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2), b->bg);
   if (bw==0) return;
-  uint16_t bcr, bcd;
-  switch(b->border&BUTTON_BORDER_TYPE_MASK){
-    case BUTTON_BORDER_RISE:    bcr = RGB565(255,255,255); bcd = RGB565(196,196,196); break;
-    case BUTTON_BORDER_FALLING: bcr = RGB565(196,196,196); bcd = RGB565(255,255,255); break;
-    case BUTTON_BORDER_FLAT:
-    default:
-      bcr = bcd = b->fg;
-    break;
-  }
-  ili9341_fill(x,          y,           w, bw, bcr);   // top
-  ili9341_fill(x + w - bw, y,          bw,  h, bcr);   // right
-  ili9341_fill(x,          y,          bw,  h, bcd);   // left
-  ili9341_fill(x,          y + h - bw,  w, bw, bcd);   // bottom
+  uint16_t br = DEFAULT_RISE_EDGE_COLOR;
+  uint16_t bd = DEFAULT_FALLEN_EDGE_COLOR;
+  uint16_t type = b->border;
+  ili9341_fill(x,          y,           w, bw, type&BUTTON_BORDER_TOP    ? br : bd); // top
+  ili9341_fill(x + w - bw, y,          bw,  h, type&BUTTON_BORDER_RIGHT  ? br : bd); // right
+  ili9341_fill(x,          y,          bw,  h, type&BUTTON_BORDER_LEFT   ? br : bd); // left
+  ili9341_fill(x,          y + h - bw,  w, bw, type&BUTTON_BORDER_BOTTOM ? br : bd); // bottom
+}
+
+void drawMessageBox(char *header, char *text, uint32_t delay){
+  button_t b;
+  b.bg = config.menu_normal_color;
+  b.fg = DEFAULT_MENU_TEXT_COLOR;
+  b.border = BUTTON_BORDER_FLAT|1;
+  draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+  ili9341_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3, DEFAULT_FG_COLOR);
+  ili9341_set_foreground(b.fg);
+  ili9341_set_background(b.bg);
+  ili9341_drawstring(header, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10, LCD_HEIGHT/2-40 + 5);
+  ili9341_set_background(DEFAULT_FG_COLOR);
+  ili9341_drawstring(text, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20, LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14);
+  chThdSleepMilliseconds(delay);
 }
 
 static void
@@ -1537,9 +1560,9 @@ draw_keypad(void)
 static void
 draw_numeric_area_frame(void)
 {
-  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, config.menu_normal_color);
+  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, DEFAULT_FG_COLOR);
   ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
-  ili9341_set_background(config.menu_normal_color);
+  ili9341_set_background(DEFAULT_FG_COLOR);
   ili9341_drawstring(keypads_mode_tbl[keypad_mode].name, 10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2);
   //ili9341_drawfont(KP_KEYPAD, 300, 216);
 }
@@ -1554,7 +1577,7 @@ draw_numeric_input(const char *buf)
 
   for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 10 && buf[i]; i++, xsim<<=1) {
     uint16_t fg = DEFAULT_MENU_TEXT_COLOR;
-    uint16_t bg = config.menu_normal_color;
+    uint16_t bg = DEFAULT_FG_COLOR;
     int c = buf[i];
     if (c == '.')
       c = KP_PERIOD;
@@ -1562,26 +1585,26 @@ draw_numeric_input(const char *buf)
       c = KP_MINUS;
     else// if (c >= '0' && c <= '9')
       c = c - '0';
-
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
       fg = DEFAULT_SPEC_INPUT_COLOR;
-      focused = TRUE;
-//      if (uistat.digit_mode)
-//        bg = DEFAULT_MENU_COLOR;
+        focused = true;
+      if (uistat.digit_mode){
+        bg = DEFAULT_SPEC_INPUT_COLOR;
+        fg = DEFAULT_MENU_TEXT_COLOR;
+      }
     }
     ili9341_set_foreground(fg);
     ili9341_set_background(bg);
+    if (c < 0 && focused) c = 0;
     if (c >= 0) // c is number
       ili9341_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
-    else if (focused) // c not number, but focused
-      ili9341_drawfont(0, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
-    else // erase
+    else        // erase
       ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_WIDTH+2+8, bg);
 
     x += xsim&0x8000 ? NUM_FONT_GET_WIDTH+2+8 : NUM_FONT_GET_WIDTH+2;
   }
   // erase last
-  ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8, config.menu_normal_color);
+  ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8, DEFAULT_FG_COLOR);
 }
 
 static int
@@ -1595,6 +1618,7 @@ menu_is_multiline(const char *label)
 }
 
 #if 0
+// Obsolete, now use ADV_CALLBACK for change settings
 static void
 menu_item_modify_attribute(const menuitem_t *menu, int item, button_t *b)
 {
@@ -1694,12 +1718,12 @@ static const uint16_t check_box[] = {
   0b0000000000000000,
   0b0000001111000000,
   0b0000010000100000,
-  0b0000100000010000,
-  0b0001000110001000,
+  0b0000100110010000,
   0b0001001111001000,
+  0b0001011111101000,
+  0b0001011111101000,
   0b0001001111001000,
-  0b0001000110001000,
-  0b0000100000010000,
+  0b0000100110010000,
   0b0000010000100000,
   0b0000001111000000,
 };
@@ -1725,22 +1749,23 @@ draw_menu_buttons(const menuitem_t *menu)
     }
     else
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
-//  menu_item_modify_attribute(menu, i, &button);
+
     if (menu[i].type == MT_ADV_CALLBACK){
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(i, menu[i].data, &button);
     }
-    ili9341_set_foreground(button.fg);
-    ili9341_set_background(button.bg);
-
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
 
-    int lines = menu_is_multiline(menu[i].label);
+    ili9341_set_foreground(button.fg);
+    ili9341_set_background(button.bg);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
+
+
     if (button.icon >=0){
       blit16BitWidthBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, &check_box[button.icon*ICON_HEIGHT]);
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
+    int lines = menu_is_multiline(menu[i].label);
     ili9341_drawstring(menu[i].label, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
@@ -2510,13 +2535,8 @@ made_screenshot(int touch_x, int touch_y)
   }
 //  time = chVTGetSystemTimeX() - time;
 //  shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, (LCD_WIDTH*LCD_HEIGHT*sizeof(uint16_t)+sizeof(bmp_header_v4))*10000/time);
-  ili9341_fill(LCD_WIDTH/2-96, LCD_HEIGHT/2-30, 96*2, 60, config.menu_normal_color);
-  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
-  ili9341_set_background(config.menu_normal_color);
-  ili9341_drawstring("SCREENSHOT", LCD_WIDTH/2-5*FONT_WIDTH, LCD_HEIGHT/2-20);
-  ili9341_drawstring(res == FR_OK ? fs_filename : "  Fail write  ", LCD_WIDTH/2-76, LCD_HEIGHT/2);
+  drawMessageBox("SCREENSHOT", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw_grid();
-  chThdSleepMilliseconds(2000);
   return TRUE;
 }
 #endif
@@ -2627,7 +2647,7 @@ static const EXTConfig extcfg = {
 
 // Touch panel timer check (check press frequency 20Hz)
 static const GPTConfig gpt3cfg = {
-  20,     /* 20Hz timer clock.*/
+  200,    /* 200Hz timer clock.*/
   NULL,   /* Timer callback.*/
   0x0020, /* CR2:MMS=02 to output TRGO */
   0
