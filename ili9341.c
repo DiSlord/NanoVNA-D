@@ -359,7 +359,7 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
   return ret;
 }
 
-static const uint8_t ili9488_init_seq[] = {
+static const uint8_t ST7796S_init_seq[] = {
   // SW reset
   ILI9341_SOFTWARE_RESET, 0,
   // display off
@@ -411,7 +411,7 @@ void ili9341_init(void)
   chThdSleepMilliseconds(10);
   LCD_RESET_NEGATE;
   const uint8_t *p;
-  for (p = ili9488_init_seq; *p; ) {
+  for (p = ST7796S_init_seq; *p; ) {
     send_command(p[0], p[1], &p[2]);
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
@@ -532,15 +532,15 @@ void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 // Copy screen data to buffer
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 {
-  uint16_t dummy_tx = 0x0000;
+  uint16_t dummy_tx = 0;
   uint8_t *rgbbuf = (uint8_t *)out;
-  uint16_t data_size = len*2;
+  uint16_t data_size = len * 2;
   //uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
   //uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
-  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
+  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
   send_command(ILI9341_MEMORY_READ, 0, NULL);
 
   // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit)
@@ -595,20 +595,24 @@ void ili9341_set_rotation(uint8_t r)
   send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &r);
 }
 
-void blit8BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
-                         const uint8_t *bitmap)
+static uint8_t bit_align = 0;
+void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
+                         const uint8_t *b)
 {
   uint16_t *buf = spi_buffer;
+  uint8_t bits = 0;
   for (uint16_t c = 0; c < height; c++) {
-    uint8_t bits = *bitmap++;
     for (uint16_t r = 0; r < width; r++) {
+      if ((r&7) == 0) bits = *b++;
       *buf++ = (0x80 & bits) ? foreground_color : background_color;
       bits <<= 1;
     }
+    if (bit_align) b+=bit_align;
   }
   ili9341_bulk(x, y, width, height);
 }
 
+#if 0
 void blit16BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
                                  const uint16_t *bitmap)
 {
@@ -622,10 +626,11 @@ void blit16BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t heigh
   }
   ili9341_bulk(x, y, width, height);
 }
+#endif
 
 void ili9341_drawchar(uint8_t ch, int x, int y)
 {
-  blit8BitWidthBitmap(x, y, FONT_GET_WIDTH(ch), FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  ili9341_blitBitmap(x, y, FONT_GET_WIDTH(ch), FONT_GET_HEIGHT, FONT_GET_DATA(ch));
 }
 
 void ili9341_drawstring(const char *str, int x, int y)
@@ -636,7 +641,7 @@ void ili9341_drawstring(const char *str, int x, int y)
     if (ch == '\n') {x = x_pos; y+=FONT_STR_HEIGHT; continue;}
     const uint8_t *char_buf = FONT_GET_DATA(ch);
     uint16_t w = FONT_GET_WIDTH(ch);
-    blit8BitWidthBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
+    ili9341_blitBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
     x += w;
   }
 }
@@ -667,8 +672,7 @@ int ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
 
 void ili9341_drawfont(uint8_t ch, int x, int y)
 {
-  blit16BitWidthBitmap(x, y, NUM_FONT_GET_WIDTH, NUM_FONT_GET_HEIGHT,
-                       NUM_FONT_GET_DATA(ch));
+  ili9341_blitBitmap(x, y, NUM_FONT_GET_WIDTH, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_DATA(ch));
 }
 
 void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size)

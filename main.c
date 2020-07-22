@@ -74,7 +74,6 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable debug command for SI4432
 #define ENABLE_SI4432_COMMAND
 
-//static void apply_error_term_at(int i);
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
 static void apply_edelay(void);
