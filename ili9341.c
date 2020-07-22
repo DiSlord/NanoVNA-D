@@ -359,7 +359,7 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
   return ret;
 }
 
-static const uint8_t ili9488_init_seq[] = {
+static const uint8_t ST7796S_init_seq[] = {
   // SW reset
   ILI9341_SOFTWARE_RESET, 0,
   // display off
@@ -411,7 +411,7 @@ void ili9341_init(void)
   chThdSleepMilliseconds(10);
   LCD_RESET_NEGATE;
   const uint8_t *p;
-  for (p = ili9488_init_seq; *p; ) {
+  for (p = ST7796S_init_seq; *p; ) {
     send_command(p[0], p[1], &p[2]);
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
@@ -532,15 +532,15 @@ void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 // Copy screen data to buffer
 void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
 {
-  uint16_t dummy_tx = 0x0000;
+  uint16_t dummy_tx = 0;
   uint8_t *rgbbuf = (uint8_t *)out;
-  uint16_t data_size = len*2;
+  uint16_t data_size = len * 2;
   //uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
   //uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
-  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
+  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
   send_command(ILI9341_MEMORY_READ, 0, NULL);
 
   // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit)

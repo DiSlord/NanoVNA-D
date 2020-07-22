@@ -71,7 +71,6 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_I2C_COMMAND
 //#define ENABLE_LCD_COMMAND
 
-//static void apply_error_term_at(int i);
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
 static void apply_edelay(void);
