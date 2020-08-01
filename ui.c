@@ -143,6 +143,12 @@ typedef struct {
   uint16_t fg;
   uint8_t  border;
   int8_t   icon;
+  union {
+    int32_t  i;
+    uint32_t u;
+    const char *text;
+  } p1, p2;    // void data for label printf
+
 } button_t;
 
 // Call back functions for MT_CALLBACK type
@@ -576,9 +582,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
   //menu_move_back();
 }
 
-static UI_FUNCTION_CALLBACK(menu_recall_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
   (void)item;
+  if (b){
+    b->p1.i = data;
+    return;
+  }
   load_properties(data);
 //  menu_move_back(true);
   update_grid();
@@ -619,9 +629,13 @@ static UI_FUNCTION_CALLBACK(menu_dfu_cb)
   enter_dfu();
 }
 
-static UI_FUNCTION_CALLBACK(menu_save_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
 {
   (void)item;
+  if (b){
+    b->p1.u = data;
+    return;
+  }
   if (caldata_save(data) == 0) {
     menu_move_back(true);
     draw_cal_status();
@@ -652,6 +666,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
       if (uistat.current_trace == data)
         b->icon = BUTTON_ICON_CHECK;
     }
+    b->p1.u = data;
     return;
   }
 
@@ -739,6 +754,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   (void)item;
   if (b){
     b->icon = config.bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = get_bandwidth_frequency(data);
     return;
   }
   config.bandwidth = data;
@@ -751,6 +767,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
   (void)item;
   if (b){
     b->icon = sweep_points == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = data;
     return;
   }
   set_sweep_points(data);
@@ -999,14 +1016,14 @@ static const char s1_file_header[] =
   "# Hz S RI R 50\r\n";
 
 static const char s1_file_param[] =
-  "%10d % f % f\r\n";
+  "%10u % f % f\r\n";
 
 static const char s2_file_header[] =
   "!File created by NanoVNA\r\n"\
   "# Hz S RI R 50\r\n";
 
 static const char s2_file_param[] =
-  "%10d % f % f % f % f 0 0 0 0\r\n";
+  "%10u % f % f % f % f 0 0 0 0\r\n";
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
@@ -1089,16 +1106,16 @@ static const menuitem_t menu_calop[] = {
 };
 
 const menuitem_t menu_save[] = {
-  { MT_CALLBACK, 0, "SAVE 0", menu_save_cb },
-  { MT_CALLBACK, 1, "SAVE 1", menu_save_cb },
-  { MT_CALLBACK, 2, "SAVE 2", menu_save_cb },
-  { MT_CALLBACK, 3, "SAVE 3", menu_save_cb },
-  { MT_CALLBACK, 4, "SAVE 4", menu_save_cb },
+  { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 3, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 4, "SAVE %d", menu_save_acb },
 #if SAVEAREA_MAX > 5
-  { MT_CALLBACK, 5, "SAVE 5", menu_save_cb },
+  { MT_ADV_CALLBACK, 5, "SAVE %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_CALLBACK, 6, "SAVE 6", menu_save_cb },
+  { MT_ADV_CALLBACK, 6, "SAVE %d", menu_save_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1114,10 +1131,10 @@ const menuitem_t menu_cal[] = {
 };
 
 const menuitem_t menu_trace[] = {
-  { MT_ADV_CALLBACK, 0, "TRACE 0", menu_trace_acb },
-  { MT_ADV_CALLBACK, 1, "TRACE 1", menu_trace_acb },
-  { MT_ADV_CALLBACK, 2, "TRACE 2", menu_trace_acb },
-  { MT_ADV_CALLBACK, 3, "TRACE 3", menu_trace_acb },
+  { MT_ADV_CALLBACK, 0, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1180,14 +1197,19 @@ const menuitem_t menu_transform[] = {
 };
 
 const menuitem_t menu_bandwidth[] = {
-#ifdef BANDWIDTH_2000
-  { MT_ADV_CALLBACK, BANDWIDTH_2000, "2 kHz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_4000
+  { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u Hz", menu_bandwidth_acb },
 #endif
-  { MT_ADV_CALLBACK, BANDWIDTH_1000, "1 kHz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_333, "333 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_100, "100 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_30,   "30 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_10,   "10 Hz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_2000
+  { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u Hz", menu_bandwidth_acb },
+#endif
+  { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u Hz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_10
+  { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u Hz", menu_bandwidth_acb },
+#endif
   { MT_CANCEL, 255, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1204,10 +1226,10 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
-  { MT_ADV_CALLBACK, POINTS_SET_51,  " 51 point", menu_points_acb },
-  { MT_ADV_CALLBACK, POINTS_SET_101, "101 point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_51,  "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_101, "% 3d point", menu_points_acb },
 #ifdef POINTS_SET_201
-  { MT_ADV_CALLBACK, POINTS_SET_201, "201 point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_201, "% 3d point", menu_points_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1276,16 +1298,16 @@ const menuitem_t menu_marker[] = {
 };
 
 const menuitem_t menu_recall[] = {
-  { MT_CALLBACK, 0, "RECALL 0", menu_recall_cb },
-  { MT_CALLBACK, 1, "RECALL 1", menu_recall_cb },
-  { MT_CALLBACK, 2, "RECALL 2", menu_recall_cb },
-  { MT_CALLBACK, 3, "RECALL 3", menu_recall_cb },
-  { MT_CALLBACK, 4, "RECALL 4", menu_recall_cb },
+  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
 #if SAVEAREA_MAX > 5
-  { MT_CALLBACK, 5, "RECALL 5", menu_recall_cb },
+  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_CALLBACK, 6, "RECALL 6", menu_recall_cb },
+  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1760,19 +1782,20 @@ draw_menu_buttons(const menuitem_t *menu)
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(i, menu[i].data, &button);
     }
+    char button_text[32];
+    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p1.u);
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
 
     ili9341_set_foreground(button.fg);
     ili9341_set_background(button.bg);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
-
     if (button.icon >=0){
       ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, &check_box[button.icon*2*ICON_HEIGHT]);
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
-    int lines = menu_is_multiline(menu[i].label);
-    ili9341_drawstring(menu[i].label, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
+    int lines = menu_is_multiline(button_text);
+    ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, DEFAULT_BG_COLOR);
