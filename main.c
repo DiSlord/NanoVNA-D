@@ -2560,6 +2560,7 @@ int main(void)
 #ifdef __USE_RTC__
   rtc_init(); // Initialize RTC library
 #endif
+
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
