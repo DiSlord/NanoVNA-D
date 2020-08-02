@@ -126,4 +126,6 @@ void __early_init(void) {
  * Board-specific initialization code.
  */
 void boardInit(void) {
+  // Speedup flash latency
+  FLASH->ACR= FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_0;
 }

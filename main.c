@@ -2560,8 +2560,6 @@ int main(void)
 #ifdef __USE_RTC__
   rtc_init(); // Initialize RTC library
 #endif
-  // Speedup flash latency
-  FLASH->ACR= FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_0;
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
