@@ -195,8 +195,8 @@ static const uint8_t conf_data[] = {
   0x12, 0x81,     // Power up the NADC divider with value 1
   0x13, 0x87,     // Power up the MADC divider with value 7
   0x14, 0x40,     // ADC Oversampling (AOSR) set OSR of ADC to 64
-//  0x3d, 0x01,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
-  0x3d, 0x07,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
+  0x3d, 0x01,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
+//  0x3d, 0x07,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
   0x24, 0xee,     // ADC power up
 
   0x1b, 0x0c,     // Set the BCLK,WCLK as output
@@ -214,8 +214,8 @@ static const uint8_t conf_data[] = {
   0x0a, 0x33,     // Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to 1.65V
 //  0x0a, 0x40,     // Set the Input Common Mode to 0.75V and Output Common Mode for Headphone to 1.65V
 
- // 0x3d, 0x00,     // Select ADC PTM_R4 */
-  0x3d, 0x64,     // Select ADC PTM_R3 */
+  0x3d, 0x00,     // Select ADC PTM_R4 */
+//  0x3d, 0x64,     // Select ADC PTM_R3 */
   0x47, 0x32,     // Set MicPGA startup delay to 6.4ms
   0x7b, 0x01,     // Set the REF charging time to 40ms
   0x34, REG_34_IN2L_TO_LEFT_P_10k, // Route IN2L to LEFT_P with 10K
