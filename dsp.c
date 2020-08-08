@@ -121,6 +121,16 @@ static const int16_t sincos_tbl[48][2] = {
   { -3212,-32610}, {-15447,-28899}, {-25330,-20788}, {-31357, -9512},
   {-32610,  3212}, {-28899, 15447}, {-20788, 25330}, { -9512, 31357}
 };
+#elif FREQUENCY_OFFSET==2000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
+// static Table
+static const int16_t sincos_tbl[48][2] = {
+#error "Need check/rebuild sin cos table for DAC"
+};
+#elif FREQUENCY_OFFSET==1000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
+// static Table
+static const int16_t sincos_tbl[48][2] = {
+#error "Need check/rebuild sin cos table for DAC"
+};
 #else
 #error "Need check/rebuild sin cos table for DAC"
 #endif
