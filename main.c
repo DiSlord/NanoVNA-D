@@ -85,6 +85,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_SI5351_TIMINGS
 // Enable i2c timing command, used for debug
 //#define ENABLE_I2C_TIMINGS
+// Enable band setting commanc, used for debug
+//#define ENABLE_BAND_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -100,7 +102,7 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_8MA;
+static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 int8_t sweep_mode = SWEEP_ENABLE;
 volatile uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
@@ -119,7 +121,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2016-2020 Copyright @edy555",
   "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: " VERSION,
+  "Version: 1.0.18 beta Band+ mode, 12k offset, 192k ADC, compiled by DiSlord",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -725,8 +727,6 @@ void load_default_properties(void)
   current_props._active_marker   = 0;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
-  current_props._freq_mode = FREQ_MODE_START_STOP;
-
 //Checksum add on caldata_save
 //current_props.checksum = 0;
 }
@@ -796,15 +796,13 @@ static const I2SConfig i2sconfig = {
 
 #ifdef ENABLE_SI5351_TIMINGS
 extern uint16_t timings[16];
-#define DELAY_GAIN_CHANGE     timings[6]
-#define DELAY_CHANNEL_CHANGE  timings[7]
-#define DELAY_SWEEP_START     timings[8]
+#define DELAY_CHANNEL_CHANGE  timings[6]
+#define DELAY_SWEEP_START     timings[7]
 
 #else
 // Use x 100us settings
-#define DELAY_SWEEP_START     25    // Sweep start delay, allow remove noise at 1 point
 #define DELAY_CHANNEL_CHANGE   3    // Delay for switch ADC channel
-#define DELAY_GAIN_CHANGE     30    // Delay for change gain (and band)
+#define DELAY_SWEEP_START     25    // Sweep start delay, allow remove noise at 1 point
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config.bandwidth+2;}
@@ -887,54 +885,24 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
 }
 
 #ifdef ENABLE_GAIN_COMMAND
-static uint8_t gain_table[][2] = {
-#else
-static const uint8_t gain_table[][2] = {
-#endif
-    {  0,  0 },     // 1st:    0 ~  300MHz
-    { 50, 50 },     // 2nd:  300 ~  900MHz
-    { 75, 75 },     // 3th:  900 ~ 1500MHz
-    { 85, 85 },     // 4th: 1500 ~ 2100MHz
-    { 95, 95 },     // 5th: 2100 ~ 2700MHz
-};
-
-static int
-adjust_gain(uint32_t newfreq)
-{
-  int new_order = si5351_get_harmonic_lvl(newfreq);
-  int old_order = si5351_get_harmonic_lvl(si5351_get_frequency());
-  if (new_order != old_order) {
-    tlv320aic3204_set_gain(gain_table[new_order][0], gain_table[new_order][1]);
-    return DELAY_GAIN_CHANGE;
-  }
-  return 0;
-}
-
-#ifdef ENABLE_GAIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_gain)
 {
   int rvalue = 0;
   int lvalue = 0;
-  if (argc < 1 && argc > 3) {
-    shell_printf("usage: gain idx {lgain(0-95)} [rgain(0-95)]\r\n");
+  if (argc == 0 && argc > 2) {
+    shell_printf("usage: gain {lgain(0-95)} [rgain(0-95)]\r\n");
     return;
-  }
-  int idx = my_atoui(argv[0]);
-  lvalue = rvalue = my_atoui(argv[1]);
+  };
+  lvalue = rvalue = my_atoui(argv[0]);
   if (argc == 3)
-    rvalue = my_atoui(argv[2]);
+    rvalue = my_atoui(argv[1]);
   tlv320aic3204_set_gain(lvalue, rvalue);
-  gain_table[idx][0] = lvalue;
-  gain_table[idx][1] = rvalue;
 }
 #endif
 
 static int set_frequency(uint32_t freq)
 {
-  int delay = adjust_gain(freq);
-  uint8_t ds = drive_strength;
-  delay += si5351_set_frequency(freq, ds);
-  return delay;
+  return si5351_set_frequency(freq, drive_strength);
 }
 
 void set_bandwidth(uint16_t bw_count){
@@ -1091,7 +1059,7 @@ set_sweep_frequency(int type, uint32_t freq)
   ensure_edit_config();
   switch (type) {
     case ST_START:
-      freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
       if (frequency0 != freq) {
         frequency0 = freq;
         // if start > stop then make start = stop
@@ -1099,7 +1067,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_STOP:
-      freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
       if (frequency1 != freq) {
         frequency1 = freq;
         // if start > stop then make start = stop
@@ -1107,7 +1075,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CENTER:
-      freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
       uint32_t center = frequency0 / 2 + frequency1 / 2;
       if (center != freq) {
         uint32_t span = frequency1 - frequency0;
@@ -1122,7 +1090,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_SPAN:
-      freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
       if (frequency1 - frequency0 != freq) {
         uint32_t center = frequency0 / 2 + frequency1 / 2;
         if (center < START_MIN + freq / 2) {
@@ -1136,7 +1104,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CW:
-      freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
       if (frequency0 != freq || frequency1 != freq) {
         frequency0 = freq;
         frequency1 = freq;
@@ -2290,6 +2258,19 @@ VNA_SHELL_FUNCTION(cmd_i2c){
 }
 #endif
 
+#ifdef ENABLE_BAND_COMMAND
+VNA_SHELL_FUNCTION(cmd_band){
+  static const char cmd_sweep_list[] = "mode|freq|pow|div|mul|omul|l|r|lr|adj";
+  if (argc != 3){
+    shell_printf("cmd error\r\n");
+    return;
+  }
+  int idx = my_atoui(argv[0]);
+  int pidx = get_str_index(argv[1], cmd_sweep_list);
+  si5351_update_band_config(idx, pidx, my_atoui(argv[2]));
+}
+#endif
+
 #ifdef ENABLE_LCD_COMMAND
 VNA_SHELL_FUNCTION(cmd_lcd){
   uint8_t d[VNA_SHELL_MAX_ARGUMENTS];
@@ -2418,6 +2399,9 @@ static const VNAShellCommand commands[] =
 #endif
 #ifdef ENABLE_I2C_TIMINGS
     {"i"           , cmd_i2ctime     , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_BAND_COMMAND
+    {"b"           , cmd_band        , CMD_WAIT_MUTEX},
 #endif
     {NULL          , NULL            , 0}
 };
@@ -2562,13 +2546,13 @@ static const I2CConfig i2ccfg = {
 #elif  STM32_I2C1SW == STM32_I2C1SW_SYSCLK
   // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
   // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
-  STM32_TIMINGR_PRESC(5U)  |
-  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |
-  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
+//  STM32_TIMINGR_PRESC(5U)  |
+//  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |
+//  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
   // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
-//  STM32_TIMINGR_PRESC(0U)  |
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-//  STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U),
+  STM32_TIMINGR_PRESC(0U)  |
+  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
+  STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U),
   // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
 //  STM32_TIMINGR_PRESC(0U)  |
 //  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |

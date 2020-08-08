@@ -37,17 +37,36 @@
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 
-// Define ADC sample rate (can be 48k, 96k, or 192k)
-//#define AUDIO_ADC_FREQ        (192000)
-#define AUDIO_ADC_FREQ        (96000)
+// Define ADC sample rate (can be 48k, 96k, 192k, 384k)
+//#define AUDIO_ADC_FREQ        (768000)
+//#define AUDIO_ADC_FREQ        (384000)
+#define AUDIO_ADC_FREQ        (192000)
+//#define AUDIO_ADC_FREQ        (96000)
 //#define AUDIO_ADC_FREQ        (48000)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 //#define USE_VARIABLE_OFFSET
-// For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k if change need create new table )
+// For 768k ADC
+//#define FREQUENCY_OFFSET           12000
+//#define FREQUENCY_OFFSET           16000
+//#define FREQUENCY_OFFSET           32000
+//#define FREQUENCY_OFFSET           48000
+//#define FREQUENCY_OFFSET           64000
+// For 384k ADC
 //#define FREQUENCY_OFFSET          8000
-#define FREQUENCY_OFFSET           12000
+//#define FREQUENCY_OFFSET         12000
+//#define FREQUENCY_OFFSET         16000
+//#define FREQUENCY_OFFSET         20000
+//#define FREQUENCY_OFFSET         24000
+//#define FREQUENCY_OFFSET         32000
+// For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
+//#define FREQUENCY_OFFSET          8000
+#define FREQUENCY_OFFSET         12000
+//#define FREQUENCY_OFFSET         16000
+//#define FREQUENCY_OFFSET         20000
+//#define FREQUENCY_OFFSET         24000
+//#define FREQUENCY_OFFSET         28000
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 //#define FREQUENCY_OFFSET          6000
 //#define FREQUENCY_OFFSET          8000
@@ -58,6 +77,7 @@
 //#define FREQUENCY_OFFSET          4000
 //#define FREQUENCY_OFFSET          5000
 //#define FREQUENCY_OFFSET          6000
+//#define FREQUENCY_OFFSET          7000
 
 // Apply calibration after made sweep, (if set 1, then calibration move out from sweep cycle)
 #define APPLY_CALIBRATION_AFTER_SWEEP 0
@@ -150,14 +170,18 @@ extern const char *info_about[];
  * dsp.c
  */
 // Define aic3204 source clock frequency (on 8MHz used fractional multiplier, and possible little phase error)
-//#define AUDIO_CLOCK_REF       ( 8000000U)
+#define AUDIO_CLOCK_REF       (8000000U)
+// Define aic3204 source clock frequency (on 12288000U used integer multiplier)
+//#define AUDIO_CLOCK_REF       (12288000U)
 // Define aic3204 source clock frequency (on 10752000U used integer multiplier)
-#define AUDIO_CLOCK_REF       (10752000U)
+//#define AUDIO_CLOCK_REF       (10752000U)
 // Disable AIC PLL clock, use input as CODEC_CLKIN (not stable on some devices, on long work)
-//#define AUDIO_CLOCK_REF       (86016000U)
+//#define AUDIO_CLOCK_REF       (98304000U)
 
 // Define sample count for one step measure
 #define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
 // Buffer contain left and right channel samples (need x2)
 #define AUDIO_BUFFER_LEN      (AUDIO_SAMPLES_COUNT*2)
 
@@ -166,7 +190,19 @@ extern const char *info_about[];
 // for AUDIO_SAMPLES_COUNT = 48 and ADC =  96kHz one measure give  96000/48=2000Hz
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 192kHz one measure give 192000/48=4000Hz
 // Define additional measure count for menus
-#if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
+#if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 16000
+#define BANDWIDTH_1000            (  1 - 1)
+#define BANDWIDTH_333             (  3 - 1)
+#define BANDWIDTH_100             ( 10 - 1)
+#define BANDWIDTH_30              ( 33 - 1)
+#define BANDWIDTH_10              (100 - 1)
+#elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 8000
+#define BANDWIDTH_1000            (  1 - 1)
+#define BANDWIDTH_333             (  3 - 1)
+#define BANDWIDTH_100             ( 10 - 1)
+#define BANDWIDTH_30              ( 33 - 1)
+#define BANDWIDTH_10              (100 - 1)
+#elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
 #define BANDWIDTH_2000            (  2 - 1)
 #define BANDWIDTH_1000            (  4 - 1)
@@ -385,9 +421,10 @@ typedef struct config {
   uint32_t harmonic_freq_threshold;
   uint16_t vbat_offset;
   uint16_t bandwidth;
-  uint8_t _reserved[88];
+  uint8_t  freq_mode;
+  uint8_t _reserved[23];
   uint32_t checksum;
-} config_t; // sizeof = 128
+} config_t; // sizeof = 64
 
 typedef struct properties {
   uint32_t magic;
@@ -406,7 +443,7 @@ typedef struct properties {
   int8_t _active_marker;
   uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
   uint8_t _marker_smith_format;
-  uint8_t _freq_mode;
+  uint8_t _reserved;
   uint32_t checksum;
 } properties_t;
 //on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
@@ -591,10 +628,9 @@ extern uint16_t lastsaveid;
 #define domain_mode current_props._domain_mode
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
-#define freq_mode current_props._freq_mode
 
-#define FREQ_IS_STARTSTOP() (!(freq_mode & FREQ_MODE_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN() (freq_mode & FREQ_MODE_CENTER_SPAN)
+#define FREQ_IS_STARTSTOP() (!(config.freq_mode&FREQ_MODE_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN() (config.freq_mode&FREQ_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
 
 int caldata_save(uint32_t id);

@@ -42,6 +42,7 @@
 #define SI5351_CLK_DRIVE_STRENGTH_4MA       (1<<0)
 #define SI5351_CLK_DRIVE_STRENGTH_6MA       (2<<0)
 #define SI5351_CLK_DRIVE_STRENGTH_8MA       (3<<0)
+#define SI5351_CLK_DRIVE_STRENGTH_AUTO       0xFF
 
 #define SI5351_REG_PLL_A            26
 #define SI5351_REG_PLL_B            34
@@ -78,3 +79,4 @@ int  si5351_set_frequency(uint32_t freq, uint8_t drive_strength);
 uint32_t si5351_get_frequency(void);
 uint32_t si5351_get_harmonic_lvl(uint32_t f);
 void si5351_set_timing(int i, int v);
+void si5351_update_band_config(int idx, uint32_t pidx, uint32_t v);
