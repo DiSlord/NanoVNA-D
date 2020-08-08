@@ -43,8 +43,8 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 
 // Generator ready delays, values in x100 us
 #if 0
-  uint16_t timings[16]={  2,  2, 20, 0, 500, 20,  3, 25}; // For H  device timings
-//uint16_t timings[16]={  2,  2, 20, 0, 500, 20,  3, 25}; // For H4 device timings
+  uint16_t timings[16]={  2,  2, 20, 2000, 3500, 20,  3, 25}; // For H  device timings
+//uint16_t timings[16]={  2,  2, 20, 2000, 3500, 20,  3, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
 #define DELAY_BAND_3_4           timings[1]   // Delay for bands
@@ -56,13 +56,13 @@ void si5351_set_timing(int i, int v) {timings[i]=v;}
 //#define DELAY_SWEEP_START      timings[7]   // defined in main.c delay at sweep start
 
 #else
-#define DELAY_BAND_1_2           2    // Delay for bands 1-2
-#define DELAY_BAND_3_4           2    // Delay for bands 3-4
-#define DELAY_BANDCHANGE        20    // Band changes need set additional delay after reset PLL
+#define DELAY_BAND_1_2            2    // Delay for bands 1-2
+#define DELAY_BAND_3_4            2    // Delay for bands 3-4
+#define DELAY_BANDCHANGE         20    // Band changes need set additional delay after reset PLL
 // Delay after set new PLL values, and send reset
-#define DELAY_RESET_PLL_BEFORE   0    // 1000 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER  500    // 3500 possibly not need it if align freq
-#define DELAY_GAIN_CHANGE       20    // Delay for gain change
+#define DELAY_RESET_PLL_BEFORE 2000    // 1000 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER  3500    // 3500 possibly not need it if align freq
+#define DELAY_GAIN_CHANGE        20    // Delay for gain change
 #endif
 
 uint32_t si5351_get_frequency(void)
