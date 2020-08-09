@@ -396,4 +396,3 @@ void tlv320aic3204_set_gain(uint8_t lgain, uint8_t rgain)
 //  tlv320aic3204_config(data, sizeof(data)/2);
   tlv320aic3204_bulk_write(data, sizeof(data));
 }
-

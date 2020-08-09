@@ -495,9 +495,14 @@ show_version(void)
       RTC_TR_SEC(dr));
     ili9341_drawstring(buffer, x, y);
 #endif
-//    uint32_t vbat = adc_vbat_read();
-//    plot_printf(buffer, sizeof(buffer), "Battery: %d.%03dV", vbat/1000, vbat%1000);
-//    ili9341_drawstring(buffer, x, y + FONT_STR_HEIGHT + 2);
+#if 0
+    uint32_t vbat=0;
+    for(i=0;i<32;i++)
+      vbat+=adc_vbat_read();
+    vbat>>=5;
+    plot_printf(buffer, sizeof(buffer), "Battery: %d.%03dV", vbat/1000, vbat%1000);
+    ili9341_drawstring(buffer, x, y + FONT_STR_HEIGHT + 2);
+#endif
   }
 
   touch_start_watchdog();

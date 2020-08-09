@@ -688,6 +688,7 @@ config_t config = {
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
   .touch_cal =         { 338, 522, 153, 192 },  // 2.8 inch LCD panel
 //  .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
+  .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   .vbat_offset = 500,
   .bandwidth = BANDWIDTH_1000
