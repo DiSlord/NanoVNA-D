@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014-2015, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -143,6 +144,12 @@ typedef struct {
   uint16_t fg;
   uint8_t  border;
   int8_t   icon;
+  union {
+    int32_t  i;
+    uint32_t u;
+    const char *text;
+  } p1, p2;    // void data for label printf
+
 } button_t;
 
 // Call back functions for MT_CALLBACK type
@@ -476,8 +483,8 @@ show_version(void)
     chThdSleepMilliseconds(40);
     if ((cnt++)&0x07) continue; // Not update time so fast
 
-    char buffer[32];
 #ifdef __USE_RTC__
+    char buffer[32];
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
     plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d",
@@ -489,12 +496,14 @@ show_version(void)
       RTC_TR_SEC(dr));
     ili9341_drawstring(buffer, x, y);
 #endif
+#if 0
     uint32_t vbat=0;
     for(i=0;i<32;i++)
       vbat+=adc_vbat_read();
     vbat>>=5;
     plot_printf(buffer, sizeof(buffer), "Battery: %d.%03dV", vbat/1000, vbat%1000);
     ili9341_drawstring(buffer, x, y + FONT_STR_HEIGHT + 2);
+#endif
   }
 
   touch_start_watchdog();
@@ -576,9 +585,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
   //menu_move_back();
 }
 
-static UI_FUNCTION_CALLBACK(menu_recall_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
   (void)item;
+  if (b){
+    b->p1.i = data;
+    return;
+  }
   load_properties(data);
 //  menu_move_back(true);
   update_grid();
@@ -619,9 +632,13 @@ static UI_FUNCTION_CALLBACK(menu_dfu_cb)
   enter_dfu();
 }
 
-static UI_FUNCTION_CALLBACK(menu_save_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
 {
   (void)item;
+  if (b){
+    b->p1.u = data;
+    return;
+  }
   if (caldata_save(data) == 0) {
     menu_move_back(true);
     draw_cal_status();
@@ -652,6 +669,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
       if (uistat.current_trace == data)
         b->icon = BUTTON_ICON_CHECK;
     }
+    b->p1.u = data;
     return;
   }
 
@@ -739,10 +757,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   (void)item;
   if (b){
     b->icon = config.bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = get_bandwidth_frequency(data);
     return;
   }
-  config.bandwidth = data;
-  draw_frequencies();
+  set_bandwidth(data);
   draw_menu();
 }
 
@@ -751,6 +769,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
   (void)item;
   if (b){
     b->icon = sweep_points == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = data;
     return;
   }
   set_sweep_points(data);
@@ -999,14 +1018,14 @@ static const char s1_file_header[] =
   "# Hz S RI R 50\r\n";
 
 static const char s1_file_param[] =
-  "%10d % f % f\r\n";
+  "%10u % f % f\r\n";
 
 static const char s2_file_header[] =
   "!File created by NanoVNA\r\n"\
   "# Hz S RI R 50\r\n";
 
 static const char s2_file_param[] =
-  "%10d % f % f % f % f 0 0 0 0\r\n";
+  "%10u % f % f % f % f 0 0 0 0\r\n";
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
@@ -1089,16 +1108,16 @@ static const menuitem_t menu_calop[] = {
 };
 
 const menuitem_t menu_save[] = {
-  { MT_CALLBACK, 0, "SAVE 0", menu_save_cb },
-  { MT_CALLBACK, 1, "SAVE 1", menu_save_cb },
-  { MT_CALLBACK, 2, "SAVE 2", menu_save_cb },
-  { MT_CALLBACK, 3, "SAVE 3", menu_save_cb },
-  { MT_CALLBACK, 4, "SAVE 4", menu_save_cb },
+  { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 3, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 4, "SAVE %d", menu_save_acb },
 #if SAVEAREA_MAX > 5
-  { MT_CALLBACK, 5, "SAVE 5", menu_save_cb },
+  { MT_ADV_CALLBACK, 5, "SAVE %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_CALLBACK, 6, "SAVE 6", menu_save_cb },
+  { MT_ADV_CALLBACK, 6, "SAVE %d", menu_save_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1114,10 +1133,10 @@ const menuitem_t menu_cal[] = {
 };
 
 const menuitem_t menu_trace[] = {
-  { MT_ADV_CALLBACK, 0, "TRACE 0", menu_trace_acb },
-  { MT_ADV_CALLBACK, 1, "TRACE 1", menu_trace_acb },
-  { MT_ADV_CALLBACK, 2, "TRACE 2", menu_trace_acb },
-  { MT_ADV_CALLBACK, 3, "TRACE 3", menu_trace_acb },
+  { MT_ADV_CALLBACK, 0, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1180,14 +1199,19 @@ const menuitem_t menu_transform[] = {
 };
 
 const menuitem_t menu_bandwidth[] = {
-#ifdef BANDWIDTH_2000
-  { MT_ADV_CALLBACK, BANDWIDTH_2000, "2 kHz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_4000
+  { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u Hz", menu_bandwidth_acb },
 #endif
-  { MT_ADV_CALLBACK, BANDWIDTH_1000, "1 kHz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_333, "333 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_100, "100 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_30,   "30 Hz", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, BANDWIDTH_10,   "10 Hz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_2000
+  { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u Hz", menu_bandwidth_acb },
+#endif
+  { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u Hz", menu_bandwidth_acb },
+#ifdef BANDWIDTH_10
+  { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u Hz", menu_bandwidth_acb },
+#endif
   { MT_CANCEL, 255, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1204,10 +1228,10 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
-  { MT_ADV_CALLBACK, POINTS_SET_51,  " 51 point", menu_points_acb },
-  { MT_ADV_CALLBACK, POINTS_SET_101, "101 point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_51,  "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_101, "% 3d point", menu_points_acb },
 #ifdef POINTS_SET_201
-  { MT_ADV_CALLBACK, POINTS_SET_201, "201 point", menu_points_acb },
+  { MT_ADV_CALLBACK, POINTS_SET_201, "% 3d point", menu_points_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1276,16 +1300,16 @@ const menuitem_t menu_marker[] = {
 };
 
 const menuitem_t menu_recall[] = {
-  { MT_CALLBACK, 0, "RECALL 0", menu_recall_cb },
-  { MT_CALLBACK, 1, "RECALL 1", menu_recall_cb },
-  { MT_CALLBACK, 2, "RECALL 2", menu_recall_cb },
-  { MT_CALLBACK, 3, "RECALL 3", menu_recall_cb },
-  { MT_CALLBACK, 4, "RECALL 4", menu_recall_cb },
+  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
 #if SAVEAREA_MAX > 5
-  { MT_CALLBACK, 5, "RECALL 5", menu_recall_cb },
+  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_CALLBACK, 6, "RECALL 6", menu_recall_cb },
+  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1737,7 +1761,7 @@ static const uint8_t check_box[] = {
 static void
 draw_menu_buttons(const menuitem_t *menu)
 {
-  int i = 0, y = 0;
+  int i = 0, y = 1;
   for (i = 0; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     if (menu[i].type == MT_NONE)
       break;
@@ -1760,19 +1784,20 @@ draw_menu_buttons(const menuitem_t *menu)
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(i, menu[i].data, &button);
     }
+    char button_text[32];
+    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p1.u);
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
 
     ili9341_set_foreground(button.fg);
     ili9341_set_background(button.bg);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
-
     if (button.icon >=0){
       ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, &check_box[button.icon*2*ICON_HEIGHT]);
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
-    int lines = menu_is_multiline(menu[i].label);
-    ili9341_drawstring(menu[i].label, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
+    int lines = menu_is_multiline(button_text);
+    ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, DEFAULT_BG_COLOR);
@@ -2473,33 +2498,39 @@ touch_pickup_marker(int touch_x, int touch_y)
 }
 
 #ifdef __USE_SD_CARD__
-//*****************************************************************************
-// Bitmap file header for 480x320 image 16bpp (v4 format allow set RGB mask)
-//*****************************************************************************
+//*******************************************************************************************
+// Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
+//*******************************************************************************************
+#define BMP_UINT32(val)  ((val)>>0)&0xFF, ((val)>>8)&0xFF, ((val)>>16)&0xFF, ((val)>>24)&0xFF
+#define BMP_H1_SIZE      (14)                        // BMP header 14 bytes
+#define BMP_V4_SIZE      (56)                        // v4  header 56 bytes
+#define BMP_HEAD_SIZE    (BMP_H1_SIZE + BMP_V4_SIZE) // Size of all headers
+#define BMP_SIZE         (2*LCD_WIDTH*LCD_HEIGHT)    // Bitmap size = 2*w*h
+#define BMP_FILE_SIZE    (BMP_SIZE + BMP_HEAD_SIZE)  // File size = headers + bitmap
 static const uint8_t bmp_header_v4[14+56] = {
 // BITMAPFILEHEADER (14 byte size)
-  0x42, 0x4D,             // BM signature
-  0x46, 0xB0, 0x04, 0x00, // File size = 480*320*2 + 14 + 56 = 0x00004B07E
-  0x00, 0x00,             // reserved
-  0x00, 0x00,             // reserved
-  0x46, 0x00, 0x00, 0x00, // Size of all headers = 14+56
+  0x42, 0x4D,                // BM signature
+  BMP_UINT32(BMP_FILE_SIZE), // File size (h + v4 + bitmap)
+  0x00, 0x00,                // reserved
+  0x00, 0x00,                // reserved
+  BMP_UINT32(BMP_HEAD_SIZE), // Size of all headers (h + v4)
 // BITMAPINFOv4 (56 byte size)
-  0x38, 0x00, 0x00, 0x00, // Data offset after this point (56 = 0x38)
-  0xE0, 0x01, 0x00, 0x00, // Width  = 480 = 0x000001E0
-  0x40, 0x01, 0x00, 0x00, // Height = 320 = 0x00000140
-  0x01, 0x00,             // Planes
-  0x10, 0x00,             // 16bpp
-  0x03, 0x00, 0x00, 0x00, // Compression (BI_BITFIELDS)
-  0x00, 0xB0, 0x04, 0x00, // Bitmap size = 480*320*2
-  0xC4, 0x0E, 0x00, 0x00, // x Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
-  0xC4, 0x0E, 0x00, 0x00, // y Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
-  0x00, 0x00, 0x00, 0x00, // Palette size
-  0x00, 0x00, 0x00, 0x00, // Palette used
+  BMP_UINT32(BMP_V4_SIZE),   // Data offset after this point (v4 size)
+  BMP_UINT32(LCD_WIDTH),     // Width
+  BMP_UINT32(LCD_HEIGHT),    // Height
+  0x01, 0x00,                // Planes
+  0x10, 0x00,                // 16bpp
+  0x03, 0x00, 0x00, 0x00,    // Compression (BI_BITFIELDS)
+  BMP_UINT32(BMP_SIZE),      // Bitmap size (w*h*2)
+  0xC4, 0x0E, 0x00, 0x00,    // x Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
+  0xC4, 0x0E, 0x00, 0x00,    // y Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
+  0x00, 0x00, 0x00, 0x00,    // Palette size
+  0x00, 0x00, 0x00, 0x00,    // Palette used
 // Extend v4 header data (color mask for RGB565)
-  0x00, 0xF8, 0x00, 0x00, // R mask = 0b11111000 00000000
-  0xE0, 0x07, 0x00, 0x00, // G mask = 0b00000111 11100000
-  0x1F, 0x00, 0x00, 0x00, // B mask = 0b00000000 00011111
-  0x00, 0x00, 0x00, 0x00  // A mask = 0b00000000 00000000
+  0x00, 0xF8, 0x00, 0x00,    // R mask = 0b11111000 00000000
+  0xE0, 0x07, 0x00, 0x00,    // G mask = 0b00000111 11100000
+  0x1F, 0x00, 0x00, 0x00,    // B mask = 0b00000000 00011111
+  0x00, 0x00, 0x00, 0x00     // A mask = 0b00000000 00000000
 };
 
 static int

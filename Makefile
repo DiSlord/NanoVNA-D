@@ -80,7 +80,7 @@ endif
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
-  USE_EXCEPTIONS_STACKSIZE = 0x200
+  USE_EXCEPTIONS_STACKSIZE = 0x100
 endif
 
 ifeq ($(TARGET),F303)
@@ -133,9 +133,9 @@ include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 
 # Define linker script file here
 ifeq ($(TARGET),F303)
- LDSCRIPT= STM32F303xC.ld
+ LDSCRIPT= NANOVNA_STM32_F303/STM32F303xC.ld
 else
- LDSCRIPT= STM32F072xB.ld
+ LDSCRIPT= NANOVNA_STM32_F072/STM32F072xB.ld
 endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global
@@ -151,7 +151,7 @@ CSRC = $(STARTUPSRC) \
        FatFs/ff.c \
        FatFs/ffunicode.c \
        usbcfg.c \
-       main.c si5351.c si4432.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont20x22.c Font7x13b.c Font5x7.c flash.c adc.c rtc.c
+       main.c si5351.c si4432.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont20x22.c Font5x7.c Font7x13b.c Font10x14.c flash.c adc.c rtc.c
 
 #       $(TESTSRC) \
 

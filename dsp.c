@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014-2015, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -41,6 +42,22 @@ void generate_DSP_Table(int offset){
     v+=step;
   }
 }
+#elif FREQUENCY_OFFSET==7000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
+// static Table for 28kHz IF and 192kHz ADC (or 7kHz IF and 48kHz ADC) audio ADC
+static const int16_t sincos_tbl[48][2] = {
+  { 14493, 29389}, { 32138,  6393}, { 24636,-21605}, { -2143,-32698},
+  {-27246,-18205}, {-31029, 10533}, {-10533, 31029}, { 18205, 27246},
+  { 32698,  2143}, { 21605,-24636}, { -6393,-32138}, {-29389,-14493},
+  {-29389, 14493}, { -6393, 32138}, { 21605, 24636}, { 32698, -2143},
+  { 18205,-27246}, {-10533,-31029}, {-31029,-10533}, {-27246, 18205},
+  { -2143, 32698}, { 24636, 21605}, { 32138, -6393}, { 14493,-29389},
+  {-14493,-29389}, {-32138, -6393}, {-24636, 21605}, {  2143, 32698},
+  { 27246, 18205}, { 31029,-10533}, { 10533,-31029}, {-18205,-27246},
+  {-32698, -2143}, {-21605, 24636}, {  6393, 32138}, { 29389, 14493},
+  { 29389,-14493}, {  6393,-32138}, {-21605,-24636}, {-32698,  2143},
+  {-18205, 27246}, { 10533, 31029}, { 31029, 10533}, { 27246,-18205},
+  {  2143,-32698}, {-24636,-21605}, {-32138,  6393}, {-14493, 29389}
+};
 #elif FREQUENCY_OFFSET==6000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
 // static Table for 12kHz IF and 96kHz ADC (or 6kHz IF and 48kHz ADC) audio ADC
 static const int16_t sincos_tbl[48][2] = {
@@ -104,6 +121,16 @@ static const int16_t sincos_tbl[48][2] = {
   { 32610, -3212}, { 28899,-15447}, { 20788,-25330}, {  9512,-31357},
   { -3212,-32610}, {-15447,-28899}, {-25330,-20788}, {-31357, -9512},
   {-32610,  3212}, {-28899, 15447}, {-20788, 25330}, { -9512, 31357}
+};
+#elif FREQUENCY_OFFSET==2000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
+// static Table
+static const int16_t sincos_tbl[48][2] = {
+#error "Need check/rebuild sin cos table for DAC"
+};
+#elif FREQUENCY_OFFSET==1000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
+// static Table
+static const int16_t sincos_tbl[48][2] = {
+#error "Need check/rebuild sin cos table for DAC"
 };
 #else
 #error "Need check/rebuild sin cos table for DAC"

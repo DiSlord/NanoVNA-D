@@ -1,9 +1,7 @@
 /*
- * Copyright (c) 2014-2019, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
  * All rights reserved.
  *
- * Converted to hex by @qrp73 [ https://github.com/qrp73 ]
- * Rewritten by DiSlord [dislordlive@gmail.com]
  * This is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3, or (at your option)

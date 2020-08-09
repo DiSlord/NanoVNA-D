@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014-2015, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -967,7 +968,7 @@ static const uint8_t reference_bitmap[]={
   _BMP8(0b11000000),
 };
 
-#if _USE_FONT_ == 0
+#if _USE_BIG_MARKER_ == 0
 #define MARKER_WIDTH       7
 #define MARKER_HEIGHT     10
 #define X_MARKER_OFFSET    3
@@ -1031,7 +1032,7 @@ static const uint8_t marker_bitmap[]={
   _BMP8(0b00000000),
 };
 
-#elif _USE_FONT_ == 1
+#elif _USE_BIG_MARKER_ == 1
 #define MARKER_WIDTH       10
 #define MARKER_HEIGHT      13
 #define X_MARKER_OFFSET     4
@@ -1693,7 +1694,7 @@ draw_frequencies(void)
     buf2[0] = S_SARROW[0];
   ili9341_drawstring(buf1, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
   ili9341_drawstring(buf2, FREQUENCIES_XPOS2, FREQUENCIES_YPOS);
-  plot_printf(buf1, sizeof(buf1), "bw:%uHz  %up", get_bandwidth_frequency(), sweep_points);
+  plot_printf(buf1, sizeof(buf1), "bw:%uHz  %up", get_bandwidth_frequency(config.bandwidth), sweep_points);
   ili9341_set_foreground(DEFAULT_GRID_COLOR);
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }

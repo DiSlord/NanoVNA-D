@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2019-2020, written by DiSlord dislordlive@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -416,6 +417,7 @@ void ili9341_init(void)
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
   }
+  ili9341_clear_screen();
 }
 
 void ili9341_bulk_8bit(int x, int y, int w, int h, uint16_t *palette)

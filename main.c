@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2016-2017, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -84,21 +85,28 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_PORT_COMMAND
 // Enable debug command for SI4432
 #define ENABLE_SI4432_COMMAND
+// Enable si5351 timing command, used for debug
+//#define ENABLE_SI5351_TIMINGS
+// Enable i2c timing command, used for debug
+//#define ENABLE_I2C_TIMINGS
+// Enable band setting commanc, used for debug
+//#define ENABLE_BAND_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
 static void apply_edelay(void);
 
 static uint16_t get_sweep_mode(void);
-static void cal_interpolate(int s);
+static void cal_interpolate(void);
 static void update_frequencies(bool interpolate);
+static int  set_frequency(uint32_t freq);
 static void set_frequencies(uint32_t start, uint32_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t sweep_mode);
 static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_8MA;
+static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 int8_t sweep_mode = SWEEP_ENABLE;
 volatile uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
@@ -115,9 +123,9 @@ uint32_t frequencies[POINTS_COUNT];
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2016-2020 Copyright @edy555",
-  "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: " VERSION,
+  "2019-2020 Copyright @DiSlord (based on @edy555 source)",
+  "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
+  "Version: 1.0.19 beta Band+ mode, 12k offset, 384k ADC",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -338,40 +346,6 @@ VNA_SHELL_FUNCTION(cmd_reset)
   /* wait forever */
   while (1)
     ;
-}
-
-#ifdef ENABLE_GAIN_COMMAND
-static uint8_t gain_table[][2] = {
-#else
-static const uint8_t gain_table[][2] = {
-#endif
-    {  5,  5 },     // 1st:    0 ~  300MHz
-    { 50, 50 },     // 2nd:  300 ~  900MHz
-    { 79, 80 },     // 3th:  900 ~ 1500MHz
-    { 84, 85 },     // 4th: 1500 ~ 2100MHz
-    { 95, 95 },     // 5th: 2100 ~ 2700MHz
-};
-
-#define DELAY_GAIN_CHANGE 4
-
-static int
-adjust_gain(uint32_t newfreq)
-{
-  int new_order = si5351_get_harmonic_lvl(newfreq);
-  int old_order = si5351_get_harmonic_lvl(si5351_get_frequency());
-  if (new_order != old_order) {
-    tlv320aic3204_set_gain(gain_table[new_order][0], gain_table[new_order][1]);
-    return DELAY_GAIN_CHANGE;
-  }
-  return 0;
-}
-
-int set_frequency(uint32_t freq)
-{
-  int delay = adjust_gain(freq);
-  uint8_t ds = drive_strength;
-  delay += si5351_set_frequency(freq, ds);
-  return delay;
 }
 
 // Use macro, std isdigit more big
@@ -605,18 +579,6 @@ VNA_SHELL_FUNCTION(cmd_clearconfig)
                "Do reset manually to take effect. Then do touch cal and save.\r\n");
 }
 
-static struct {
-  int16_t rms[2];
-  int16_t ave[2];
-  int callback_count;
-
-#if 0
-  int32_t last_counter_value;
-  int32_t interval_cycles;
-  int32_t busy_cycles;
-#endif
-} stat;
-
 VNA_SHELL_FUNCTION(cmd_data)
 {
   int i;
@@ -809,22 +771,22 @@ duplicate_buffer_to_dump(int16_t *p)
 //
 // DMA i2s callback function, called on get 'half' and 'full' buffer size data
 // need for process data, while DMA fill next buffer
+static volatile systime_t ready_time = 0;
+
 void i2s_end_callback(I2SDriver *i2sp, size_t offset, size_t n)
 {
   int16_t *p = &rx_buffer[offset];
   (void)i2sp;
-  if (wait_count > 0){
-    if (wait_count <= config.bandwidth+1){
-      if (wait_count == config.bandwidth+1)
-        reset_dsp_accumerator();
-      dsp_process(p, n);
-    }
+  if (wait_count == 0 || chVTGetSystemTimeX() < ready_time) return;
+  if (wait_count == config.bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
+    reset_dsp_accumerator();
+  else if (wait_count <= config.bandwidth+1) // Clean data ready, process it
+    dsp_process(p, n);
 #ifdef ENABLED_DUMP_COMMAND
-    duplicate_buffer_to_dump(p);
+  duplicate_buffer_to_dump(p);
 #endif
-    --wait_count;
-  }
-  stat.callback_count++;
+  --wait_count;
+//  stat.callback_count++;
 }
 
 static const I2SConfig i2sconfig = {
@@ -837,11 +799,20 @@ static const I2SConfig i2sconfig = {
   0                       // i2spr
 };
 
-#define DSP_START(delay) {wait_count = delay + config.bandwidth;}
-#define DSP_WAIT_READY   while (wait_count) {if (operation_requested && break_on_operation) return false; __WFI();}
+#ifdef ENABLE_SI5351_TIMINGS
+extern uint16_t timings[16];
+#define DELAY_CHANNEL_CHANGE  timings[6]
+#define DELAY_SWEEP_START     timings[7]
+
+#else
+// Use x 100us settings
+#define DELAY_CHANNEL_CHANGE   3    // Delay for switch ADC channel
+#define DELAY_SWEEP_START     25    // Sweep start delay, allow remove noise at 1 point
+#endif
+
+#define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config.bandwidth+2;}
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
-#define DELAY_CHANNEL_CHANGE 2
 
 #define SWEEP_CH0_MEASURE   1
 #define SWEEP_CH1_MEASURE   2
@@ -865,57 +836,96 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   if (break_on_operation && sweep_mode == 0)
     return false;
-
-  // blink LED while scanning
+  // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
-  // Power stabilization after LED off, before measure
-  int st_delay = 3;
-  for (; p_sweep < sweep_points; p_sweep++) {         // 5300
+//  START_PROFILE;
+  // Wait some time for stable power
+  int st_delay = DELAY_SWEEP_START;
+  for (; p_sweep < sweep_points; p_sweep++) {
     if (frequencies[p_sweep] == 0) break;
     delay = set_frequency(frequencies[p_sweep]);
+    // CH0:REFLECTION, reset and begin measure
     if (sweep_mode & SWEEP_CH0_MEASURE){
-      tlv320aic3204_select(0);                   // CH0:REFLECTION, reset and begin measure
+      tlv320aic3204_select(0);
       DSP_START(delay+st_delay);
       delay = DELAY_CHANNEL_CHANGE;
       //================================================
       // Place some code thats need execute while delay
       //================================================
-      DSP_WAIT_READY;
+      DSP_WAIT;
       (*sample_func)(measured[0][p_sweep]);      // calculate reflection coefficient
-      if (cal_status & CALSTAT_APPLY)
+      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && cal_status & CALSTAT_APPLY)
         apply_CH0_error_term_at(p_sweep);
     }
+    // CH1:TRANSMISSION, reset and begin measure
     if (sweep_mode & SWEEP_CH1_MEASURE){
-      tlv320aic3204_select(1);                   // CH1:TRANSMISSION, reset and begin measure
+      tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
       //================================================
       // Place some code thats need execute while delay
       //================================================
-      DSP_WAIT_READY;
-      (*sample_func)(measured[1][p_sweep]);      // calculate transmission coefficient
-      if (cal_status & CALSTAT_APPLY)
+      DSP_WAIT;
+      (*sample_func)(measured[1][p_sweep]);      // Measure transmission coefficient
+      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && cal_status & CALSTAT_APPLY)
         apply_CH1_error_term_at(p_sweep);
     }
+    if (operation_requested && break_on_operation) break;
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
-//    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
+    if (config.bandwidth >= BANDWIDTH_100)
+      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
   }
+  // Apply calibration at end if need
+  if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
+    uint16_t start_sweep;
+    for (start_sweep = 0; start_sweep < p_sweep; start_sweep++){
+      if (sweep_mode & SWEEP_CH0_MEASURE) apply_CH0_error_term_at(start_sweep);
+      if (sweep_mode & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
+    }
+  }
+//  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
-  return true;
+  return p_sweep == sweep_points;
 }
 
-uint32_t get_bandwidth_frequency(void){
-  return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(config.bandwidth+1);
+#ifdef ENABLE_GAIN_COMMAND
+VNA_SHELL_FUNCTION(cmd_gain)
+{
+  int rvalue = 0;
+  int lvalue = 0;
+  if (argc == 0 && argc > 2) {
+    shell_printf("usage: gain {lgain(0-95)} [rgain(0-95)]\r\n");
+    return;
+  };
+  lvalue = rvalue = my_atoui(argv[0]);
+  if (argc == 3)
+    rvalue = my_atoui(argv[1]);
+  tlv320aic3204_set_gain(lvalue, rvalue);
+}
+#endif
+
+static int set_frequency(uint32_t freq)
+{
+  return si5351_set_frequency(freq, drive_strength);
+}
+
+void set_bandwidth(uint16_t bw_count){
+  config.bandwidth = bw_count&0xFF;
+  redraw_request|=REDRAW_FREQUENCY;
+}
+
+uint32_t get_bandwidth_frequency(uint16_t bw_freq){
+  return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
 }
 
 VNA_SHELL_FUNCTION(cmd_bandwidth)
 {
   if (argc != 1)
     goto result;
-  config.bandwidth = my_atoui(argv[0])&0xFF;
+  set_bandwidth(my_atoui(argv[0]));
 result:
-  shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency());
+  shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency(config.bandwidth));
 }
 
 void set_sweep_points(uint16_t points){
@@ -959,7 +969,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   set_frequencies(start, stop, points);
   if (cal_status & CALSTAT_APPLY)
-    cal_interpolate(lastsaveid);
+    cal_interpolate();
   pause_sweep();
   sweep(false, sweep_mode);
   // Output data after if set (faster data recive)
@@ -1036,7 +1046,7 @@ update_frequencies(bool interpolate)
   // set grid layout
   update_grid();
   if (interpolate)
-    cal_interpolate(lastsaveid);
+    cal_interpolate();
   RESET_SWEEP;
 }
 
@@ -1484,9 +1494,9 @@ cal_done(void)
 }
 
 static void
-cal_interpolate(int s)
+cal_interpolate(void)
 {
-  const properties_t *src = caldata_ref(s);
+  const properties_t *src = caldata_reference();
   uint32_t i, j;
   int eterm;
   if (src == NULL)
@@ -1842,7 +1852,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
       if (markers[t].enabled) {
-        shell_printf("%d %d %d\r\n", t+1, markers[t].index, markers[t].frequency);
+        shell_printf("%d %d %u\r\n", t+1, markers[t].index, markers[t].frequency);
       }
     }
     return;
@@ -1860,7 +1870,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (t < 0 || t >= MARKERS_MAX)
     goto usage;
   if (argc == 1) {
-    shell_printf("%d %d %d\r\n", t+1, markers[t].index, markers[t].frequency);
+    shell_printf("%d %d %u\r\n", t+1, markers[t].index, markers[t].frequency);
     active_marker = t;
     // select active marker
     markers[t].enabled = TRUE;
@@ -2043,25 +2053,6 @@ VNA_SHELL_FUNCTION(cmd_test)
 }
 #endif
 
-#ifdef ENABLE_GAIN_COMMAND
-VNA_SHELL_FUNCTION(cmd_gain)
-{
-  int rvalue = 0;
-  int lvalue = 0;
-  if (argc < 1 && argc > 3) {
-    shell_printf("usage: gain idx {lgain(0-95)} [rgain(0-95)]\r\n");
-    return;
-  }
-  int idx = my_atoui(argv[0]);
-  lvalue = rvalue = my_atoui(argv[1]);
-  if (argc == 3)
-    rvalue = my_atoui(argv[2]);
-  tlv320aic3204_set_gain(lvalue, rvalue);
-  gain_table[idx][0] = lvalue;
-  gain_table[idx][1] = rvalue;
-}
-#endif
-
 #ifdef ENABLE_PORT_COMMAND
 VNA_SHELL_FUNCTION(cmd_port)
 {
@@ -2076,6 +2067,17 @@ VNA_SHELL_FUNCTION(cmd_port)
 #endif
 
 #ifdef ENABLE_STAT_COMMAND
+static struct {
+  int16_t rms[2];
+  int16_t ave[2];
+#if 0
+  int callback_count;
+  int32_t last_counter_value;
+  int32_t interval_cycles;
+  int32_t busy_cycles;
+#endif
+} stat;
+
 VNA_SHELL_FUNCTION(cmd_stat)
 {
   int16_t *p = &rx_buffer[0];
@@ -2163,6 +2165,31 @@ VNA_SHELL_FUNCTION(cmd_vbat_offset)
 }
 #endif
 
+#ifdef ENABLE_SI5351_TIMINGS
+VNA_SHELL_FUNCTION(cmd_si5351time)
+{
+  (void)argc;
+  int idx = my_atoui(argv[0]);
+  uint16_t value = my_atoui(argv[1]);
+  si5351_set_timing(idx, value);
+}
+#endif
+
+
+#ifdef ENABLE_I2C_TIMINGS
+VNA_SHELL_FUNCTION(cmd_i2ctime)
+{
+  (void)argc;
+  uint32_t tim =  STM32_TIMINGR_PRESC(0U)  |
+                  STM32_TIMINGR_SCLDEL(my_atoui(argv[0])) | STM32_TIMINGR_SDADEL(my_atoui(argv[1])) |
+                  STM32_TIMINGR_SCLH(my_atoui(argv[2])) | STM32_TIMINGR_SCLL(my_atoui(argv[3]));
+  I2CD1.i2c->CR1 &=~I2C_CR1_PE;
+  I2CD1.i2c->TIMINGR = tim;
+  I2CD1.i2c->CR1 |= I2C_CR1_PE;
+
+}
+#endif
+
 #ifdef ENABLE_INFO_COMMAND
 VNA_SHELL_FUNCTION(cmd_info)
 {
@@ -2233,6 +2260,19 @@ VNA_SHELL_FUNCTION(cmd_i2c){
   uint8_t reg  = my_atoui(argv[1]);
   uint8_t data = my_atoui(argv[2]);
   tlv320aic3204_write_reg(page, reg, data);
+}
+#endif
+
+#ifdef ENABLE_BAND_COMMAND
+VNA_SHELL_FUNCTION(cmd_band){
+  static const char cmd_sweep_list[] = "mode|freq|pow|div|mul|omul|l|r|lr|adj";
+  if (argc != 3){
+    shell_printf("cmd error\r\n");
+    return;
+  }
+  int idx = my_atoui(argv[0]);
+  int pidx = get_str_index(argv[1], cmd_sweep_list);
+  si5351_update_band_config(idx, pidx, my_atoui(argv[2]));
 }
 #endif
 
@@ -2381,6 +2421,15 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_THREADS_COMMAND
     {"threads"     , cmd_threads     , 0},
 #endif
+#ifdef ENABLE_SI5351_TIMINGS
+    {"t"           , cmd_si5351time  , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_I2C_TIMINGS
+    {"i"           , cmd_i2ctime     , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_BAND_COMMAND
+    {"b"           , cmd_band        , CMD_WAIT_MUTEX},
+#endif
     {NULL          , NULL            , 0}
 };
 
@@ -2512,22 +2561,23 @@ THD_FUNCTION(myshellThread, p)
 
 // I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
 static const I2CConfig i2ccfg = {
-  .timingr  = STM32_TIMINGR_PRESC(0U)  |            /* 72MHz I2CCLK. ~ 600kHz i2c   */
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(4U) |
-//  STM32_TIMINGR_SCLH(31U)   | STM32_TIMINGR_SCLL(79U),
-
-  STM32_TIMINGR_SCLDEL(15U) | STM32_TIMINGR_SDADEL(15U) |
-  STM32_TIMINGR_SCLH(35U)   | STM32_TIMINGR_SCLL(85U),
-
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(4U) |
-//  STM32_TIMINGR_SCLH(48U)   | STM32_TIMINGR_SCLL(90U),
+  .timingr  = STM32_TIMINGR_PRESC(0U)  |
+  // 72MHz I2CCLK. ~ 400kHz i2c
+//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
+//  STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U),
+  // 72MHz I2CCLK. ~ 600kHz i2c
+  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
+  STM32_TIMINGR_SCLH(40U)   | STM32_TIMINGR_SCLL(80U),
+  // 72MHz I2CCLK. ~ 900kHz i2c
+//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
+//  STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U),
   .cr1      = 0,
   .cr2      = 0
 };
 
 static DACConfig dac1cfg1 = {
-  //init:         2047U,
-  init:         1922U,
+  //init:         1922U,
+  init:         0,
   datamode:     DAC_DHRM_12BIT_RIGHT
 };
 
@@ -2540,19 +2590,20 @@ int main(void)
 {
   halInit();
   chSysInit();
+
+/*
+ * Starting DAC1 driver, setting up the output pin as analog as suggested
+ * by the Reference Manual.
+ */
+  dacStart(&DACD2, &dac1cfg1);
+
 #ifdef __USE_RTC__
   rtc_init(); // Initialize RTC library
 #endif
-  // Speedup flash latency
-  FLASH->ACR= FLASH_ACR_PRFTBE | FLASH_ACR_LATENCY_0;
+
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
-  //palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
-  //palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
-  i2cStart(&I2CD1, &i2ccfg);
-  si5351_init();
-
   // MCO on PA8
   //palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(0));
 /*
@@ -2580,20 +2631,26 @@ int main(void)
 
 /* restore config */
   config_recall();
+
 /* restore frequencies and calibration 0 slot properties from flash memory */
   load_properties(0);
 
-  dac1cfg1.init = config.dac_value;
 /*
- * Starting DAC1 driver, setting up the output pin as analog as suggested
- * by the Reference Manual.
+ * I2C bus
  */
-  dacStart(&DACD2, &dac1cfg1);
+  //palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
+  //palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
+  i2cStart(&I2CD1, &i2ccfg);
 
+/*
+ * Start si5351
+ */
+  si5351_init();
 
 /*
  * I2S Initialize
  */
+  chThdSleepMilliseconds(100);
   tlv320aic3204_init();
   i2sInit();
   i2sObjectInit(&I2SD2);
@@ -2604,6 +2661,10 @@ int main(void)
   //Initialize graph plotting
   plot_init();
   redraw_frame();
+
+  // Set config DAC value
+  dacPutChannelX(&DACD2, 0, config.dac_value);
+
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
 
   while (1) {
