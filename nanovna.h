@@ -46,7 +46,7 @@
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 // For 768k ADC
 //#define FREQUENCY_OFFSET           12000
 //#define FREQUENCY_OFFSET           16000
