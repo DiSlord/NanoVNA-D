@@ -86,11 +86,11 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable debug command for SI4432
 #define ENABLE_SI4432_COMMAND
 // Enable si5351 timing command, used for debug
-//#define ENABLE_SI5351_TIMINGS
+#define ENABLE_SI5351_TIMINGS
 // Enable i2c timing command, used for debug
 //#define ENABLE_I2C_TIMINGS
 // Enable band setting commanc, used for debug
-//#define ENABLE_BAND_COMMAND
+#define ENABLE_BAND_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);

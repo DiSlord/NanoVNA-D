@@ -62,6 +62,9 @@ void SI4432_Select(void){
   SPI_BR_SET(SI4432_SPI, SI4432_SPI_SPEED);
 #else
   // Init legs mode for software bitbang
+  old_port_moder = GPIOB->MODER;
+  new_port_moder = old_port_moder & ~(PIN_MODE_ANALOG(GPIOB_SPI_SCLK)|PIN_MODE_ANALOG(GPIOB_SPI_MISO)|PIN_MODE_ANALOG(GPIOB_SPI_MOSI));
+  new_port_moder|= PIN_MODE_OUTPUT(GPIOB_SPI_SCLK)|PIN_MODE_INPUT(GPIOB_SPI_MISO)|PIN_MODE_OUTPUT(GPIOB_SPI_MOSI);
   GPIOB->MODER = new_port_moder;
   // Pull down SPI
   SPI_SDI_LOW;
@@ -116,18 +119,78 @@ static uint8_t SI4432_shiftIn(void)
 #endif
 }
 
+void SI4432_Reset(void)
+{
+  int count = 0;
+  SI4432_Read_Byte (SI4432_INT_STATUS1);    // Clear pending interrupts
+  SI4432_Read_Byte (SI4432_INT_STATUS2);
+  // always perform a system reset (don't send 0x87)
+  SI4432_Write_Byte(SI4432_STATE, 0x80);
+  chThdSleepMilliseconds(10);
+  // wait for chiprdy bit
+  while (count++ < 100 && ( SI4432_Read_Byte (SI4432_INT_STATUS2) & 0x02 ) == 0) {
+    chThdSleepMilliseconds(10);
+  }
+}
+
 void SI4432_Init(void){
   // Store old port settings for software SPI mode
 #ifndef USE_HARDWARE_SPI_MODE
-  old_port_moder = GPIOB->MODER;
-  new_port_moder = old_port_moder & ~(PIN_MODE_ANALOG(GPIOB_SPI_SCLK)|PIN_MODE_ANALOG(GPIOB_SPI_MISO)|PIN_MODE_ANALOG(GPIOB_SPI_MOSI));
-  new_port_moder|= PIN_MODE_OUTPUT(GPIOB_SPI_SCLK)|PIN_MODE_INPUT(GPIOB_SPI_MISO)|PIN_MODE_OUTPUT(GPIOB_SPI_MOSI);
+
 #endif
 
   SI4432_Select();
+  SI4432_Reset();
+  SI4432_Write_Byte(SI4432_STATE, 0x80);
+  chThdSleepMilliseconds(10);
+
+  SI4432_Write_Byte(SI4432_AGC_OVERRIDE, 0x60); //AGC override according to WBS3
+  SI4432_Write_Byte(SI4432_INT_ENABLE1, 0x0);
+  SI4432_Write_Byte(SI4432_INT_ENABLE2, 0x0);
+  // Enable receiver chain
+//  SI4432_Write_Byte(SI4432_STATE, 0x05);
+  // Clock Recovery Gearshift Value
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_GEARSHIFT, 0x00);
+  // IF Filter Bandwidth
+//  // Register 0x75 Frequency Band Select
+//  byte sbsel = 1 ;  // recommended setting
+//  byte hbsel = 0 ;  // low bands
+//  byte fb = 19 ;    // 430�439.9 MHz
+//  byte FBS = (sbsel << 6 ) | (hbsel << 5 ) | fb ;
+//  SI4432_Write_Byte(SI4432_FREQBAND, FBS) ;
+//  SI4432_Write_Byte(SI4432_FREQBAND, 0x46) ;
+  // Register 0x76 Nominal Carrier Frequency
+  // WE USE 433.92 MHz
+  // Si443x-Register-Settings_RevB1.xls
+//  SI4432_Write_Byte(SI4432_FREQCARRIER_H, 0x62) ;
+//  SI4432_Write_Byte(SI4432_FREQCARRIER_H, 0x00) ;
+  // Register 0x77 Nominal Carrier Frequency
+//  SI4432_Write_Byte(SI4432_FREQCARRIER_L, 0x00) ;
+  // RX MODEM SETTINGS
+//  SI4432_Write_3_Byte(SI4432_IF_FILTER_BW, 0x81, 0x3C, 0x02) ;    // <----------
+//  SI4432_Write_Byte(SI4432_IF_FILTER_BW, 0x81) ;    // <----------
+  SI4432_Write_Byte(SI4432_AFC_LOOP_GEARSHIFT_OVERRIDE, 0x00) ;
+//  SI4432_Write_Byte(SI4432_AFC_TIMING_CONTROL, 0x02) ;    // <----------
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_GEARSHIFT, 0x03) ;
+//  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_OVERSAMPLING, 0x78) ;    // <----------
+//  SI4432_Write_3_Byte(SI4432_CLOCK_RECOVERY_OFFSET2, 0x01, 0x11, 0x11) ;    // <----------
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_OFFSET2, 0x01) ;
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_OFFSET1, 0x11) ;
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_OFFSET0, 0x11) ;
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_TIMING_GAIN1, 0x01) ;
+  SI4432_Write_Byte(SI4432_CLOCK_RECOVERY_TIMING_GAIN0, 0x13) ;
+  SI4432_Write_Byte(SI4432_AFC_LIMITER, 0xFF) ;
+
+//  SI4432_Write_3_Byte(0x2C, 0x28, 0x0c, 0x28) ;    // <----------
+//  SI4432_Write_Byte(Si4432_OOK_COUNTER_VALUE_1, 0x28) ;
+//  SI4432_Write_Byte(Si4432_OOK_COUNTER_VALUE_2, 0x0C) ;
+//  SI4432_Write_Byte(Si4432_SLICER_PEAK_HOLD, 0x28) ;
+
+  SI4432_Write_Byte(SI4432_DATAACCESS_CONTROL, 0x61); // Disable all packet handling
+  SI4432_Write_Byte(SI4432_AGC_OVERRIDE, 0x60); // AGC, no LNA, fast gain increment
+
   // Switch off si4432
   SI4432_switch_off();
-
   SI4432_Deselect();
 }
 
@@ -153,11 +216,33 @@ uint8_t SI4432_Read_Byte( uint8_t ADR )
 void SI4432_switch_on(void) {
   SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1f); // GPIO0 to GND
   SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1d); // GPIO1 to VDD
+  int count = 0;
+  if (( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) == 2)
+    return; // Already in transmit mode
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x02);
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x0b);
+  chThdSleepMilliseconds(10);
+  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 2) {
+    chThdSleepMilliseconds(10);
+  }
 }
 
 void SI4432_switch_off(void) {
   SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1d); // GPIO0 to VDD
   SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1f); // GPIO1 to GND
+  int count = 0;
+  if (( SI4432_Read_Byte (SI4432_DEV_STATUS) & 0x03 ) == 1)
+    return; // Already in receive mode
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x02);
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x07);
+  chThdSleepMilliseconds(10);
+  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 1) {
+    chThdSleepMilliseconds(5);
+  }
 }
 
 void SI4432_Set_Frequency ( uint32_t Freq ) {
