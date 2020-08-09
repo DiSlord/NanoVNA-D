@@ -133,9 +133,9 @@ include $(CHIBIOS)/os/hal/lib/streams/streams.mk
 
 # Define linker script file here
 ifeq ($(TARGET),F303)
- LDSCRIPT= STM32F303xC.ld
+ LDSCRIPT= NANOVNA_STM32_F303/STM32F303xC.ld
 else
- LDSCRIPT= STM32F072xB.ld
+ LDSCRIPT= NANOVNA_STM32_F072/STM32F072xB.ld
 endif
 
 # C sources that can be compiled in ARM or THUMB mode depending on the global

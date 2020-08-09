@@ -15,23 +15,23 @@
 */
 
 /*
- * STM32F303xC memory setup.
+ * STM32F072xB memory setup.
  */
 MEMORY
 {
-    flash0  : org = 0x08000000, len = 192k
+    flash0  : org = 0x08000000, len = 96k
     flash1  : org = 0x00000000, len = 0
     flash2  : org = 0x00000000, len = 0
     flash3  : org = 0x00000000, len = 0
     flash4  : org = 0x00000000, len = 0
     flash5  : org = 0x00000000, len = 0
     flash6  : org = 0x00000000, len = 0
-    flash7  : org = 0x08030000, len = 64k
-    ram0    : org = 0x20000000, len = 40k
+    flash7  : org = 0x08018000, len = 32k
+    ram0    : org = 0x20000000, len = 16k
     ram1    : org = 0x00000000, len = 0
     ram2    : org = 0x00000000, len = 0
     ram3    : org = 0x00000000, len = 0
-    ram4    : org = 0x10000000, len = 8k
+    ram4    : org = 0x00000000, len = 0
     ram5    : org = 0x00000000, len = 0
     ram6    : org = 0x00000000, len = 0
     ram7    : org = 0x00000000, len = 0
