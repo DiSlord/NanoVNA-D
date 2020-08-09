@@ -121,7 +121,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2016-2020 Copyright @edy555",
   "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: 1.0.18 beta Band+ mode, 12k offset, 192k ADC, compiled by DiSlord",// VERSION,
+  "Version: 1.0.19 beta Band+ mode, 12k offset, 384k ADC, compiled by DiSlord",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
