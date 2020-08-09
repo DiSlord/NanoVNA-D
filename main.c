@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2016-2017, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -119,9 +120,9 @@ uint32_t frequencies[POINTS_COUNT];
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2016-2020 Copyright @edy555",
-  "Licensed under GPL. See: https://github.com/ttrftech/NanoVNA",
-  "Version: 1.0.18 beta Band+ mode, 12k offset, 192k ADC, compiled by DiSlord",// VERSION,
+  "2019-2020 Copyright @DiSlord (based on @edy555 source)",
+  "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
+  "Version: 1.0.19 beta Band+ mode, 12k offset, 192k ADC",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,

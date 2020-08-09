@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2014-2015, TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -293,6 +294,7 @@ static const uint8_t conf_data[] = {
 //  0x3d, 0x64,     // Select ADC PTM_R3
 //  0x3d, 0xB6,     // Select ADC PTM_R2
 //  0x3d, 0xFF,     // Select ADC PTM_R1
+
   0x47, 0x32,     // Set MicPGA startup delay to 6.4ms
   0x7b, 0x01,     // Set the REF charging time to 40ms
   0x34, REG_34_IN2L_TO_LEFT_P_10k, // Route IN2L to LEFT_P with 10K
