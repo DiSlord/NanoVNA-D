@@ -25,9 +25,8 @@
 
 // XTAL frequency on si5351
 #define XTALFREQ 26000000U
-// SI4432 frequency clock
+//  si4432  reference clock
 #define CLK2_FREQUENCY 30000000U
-//AUDIO_CLOCK_REF
 
 // Fixed PLL mode multiplier (used in band 1 for frequency 800-10k)
 #define PLL_N_1  8
@@ -46,7 +45,7 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 // Generator ready delays, values in x100 us
 #if 1
 //uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H  device timings
-  uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H4 device timings
+  uint16_t timings[16]={  2,  4, 20,    0, 6000,  0,  4, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
 #define DELAY_BAND_3_4           timings[1]   // Delay for bands
@@ -372,7 +371,7 @@ typedef struct {
 #define SI5351_MIXED       3
 #define SI5351_VS_SI4432   4
 
-#define CONST_BAND
+//#define CONST_BAND
 /*
  * Frequency generation divide on band
  */
@@ -414,21 +413,20 @@ band_strategy_t band_s[] = {
 
   {SI5351_FIXED_MULT,   130000000U, SI5351_CLK_DRIVE_STRENGTH_4MA, 0,{ 8}, 1, 1,  0,  0,       1}, // 3
   {SI5351_FIXED_MULT,   180000000U, SI5351_CLK_DRIVE_STRENGTH_4MA, 0,{ 6}, 1, 1,  0,  0,       1}, // 4
-  {SI5351_FIXED_MULT,    THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_4MA, 0,{ 4}, 1, 1,  0,  0,       1}, // 5
+  {SI5351_FIXED_MULT,   240000000U, SI5351_CLK_DRIVE_STRENGTH_4MA, 0,{ 4}, 1, 1,  0,  0,       1}, // 5
 
-  {SI5351_VS_SI4432,    450000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 6}, 1, 3,  0,  0,   625*6}, // 5  390M -  510M (PLL 600- 900)
-  {SI5351_VS_SI4432,    600000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 1, 3,  0,  0,   625*4}, // 6  390M -  510M (PLL 600- 900)
-  {SI5351_VS_SI4432,  3*290000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 1, 3,  0,  0,   625*4}, // 7  510M -  810M (PLL 540- 900)
-  {SI5351_VS_SI4432 ,   960000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 1, 5,  0,  0,   625*4}, // 8  810M -  960M (PLL 648- 768)
+  {SI5351_VS_SI4432,    450000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 2,{ 6}, 1, 3,  0,  0,   625*3*6}, // 6  390M -  510M (PLL 600- 900)
+  {SI5351_VS_SI4432,    600000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 2,{ 4}, 1, 3,  0,  0,   625*3*4}, // 7  390M -  510M (PLL 600- 900)
+  {SI5351_VS_SI4432,  3*290000000U, SI5351_CLK_DRIVE_STRENGTH_4MA, 2,{ 4}, 1, 3,  0,  0,   625*3*4}, // 8  510M -  810M (PLL 540- 900)
 
-  {SI5351_VS_SI4432 ,  1200000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 3, 5, 20, 20,   625*4}, // 9  960M - 1350M (PLL 768-1080)
-  {SI5351_VS_SI4432 , 5*301000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 3, 5, 20, 20,   625*4}, //10  960M - 1350M (PLL 768-1080)
+  {SI5351_VS_SI4432 ,   960000000U, SI5351_CLK_DRIVE_STRENGTH_4MA, 2,{ 4}, 1, 5,  0,  0,     625*4}, // 9  810M -  960M (PLL 648- 768)
 
-  {SI5351_VS_SI4432 , 7*301000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 3,{ 4}, 3, 7, 60, 60,   625*4}, //11 1350M - 1890M (PLL 771-1080)
-  {SI5351_VS_SI4432 , 9*301000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 5,{ 4}, 3, 9, 80, 80,   625*4}, //12 1890M - 2430M (PLL
-  {SI5351_VS_SI4432 ,11*301000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 5,{ 4}, 3,11, 80, 80,   625*4}  //13 2430M - 2970M
+  {SI5351_VS_SI4432 ,  1200000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 2,{ 4}, 3, 5, 30, 30,   625*4*3}, //10  960M - 1350M (PLL 768-1080)
+  {SI5351_VS_SI4432 , 5*301000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 2,{ 4}, 3, 5, 30, 30,   625*4*3}, //11  960M - 1350M (PLL 768-1080)
 
-
+  {SI5351_VS_SI4432 , 7*301000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 6,{ 4}, 3, 7, 60, 60,   2*625* 7*3}, //12 1350M - 1890M (PLL 771-1080)
+  {SI5351_VS_SI4432 , 9*301000000U, SI5351_CLK_DRIVE_STRENGTH_6MA, 6,{ 4}, 3, 9, 50, 50,   2*625* 9*3}, //13 1890M - 2430M (PLL
+  {SI5351_VS_SI4432 ,11*301000000U, SI5351_CLK_DRIVE_STRENGTH_8MA, 5,{ 4}, 3,11, 50, 50,   2*625*11*3}  //14 2430M - 2970M
 #endif
 
 };
@@ -441,16 +439,17 @@ void si5351_update_band_config(int idx, uint32_t pidx, uint32_t v){
 #else
   band_strategy_t *b = &band_s[idx];
   switch(pidx){
-    case 0:b->mode   = v;break;
-    case 1:b->freq   = v;break;
-    case 2:b->pow    = v;break;
-    case 3:b->div    = v;break;
-    case 4:b->mul    = v;break;
-    case 5:b->omul   = v;break;
-    case 6:b->l_gain = v;break;
-    case 7:b->r_gain = v;break;
-    case 8:b->l_gain = b->r_gain = v;break;
-    case 9:b->freq_align = v;break;
+    case  0:b->mode   = v;break;
+    case  1:b->freq   = v;break;
+    case  2:b->pow    = v;break;
+    case  3:b->sipow  = v;break;
+    case  4:b->div    = v;break;
+    case  5:b->mul    = v;break;
+    case  6:b->omul   = v;break;
+    case  7:b->l_gain = v;break;
+    case  8:b->r_gain = v;break;
+    case  9:b->l_gain = b->r_gain = v;break;
+    case 10:b->freq_align = v;break;
   }
 #endif
 }
@@ -512,20 +511,9 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
     return 0;
 
   if (current_band != band) {
-    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
+    SI4432_switch(band_s[band].mode == SI5351_VS_SI4432);
+    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL,/* SI5351_CLK0_EN|SI5351_CLK1_EN|*/SI5351_CLK2_EN);
     si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
-    if(band_s[band].mode !=SI5351_VS_SI4432 && band_s[current_band].mode == SI5351_VS_SI4432)
-    {
-    	SI4432_Select();
-    	SI4432_switch_off();
-    	SI4432_Deselect();
-    }
-    else if (band_s[band].mode == SI5351_VS_SI4432 && band_s[current_band].mode != SI5351_VS_SI4432)
-    {
-    	SI4432_Select();
-    	SI4432_switch_on();
-    	SI4432_Deselect();
-    }
     // Possibly not need add delay now
     if (DELAY_RESET_PLL_BEFORE)
       chThdSleepMicroseconds(DELAY_RESET_PLL_BEFORE);
@@ -587,25 +575,24 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       break;
 
     case SI5351_VS_SI4432:  // SI4432 mode
-      fdiv = band_s[band].div;
-      // Setup CH0 and CH1 constant fdiv divider at change
+        fdiv = band_s[band].div;
+        // Setup CH0 and CH1 constant fdiv divider at change
+        SI4432_Select();
+        if (current_band != band) {
+          si5351_setupMultisynth(0, fdiv, 0, 1, SI5351_R_DIV_1, drive_strength | SI5351_CLK_PLL_SELECT_A);
 
-      if (current_band != band)
-        si5351_setupPLL(SI5351_REG_PLL_B, 30, 0, 1);
-      // Calculate and set CH0 and CH1 PLL freq
-      si5351_setupPLL_freq(SI5351_REG_PLL_A, ofreq, fdiv, omul);  // set PLLA freq = (ofreq/omul)*fdiv
+          si5351_setupPLL(SI5351_REG_PLL_B, 30, 0, 1);
+          si5351_set_frequency_fixedpll(2, XTALFREQ * 30, CLK2_FREQUENCY, SI5351_R_DIV_1,
+                                        SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
 
-      SI4432_Select();
-      if (current_band != band) {
-        si5351_setupMultisynth(0, fdiv, 0, 1, SI5351_R_DIV_1, drive_strength | SI5351_CLK_PLL_SELECT_A);
-        si5351_set_frequency_fixedpll(2, XTALFREQ * 30, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
+      	 SI4432_Write_Byte(SI4432_TX_POWER, 0x18 + band_s[band].sipow); // Set 5dBm out
+        }
+        // Calculate and set CH0 and CH1 PLL freq
+        si5351_setupPLL_freq(SI5351_REG_PLL_A, ofreq, fdiv, omul);  // set PLLA freq = (ofreq/omul)*fdiv
 
-    	SI4432_Write_Byte(SI4432_TX_POWER, 0x18 + band_s[band].sipow); // Set 5dBm out
-      }
-      SI4432_Set_Frequency(freq/mul);
-      SI4432_Deselect();
-
-      delay= DELAY_BAND_3_4+10;
+        SI4432_Set_Frequency(freq/mul);
+        SI4432_Deselect();
+        delay= DELAY_BAND_3_4;
       break;
   }
   if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain){

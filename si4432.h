@@ -101,10 +101,10 @@ void SI4432_Init(void);
 void SI4432_Select(void);
 void SI4432_Deselect(void);
 
-void SI4432_switch_on(void);
-void SI4432_switch_off(void);
+void SI4432_switch(bool en);
 
 void SI4432_Write_Byte(uint8_t ADR, uint8_t DATA);
 uint8_t SI4432_Read_Byte( uint8_t ADR );
+void SI4432_Set_Frequency ( uint32_t Freq );
 
 #endif // __SI4432_H__

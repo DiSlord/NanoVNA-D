@@ -1443,8 +1443,8 @@ cal_collect(int type)
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config.bandwidth;  // store current setting
   uint16_t status = cal_status;
-  if (bw < BANDWIDTH_30)
-    config.bandwidth = BANDWIDTH_30;
+//  if (bw < BANDWIDTH_30)
+//    config.bandwidth = BANDWIDTH_30;
   cal_status&= ~(CALSTAT_APPLY);
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
@@ -2265,7 +2265,7 @@ VNA_SHELL_FUNCTION(cmd_i2c){
 
 #ifdef ENABLE_BAND_COMMAND
 VNA_SHELL_FUNCTION(cmd_band){
-  static const char cmd_sweep_list[] = "mode|freq|pow|div|mul|omul|l|r|lr|adj";
+  static const char cmd_sweep_list[] = "mode|freq|pow|sipow|div|mul|omul|l|r|lr|adj";
   if (argc != 3){
     shell_printf("cmd error\r\n");
     return;

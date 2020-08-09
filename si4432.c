@@ -190,7 +190,7 @@ void SI4432_Init(void){
   SI4432_Write_Byte(SI4432_AGC_OVERRIDE, 0x60); // AGC, no LNA, fast gain increment
 
   // Switch off si4432
-  SI4432_switch_off();
+  SI4432_switch(false);
   SI4432_Deselect();
 }
 
@@ -243,6 +243,18 @@ void SI4432_switch_off(void) {
   while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 1) {
     chThdSleepMilliseconds(5);
   }
+}
+
+static bool si_enabled = false;
+void SI4432_switch(bool en){
+  if (si_enabled == en) return;
+  SI4432_Select();
+  if (en)
+    SI4432_switch_on();
+  else
+    SI4432_switch_off();
+  SI4432_Deselect();
+  si_enabled = en;
 }
 
 void SI4432_Set_Frequency ( uint32_t Freq ) {
