@@ -45,40 +45,57 @@
 //#define AUDIO_ADC_FREQ        (96000)
 //#define AUDIO_ADC_FREQ        (48000)
 
+// Define sample count for one step measure
+//#define AUDIO_SAMPLES_COUNT   (48)
+#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
+
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
-#define USE_VARIABLE_OFFSET
-// For 768k ADC
-//#define FREQUENCY_OFFSET           12000
-//#define FREQUENCY_OFFSET           16000
-//#define FREQUENCY_OFFSET           32000
-//#define FREQUENCY_OFFSET           48000
-//#define FREQUENCY_OFFSET           64000
-// For 384k ADC
+// Constant tables build only for AUDIO_SAMPLES_COUNT = 48
+//#define USE_VARIABLE_OFFSET
+
+#if AUDIO_ADC_FREQ == 768000
+// For 768k ADC    (16k step for 48 samples)
+#define FREQUENCY_OFFSET         12000
+//#define FREQUENCY_OFFSET         16000
+//#define FREQUENCY_OFFSET         32000
+//#define FREQUENCY_OFFSET         48000
+//#define FREQUENCY_OFFSET         64000
+
+#elif AUDIO_ADC_FREQ == 384000
+// For 384k ADC    (8k step for 48 samples)
+//#define FREQUENCY_OFFSET          8000
+#define FREQUENCY_OFFSET         12000  // only 96 samples and variable table
+//#define FREQUENCY_OFFSET         16000
+//#define FREQUENCY_OFFSET         20000  // only 96 samples and variable table
+//#define FREQUENCY_OFFSET         24000
+//#define FREQUENCY_OFFSET         32000
+
+#elif AUDIO_ADC_FREQ == 192000
+// For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
 //#define FREQUENCY_OFFSET          8000
 #define FREQUENCY_OFFSET         12000
 //#define FREQUENCY_OFFSET         16000
 //#define FREQUENCY_OFFSET         20000
 //#define FREQUENCY_OFFSET         24000
-//#define FREQUENCY_OFFSET         32000
-// For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
-//#define FREQUENCY_OFFSET          8000
-//#define FREQUENCY_OFFSET         12000
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         20000
-//#define FREQUENCY_OFFSET         24000
 //#define FREQUENCY_OFFSET         28000
+
+#elif AUDIO_ADC_FREQ == 96000
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 //#define FREQUENCY_OFFSET          6000
 //#define FREQUENCY_OFFSET          8000
 //#define FREQUENCY_OFFSET         10000
-//#define FREQUENCY_OFFSET         12000
+#define FREQUENCY_OFFSET         12000
+
+#elif AUDIO_ADC_FREQ = 48000
 // For 48k ADC (sin_cos table in dsp.c generated for 3k, 4k, 5k, 6k, if change need create new table )
 //#define FREQUENCY_OFFSET          3000
 //#define FREQUENCY_OFFSET          4000
 //#define FREQUENCY_OFFSET          5000
-//#define FREQUENCY_OFFSET          6000
+#define FREQUENCY_OFFSET          6000
 //#define FREQUENCY_OFFSET          7000
+#endif
 
 // Apply calibration after made sweep, (if set 1, then calibration move out from sweep cycle)
 #define APPLY_CALIBRATION_AFTER_SWEEP 0
@@ -90,7 +107,8 @@
 #define VNA_PI                   3.14159265358979323846
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT     201
+#define POINTS_COUNT             201
+#define POINTS_COUNT_DEFAULT     201
 
 // Optional sweep point (in UI menu)
 #define POINTS_SET_51     51
@@ -179,10 +197,6 @@ extern const char *info_about[];
 // Disable AIC PLL clock, use input as CODEC_CLKIN (not stable on some devices, on long work)
 //#define AUDIO_CLOCK_REF       (98304000U)
 
-// Define sample count for one step measure
-//#define AUDIO_SAMPLES_COUNT   (48)
-#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
 // Buffer contain left and right channel samples (need x2)
 #define AUDIO_BUFFER_LEN      (AUDIO_SAMPLES_COUNT*2)
 
