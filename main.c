@@ -84,9 +84,11 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_PORT_COMMAND
 // Enable si5351 timing command, used for debug
 //#define ENABLE_SI5351_TIMINGS
+// Enable si5351 register write, used for debug
+//#define ENABLE_SI5351_REG_WRITE
 // Enable i2c timing command, used for debug
 //#define ENABLE_I2C_TIMINGS
-// Enable band setting commanc, used for debug
+// Enable band setting command, used for debug
 //#define ENABLE_BAND_COMMAND
 
 static void apply_CH0_error_term_at(int i);
@@ -717,7 +719,7 @@ void load_default_properties(void)
 //current_props.magic = CONFIG_MAGIC;
   current_props._frequency0   =     50000;    // start =  50kHz
   current_props._frequency1   = 900000000;    // end   = 900MHz
-  current_props._sweep_points = POINTS_SET_101; // Set default 101 points
+  current_props._sweep_points = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_status   = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
@@ -2172,6 +2174,19 @@ VNA_SHELL_FUNCTION(cmd_si5351time)
 }
 #endif
 
+#ifdef ENABLE_SI5351_REG_WRITE
+VNA_SHELL_FUNCTION(cmd_si5351reg)
+{
+  if (argc != 2) {
+    shell_printf("usage: si reg data\r\n");
+    return;
+  }
+  uint8_t reg = my_atoui(argv[0]);
+  uint8_t dat = my_atoui(argv[1]);
+  uint8_t buf[] = { reg, dat };
+  si5351_bulk_write(buf, 2);
+}
+#endif
 
 #ifdef ENABLE_I2C_TIMINGS
 VNA_SHELL_FUNCTION(cmd_i2ctime)
@@ -2389,6 +2404,9 @@ static const VNAShellCommand commands[] =
 #endif
 #ifdef ENABLE_I2C_COMMAND
     {"i2c"         , cmd_i2c         , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_SI5351_REG_WRITE
+    {"si"          , cmd_si5351reg   , CMD_WAIT_MUTEX},
 #endif
 #ifdef ENABLE_LCD_COMMAND
     {"lcd"         , cmd_lcd         , CMD_WAIT_MUTEX},

@@ -76,8 +76,7 @@ void si5351_set_frequency_offset(int32_t offset)
   current_freq = 0; // reset freq, for
 }
 
-static void
-si5351_bulk_write(const uint8_t *buf, int len)
+void si5351_bulk_write(const uint8_t *buf, int len)
 {
 //  i2cAcquireBus(&I2CD1);
   (void)i2cMasterTransmitTimeout(&I2CD1, SI5351_I2C_ADDR, buf, len, NULL, 0, 1000);
