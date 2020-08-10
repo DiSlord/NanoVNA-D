@@ -53,7 +53,7 @@
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 
 #if AUDIO_ADC_FREQ == 768000
 // For 768k ADC    (16k step for 48 samples)
