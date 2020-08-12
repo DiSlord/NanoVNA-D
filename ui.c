@@ -65,7 +65,7 @@ int8_t previous_marker = -1;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
-#error "SPI_BUFFER_SIZE for SD card support need size = 2048"
+#error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
 #else
 // Fat file system work area (at the end of spi_buffer)
 static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
@@ -2010,16 +2010,23 @@ ui_mode_normal(void)
 static void
 lever_move_marker(int status)
 {
+  uint16_t step = 1<<2;
   do {
     if (active_marker >= 0 && markers[active_marker].enabled) {
-      if ((status & EVT_DOWN) && markers[active_marker].index > 0) {
-        markers[active_marker].index--;
+      int idx = (int)markers[active_marker].index;
+      if (status & EVT_DOWN) {
+        idx-= step>>2;
+        if (idx < 0) idx = 0;
       }
-      if ((status & EVT_UP) && markers[active_marker].index < sweep_points-1) {
-        markers[active_marker].index++;
+      if (status & EVT_UP) {
+       idx+= step>>2;
+        if (idx  > sweep_points-1)
+          idx = sweep_points-1 ;
       }
-      markers[active_marker].frequency = frequencies[markers[active_marker].index];
+      markers[active_marker].index = idx;
+      markers[active_marker].frequency = frequencies[idx];
       redraw_marker(active_marker);
+      step++;
     }
     status = btn_wait_release();
   } while (status != 0);
