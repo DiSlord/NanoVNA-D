@@ -124,7 +124,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: 1.0.19 beta Band+ mode, 12k offset, 192k ADC",// VERSION,
+  "Version: 1.0.19 Band+ mode, 12k offset, 192k ADC",// VERSION,
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -874,6 +874,8 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     if (config.bandwidth >= BANDWIDTH_100)
       ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
   }
+  if (config.bandwidth >= BANDWIDTH_100)
+    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1, DEFAULT_GRID_COLOR);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -2344,13 +2346,15 @@ typedef struct {
 
 // Some commands can executed only in sweep thread, not in main cycle
 #define CMD_WAIT_MUTEX  1
+#define CMD_BREAK_SWEEP 2
+
 static const VNAShellCommand commands[] =
 {
-    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX},
+    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX},
-    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX},
+    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"reset"       , cmd_reset       , 0},
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
     {"bandwidth"   , cmd_bandwidth   , 0},
@@ -2377,17 +2381,17 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_TEST_COMMAND
     {"test"        , cmd_test        , 0},
 #endif
-    {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX},
-    {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX},
+    {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"pause"       , cmd_pause       , 0},
     {"resume"      , cmd_resume      , 0},
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , 0},
-    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX},
+    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"trace"       , cmd_trace       , 0},
     {"marker"      , cmd_marker      , 0},
     {"edelay"      , cmd_edelay      , 0},
-    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX},
+    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
@@ -2522,6 +2526,7 @@ static void VNAShell_executeLine(char *line)
     if (strcmp(scp->sc_name, shell_args[0]) == 0) {
       if (scp->flags & CMD_WAIT_MUTEX) {
         shell_function = scp->sc_function;
+        if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
         // Wait execute command in sweep thread
         do {
           osalThreadSleepMilliseconds(100);

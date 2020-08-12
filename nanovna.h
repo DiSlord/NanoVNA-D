@@ -57,7 +57,7 @@
 
 #if AUDIO_ADC_FREQ == 768000
 // For 768k ADC    (16k step for 48 samples)
-//#define FREQUENCY_OFFSET         12000
+#define FREQUENCY_OFFSET         12000
 //#define FREQUENCY_OFFSET         16000
 //#define FREQUENCY_OFFSET         32000
 //#define FREQUENCY_OFFSET         48000
@@ -66,7 +66,7 @@
 #elif AUDIO_ADC_FREQ == 384000
 // For 384k ADC    (8k step for 48 samples)
 //#define FREQUENCY_OFFSET          8000
-//#define FREQUENCY_OFFSET         12000  // only 96 samples and variable table
+#define FREQUENCY_OFFSET         12000  // only 96 samples and variable table
 //#define FREQUENCY_OFFSET         16000
 //#define FREQUENCY_OFFSET         20000  // only 96 samples and variable table
 //#define FREQUENCY_OFFSET         24000
@@ -682,7 +682,7 @@ extern void ui_process(void);
 #define OP_NONE       0x00
 #define OP_LEVER      0x01
 #define OP_TOUCH      0x02
-//#define OP_FREQCHANGE 0x04
+#define OP_CONSOLE    0x04
 extern volatile uint8_t operation_requested;
 
 // lever_mode
