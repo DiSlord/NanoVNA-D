@@ -43,7 +43,7 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 
 // Generator ready delays, values in x100 us
 #if 1
-  uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H  device timings
+  uint16_t timings[16]={  4,  3, 20,    0, 6000,  0,  4, 25}; // For H  device timings
 //uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
@@ -116,7 +116,7 @@ si5351_write(uint8_t reg, uint8_t dat)
 const uint8_t si5351_configs[] = {
   2, SI5351_REG_3_OUTPUT_ENABLE_CONTROL, 0xff,
   4, SI5351_REG_16_CLK0_CONTROL, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN,
-  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD__PF|(0<<3)|(0<<0),
+  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD_8PF|(0<<3)|(0<<0),
 // All of this init code run late on sweep
 #if 0
   // setup PLL (26MHz * 32 = 832MHz, 32/2-2=14)
@@ -382,13 +382,13 @@ band_strategy_t band_s[] = {
   {SI5351_FIXED_PLL ,       10000U, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 8}, 1, 1,  0,  0,       1}, // 1
   {SI5351_FIXED_PLL ,   100000000U, SI5351_CLK_DRIVE_STRENGTH_8MA,{32}, 1, 1,  0,  0,       1}, // 2
 
-  {SI5351_FIXED_MULT,   130000000U, SI5351_CLK_DRIVE_STRENGTH_4MA,{ 8}, 1, 1,  0,  0,       1}, // 3
-  {SI5351_FIXED_MULT,   180000000U, SI5351_CLK_DRIVE_STRENGTH_4MA,{ 6}, 1, 1,  0,  0,       1}, // 4
-  {SI5351_FIXED_MULT,    THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_4MA,{ 4}, 1, 1,  0,  0,       1}, // 5
+  {SI5351_FIXED_MULT,   130000000U, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 8}, 1, 1,  0,  0,       1}, // 3
+  {SI5351_FIXED_MULT,   180000000U, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 6}, 1, 1,  0,  0,       1}, // 4
+  {SI5351_FIXED_MULT,    THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 4}, 1, 1,  0,  0,       1}, // 5
 
-  {SI5351_FIXED_MULT,   450000000U, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 6}, 3, 5, 50, 50,   3*5*6}, // 6
-  {SI5351_FIXED_MULT,   600000000U, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 4}, 3, 5, 50, 50,   3*5*4}, // 7
-  {SI5351_FIXED_MULT,  3*THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 4}, 3, 5, 50, 50,   3*5*4}, // 8
+  {SI5351_FIXED_MULT,   450000000U, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 6}, 3, 5, 50, 50,   3*5*6}, // 6
+  {SI5351_FIXED_MULT,   600000000U, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 4}, 3, 5, 50, 50,   3*5*4}, // 7
+  {SI5351_FIXED_MULT,  3*THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_6MA,{ 4}, 3, 5, 50, 50,   3*5*4}, // 8
 
   {SI5351_FIXED_MULT,  1200000000U, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 4}, 5, 7, 75, 75,   5*7*4}, // 9
   {SI5351_FIXED_MULT,  5*THRESHOLD, SI5351_CLK_DRIVE_STRENGTH_8MA,{ 4}, 5, 7, 75, 75,   5*7*4}, //10
