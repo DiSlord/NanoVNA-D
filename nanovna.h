@@ -108,13 +108,24 @@
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             101
-#define POINTS_COUNT_DEFAULT     101
 
 // Optional sweep point (in UI menu)
-#define POINTS_SET_51     51
-#define POINTS_SET_101   101
-#if POINTS_COUNT >= 201
-#define POINTS_SET_201   201
+#if POINTS_COUNT >=401
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {51, 101, 201, 301, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=301
+#define POINTS_SET_COUNT       4
+#define POINTS_SET             {51, 101, 201, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=201
+#define POINTS_SET_COUNT       3
+#define POINTS_SET             {51, 101, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=101
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {51, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
 extern float measured[2][POINTS_COUNT][2];

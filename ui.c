@@ -764,15 +764,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   draw_menu();
 }
 
+static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
 static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 {
   (void)item;
+  uint16_t p_count = point_counts_set[data];
   if (b){
-    b->icon = sweep_points == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.u = data;
+    b->icon = sweep_points == p_count ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = p_count;
     return;
   }
-  set_sweep_points(data);
+  set_sweep_points(p_count);
   draw_menu();
 }
 
@@ -1078,13 +1080,37 @@ const menuitem_t menu_save[] = {
   { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
+#if SAVEAREA_MAX > 3
   { MT_ADV_CALLBACK, 3, "SAVE %d", menu_save_acb },
+#endif
+#if SAVEAREA_MAX > 4
   { MT_ADV_CALLBACK, 4, "SAVE %d", menu_save_acb },
+#endif
 #if SAVEAREA_MAX > 5
   { MT_ADV_CALLBACK, 5, "SAVE %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
   { MT_ADV_CALLBACK, 6, "SAVE %d", menu_save_acb },
+#endif
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
+const menuitem_t menu_recall[] = {
+  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
+#if SAVEAREA_MAX > 3
+  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 4
+  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 5
+  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 6
+  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1195,10 +1221,18 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
-  { MT_ADV_CALLBACK, POINTS_SET_51,  "% 3d pt", menu_points_acb },
-  { MT_ADV_CALLBACK, POINTS_SET_101, "% 3d pt", menu_points_acb },
-#ifdef POINTS_SET_201
-  { MT_ADV_CALLBACK, POINTS_SET_201, "% 3d pt", menu_points_acb },
+  { MT_ADV_CALLBACK, 0, "% 3d point", menu_points_acb },
+#if POINTS_SET_COUNT > 1
+  { MT_ADV_CALLBACK, 1, "% 3d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 2
+  { MT_ADV_CALLBACK, 2, "% 3d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 3
+  { MT_ADV_CALLBACK, 3, "% 3d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 4
+  { MT_ADV_CALLBACK, 4, "% 3d point", menu_points_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1262,22 +1296,6 @@ const menuitem_t menu_marker[] = {
   { MT_SUBMENU, 0, "SEARCH", menu_marker_search },
   { MT_SUBMENU, 0, "OPERATIONS", menu_marker_ops },
   { MT_SUBMENU, 0, "SMITH\nVALUE", menu_marker_smith },
-  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
-  { MT_NONE, 0, NULL, NULL } // sentinel
-};
-
-const menuitem_t menu_recall[] = {
-  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
-#if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
-#endif
-#if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
-#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
