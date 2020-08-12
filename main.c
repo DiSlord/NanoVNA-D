@@ -278,7 +278,7 @@ transform_domain(void)
       }
     }
 
-    fft256_inverse((float(*)[2])tmp);
+    fft_inverse((float(*)[2])tmp);
     memcpy(measured[ch], tmp, sizeof(measured[0]));
     for (int i = 0; i < POINTS_COUNT; i++) {
       measured[ch][i][0] /= (float)FFT_SIZE;

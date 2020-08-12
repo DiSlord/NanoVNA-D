@@ -107,14 +107,25 @@
 #define VNA_PI                   3.14159265358979323846
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             201
-#define POINTS_COUNT_DEFAULT     201
+#define POINTS_COUNT             401
 
 // Optional sweep point (in UI menu)
-#define POINTS_SET_51     51
-#define POINTS_SET_101   101
-#if POINTS_COUNT >= 201
-#define POINTS_SET_201   201
+#if POINTS_COUNT >=401
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {51, 101, 201, 301, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=301
+#define POINTS_SET_COUNT       4
+#define POINTS_SET             {51, 101, 201, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=201
+#define POINTS_SET_COUNT       3
+#define POINTS_SET             {51, 101, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=101
+#define POINTS_SET_COUNT       2
+#define POINTS_SET             {51, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
 extern float measured[2][POINTS_COUNT][2];
@@ -157,7 +168,11 @@ extern uint32_t frequencies[POINTS_COUNT];
 #define TD_WINDOW_MINIMUM (0b01<<3)
 #define TD_WINDOW_MAXIMUM (0b10<<3)
 
-#define FFT_SIZE 256
+#if   POINTS_COUNT <= 256
+#define FFT_SIZE   256
+#elif POINTS_COUNT <= 512
+#define FFT_SIZE   512
+#endif
 
 void cal_collect(int type);
 void cal_done(void);
