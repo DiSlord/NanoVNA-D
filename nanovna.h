@@ -629,12 +629,12 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 
 #define FLASH_PAGESIZE 0x800
 
-#define SAVEAREA_MAX 7
+#define SAVEAREA_MAX 3
 
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_CONFIG_SIZE        0x00001000
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
-#define SAVE_PROP_CONFIG_SIZE   0x00002000
+#define SAVE_PROP_CONFIG_SIZE   0x00004000
 // Save config_t and properties_t flash area (see flash7  : org = 0x08030000, len = 64k from *.ld settings)
 // Properties save area follow after config
 // len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  64k
