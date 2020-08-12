@@ -951,6 +951,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   if (b){
     if (item < 4 && markers[item].enabled) b->icon = BUTTON_ICON_CHECK;
     else if (item == 5) b->icon = uistat.marker_delta ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->p1.u = data;
     return;
   }
   if (item >= 0 && item < MARKERS_MAX) {
@@ -1254,18 +1255,18 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
-  { MT_ADV_CALLBACK, 0, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 0, "%d point", menu_points_acb },
 #if POINTS_SET_COUNT > 1
-  { MT_ADV_CALLBACK, 1, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 1, "%d point", menu_points_acb },
 #endif
 #if POINTS_SET_COUNT > 2
-  { MT_ADV_CALLBACK, 2, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 2, "%d point", menu_points_acb },
 #endif
 #if POINTS_SET_COUNT > 3
-  { MT_ADV_CALLBACK, 3, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 3, "%d point", menu_points_acb },
 #endif
 #if POINTS_SET_COUNT > 4
-  { MT_ADV_CALLBACK, 4, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 4, "%d point", menu_points_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1283,10 +1284,10 @@ const menuitem_t menu_stimulus[] = {
 };
 
 const menuitem_t menu_marker_sel[] = {
-  { MT_ADV_CALLBACK, 1, "MARKER 1", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 2, "MARKER 2", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 3, "MARKER 3", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 4, "MARKER 4", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 1, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 2, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 3, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 4, "MARKER %d", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, 0, "ALL OFF", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, 0, "DELTA", menu_marker_sel_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
@@ -2041,19 +2042,20 @@ ui_mode_normal(void)
   ui_mode = UI_NORMAL;
 }
 
+#define MARKER_SPEEDUP  (804 / POINTS_COUNT)
 static void
 lever_move_marker(int status)
 {
-  uint16_t step = 1<<2;
+  uint16_t step = 1<<MARKER_SPEEDUP;
   do {
     if (active_marker >= 0 && markers[active_marker].enabled) {
       int idx = (int)markers[active_marker].index;
       if (status & EVT_DOWN) {
-        idx-= step>>2;
+        idx-= step>>MARKER_SPEEDUP;
         if (idx < 0) idx = 0;
       }
       if (status & EVT_UP) {
-       idx+= step>>2;
+       idx+= step>>MARKER_SPEEDUP;
         if (idx  > sweep_points-1)
           idx = sweep_points-1 ;
       }

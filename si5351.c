@@ -43,7 +43,7 @@ static uint8_t  clk_cache[3] = {0, 0, 0};
 
 // Generator ready delays, values in x100 us
 #if 1
-//uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H  device timings
+//uint16_t timings[16]={  4,  3, 20,    0, 6000,  0,  4, 25}; // For H  device timings
   uint16_t timings[16]={  2,  2, 20,    0, 6000,  0,  3, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
@@ -116,7 +116,7 @@ si5351_write(uint8_t reg, uint8_t dat)
 const uint8_t si5351_configs[] = {
   2, SI5351_REG_3_OUTPUT_ENABLE_CONTROL, 0xff,
   4, SI5351_REG_16_CLK0_CONTROL, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN, SI5351_CLK_POWERDOWN,
-  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD__PF|(0<<3)|(0<<0),
+  2, SI5351_REG_183_CRYSTAL_LOAD, SI5351_CRYSTAL_LOAD_8PF|(0<<3)|(0<<0),
 // All of this init code run late on sweep
 #if 0
   // setup PLL (26MHz * 32 = 832MHz, 32/2-2=14)
