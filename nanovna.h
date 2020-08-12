@@ -123,7 +123,7 @@
 #define POINTS_SET             {51, 101, POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #elif POINTS_COUNT >=101
-#define POINTS_SET_COUNT       5
+#define POINTS_SET_COUNT       2
 #define POINTS_SET             {51, POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
@@ -168,7 +168,11 @@ extern uint32_t frequencies[POINTS_COUNT];
 #define TD_WINDOW_MINIMUM (0b01<<3)
 #define TD_WINDOW_MAXIMUM (0b10<<3)
 
-#define FFT_SIZE 256
+#if   POINTS_COUNT <= 256
+#define FFT_SIZE   256
+#elif POINTS_COUNT <= 512
+#define FFT_SIZE   512
+#endif
 
 void cal_collect(int type);
 void cal_done(void);
