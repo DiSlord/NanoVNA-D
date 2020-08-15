@@ -230,18 +230,18 @@ transform_domain(void)
   // and calculate ifft for time domain
   float* tmp = (float*)spi_buffer;
 
-  uint16_t window_size = POINTS_COUNT, offset = 0;
+  uint16_t window_size = sweep_points, offset = 0;
   uint8_t is_lowpass = FALSE;
   switch (domain_mode & TD_FUNC) {
     case TD_FUNC_BANDPASS:
       offset = 0;
-      window_size = POINTS_COUNT;
+      window_size = sweep_points;
       break;
     case TD_FUNC_LOWPASS_IMPULSE:
     case TD_FUNC_LOWPASS_STEP:
       is_lowpass = TRUE;
-      offset = POINTS_COUNT;
-      window_size = POINTS_COUNT * 2;
+      offset = sweep_points;
+      window_size = sweep_points * 2;
       break;
   }
 
@@ -262,17 +262,17 @@ transform_domain(void)
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     memcpy(tmp, measured[ch], sizeof(measured[0]));
-    for (int i = 0; i < POINTS_COUNT; i++) {
+    for (int i = 0; i < sweep_points; i++) {
       float w = kaiser_window(i + offset, window_size, beta);
       tmp[i * 2 + 0] *= w;
       tmp[i * 2 + 1] *= w;
     }
-    for (int i = POINTS_COUNT; i < FFT_SIZE; i++) {
+    for (int i = sweep_points; i < FFT_SIZE; i++) {
       tmp[i * 2 + 0] = 0.0;
       tmp[i * 2 + 1] = 0.0;
     }
     if (is_lowpass) {
-      for (int i = 1; i < POINTS_COUNT; i++) {
+      for (int i = 1; i < sweep_points; i++) {
         tmp[(FFT_SIZE - i) * 2 + 0] = tmp[i * 2 + 0];
         tmp[(FFT_SIZE - i) * 2 + 1] = -tmp[i * 2 + 1];
       }
@@ -280,7 +280,7 @@ transform_domain(void)
 
     fft_inverse((float(*)[2])tmp);
     memcpy(measured[ch], tmp, sizeof(measured[0]));
-    for (int i = 0; i < POINTS_COUNT; i++) {
+    for (int i = 0; i < sweep_points; i++) {
       measured[ch][i][0] /= (float)FFT_SIZE;
       if (is_lowpass) {
         measured[ch][i][1] = 0.0;
@@ -289,7 +289,7 @@ transform_domain(void)
       }
     }
     if ((domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP) {
-      for (int i = 1; i < POINTS_COUNT; i++) {
+      for (int i = 1; i < sweep_points; i++) {
         measured[ch][i][0] += measured[ch][i - 1][0];
       }
     }
@@ -1357,7 +1357,7 @@ static void apply_error_term_at(int i)
     // S21a = S21m' (1-EsS11a)Et
     float s21mr = measured[1][i][0] - cal_data[ETERM_EX][i][0];
     float s21mi = measured[1][i][1] - cal_data[ETERM_EX][i][1];
-#if 0
+#if 1
     float esr = 1 - (cal_data[ETERM_ES][i][0] * s11ar - cal_data[ETERM_ES][i][1] * s11ai);
     float esi = 0 - (cal_data[ETERM_ES][i][1] * s11ar + cal_data[ETERM_ES][i][0] * s11ai);
     float etr = esr * cal_data[ETERM_ET][i][0] - esi * cal_data[ETERM_ET][i][1];
@@ -2353,7 +2353,7 @@ static const VNAShellCommand commands[] =
     {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
-    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX},
+    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"reset"       , cmd_reset       , 0},
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
@@ -2383,8 +2383,8 @@ static const VNAShellCommand commands[] =
 #endif
     {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"pause"       , cmd_pause       , 0},
-    {"resume"      , cmd_resume      , 0},
+    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , 0},
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
