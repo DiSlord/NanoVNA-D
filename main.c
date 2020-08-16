@@ -106,8 +106,8 @@ static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
 static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-int8_t sweep_mode = SWEEP_ENABLE;
-volatile uint8_t redraw_request = 0; // contains REDRAW_XXX flags
+int8_t  sweep_mode = SWEEP_ENABLE;
+uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 // sweep operation variables
 volatile uint16_t wait_count = 0;
@@ -119,12 +119,15 @@ static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
+#undef VERSION
+#define VERSION "1.0.20"
+
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: 1.0.19 Band+ mode, 12k offset, 192k ADC",// VERSION,
+  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)" IF, "define_to_STR(AUDIO_ADC_FREQ_K)" ADC]",
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -462,6 +465,7 @@ static int get_str_index(char *v, const char *list)
   return -1;
 }
 
+#ifdef USE_VARIABLE_OFFSET
 VNA_SHELL_FUNCTION(cmd_offset)
 {
   if (argc != 1) {
@@ -469,11 +473,10 @@ VNA_SHELL_FUNCTION(cmd_offset)
     return;
   }
   int32_t offset = my_atoi(argv[0]);
-#ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(offset);
-#endif
   si5351_set_frequency_offset(offset);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_freq)
 {
@@ -2279,7 +2282,7 @@ VNA_SHELL_FUNCTION(cmd_i2c){
 
 #ifdef ENABLE_BAND_COMMAND
 VNA_SHELL_FUNCTION(cmd_band){
-  static const char cmd_sweep_list[] = "mode|freq|pow|div|mul|omul|l|r|lr|adj";
+  static const char cmd_sweep_list[] = "mode|freq|div|mul|omul|pow|opow|l|r|lr|adj";
   if (argc != 3){
     shell_printf("cmd error\r\n");
     return;
@@ -2356,7 +2359,9 @@ static const VNAShellCommand commands[] =
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"reset"       , cmd_reset       , 0},
+#ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
+#endif
     {"bandwidth"   , cmd_bandwidth   , 0},
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
