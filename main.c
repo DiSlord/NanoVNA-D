@@ -127,7 +127,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)" IF, "define_to_STR(AUDIO_ADC_FREQ_K)" ADC]",
+  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)"k IF, "define_to_STR(AUDIO_ADC_FREQ_K)"k ADC]",
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
