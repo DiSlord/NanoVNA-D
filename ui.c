@@ -552,7 +552,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
   }
   cal_collect(data);
   selection = item+1;
-  draw_cal_status();
+//  draw_cal_status();
   draw_menu();
 }
 
@@ -563,7 +563,7 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   (void)item;
   (void)data;
   cal_done();
-  draw_cal_status();
+//  draw_cal_status();
   menu_move_back(false);
   menu_push_submenu(menu_save);
 }
@@ -2296,24 +2296,19 @@ ui_process_menu(void)
   if (status != 0) {
     if (status & EVT_BUTTON_SINGLE_CLICK) {
       menu_invoke(selection);
-    } else {
-      do {
-        if (status & EVT_UP) {
-          // close menu if next item is sentinel
-          if (menu_stack[menu_current_level][selection+1].type == MT_NONE)
-            goto menuclose;
-          selection++;
-        }
-        if (status & EVT_DOWN) {
-          if (selection == 0)
-            goto menuclose;
-          selection--;
-        }
-        draw_menu();
-        chThdSleepMilliseconds(200);
-        status = btn_wait_release();
-      } while (status != 0);
+      return;
     }
+    do {
+      if (status & EVT_UP)
+        selection++;
+      if (status & EVT_DOWN)
+        selection--;
+      // close menu if next item is sentinel or less
+      if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE)
+        goto menuclose;
+      draw_menu();
+      chThdSleepMilliseconds(200);
+    } while ((status = btn_wait_release()) != 0);
   }
   return;
 

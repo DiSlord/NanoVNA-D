@@ -38,12 +38,12 @@
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 
-// Define ADC sample rate (can be 48k, 96k, 192k, 384k)
-//#define AUDIO_ADC_FREQ        (768000)
-#define AUDIO_ADC_FREQ        (384000)
-//#define AUDIO_ADC_FREQ        (192000)
-//#define AUDIO_ADC_FREQ        (96000)
-//#define AUDIO_ADC_FREQ        (48000)
+// Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
+//#define AUDIO_ADC_FREQ_K        768
+#define AUDIO_ADC_FREQ_K        384
+//#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
@@ -55,47 +55,50 @@
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
 #define USE_VARIABLE_OFFSET
 
-#if AUDIO_ADC_FREQ == 768000
+#if AUDIO_ADC_FREQ_K == 768
 // For 768k ADC    (16k step for 48 samples)
-#define FREQUENCY_OFFSET         12000
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         32000
-//#define FREQUENCY_OFFSET         48000
-//#define FREQUENCY_OFFSET         64000
+#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         32
+//#define FREQUENCY_IF_K         48
+//#define FREQUENCY_IF_K         64
 
-#elif AUDIO_ADC_FREQ == 384000
+#elif AUDIO_ADC_FREQ_K == 384
 // For 384k ADC    (8k step for 48 samples)
-//#define FREQUENCY_OFFSET          8000
-#define FREQUENCY_OFFSET         12000  // only 96 samples and variable table
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         20000  // only 96 samples and variable table
-//#define FREQUENCY_OFFSET         24000
-//#define FREQUENCY_OFFSET         32000
+//#define FREQUENCY_IF_K          8
+#define FREQUENCY_IF_K         12  // only 96 samples and variable table
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         20  // only 96 samples and variable table
+//#define FREQUENCY_IF_K         24
+//#define FREQUENCY_IF_K         32
 
-#elif AUDIO_ADC_FREQ == 192000
+#elif AUDIO_ADC_FREQ_K == 192
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
-//#define FREQUENCY_OFFSET          8000
-#define FREQUENCY_OFFSET         12000
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         20000
-//#define FREQUENCY_OFFSET         24000
-//#define FREQUENCY_OFFSET         28000
+//#define FREQUENCY_IF_K          8
+#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         20
+//#define FREQUENCY_IF_K         24
+//#define FREQUENCY_IF_K         28
 
-#elif AUDIO_ADC_FREQ == 96000
+#elif AUDIO_ADC_FREQ_K == 96
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
-//#define FREQUENCY_OFFSET          6000
-//#define FREQUENCY_OFFSET          8000
-//#define FREQUENCY_OFFSET         10000
-#define FREQUENCY_OFFSET         12000
+//#define FREQUENCY_IF_K          6
+//#define FREQUENCY_IF_K          8
+//#define FREQUENCY_IF_K         10
+#define FREQUENCY_IF_K         12
 
-#elif AUDIO_ADC_FREQ = 48000
+#elif AUDIO_ADC_FREQ_K == 48
 // For 48k ADC (sin_cos table in dsp.c generated for 3k, 4k, 5k, 6k, if change need create new table )
-//#define FREQUENCY_OFFSET          3000
-//#define FREQUENCY_OFFSET          4000
-//#define FREQUENCY_OFFSET          5000
-#define FREQUENCY_OFFSET          6000
-//#define FREQUENCY_OFFSET          7000
+//#define FREQUENCY_IF_K          3
+//#define FREQUENCY_IF_K          4
+//#define FREQUENCY_IF_K          5
+#define FREQUENCY_IF_K          6
+//#define FREQUENCY_IF_K          7
 #endif
+
+#define AUDIO_ADC_FREQ       (AUDIO_ADC_FREQ_K*1000)
+#define FREQUENCY_OFFSET     (FREQUENCY_IF_K*1000)
 
 // Apply calibration after made sweep, (if set 1, then calibration move out from sweep cycle)
 #define APPLY_CALIBRATION_AFTER_SWEEP 0
@@ -527,7 +530,7 @@ int marker_search_right(int from);
 #define REDRAW_MARKER     (1<<3)
 #define REDRAW_BATTERY    (1<<4)
 #define REDRAW_AREA       (1<<5)
-extern volatile uint8_t redraw_request;
+extern  uint8_t redraw_request;
 
 /*
  * ili9341.c
