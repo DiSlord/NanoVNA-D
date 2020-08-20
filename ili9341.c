@@ -203,17 +203,17 @@ static void dmaStreamFlush(uint32_t len)
 #endif
 
 // SPI transmit byte to SPI (no wait complete transmit)
-static void spi_TxByte(uint8_t data) {
+void spi_TxByte(uint8_t data) {
   SPI_WRITE_8BIT(LCD_SPI, data);
 }
 
 // Transmit word to SPI bus (if SPI in 8 bit mode LSB send first!!!!!)
-static void spi_TxWord(uint16_t data) {
+void spi_TxWord(uint16_t data) {
   SPI_WRITE_16BIT(LCD_SPI, data);
 }
 
 // Transmit buffer to SPI bus  (len should be > 0)
-static void spi_TxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_TxBuffer(uint8_t *buffer, uint16_t len) {
   do {
     while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
     SPI_WRITE_8BIT(LCD_SPI, *buffer++);
@@ -229,7 +229,7 @@ static uint8_t spi_RxByte(void) {
 }
 
 // Receive buffer from SPI bus (len should be > 0)
-static void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
   do{
     SPI_WRITE_8BIT(LCD_SPI, 0xFF);
     while (SPI_RX_IS_EMPTY(LCD_SPI));
@@ -237,7 +237,7 @@ static void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
   }while(--len);
 }
 
-static void spi_DropRx(void){
+void spi_DropRx(void){
   // Drop Rx buffer after tx and wait tx complete
   while (SPI_RX_IS_NOT_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI))
     (void)SPI_READ_8BIT(LCD_SPI);
@@ -245,7 +245,7 @@ static void spi_DropRx(void){
 
 #ifdef __USE_DISPLAY_DMA__
 // SPI receive byte buffer use DMA
-static void spi_DMATxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_DMATxBuffer(uint8_t *buffer, uint16_t len) {
   dmaStreamSetMemory0(dmatx, buffer);
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
   dmaStreamFlush(len);

@@ -38,47 +38,67 @@
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 
-// Define ADC sample rate (can be 48k, 96k, 192k, 384k)
-//#define AUDIO_ADC_FREQ        (768000)
-#define AUDIO_ADC_FREQ        (384000)
-//#define AUDIO_ADC_FREQ        (192000)
-//#define AUDIO_ADC_FREQ        (96000)
-//#define AUDIO_ADC_FREQ        (48000)
+// Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
+//#define AUDIO_ADC_FREQ_K        768
+#define AUDIO_ADC_FREQ_K        384
+//#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        48
+
+// Define sample count for one step measure
+//#define AUDIO_SAMPLES_COUNT   (48)
+#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
+// Constant tables build only for AUDIO_SAMPLES_COUNT = 48
 #define USE_VARIABLE_OFFSET
-// For 768k ADC
-//#define FREQUENCY_OFFSET           12000
-//#define FREQUENCY_OFFSET           16000
-//#define FREQUENCY_OFFSET           32000
-//#define FREQUENCY_OFFSET           48000
-//#define FREQUENCY_OFFSET           64000
-// For 384k ADC
-//#define FREQUENCY_OFFSET          8000
-#define FREQUENCY_OFFSET         12000
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         20000
-//#define FREQUENCY_OFFSET         24000
-//#define FREQUENCY_OFFSET         32000
+
+#if AUDIO_ADC_FREQ_K == 768
+// For 768k ADC    (16k step for 48 samples)
+#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         32
+//#define FREQUENCY_IF_K         48
+//#define FREQUENCY_IF_K         64
+
+#elif AUDIO_ADC_FREQ_K == 384
+// For 384k ADC    (8k step for 48 samples)
+//#define FREQUENCY_IF_K          8
+#define FREQUENCY_IF_K         12  // only 96 samples and variable table
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         20  // only 96 samples and variable table
+//#define FREQUENCY_IF_K         24
+//#define FREQUENCY_IF_K         32
+
+#elif AUDIO_ADC_FREQ_K == 192
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
-//#define FREQUENCY_OFFSET          8000
-//#define FREQUENCY_OFFSET         12000
-//#define FREQUENCY_OFFSET         16000
-//#define FREQUENCY_OFFSET         20000
-//#define FREQUENCY_OFFSET         24000
-//#define FREQUENCY_OFFSET         28000
+//#define FREQUENCY_IF_K          8
+#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         16
+//#define FREQUENCY_IF_K         20
+//#define FREQUENCY_IF_K         24
+//#define FREQUENCY_IF_K         28
+
+#elif AUDIO_ADC_FREQ_K == 96
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
-//#define FREQUENCY_OFFSET          6000
-//#define FREQUENCY_OFFSET          8000
-//#define FREQUENCY_OFFSET         10000
-//#define FREQUENCY_OFFSET         12000
+//#define FREQUENCY_IF_K          6
+//#define FREQUENCY_IF_K          8
+//#define FREQUENCY_IF_K         10
+#define FREQUENCY_IF_K         12
+
+#elif AUDIO_ADC_FREQ_K == 48
 // For 48k ADC (sin_cos table in dsp.c generated for 3k, 4k, 5k, 6k, if change need create new table )
-//#define FREQUENCY_OFFSET          3000
-//#define FREQUENCY_OFFSET          4000
-//#define FREQUENCY_OFFSET          5000
-//#define FREQUENCY_OFFSET          6000
-//#define FREQUENCY_OFFSET          7000
+//#define FREQUENCY_IF_K          3
+//#define FREQUENCY_IF_K          4
+//#define FREQUENCY_IF_K          5
+#define FREQUENCY_IF_K          6
+//#define FREQUENCY_IF_K          7
+#endif
+
+#define AUDIO_ADC_FREQ       (AUDIO_ADC_FREQ_K*1000)
+#define FREQUENCY_OFFSET     (FREQUENCY_IF_K*1000)
 
 // Apply calibration after made sweep, (if set 1, then calibration move out from sweep cycle)
 #define APPLY_CALIBRATION_AFTER_SWEEP 0
@@ -90,13 +110,25 @@
 #define VNA_PI                   3.14159265358979323846
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT     201
+#define POINTS_COUNT             401
 
 // Optional sweep point (in UI menu)
-#define POINTS_SET_51     51
-#define POINTS_SET_101   101
-#if POINTS_COUNT >= 201
-#define POINTS_SET_201   201
+#if POINTS_COUNT >=401
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {51, 101, 201, 301, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=301
+#define POINTS_SET_COUNT       4
+#define POINTS_SET             {51, 101, 201, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=201
+#define POINTS_SET_COUNT       3
+#define POINTS_SET             {51, 101, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=101
+#define POINTS_SET_COUNT       2
+#define POINTS_SET             {51, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
 extern float measured[2][POINTS_COUNT][2];
@@ -139,7 +171,11 @@ extern uint32_t frequencies[POINTS_COUNT];
 #define TD_WINDOW_MINIMUM (0b01<<3)
 #define TD_WINDOW_MAXIMUM (0b10<<3)
 
-#define FFT_SIZE 256
+#if   POINTS_COUNT <= 256
+#define FFT_SIZE   256
+#elif POINTS_COUNT <= 512
+#define FFT_SIZE   512
+#endif
 
 void cal_collect(int type);
 void cal_done(void);
@@ -179,10 +215,6 @@ extern const char *info_about[];
 // Disable AIC PLL clock, use input as CODEC_CLKIN (not stable on some devices, on long work)
 //#define AUDIO_CLOCK_REF       (98304000U)
 
-// Define sample count for one step measure
-//#define AUDIO_SAMPLES_COUNT   (48)
-#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
 // Buffer contain left and right channel samples (need x2)
 #define AUDIO_BUFFER_LEN      (AUDIO_SAMPLES_COUNT*2)
 
@@ -498,7 +530,7 @@ int marker_search_right(int from);
 #define REDRAW_MARKER     (1<<3)
 #define REDRAW_BATTERY    (1<<4)
 #define REDRAW_AREA       (1<<5)
-extern volatile uint8_t redraw_request;
+extern  uint8_t redraw_request;
 
 /*
  * ili9341.c
@@ -600,12 +632,12 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 
 #define FLASH_PAGESIZE 0x800
 
-#define SAVEAREA_MAX 7
+#define SAVEAREA_MAX 3
 
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_CONFIG_SIZE        0x00001000
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
-#define SAVE_PROP_CONFIG_SIZE   0x00002000
+#define SAVE_PROP_CONFIG_SIZE   0x00004000
 // Save config_t and properties_t flash area (see flash7  : org = 0x08030000, len = 64k from *.ld settings)
 // Properties save area follow after config
 // len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  64k
@@ -654,7 +686,7 @@ extern void ui_process(void);
 #define OP_NONE       0x00
 #define OP_LEVER      0x01
 #define OP_TOUCH      0x02
-//#define OP_FREQCHANGE 0x04
+#define OP_CONSOLE    0x04
 extern volatile uint8_t operation_requested;
 
 // lever_mode

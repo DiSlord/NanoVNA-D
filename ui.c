@@ -33,6 +33,8 @@ uistat_t uistat = {
  marker_delta: FALSE,
  marker_tracking : FALSE,
 };
+// Obsolete value input variant
+//#define USE_NUMERIC_INPUT
 
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
@@ -44,7 +46,7 @@ uistat_t uistat = {
 
 #define BUTTON_DOWN_LONG_TICKS      5000   /* 500ms */
 #define BUTTON_DOUBLE_TICKS         2500   /* 250ms */
-#define BUTTON_REPEAT_TICKS          100   /*  10ms */
+#define BUTTON_REPEAT_TICKS          400   /*  10ms */
 #define BUTTON_DEBOUNCE_TICKS        400   /*  40ms */
 
 /* lever switch assignment */
@@ -65,7 +67,7 @@ int8_t previous_marker = -1;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
-#error "SPI_BUFFER_SIZE for SD card support need size = 2048"
+#error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
 #else
 // Fat file system work area (at the end of spi_buffer)
 static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
@@ -185,17 +187,19 @@ static int16_t last_touch_y;
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
-static void ui_mode_numeric(int _keypad_mode);
 static void ui_mode_keypad(int _keypad_mode);
 static void draw_menu(void);
 static void leave_ui_mode(void);
 static void erase_menu_buttons(void);
 static void ui_process_keypad(void);
-static void ui_process_numeric(void);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 void drawMessageBox(char *header, char *text, uint32_t delay);
+
+#ifdef USE_NUMERIC_INPUT
+static void ui_mode_numeric(int _keypad_mode);
+#endif
 
 static int btn_check(void)
 {
@@ -205,7 +209,7 @@ static int btn_check(void)
     ticks = chVTGetSystemTimeX();
     if(ticks - last_button_down_ticks > BUTTON_DEBOUNCE_TICKS)
       break;
-    chThdSleepMilliseconds(1);
+    chThdSleepMilliseconds(10);
   }
   int status = 0;
   uint16_t cur_button = READ_PORT() & BUTTON_MASK;
@@ -233,7 +237,7 @@ static int btn_wait_release(void)
 //      chThdSleepMilliseconds(10);
 //      continue;
 //    }
-    chThdSleepMilliseconds(1);
+    chThdSleepMilliseconds(10);
     uint16_t cur_button = READ_PORT() & BUTTON_MASK;
     uint16_t changed = last_button ^ cur_button;
     if (dt >= BUTTON_DOWN_LONG_TICKS && (cur_button & (1<<BIT_PUSH)))
@@ -548,7 +552,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
   }
   cal_collect(data);
   selection = item+1;
-  draw_cal_status();
+//  draw_cal_status();
   draw_menu();
 }
 
@@ -559,7 +563,7 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   (void)item;
   (void)data;
   cal_done();
-  draw_cal_status();
+//  draw_cal_status();
   menu_move_back(false);
   menu_push_submenu(menu_save);
 }
@@ -764,15 +768,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   draw_menu();
 }
 
+static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
 static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 {
   (void)item;
+  uint16_t p_count = point_counts_set[data];
   if (b){
-    b->icon = sweep_points == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.u = data;
+    b->icon = sweep_points == p_count ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = p_count;
     return;
   }
-  set_sweep_points(data);
+  set_sweep_points(p_count);
   draw_menu();
 }
 
@@ -794,10 +800,14 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
   if (data == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
     data = KM_SCALEDELAY;
   }
+#ifdef USE_NUMERIC_INPUT
   if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
     ui_mode_numeric(data);
 //    ui_process_numeric();
-  } else {
+  }
+  else
+#endif
+  {
     ui_mode_keypad(data);
     ui_process_keypad();
   }
@@ -949,6 +959,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   if (b){
     if (item < 4 && markers[item].enabled) b->icon = BUTTON_ICON_CHECK;
     else if (item == 5) b->icon = uistat.marker_delta ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->p1.u = data;
     return;
   }
   if (item >= 0 && item < MARKERS_MAX) {
@@ -1111,13 +1122,37 @@ const menuitem_t menu_save[] = {
   { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
+#if SAVEAREA_MAX > 3
   { MT_ADV_CALLBACK, 3, "SAVE %d", menu_save_acb },
+#endif
+#if SAVEAREA_MAX > 4
   { MT_ADV_CALLBACK, 4, "SAVE %d", menu_save_acb },
+#endif
 #if SAVEAREA_MAX > 5
   { MT_ADV_CALLBACK, 5, "SAVE %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
   { MT_ADV_CALLBACK, 6, "SAVE %d", menu_save_acb },
+#endif
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
+const menuitem_t menu_recall[] = {
+  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
+#if SAVEAREA_MAX > 3
+  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 4
+  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 5
+  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
+#endif
+#if SAVEAREA_MAX > 6
+  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1228,10 +1263,18 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
-  { MT_ADV_CALLBACK, POINTS_SET_51,  "% 3d point", menu_points_acb },
-  { MT_ADV_CALLBACK, POINTS_SET_101, "% 3d point", menu_points_acb },
-#ifdef POINTS_SET_201
-  { MT_ADV_CALLBACK, POINTS_SET_201, "% 3d point", menu_points_acb },
+  { MT_ADV_CALLBACK, 0, "%d point", menu_points_acb },
+#if POINTS_SET_COUNT > 1
+  { MT_ADV_CALLBACK, 1, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 2
+  { MT_ADV_CALLBACK, 2, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 3
+  { MT_ADV_CALLBACK, 3, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 4
+  { MT_ADV_CALLBACK, 4, "%d point", menu_points_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1249,10 +1292,10 @@ const menuitem_t menu_stimulus[] = {
 };
 
 const menuitem_t menu_marker_sel[] = {
-  { MT_ADV_CALLBACK, 1, "MARKER 1", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 2, "MARKER 2", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 3, "MARKER 3", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, 4, "MARKER 4", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 1, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 2, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 3, "MARKER %d", menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 4, "MARKER %d", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, 0, "ALL OFF", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, 0, "DELTA", menu_marker_sel_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
@@ -1295,22 +1338,6 @@ const menuitem_t menu_marker[] = {
   { MT_SUBMENU, 0, "SEARCH", menu_marker_search },
   { MT_SUBMENU, 0, "OPERATIONS", menu_marker_ops },
   { MT_SUBMENU, 0, "SMITH\nVALUE", menu_marker_smith },
-  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
-  { MT_NONE, 0, NULL, NULL } // sentinel
-};
-
-const menuitem_t menu_recall[] = {
-  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
-#if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
-#endif
-#if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
-#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1615,6 +1642,7 @@ draw_numeric_input(const char *buf)
       c = KP_MINUS;
     else// if (c >= '0' && c <= '9')
       c = c - '0';
+#ifdef USE_NUMERIC_INPUT
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
       fg = DEFAULT_SPEC_INPUT_COLOR;
         focused = true;
@@ -1623,6 +1651,7 @@ draw_numeric_input(const char *buf)
         fg = DEFAULT_MENU_TEXT_COLOR;
       }
     }
+#endif
     ili9341_set_foreground(fg);
     ili9341_set_background(bg);
     if (c < 0 && focused) c = 0;
@@ -1849,22 +1878,24 @@ erase_menu_buttons(void)
 }
 
 static void
+ui_mode_menu(void)
+{
+  if (ui_mode == UI_MENU)
+    return;
+
+  ui_mode = UI_MENU;
+  /* narrowen plotting area */
+  area_width  = AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH;
+  area_height = AREA_HEIGHT_NORMAL;
+  ensure_selection();
+  draw_menu();
+}
+
+#ifdef USE_NUMERIC_INPUT
+static void
 erase_numeric_input(void)
 {
   ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, DEFAULT_BG_COLOR);
-}
-
-static void
-leave_ui_mode()
-{
-  if (ui_mode == UI_MENU) {
-    request_to_draw_cells_behind_menu();
-    erase_menu_buttons();
-  } else if (ui_mode == UI_NUMERIC) {
-    request_to_draw_cells_behind_numeric_input();
-    erase_numeric_input();
-  }
-  draw_frequencies();
 }
 
 static void
@@ -1956,20 +1987,6 @@ draw_numeric_area(void)
 }
 
 static void
-ui_mode_menu(void)
-{
-  if (ui_mode == UI_MENU)
-    return;
-
-  ui_mode = UI_MENU;
-  /* narrowen plotting area */
-  area_width  = AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH;
-  area_height = AREA_HEIGHT_NORMAL;
-  ensure_selection();
-  draw_menu();
-}
-
-static void
 ui_mode_numeric(int _keypad_mode)
 {
   if (ui_mode == UI_NUMERIC)
@@ -1987,6 +2004,105 @@ ui_mode_numeric(int _keypad_mode)
   fetch_numeric_target();
   draw_numeric_area();
 }
+
+static void
+ui_process_numeric(void)
+{
+  int status = btn_check();
+
+  if (status != 0) {
+    if (status == EVT_BUTTON_SINGLE_CLICK) {
+      status = btn_wait_release();
+      if (uistat.digit_mode) {
+        if (status & (EVT_BUTTON_SINGLE_CLICK | EVT_BUTTON_DOWN_LONG)) {
+          uistat.digit_mode = FALSE;
+          draw_numeric_area();
+        }
+      } else {
+        if (status & EVT_BUTTON_DOWN_LONG) {
+          uistat.digit_mode = TRUE;
+          draw_numeric_area();
+        } else if (status & EVT_BUTTON_SINGLE_CLICK) {
+          set_numeric_value();
+          ui_mode_normal();
+        }
+      }
+    } else {
+      do {
+        if (uistat.digit_mode) {
+          if (status & EVT_DOWN) {
+            if (uistat.digit < 8)
+              uistat.digit++;
+            else
+              goto exit;
+          }
+          if (status & EVT_UP) {
+            if (uistat.digit > 0)
+              uistat.digit--;
+            else
+              goto exit;
+          }
+        } else {
+          int32_t step = 1;
+          int n;
+          for (n = uistat.digit; n > 0; n--)
+            step *= 10;
+          if (status & EVT_DOWN)
+            uistat.value += step;
+          if (status & EVT_UP)
+            uistat.value -= step;
+        }
+        draw_numeric_area();
+        status = btn_wait_release();
+      } while (status != 0);
+    }
+  }
+
+  return;
+
+ exit:
+  // cancel operation
+  ui_mode_normal();
+}
+
+static void
+numeric_apply_touch(int touch_x, int touch_y)
+{
+  if (touch_x < 64) {
+    ui_mode_normal();
+    return;
+  }
+  if (touch_x > 64+9*20+8+8) {
+    ui_mode_keypad(keypad_mode);
+    ui_process_keypad();
+    return;
+  }
+
+  if (touch_y > LCD_HEIGHT-40) {
+    int n = 9 - (touch_x - 64) / 20;
+    uistat.digit = n;
+    uistat.digit_mode = TRUE;
+  } else {
+    int step, n;
+    if (touch_y < 100) {
+      step = 1;
+    } else {
+      step = -1;
+    }
+
+    for (n = uistat.digit; n > 0; n--)
+      step *= 10;
+    uistat.value += step;
+  }
+  draw_numeric_area();
+
+  touch_wait_release();
+  uistat.digit_mode = FALSE;
+  draw_numeric_area();
+
+  return;
+}
+#endif
 
 static void
 ui_mode_keypad(int _keypad_mode)
@@ -2024,18 +2140,43 @@ ui_mode_normal(void)
 }
 
 static void
+leave_ui_mode()
+{
+#ifdef USE_NUMERIC_INPUT
+  if (ui_mode == UI_NUMERIC) {
+    request_to_draw_cells_behind_numeric_input();
+    erase_numeric_input();
+  }
+  if (ui_mode == UI_MENU)
+#endif
+  {
+    request_to_draw_cells_behind_menu();
+    erase_menu_buttons();
+  }
+  draw_frequencies();
+}
+
+#define MARKER_SPEEDUP  (804 / POINTS_COUNT)
+static void
 lever_move_marker(int status)
 {
+  uint16_t step = 1<<MARKER_SPEEDUP;
   do {
     if (active_marker >= 0 && markers[active_marker].enabled) {
-      if ((status & EVT_DOWN) && markers[active_marker].index > 0) {
-        markers[active_marker].index--;
+      int idx = (int)markers[active_marker].index;
+      if (status & EVT_DOWN) {
+        idx-= step>>MARKER_SPEEDUP;
+        if (idx < 0) idx = 0;
       }
-      if ((status & EVT_UP) && markers[active_marker].index < sweep_points-1) {
-        markers[active_marker].index++;
+      if (status & EVT_UP) {
+       idx+= step>>MARKER_SPEEDUP;
+        if (idx  > sweep_points-1)
+          idx = sweep_points-1 ;
       }
-      markers[active_marker].frequency = frequencies[markers[active_marker].index];
+      markers[active_marker].index = idx;
+      markers[active_marker].frequency = frequencies[idx];
       redraw_marker(active_marker);
+      step++;
     }
     status = btn_wait_release();
   } while (status != 0);
@@ -2155,24 +2296,19 @@ ui_process_menu(void)
   if (status != 0) {
     if (status & EVT_BUTTON_SINGLE_CLICK) {
       menu_invoke(selection);
-    } else {
-      do {
-        if (status & EVT_UP) {
-          // close menu if next item is sentinel
-          if (menu_stack[menu_current_level][selection+1].type == MT_NONE)
-            goto menuclose;
-          selection++;
-        }
-        if (status & EVT_DOWN) {
-          if (selection == 0)
-            goto menuclose;
-          selection--;
-        }
-        draw_menu();
-        chThdSleepMilliseconds(200);
-        status = btn_wait_release();
-      } while (status != 0);
+      return;
     }
+    do {
+      if (status & EVT_UP)
+        selection++;
+      if (status & EVT_DOWN)
+        selection--;
+      // close menu if next item is sentinel or less
+      if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE)
+        goto menuclose;
+      draw_menu();
+      chThdSleepMilliseconds(200);
+    } while ((status = btn_wait_release()) != 0);
   }
   return;
 
@@ -2280,104 +2416,6 @@ keypad_apply_touch(void)
 }
 
 static void
-numeric_apply_touch(int touch_x, int touch_y)
-{
-  if (touch_x < 64) {
-    ui_mode_normal();
-    return;
-  }
-  if (touch_x > 64+9*20+8+8) {
-    ui_mode_keypad(keypad_mode);
-    ui_process_keypad();
-    return;
-  }
-
-  if (touch_y > LCD_HEIGHT-40) {
-    int n = 9 - (touch_x - 64) / 20;
-    uistat.digit = n;
-    uistat.digit_mode = TRUE;
-  } else {
-    int step, n;
-    if (touch_y < 100) {
-      step = 1;
-    } else {
-      step = -1;
-    }
-
-    for (n = uistat.digit; n > 0; n--)
-      step *= 10;
-    uistat.value += step;
-  }
-  draw_numeric_area();
-
-  touch_wait_release();
-  uistat.digit_mode = FALSE;
-  draw_numeric_area();
-
-  return;
-}
-
-static void
-ui_process_numeric(void)
-{
-  int status = btn_check();
-
-  if (status != 0) {
-    if (status == EVT_BUTTON_SINGLE_CLICK) {
-      status = btn_wait_release();
-      if (uistat.digit_mode) {
-        if (status & (EVT_BUTTON_SINGLE_CLICK | EVT_BUTTON_DOWN_LONG)) {
-          uistat.digit_mode = FALSE;
-          draw_numeric_area();
-        }
-      } else {
-        if (status & EVT_BUTTON_DOWN_LONG) {
-          uistat.digit_mode = TRUE;
-          draw_numeric_area();
-        } else if (status & EVT_BUTTON_SINGLE_CLICK) {
-          set_numeric_value();
-          ui_mode_normal();
-        }
-      }
-    } else {
-      do {
-        if (uistat.digit_mode) {
-          if (status & EVT_DOWN) {
-            if (uistat.digit < 8)
-              uistat.digit++;
-            else
-              goto exit;
-          }
-          if (status & EVT_UP) {
-            if (uistat.digit > 0)
-              uistat.digit--;
-            else
-              goto exit;
-          }
-        } else {
-          int32_t step = 1;
-          int n;
-          for (n = uistat.digit; n > 0; n--)
-            step *= 10;
-          if (status & EVT_DOWN)
-            uistat.value += step;
-          if (status & EVT_UP)
-            uistat.value -= step;
-        }
-        draw_numeric_area();
-        status = btn_wait_release();
-      } while (status != 0);
-    }
-  }
-
-  return;
-
- exit:
-  // cancel operation
-  ui_mode_normal();
-}
-
-static void
 ui_process_keypad(void)
 {
   int status;
@@ -2430,9 +2468,11 @@ ui_process_lever(void)
   case UI_MENU:
     ui_process_menu();
     break;
+#ifdef USE_NUMERIC_INPUT
   case UI_NUMERIC:
     ui_process_numeric();
     break;
+#endif
   case UI_KEYPAD:
     ui_process_keypad();
     break;
@@ -2626,10 +2666,11 @@ void ui_process_touch(void)
     case UI_MENU:
       menu_apply_touch(touch_x, touch_y);
       break;
-
+#ifdef USE_NUMERIC_INPUT
     case UI_NUMERIC:
       numeric_apply_touch(touch_x, touch_y);
       break;
+#endif
     }
   }
   touch_start_watchdog();

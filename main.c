@@ -86,11 +86,13 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable debug command for SI4432
 #define ENABLE_SI4432_COMMAND
 // Enable si5351 timing command, used for debug
-#define ENABLE_SI5351_TIMINGS
+//#define ENABLE_SI5351_TIMINGS
+// Enable si5351 register write, used for debug
+//#define ENABLE_SI5351_REG_WRITE
 // Enable i2c timing command, used for debug
 //#define ENABLE_I2C_TIMINGS
-// Enable band setting commanc, used for debug
-#define ENABLE_BAND_COMMAND
+// Enable band setting command, used for debug
+//#define ENABLE_BAND_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -107,8 +109,8 @@ static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
 static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-int8_t sweep_mode = SWEEP_ENABLE;
-volatile uint8_t redraw_request = 0; // contains REDRAW_XXX flags
+int8_t  sweep_mode = SWEEP_ENABLE;
+uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 // sweep operation variables
 volatile uint16_t wait_count = 0;
@@ -120,12 +122,15 @@ static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
+#undef VERSION
+#define VERSION "1.0.20"
+
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: 1.0.19 beta Band+ mode, 12k offset, 384k ADC",// VERSION,
+  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)"k IF, "define_to_STR(AUDIO_ADC_FREQ_K)"k ADC]",
   "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
@@ -231,18 +236,18 @@ transform_domain(void)
   // and calculate ifft for time domain
   float* tmp = (float*)spi_buffer;
 
-  uint16_t window_size = POINTS_COUNT, offset = 0;
+  uint16_t window_size = sweep_points, offset = 0;
   uint8_t is_lowpass = FALSE;
   switch (domain_mode & TD_FUNC) {
     case TD_FUNC_BANDPASS:
       offset = 0;
-      window_size = POINTS_COUNT;
+      window_size = sweep_points;
       break;
     case TD_FUNC_LOWPASS_IMPULSE:
     case TD_FUNC_LOWPASS_STEP:
       is_lowpass = TRUE;
-      offset = POINTS_COUNT;
-      window_size = POINTS_COUNT * 2;
+      offset = sweep_points;
+      window_size = sweep_points * 2;
       break;
   }
 
@@ -263,25 +268,25 @@ transform_domain(void)
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     memcpy(tmp, measured[ch], sizeof(measured[0]));
-    for (int i = 0; i < POINTS_COUNT; i++) {
+    for (int i = 0; i < sweep_points; i++) {
       float w = kaiser_window(i + offset, window_size, beta);
       tmp[i * 2 + 0] *= w;
       tmp[i * 2 + 1] *= w;
     }
-    for (int i = POINTS_COUNT; i < FFT_SIZE; i++) {
+    for (int i = sweep_points; i < FFT_SIZE; i++) {
       tmp[i * 2 + 0] = 0.0;
       tmp[i * 2 + 1] = 0.0;
     }
     if (is_lowpass) {
-      for (int i = 1; i < POINTS_COUNT; i++) {
+      for (int i = 1; i < sweep_points; i++) {
         tmp[(FFT_SIZE - i) * 2 + 0] = tmp[i * 2 + 0];
         tmp[(FFT_SIZE - i) * 2 + 1] = -tmp[i * 2 + 1];
       }
     }
 
-    fft256_inverse((float(*)[2])tmp);
+    fft_inverse((float(*)[2])tmp);
     memcpy(measured[ch], tmp, sizeof(measured[0]));
-    for (int i = 0; i < POINTS_COUNT; i++) {
+    for (int i = 0; i < sweep_points; i++) {
       measured[ch][i][0] /= (float)FFT_SIZE;
       if (is_lowpass) {
         measured[ch][i][1] = 0.0;
@@ -290,7 +295,7 @@ transform_domain(void)
       }
     }
     if ((domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP) {
-      for (int i = 1; i < POINTS_COUNT; i++) {
+      for (int i = 1; i < sweep_points; i++) {
         measured[ch][i][0] += measured[ch][i - 1][0];
       }
     }
@@ -463,6 +468,7 @@ static int get_str_index(char *v, const char *list)
   return -1;
 }
 
+#ifdef USE_VARIABLE_OFFSET
 VNA_SHELL_FUNCTION(cmd_offset)
 {
   if (argc != 1) {
@@ -470,11 +476,10 @@ VNA_SHELL_FUNCTION(cmd_offset)
     return;
   }
   int32_t offset = my_atoi(argv[0]);
-#ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(offset);
-#endif
   si5351_set_frequency_offset(offset);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_freq)
 {
@@ -720,7 +725,7 @@ void load_default_properties(void)
 //current_props.magic = CONFIG_MAGIC;
   current_props._frequency0   =     50000;    // start =  50kHz
   current_props._frequency1   = 900000000;    // end   = 900MHz
-  current_props._sweep_points = POINTS_SET_101; // Set default 101 points
+  current_props._sweep_points = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_status   = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
@@ -875,6 +880,8 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     if (config.bandwidth >= BANDWIDTH_100)
       ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
   }
+  if (config.bandwidth >= BANDWIDTH_100)
+    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1, DEFAULT_GRID_COLOR);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -1356,7 +1363,7 @@ static void apply_error_term_at(int i)
     // S21a = S21m' (1-EsS11a)Et
     float s21mr = measured[1][i][0] - cal_data[ETERM_EX][i][0];
     float s21mi = measured[1][i][1] - cal_data[ETERM_EX][i][1];
-#if 0
+#if 1
     float esr = 1 - (cal_data[ETERM_ES][i][0] * s11ar - cal_data[ETERM_ES][i][1] * s11ai);
     float esi = 0 - (cal_data[ETERM_ES][i][1] * s11ar + cal_data[ETERM_ES][i][0] * s11ai);
     float etr = esr * cal_data[ETERM_ET][i][0] - esi * cal_data[ETERM_ET][i][1];
@@ -2175,6 +2182,19 @@ VNA_SHELL_FUNCTION(cmd_si5351time)
 }
 #endif
 
+#ifdef ENABLE_SI5351_REG_WRITE
+VNA_SHELL_FUNCTION(cmd_si5351reg)
+{
+  if (argc != 2) {
+    shell_printf("usage: si reg data\r\n");
+    return;
+  }
+  uint8_t reg = my_atoui(argv[0]);
+  uint8_t dat = my_atoui(argv[1]);
+  uint8_t buf[] = { reg, dat };
+  si5351_bulk_write(buf, 2);
+}
+#endif
 
 #ifdef ENABLE_I2C_TIMINGS
 VNA_SHELL_FUNCTION(cmd_i2ctime)
@@ -2265,7 +2285,7 @@ VNA_SHELL_FUNCTION(cmd_i2c){
 
 #ifdef ENABLE_BAND_COMMAND
 VNA_SHELL_FUNCTION(cmd_band){
-  static const char cmd_sweep_list[] = "mode|freq|pow|sipow|div|mul|omul|l|r|lr|adj";
+  static const char cmd_sweep_list[] = "mode|freq|div|mul|omul|pow|opow|l|r|lr|adj";
   if (argc != 3){
     shell_printf("cmd error\r\n");
     return;
@@ -2351,15 +2371,19 @@ typedef struct {
 
 // Some commands can executed only in sweep thread, not in main cycle
 #define CMD_WAIT_MUTEX  1
+#define CMD_BREAK_SWEEP 2
+
 static const VNAShellCommand commands[] =
 {
-    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX},
+    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
-    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX},
-    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX},
+    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"reset"       , cmd_reset       , 0},
+#ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
+#endif
     {"bandwidth"   , cmd_bandwidth   , 0},
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
@@ -2384,17 +2408,17 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_TEST_COMMAND
     {"test"        , cmd_test        , 0},
 #endif
-    {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX},
-    {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX},
-    {"pause"       , cmd_pause       , 0},
-    {"resume"      , cmd_resume      , 0},
+    {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , 0},
-    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX},
+    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"trace"       , cmd_trace       , 0},
     {"marker"      , cmd_marker      , 0},
     {"edelay"      , cmd_edelay      , 0},
-    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX},
+    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
@@ -2411,6 +2435,9 @@ static const VNAShellCommand commands[] =
 #endif
 #ifdef ENABLE_I2C_COMMAND
     {"i2c"         , cmd_i2c         , CMD_WAIT_MUTEX},
+#endif
+#ifdef ENABLE_SI5351_REG_WRITE
+    {"si"          , cmd_si5351reg   , CMD_WAIT_MUTEX},
 #endif
 #ifdef ENABLE_LCD_COMMAND
     {"lcd"         , cmd_lcd         , CMD_WAIT_MUTEX},
@@ -2529,6 +2556,7 @@ static void VNAShell_executeLine(char *line)
     if (strcmp(scp->sc_name, shell_args[0]) == 0) {
       if (scp->flags & CMD_WAIT_MUTEX) {
         shell_function = scp->sc_function;
+        if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
         // Wait execute command in sweep thread
         do {
           osalThreadSleepMilliseconds(100);
