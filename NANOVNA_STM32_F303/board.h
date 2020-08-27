@@ -62,7 +62,7 @@
 #define GPIOA_DAC2				5
 #define GPIOA_XP				6
 #define GPIOA_YP				7
-#define GPIOA_MCO				8
+#define GPIOA_KEY_INT			8
 #define GPIOA_USB_DISC			10
 #define GPIOA_USB_DM            11
 #define GPIOA_USB_DP            12
@@ -134,7 +134,7 @@
                                      PIN_MODE_ANALOG(GPIOA_DAC2) |  \
                                      PIN_MODE_ANALOG(GPIOA_XP) |    \
                                      PIN_MODE_ANALOG(GPIOA_YP) |    \
-                                     PIN_MODE_ALTERNATE(GPIOA_MCO) | \
+                                     PIN_MODE_INPUT(GPIOA_KEY_INT) | \
                                      PIN_MODE_INPUT(9U) |           \
                                      PIN_MODE_OUTPUT(GPIOA_USB_DISC) | \
                                      PIN_MODE_ALTERNATE(GPIOA_USB_DM) |  \
@@ -150,7 +150,7 @@
                                      PIN_OTYPE_PUSHPULL(5U) |       \
                                      PIN_OTYPE_PUSHPULL(6U) |       \
                                      PIN_OTYPE_PUSHPULL(7U) |       \
-                                     PIN_OTYPE_PUSHPULL(GPIOA_MCO) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOA_KEY_INT) |       \
                                      PIN_OTYPE_PUSHPULL(9U) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOA_USB_DISC) | \
                                      PIN_OTYPE_PUSHPULL(GPIOA_USB_DM) |  \
@@ -166,7 +166,7 @@
                                      PIN_OSPEED_2M(5) |           \
                                      PIN_OSPEED_2M(6) |          \
                                      PIN_OSPEED_2M(7) |          \
-                                     PIN_OSPEED_100M(GPIOA_MCO) | \
+                                     PIN_OSPEED_2M(GPIOA_KEY_INT) | \
                                      PIN_OSPEED_100M(9) |          \
                                      PIN_OSPEED_100M(10) |         \
                                      PIN_OSPEED_100M(GPIOA_USB_DM) |     \
@@ -182,7 +182,7 @@
                                      PIN_PUPDR_FLOATING(5) |         \
                                      PIN_PUPDR_FLOATING(6) |         \
                                      PIN_PUPDR_FLOATING(7) |         \
-                                     PIN_PUPDR_PULLUP(GPIOA_MCO) | \
+                                     PIN_PUPDR_FLOATING(GPIOA_KEY_INT) | \
                                      PIN_PUPDR_PULLUP(9) |         \
                                      PIN_PUPDR_FLOATING(GPIOA_USB_DISC) | \
                                      PIN_PUPDR_FLOATING(GPIOA_USB_DM) | \
@@ -198,7 +198,7 @@
                                      PIN_ODR_LOW(5) |              \
                                      PIN_ODR_HIGH(6) |             \
                                      PIN_ODR_HIGH(7) |             \
-                                     PIN_ODR_HIGH(GPIOA_MCO) |     \
+                                     PIN_ODR_HIGH(GPIOA_KEY_INT) |     \
                                      PIN_ODR_HIGH(9) |             \
                                      PIN_ODR_HIGH(GPIOA_USB_DISC) | \
                                      PIN_ODR_HIGH(GPIOA_USB_DM) |   \
@@ -214,7 +214,7 @@
                                      PIN_AFIO_AF(5, 0) |           \
                                      PIN_AFIO_AF(6, 0) |           \
                                      PIN_AFIO_AF(7, 0))
-#define VAL_GPIOA_AFRH              (PIN_AFIO_AF(GPIOA_MCO, 0) |           \
+#define VAL_GPIOA_AFRH              (PIN_AFIO_AF(GPIOA_KEY_INT, 0) |           \
                                      PIN_AFIO_AF(9, 0) |           \
                                      PIN_AFIO_AF(GPIOA_USB_DISC, 0) |          \
                                      PIN_AFIO_AF(GPIOA_USB_DM, 14) |     \
