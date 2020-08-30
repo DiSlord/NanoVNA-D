@@ -23,11 +23,11 @@
 #include "hal.h"
 #include "chprintf.h"
 #include "nanovna.h"
-//#include <stdlib.h>
+#include "si5351.h"
 #include <string.h>
 
 uistat_t uistat = {
- digit: 6,
+// digit: 6,
  current_trace: 0,
  lever_mode: LM_MARKER,
  marker_delta: FALSE,
@@ -177,7 +177,9 @@ typedef struct {
 #define EVT_TOUCH_PRESSED  2
 #define EVT_TOUCH_RELEASED 3
 
-static int8_t last_touch_status = EVT_TOUCH_NONE;
+#define TOUCH_INTERRUPT_ENABLED   1
+static uint8_t touch_status_flag = 0;
+static uint8_t last_touch_status = EVT_TOUCH_NONE;
 static int16_t last_touch_x;
 static int16_t last_touch_y;
 
@@ -282,6 +284,11 @@ static void bubbleSort(uint16_t *v, int n) {
 }
 #endif
 
+#define SOFTWARE_TOUCH
+//*******************************************************************************
+// Software Touch module
+//*******************************************************************************
+#ifdef SOFTWARE_TOUCH
 // ADC read count for measure X and Y (2^N count)
 #define TOUCH_X_N 3
 #define TOUCH_Y_N 3
@@ -322,8 +329,14 @@ touch_measure_x(void)
   do{v+=adc_single_read(ADC_TOUCH_X);}while(--cnt);
   return v>>TOUCH_X_N;
 }
+// Manually measure touch event
+static inline int
+touch_status(void)
+{
+  return adc_single_read(ADC_TOUCH_Y) > TOUCH_THRESHOLD;
+}
 
-void
+static void
 touch_prepare_sense(void)
 {
   // Set Y line as input
@@ -335,27 +348,53 @@ touch_prepare_sense(void)
   // force high X line
   palSetPadMode(GPIOB, GPIOB_XN, PAL_MODE_OUTPUT_PUSHPULL);
   palSetPadMode(GPIOA, GPIOA_XP, PAL_MODE_OUTPUT_PUSHPULL);
-
 //  chThdSleepMilliseconds(10); // Wait 10ms for denounce touch
 }
 
-void
+static void
 touch_start_watchdog(void)
 {
-  touch_prepare_sense();
-  adc_start_analog_watchdogd();
+  if (touch_status_flag&TOUCH_INTERRUPT_ENABLED) return;
+  touch_status_flag^=TOUCH_INTERRUPT_ENABLED;
+  adc_start_analog_watchdog();
 }
 
-static inline int
-touch_status(void)
+static void
+touch_stop_watchdog(void)
 {
-//  touch_prepare_sense();
-  return adc_single_read(ADC_TOUCH_Y) > TOUCH_THRESHOLD;
+  if (!(touch_status_flag&TOUCH_INTERRUPT_ENABLED)) return;
+  touch_status_flag^=TOUCH_INTERRUPT_ENABLED;
+  adc_stop_analog_watchdog();
 }
 
+// Touch panel timer check (check press frequency 20Hz)
+static const GPTConfig gpt3cfg = {
+  20,     // 200Hz timer clock. 200/10 = 20Hz touch check
+  NULL,   // Timer callback.
+  0x0020, // CR2:MMS=02 to output TRGO
+  0
+};
+
+//
+// Touch init function init timer 3 trigger adc for check touch interrupt, and run measure
+//
+static void touch_init(void){
+  // Prepare pin for measure touch event
+  touch_prepare_sense();
+  // Start touch interrupt, used timer_3 ADC check threshold:
+  gptStart(&GPTD3, &gpt3cfg);         // Init timer 3
+  gptStartContinuous(&GPTD3, 10);     // Start timer 3 vs timer 10 interval
+  touch_start_watchdog();             // Start ADC watchdog (measure by timer 3 interval and trigger interrupt if touch pressed)
+}
+
+// Main software touch function, should:
+// set last_touch_x and last_touch_x
+// return touch status
 static int
 touch_check(void)
 {
+  touch_stop_watchdog();
+
   int stat = touch_status();
   if (stat) {
     int y = touch_measure_y();
@@ -374,6 +413,11 @@ touch_check(void)
   }
   return stat ? EVT_TOUCH_DOWN : EVT_TOUCH_NONE;
 }
+//*******************************************************************************
+// End Software Touch module
+//*******************************************************************************
+#endif // end SOFTWARE_TOUCH
+
 
 static inline void
 touch_wait_release(void)
@@ -394,7 +438,6 @@ touch_cal_exec(void)
 {
   int x1, x2, y1, y2;
 
-  adc_stop();
   ili9341_set_foreground(DEFAULT_FG_COLOR);
   ili9341_set_background(DEFAULT_BG_COLOR);
   ili9341_clear_screen();
@@ -421,7 +464,6 @@ touch_cal_exec(void)
   config.touch_cal[3] = (y2 - y1) * 16 / LCD_HEIGHT;
 
   //redraw_all();
-  touch_start_watchdog();
 }
 
 void
@@ -429,9 +471,6 @@ touch_draw_test(void)
 {
   int x0, y0;
   int x1, y1;
-  
-  adc_stop();
-
   ili9341_set_foreground(DEFAULT_FG_COLOR);
   ili9341_set_background(DEFAULT_BG_COLOR);
   ili9341_clear_screen();
@@ -449,22 +488,24 @@ touch_draw_test(void)
       } while (touch_check() != EVT_TOUCH_RELEASED);
     }
   }while (!(btn_check() & EVT_BUTTON_SINGLE_CLICK));
-  touch_start_watchdog();
 }
 
 
 static void
 touch_position(int *x, int *y)
 {
-  *x = (last_touch_x - config.touch_cal[0]) * 16 / config.touch_cal[2];
-  *y = (last_touch_y - config.touch_cal[1]) * 16 / config.touch_cal[3];
+  int tx = (last_touch_x - config.touch_cal[0]) * 16 / config.touch_cal[2];
+  if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
+  int ty = (last_touch_y - config.touch_cal[1]) * 16 / config.touch_cal[3];
+  if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
+  *x = tx;
+  *y = ty;
 }
 
 static void
 show_version(void)
 {
   int x = 5, y = 5, i = 1;
-  adc_stop();
   ili9341_set_foreground(DEFAULT_FG_COLOR);
   ili9341_set_background(DEFAULT_BG_COLOR);
 
@@ -500,23 +541,18 @@ show_version(void)
       RTC_TR_SEC(dr));
     ili9341_drawstring(buffer, x, y);
 #endif
-#if 0
-    uint32_t vbat=0;
-    for(i=0;i<32;i++)
-      vbat+=adc_vbat_read();
-    vbat>>=5;
-    plot_printf(buffer, sizeof(buffer), "Battery: %d.%03dV", vbat/1000, vbat%1000);
+#if 1
+    uint32_t vbat=adc_vbat_read();
+    plot_printf(buffer, sizeof(buffer), "Batt: %d.%03dV", vbat/1000, vbat%1000);
     ili9341_drawstring(buffer, x, y + FONT_STR_HEIGHT + 2);
 #endif
   }
-
-  touch_start_watchdog();
 }
 
 void
 enter_dfu(void)
 {
-  adc_stop();
+  touch_stop_watchdog();
 
   int x = 5, y = 20;
   ili9341_set_foreground(DEFAULT_FG_COLOR);
@@ -779,6 +815,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
     return;
   }
   set_sweep_points(p_count);
+  draw_menu();
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
+{
+  (void)item;
+  if (data > SI5351_CLK_DRIVE_STRENGTH_8MA) data = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  if (b){
+    b->icon = current_props._power == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = 2+data*2;
+    return;
+  }
+  current_props._power = data;
+  draw_cal_status();
   draw_menu();
 }
 
@@ -1247,12 +1297,23 @@ const menuitem_t menu_sweep_points[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+const menuitem_t menu_power[] = {
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_AUTO, "AUTO",  menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_2MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u mA", menu_power_acb },
+  { MT_CANCEL, 255, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_stimulus[] = {
   { MT_CALLBACK, KM_START, "START", menu_keyboard_cb },
   { MT_CALLBACK, KM_STOP, "STOP",   menu_keyboard_cb },
   { MT_CALLBACK, KM_CENTER, "CENTER", menu_keyboard_cb },
   { MT_CALLBACK, KM_SPAN, "SPAN",  menu_keyboard_cb },
   { MT_CALLBACK, KM_CW, "CW FREQ", menu_keyboard_cb },
+  { MT_SUBMENU,      0, "POWER",   menu_power },
   { MT_ADV_CALLBACK, 0, "PAUSE\nSWEEP", menu_pause_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -2385,8 +2446,6 @@ static void
 ui_process_keypad(void)
 {
   int status;
-  adc_stop();
-
   kp_index = 0; // Hide input index in keyboard mode
   while (TRUE) {
     status = btn_check();
@@ -2421,7 +2480,6 @@ ui_process_keypad(void)
   request_to_redraw_grid();
   ui_mode_normal();
   //redraw_all();
-  touch_start_watchdog();
 }
 
 static void
@@ -2605,7 +2663,6 @@ touch_lever_mode_select(int touch_x, int touch_y)
 static
 void ui_process_touch(void)
 {
-  adc_stop();
   int touch_x, touch_y;
   int status = touch_check();
   if (status == EVT_TOUCH_PRESSED || status == EVT_TOUCH_DOWN) {
@@ -2639,7 +2696,6 @@ void ui_process_touch(void)
 #endif
     }
   }
-  touch_start_watchdog();
 }
 
 void
@@ -2649,6 +2705,8 @@ ui_process(void)
     ui_process_lever();
   if (operation_requested&OP_TOUCH)
     ui_process_touch();
+
+  touch_start_watchdog();
   operation_requested = OP_NONE;
 }
 
@@ -2659,6 +2717,16 @@ static void extcb1(EXTDriver *extp, expchannel_t channel)
   (void)channel;
   operation_requested|=OP_LEVER;
   //cur_button = READ_PORT() & BUTTON_MASK;
+}
+
+//static systime_t t_time = 0;
+// Triggered touch interrupt call
+void handle_touch_interrupt(void)
+{
+  operation_requested|= OP_TOUCH;
+//  systime_t n_time = chVTGetSystemTimeX();
+//  shell_printf("%d\r\n", n_time - t_time);
+//  t_time = n_time;
 }
 
 static const EXTConfig extcfg = {
@@ -2689,49 +2757,12 @@ static const EXTConfig extcfg = {
   }
 };
 
-// Touch panel timer check (check press frequency 20Hz)
-static const GPTConfig gpt3cfg = {
-  200,    /* 200Hz timer clock.*/
-  NULL,   /* Timer callback.*/
-  0x0020, /* CR2:MMS=02 to output TRGO */
-  0
-};
-
-#if 0
-static void
-test_touch(int *x, int *y)
-{
-  adc_stop(ADC1);
-
-  *x = touch_measure_x();
-  *y = touch_measure_y();
-
-  touch_start_watchdog();
-}
-#endif
-
-void
-handle_touch_interrupt(void)
-{
-  operation_requested|= OP_TOUCH;
-}
-
 void
 ui_init()
 {
   adc_init();
-
-  /*
-   * Activates the EXT driver 1.
-   */
+  // Activates the EXT driver 1.
   extStart(&EXTD1, &extcfg);
-
-#if 1
-  gptStart(&GPTD3, &gpt3cfg);
-  gptPolledDelay(&GPTD3, 10); /* Small delay.*/
-
-  gptStartContinuous(&GPTD3, 10);
-#endif
-
-  touch_start_watchdog();
+  // Init touch subsystem
+  touch_init();
 }
