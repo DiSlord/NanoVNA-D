@@ -85,23 +85,49 @@ uint16_t adc_single_read(uint32_t chsel)
 
 int16_t adc_vbat_read(void)
 {
+// Vbat measure averange count = 2^VBAT_AVERAGE
+#define VBAT_AVERAGE 5
+// Measure vbat every 5 second
+#define VBAT_MEASURE_INTERVAL   50000
+
+  static int16_t   vbat_raw = 0;
+  static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;
+  systime_t _time = chVTGetSystemTimeX();
+  if (_time - vbat_time < VBAT_MEASURE_INTERVAL)
+    goto return_cached;
+  vbat_time = _time;
 // 13.9 Temperature sensor and internal reference voltage
 // VREFINT_CAL calibrated on 3.3V, need get value in mV
 #define ADC_FULL_SCALE 3300
 #define VREFINT_CAL (*((uint16_t*)0x1FFFF7BA))
-  adc_stop();
+  uint32_t vrefint = 0;
+  uint32_t vbat = 0;
+
+  uint8_t restart_touch = 0;
+  if (VNA_ADC->CR & ADC_CR_ADSTART){
+    adc_stop_analog_watchdog();
+    restart_touch = 1;
+  }
   ADC->CCR |= ADC_CCR_VREFEN | ADC_CCR_VBATEN;
-  // VREFINT == ADC_IN17
-  uint32_t vrefint = adc_single_read(ADC_CHSELR_CHSEL17);
-  // VBAT == ADC_IN18
-  // VBATEN enables resiter devider circuit. It consume vbat power.
-  uint32_t vbat = adc_single_read(ADC_CHSELR_CHSEL18);
+  for (uint16_t i = 0; i < 1<<VBAT_AVERAGE; i++){
+    // VREFINT == ADC_IN17
+    vrefint+= adc_single_read(ADC_CHSELR_CHSEL17);
+    // VBAT == ADC_IN18
+    // VBATEN enables resiter devider circuit. It consume vbat power.
+    vbat+= adc_single_read(ADC_CHSELR_CHSEL18);
+  }
+  vbat>>=VBAT_AVERAGE;
+  vrefint>>=VBAT_AVERAGE;
   ADC->CCR &= ~(ADC_CCR_VREFEN | ADC_CCR_VBATEN);
-  touch_start_watchdog();
+
+  if (restart_touch)
+    adc_start_analog_watchdog();
+
   // vbat_raw = (3300 * 2 * vbat / 4095) * (VREFINT_CAL / vrefint)
   // uint16_t vbat_raw = (ADC_FULL_SCALE * VREFINT_CAL * (float)vbat * 2 / (vrefint * ((1<<12)-1)));
   // For speed divide not on 4095, divide on 4096, get little error, but no matter
-  uint16_t vbat_raw = ((ADC_FULL_SCALE * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
+  vbat_raw = ((ADC_FULL_SCALE * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
+return_cached:
   if (vbat_raw < 100) {
     // maybe D2 is not installed
     return -1;
@@ -109,7 +135,7 @@ int16_t adc_vbat_read(void)
   return vbat_raw + config.vbat_offset;
 }
 
-void adc_start_analog_watchdogd(void)
+void adc_start_analog_watchdog(void)
 {
   // ADC setup, if it is defined a callback for the analog watch dog then it is enabled.
   VNA_ADC->ISR    = VNA_ADC->ISR;
@@ -126,7 +152,7 @@ void adc_start_analog_watchdogd(void)
   VNA_ADC->CR |= ADC_CR_ADSTART;
 }
 
-void adc_stop(void)
+void adc_stop_analog_watchdog(void)
 {
   if (VNA_ADC->CR & ADC_CR_ADEN) {
     if (VNA_ADC->CR & ADC_CR_ADSTART) {
