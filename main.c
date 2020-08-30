@@ -119,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.22"
+#define VERSION "1.0.23"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -945,6 +945,12 @@ void set_sweep_points(uint16_t points){
 
 }
 
+#define SCAN_MASK_OUT_FREQ       0b00000001
+#define SCAN_MASK_OUT_DATA0      0b00000010
+#define SCAN_MASK_OUT_DATA1      0b00000100
+#define SCAN_MASK_NO_CALIBRATION 0b00001000
+#define SCAN_MASK_BINARY         0b10000000
+
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   uint32_t start, stop;
@@ -975,6 +981,77 @@ VNA_SHELL_FUNCTION(cmd_scan)
     mask = my_atoui(argv[3]);
     sweep_mode = (mask>>1)&3;
   }
+
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop)
+    set_frequencies(start, stop, points);
+
+  uint32_t old_cal_status = cal_status;
+  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)){
+    if (cal_status & CALSTAT_APPLY)
+      cal_interpolate();
+    sweep(false, sweep_mode);
+  }
+  cal_status = old_cal_status; // restore
+
+  pause_sweep();
+  // Output data after if set (faster data receive)
+  if (mask) {
+    if (mask&SCAN_MASK_BINARY){
+      streamWrite(shell_stream, (void *)&mask, 2);
+      streamWrite(shell_stream, (void *)&points, 2);
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],        4);  // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2);  // 8 bytes .. S11 real/imag
+        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
+      }
+    }
+    else{
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", frequencies[i]);
+        if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
+        if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
+        shell_printf("\r\n");
+      }
+    }
+  }
+}
+
+//#define ENABLE_SCANBIN_COMMAND
+
+#ifdef ENABLE_SCANBIN_COMMAND
+VNA_SHELL_FUNCTION(cmd_scan_bin)
+{
+  uint32_t start, stop;
+  uint16_t points = sweep_points;
+  int i;
+  if (argc < 2 || argc > 4) {
+    shell_printf("usage: scan_bin {start(Hz)} {stop(Hz)} [points] [outmask]\r\n");
+    return;
+  }
+
+  start = my_atoui(argv[0]);
+  stop = my_atoui(argv[1]);
+  if (start == 0 || stop == 0 || start > stop) {
+      shell_printf("frequency range is invalid\r\n");
+      return;
+  }
+  if (argc >= 3) {
+    points = my_atoui(argv[2]);
+    if (points == 0 || points > POINTS_COUNT) {
+      shell_printf("sweep points exceeds range "define_to_STR(POINTS_COUNT)"\r\n");
+      return;
+    }
+    sweep_points = points;
+  }
+  uint16_t mask = 0;
+  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+  if (argc == 4) {
+    mask = my_atoui(argv[3]);
+    sweep_mode = (mask>>1)&3;
+  }
   set_frequencies(start, stop, points);
   if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)){
     if (cal_status & CALSTAT_APPLY)
@@ -982,16 +1059,19 @@ VNA_SHELL_FUNCTION(cmd_scan)
     sweep(false, sweep_mode);
   }
   pause_sweep();
-  // Output data after if set (faster data recive)
+
+  streamWrite(shell_stream, (void *)&mask, 2);
+  streamWrite(shell_stream, (void *)&points, 2);
+  // Output data after if set (faster data receive)
   if (mask) {
     for (i = 0; i < points; i++) {
-      if (mask & 1) shell_printf("%u ", frequencies[i]);
-      if (mask & 2) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
-      if (mask & 4) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
-      shell_printf("\r\n");
+      if (mask & 1) streamWrite(shell_stream, (void *)&frequencies[i], 4);  // 4 bytes .. frequency
+      if (mask & 2) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2); // 8 bytes .. S11 real/imag
+      if (mask & 4) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
     }
   }
 }
+#endif
 
 static void
 update_marker_index(void)
@@ -2360,6 +2440,9 @@ typedef struct {
 static const VNAShellCommand commands[] =
 {
     {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#ifdef ENABLE_SCANBIN_COMMAND
+    {"scan_bin"    , cmd_scan_bin    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
