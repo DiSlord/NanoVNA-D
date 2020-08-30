@@ -94,9 +94,21 @@ uint16_t adc_single_read(uint32_t chsel)
 
 int16_t adc_vbat_read(void)
 {
+// Vbat measure averange count = 2^VBAT_AVERAGE
+#define VBAT_AVERAGE 5
+// Measure vbat every 5 second
+#define VBAT_MEASURE_INTERVAL   50000
+
+  static int16_t   vbat_raw = 0;
+  static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;
+
+  systime_t _time = chVTGetSystemTimeX();
+  if (_time - vbat_time < VBAT_MEASURE_INTERVAL)
+    goto return_cached;
+  vbat_time = _time;
   uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
-  uint32_t vbat;
-  uint32_t vrefint;
+  uint32_t vrefint = 0;
+  uint32_t vbat = 0;
 //  const uint16_t V25 = 1750;// when V25=1.41V at ref 3.3V
 //  const uint16_t Avg_Slope = 5; //when avg_slope=4.3mV/C at ref 3.3V
 //  uint16_t temperature_cal1 = *((uint16_t*) ((uint32_t)0x1FFFF7B8U));
@@ -109,19 +121,24 @@ int16_t adc_vbat_read(void)
 //                               Vref+ = 3.3 V (tolerance: +-10 mV). */
 //  float avg_slope = ((float)(temperature_cal1 - temperature_cal2))/(110-25);
 //  float ts;
- #ifndef F303_ADC_VREF_ALWAYS_ON
+#ifndef F303_ADC_VREF_ALWAYS_ON
   adcSTM32EnableVBAT(&ADCD1);
   adcSTM32EnableVREF(&ADCD1);
 //  adcSTM32EnableTS(&ADCD1);
-  adcConvert(&ADCD1, &adcgrpcfgVBAT, samplesVBAT,  ADC_GRP_BUF_DEPTH_VBAT);
+#endif
+  for (uint16_t i = 0; i < 1<<VBAT_AVERAGE; i++){
+    adcConvert(&ADCD1, &adcgrpcfgVBAT, samplesVBAT, 1);
+    vbat+= samplesVBAT[0];
+    vrefint+= samplesVBAT[1];
+  }
+  vbat>>=VBAT_AVERAGE;
+  vrefint>>=VBAT_AVERAGE;
+#ifndef F303_ADC_VREF_ALWAYS_ON
   adcSTM32DisableVBAT(&ADCD1);
   adcSTM32DisableVREF(&ADCD1);
 //  adcSTM32DisableTS(&ADCD1);
- #else
-  adcConvert(&ADCD1, &adcgrpcfgVBAT, samplesVBAT,  sizeof(samplesVBAT)/(sizeof(adcsample_t)*ADC_GRP_NUM_CHANNELS_VBAT));
- #endif
-  vbat = samplesVBAT[0];
-  vrefint = samplesVBAT[1];
+#endif
+
 //  ts = samplesVBAT[2];
 //  uint16_t vts = (ADC_FULL_SCALE * VREFINT_CAL * ts / (vrefint * ((1<<12)-1)));
 //  uint16_t TemperatureC2 = (uint16_t)((V25-ts)/Avg_Slope+25);
@@ -130,7 +147,8 @@ int16_t adc_vbat_read(void)
   // vbat_raw = (3300 * 2 * vbat / 4095) * (VREFINT_CAL / vrefint)
   // uint16_t vbat_raw = (ADC_FULL_SCALE * VREFINT_CAL * (float)vbat * 2 / (vrefint * ((1<<12)-1)));
   // For speed divide not on 4095, divide on 4096, get little error, but no matter
-  uint16_t vbat_raw = ((ADC_FULL_SCALE * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
+  vbat_raw = ((ADC_FULL_SCALE * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
+return_cached:
   if (vbat_raw < 100) {
     // maybe D2 is not installed
     return -1;
@@ -138,25 +156,14 @@ int16_t adc_vbat_read(void)
   return vbat_raw + config.vbat_offset;
 }
 
-void adc_start_analog_watchdogd(void)
+void adc_start_analog_watchdog(void)
 {
-//  adcStart(&ADCD2, NULL);
   adcStartConversion(&ADCD2, &adcgrpcfgTouch, samples, 1);
 }
 
-void adc_stop(void)
+void adc_stop_analog_watchdog(void)
 {
- #if 1
   adcStopConversion(&ADCD2);
- #else
-  if (ADC2->CR & ADC_CR_ADEN) {
-    if (ADC2->CR & ADC_CR_ADSTART) {
-      ADC2->CR |= ADC_CR_ADSTP;
-      while (ADC2->CR & ADC_CR_ADSTP)
-        ;
-    }
-  }
- #endif
 }
 
 static inline void adc_interrupt(void)

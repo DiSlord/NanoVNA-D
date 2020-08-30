@@ -36,11 +36,10 @@ int16_t area_width  = AREA_WIDTH_NORMAL;
 int16_t area_height = AREA_HEIGHT_NORMAL;
 
 // Cell render use spi buffer
-typedef uint16_t pixel_t;
 pixel_t *cell_buffer = (pixel_t *)spi_buffer;
 // Cell size
 // Depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
-#define CELLWIDTH  (64)
+#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
 #define CELLHEIGHT (32)
 // Check buffer size
 #if CELLWIDTH*CELLHEIGHT > SPI_BUFFER_SIZE
@@ -910,13 +909,15 @@ search_index_range_x(int x1, int x2, index_t index[POINTS_COUNT], int *i0, int *
   j = i;
   // Search index left from point
   do {
+    if (j == 0) break;
     j--;
-  } while (j > 0 && x1 <= CELL_X(index[j]));
+  } while (x1 <= CELL_X(index[j]));
   *i0 = j;
   // Search index right from point
   do {
+    if (i >=sweep_points-1) break;
     i++;
-  } while (i < sweep_points-1 && CELL_X(index[i]) < x2);
+  } while (CELL_X(index[i]) < x2);
   *i1 = i;
 
   return TRUE;
@@ -1300,7 +1301,7 @@ draw_cell(int m, int n)
   if (w <= 0 || h <= 0)
     return;
 //  PULSE;
-
+  cell_buffer = ili9341_get_cell_buffer();
   // Clear buffer ("0 : height" lines)
 #if 0
   // use memset 350 system ticks for all screen calls
@@ -1387,6 +1388,7 @@ draw_cell(int m, int n)
     else  // draw rectangular plot (search index range in cell, save 50-70
           // system ticks for all screen calls)
       search_index_range_x(x0, x0 + w, trace_index[t], &i0, &i1);
+    if (i1==0) continue;
     index_t *index = trace_index[t];
     for (i = i0; i < i1; i++) {
       int x1 = CELL_X(index[i]) - x0;
@@ -1417,7 +1419,7 @@ draw_cell(int m, int n)
       if (x + MARKER_WIDTH >= 0 && x - MARKER_WIDTH < CELLWIDTH &&
           y + MARKER_HEIGHT >= 0 && y - MARKER_HEIGHT < CELLHEIGHT){
 //        draw_marker(x, y, config.trace_color[t], i);
-    	  // Draw marker plate
+          // Draw marker plate
           ili9341_set_foreground(config.trace_color[t]);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
           // Draw marker number
@@ -1461,7 +1463,7 @@ draw_cell(int m, int n)
   }
 #endif
   // Draw cell (500 system ticks for all screen calls)
-  ili9341_bulk(OFFSETX + x0, OFFSETY + y0, w, h);
+  ili9341_bulk_continue(OFFSETX + x0, OFFSETY + y0, w, h);
 }
 
 static void
@@ -1478,13 +1480,15 @@ draw_all_cells(bool flush_markmap)
 //      else
         //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(0,255,0));
     }
-//  STOP_PROFILE
   if (flush_markmap) {
     // keep current map for update
     swap_markmap();
     // clear map for next plotting
     clear_markmap();
   }
+  // Flush LCD buffer, wait completion (need call after end use ili9341_bulk_continue mode)
+  ili9341_bulk_finish();
+//  STOP_PROFILE
 }
 
 void
@@ -1707,11 +1711,11 @@ draw_cal_status(void)
   char c[3];
   ili9341_set_foreground(DEFAULT_FG_COLOR);
   ili9341_set_background(DEFAULT_BG_COLOR);
-  ili9341_fill(0, y, OFFSETX, 6*(FONT_STR_HEIGHT), DEFAULT_BG_COLOR);
+  ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT), DEFAULT_BG_COLOR);
+  c[2] = 0;
   if (cal_status & CALSTAT_APPLY) {
     c[0] = cal_status & CALSTAT_INTERPOLATED ? 'c' : 'C';
     c[1] = active_props == &current_props ? '*' : '0' + lastsaveid;
-    c[2] = 0;
     ili9341_drawstring(c, x, y);
     y +=FONT_STR_HEIGHT;
   }
@@ -1726,6 +1730,9 @@ draw_cal_status(void)
   for (i = 0; i < 5; i++, y+=FONT_STR_HEIGHT)
     if (cal_status & calibration_text[i].mask)
       ili9341_drawstring(&calibration_text[i].text, x, y);
+  c[0] = 'P';
+  c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
+  ili9341_drawstring(c, x, y);
 }
 
 // Draw battery level

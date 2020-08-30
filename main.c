@@ -105,7 +105,6 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 int8_t  sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
@@ -120,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.20"
+#define VERSION "1.0.22"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -494,11 +493,15 @@ usage:
 
 VNA_SHELL_FUNCTION(cmd_power)
 {
-  if (argc != 1) {
-    shell_printf("usage: power {0-3}\r\n");
+  if (argc == 0) {
+    shell_printf("power: %d\r\n", current_props._power);
     return;
   }
-  drive_strength = my_atoui(argv[0]);
+  if (argc != 1) {
+    shell_printf("usage: power {0-3}|{255 - auto}\r\n");
+    return;
+  }
+  current_props._power = my_atoui(argv[0]);
 //  set_frequency(frequency);
 }
 
@@ -632,7 +635,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if SPI_BUFFER_SIZE < (3*LCD_WIDTH + 1)
+#if SPI_BUFFER_SIZE < (3*LCD_WIDTH)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
@@ -692,11 +695,11 @@ config_t config = {
   .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
   .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-//  .touch_cal =        { 338, 522, 153, 192 },  // 2.8 inch LCD panel
+//  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  .vbat_offset = 500,
+  .vbat_offset = 120,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -734,6 +737,7 @@ void load_default_properties(void)
   current_props._active_marker   = 0;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
+  current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 //Checksum add on caldata_save
 //current_props.checksum = 0;
 }
@@ -911,7 +915,7 @@ VNA_SHELL_FUNCTION(cmd_gain)
 
 static int set_frequency(uint32_t freq)
 {
-  return si5351_set_frequency(freq, drive_strength);
+  return si5351_set_frequency(freq, current_props._power);
 }
 
 void set_bandwidth(uint16_t bw_count){
@@ -972,10 +976,12 @@ VNA_SHELL_FUNCTION(cmd_scan)
     sweep_mode = (mask>>1)&3;
   }
   set_frequencies(start, stop, points);
-  if (cal_status & CALSTAT_APPLY)
-    cal_interpolate();
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)){
+    if (cal_status & CALSTAT_APPLY)
+      cal_interpolate();
+    sweep(false, sweep_mode);
+  }
   pause_sweep();
-  sweep(false, sweep_mode);
   // Output data after if set (faster data recive)
   if (mask) {
     for (i = 0; i < points; i++) {
@@ -2495,15 +2501,26 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 // Parse and run command line
 //
+
+// #define DEBUG_CONSOLE_SHOW
+
+#ifdef DEBUG_CONSOLE_SHOW
+void debug_log(int offs, char *log){
+  static uint16_t shell_line_y = 0;
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  shell_line_y+=FONT_STR_HEIGHT;
+  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
+}
+#endif
+
 static void VNAShell_executeLine(char *line)
 {
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-#if 0 // debug console log
-  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
-  ili9341_drawstring(lp, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
-  osalThreadSleepMilliseconds(1000);
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+  debug_log(0, lp);
 #endif
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
@@ -2539,6 +2556,9 @@ static void VNAShell_executeLine(char *line)
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
       }
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+      debug_log(10, "ok");
+#endif
       return;
     }
   }
