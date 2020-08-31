@@ -494,11 +494,14 @@ void ili9341_fill(int x, int y, int w, int h, uint16_t color)
   dmaStreamSetMemory0(dmatx, &color);
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD);
   dmaStreamFlush(w * h);
+  while (SPI_IS_BUSY(LCD_SPI));    // Wait tx
+  LCD_CS_HIGH;
 }
 
 void ili9341_bulk_finish(void){
   dmaWaitCompletion(dmatx);        // Wait DMA
   while (SPI_IS_BUSY(LCD_SPI));    // Wait tx
+  LCD_CS_HIGH;
 }
 
 static void ili9341_DMA_bulk(int x, int y, int w, int h, uint16_t *buffer){

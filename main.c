@@ -119,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.23"
+#define VERSION "1.0.24"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -518,7 +518,10 @@ VNA_SHELL_FUNCTION(cmd_time)
   //            0    1   2       4      5     6
   // time[] ={sec, min, hr, 0, day, month, year, 0}
   uint8_t   *time = (uint8_t*)dt_buf;
-
+  if (argc == 3 &&  get_str_index(argv[0], "b") == 0){
+    rtc_set_time(my_atoui(argv[1]), my_atoui(argv[2]));
+    return;
+  }
   if (argc!=2) goto usage;
   int idx = get_str_index(argv[0], time_cmd);
   uint32_t val = my_atoui(argv[1]);
@@ -530,7 +533,7 @@ VNA_SHELL_FUNCTION(cmd_time)
   return;
 usage:
   shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
-  shell_printf("usage: time [%s] 0-99\r\n", time_cmd);
+  shell_printf("usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time_cmd);
 }
 #endif
 
@@ -919,7 +922,7 @@ static int set_frequency(uint32_t freq)
 }
 
 void set_bandwidth(uint16_t bw_count){
-  config.bandwidth = bw_count&0xFF;
+  config.bandwidth = bw_count&0x1FF;
   redraw_request|=REDRAW_FREQUENCY;
 }
 
@@ -982,30 +985,30 @@ VNA_SHELL_FUNCTION(cmd_scan)
     sweep_mode = (mask>>1)&3;
   }
 
-  // Rebuild frequency table if need
-  if (frequencies[0]!=start || frequencies[points-1]!=stop)
-    set_frequencies(start, stop, points);
-
   uint32_t old_cal_status = cal_status;
   if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
-
-  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)){
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+    set_frequencies(start, stop, points);
     if (cal_status & CALSTAT_APPLY)
       cal_interpolate();
-    sweep(false, sweep_mode);
   }
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_mode);
+
   cal_status = old_cal_status; // restore
 
   pause_sweep();
   // Output data after if set (faster data receive)
   if (mask) {
     if (mask&SCAN_MASK_BINARY){
-      streamWrite(shell_stream, (void *)&mask, 2);
-      streamWrite(shell_stream, (void *)&points, 2);
+      streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
+      streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
       for (i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],        4);  // 4 bytes .. frequency
-        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2);  // 8 bytes .. S11 real/imag
-        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
+        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(uint32_t));  // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
+        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
       }
     }
     else{
@@ -1019,7 +1022,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
 }
 
-//#define ENABLE_SCANBIN_COMMAND
+#define ENABLE_SCANBIN_COMMAND
 
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
@@ -1052,16 +1055,25 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
     mask = my_atoui(argv[3]);
     sweep_mode = (mask>>1)&3;
   }
-  set_frequencies(start, stop, points);
-  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)){
+
+  uint32_t old_cal_status = cal_status;
+  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+    set_frequencies(start, stop, points);
     if (cal_status & CALSTAT_APPLY)
       cal_interpolate();
-    sweep(false, sweep_mode);
   }
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_mode);
+
+  cal_status = old_cal_status; // restore
+
   pause_sweep();
 
-  streamWrite(shell_stream, (void *)&mask, 2);
-  streamWrite(shell_stream, (void *)&points, 2);
+  streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
+  streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
   // Output data after if set (faster data receive)
   if (mask) {
     for (i = 0; i < points; i++) {

@@ -290,8 +290,8 @@ static void bubbleSort(uint16_t *v, int n) {
 //*******************************************************************************
 #ifdef SOFTWARE_TOUCH
 // ADC read count for measure X and Y (2^N count)
-#define TOUCH_X_N 3
-#define TOUCH_Y_N 3
+#define TOUCH_X_N 2
+#define TOUCH_Y_N 2
 static int
 touch_measure_y(void)
 {
@@ -608,14 +608,15 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
 {
   (void)data;
   if (b){
-    if (item == 3) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    if (item == 4) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
   switch (item) {
-  case 2: // RESET
+  case 3: // RESET
     cal_status = 0;
+    current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
     break;
-  case 3: // CORRECTION
+  case 4: // CORRECTION
     // toggle applying correction
     cal_status ^= CALSTAT_APPLY;
     break;
@@ -1208,11 +1209,22 @@ const menuitem_t menu_recall[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+const menuitem_t menu_power[] = {
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_AUTO, "AUTO",  menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_2MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u mA", menu_power_acb },
+  { MT_CANCEL, 255, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,  0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,  0, "SAVE",  menu_save },
-  { MT_ADV_CALLBACK, 0, "RESET", menu_cal2_acb },
-  { MT_ADV_CALLBACK, 0, "APPLY", menu_cal2_acb },
+  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
+  { MT_SUBMENU,      0, "POWER",     menu_power },
+  { MT_SUBMENU,      0, "SAVE",      menu_save },
+  { MT_ADV_CALLBACK, 0, "RESET",     menu_cal2_acb },
+  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal2_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1284,16 +1296,27 @@ const menuitem_t menu_transform[] = {
 };
 
 const menuitem_t menu_bandwidth[] = {
+#ifdef BANDWIDTH_8000
+  { MT_ADV_CALLBACK, BANDWIDTH_8000, "%u Hz", menu_bandwidth_acb },
+#endif
 #ifdef BANDWIDTH_4000
   { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u Hz", menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_2000
   { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u Hz", menu_bandwidth_acb },
 #endif
+#ifdef BANDWIDTH_1000
   { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u Hz", menu_bandwidth_acb },
+#endif
+#ifdef BANDWIDTH_333
   { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u Hz", menu_bandwidth_acb },
+#endif
+#ifdef BANDWIDTH_100
   { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u Hz", menu_bandwidth_acb },
+#endif
+#ifdef BANDWIDTH_30
   { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u Hz", menu_bandwidth_acb },
+#endif
 #ifdef BANDWIDTH_10
   { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u Hz", menu_bandwidth_acb },
 #endif
@@ -1330,23 +1353,12 @@ const menuitem_t menu_sweep_points[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
-const menuitem_t menu_power[] = {
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_AUTO, "AUTO",  menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_2MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u mA", menu_power_acb },
-  { MT_CANCEL, 255, S_LARROW" BACK", NULL },
-  { MT_NONE, 0, NULL, NULL } // sentinel
-};
-
 const menuitem_t menu_stimulus[] = {
   { MT_CALLBACK, KM_START, "START", menu_keyboard_cb },
   { MT_CALLBACK, KM_STOP, "STOP",   menu_keyboard_cb },
   { MT_CALLBACK, KM_CENTER, "CENTER", menu_keyboard_cb },
   { MT_CALLBACK, KM_SPAN, "SPAN",  menu_keyboard_cb },
   { MT_CALLBACK, KM_CW, "CW FREQ", menu_keyboard_cb },
-  { MT_SUBMENU,      0, "POWER",   menu_power },
   { MT_ADV_CALLBACK, 0, "PAUSE\nSWEEP", menu_pause_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel

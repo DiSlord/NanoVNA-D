@@ -230,11 +230,12 @@ extern const char *info_about[];
 #define BANDWIDTH_30              ( 33 - 1)
 #define BANDWIDTH_10              (100 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 8000
-#define BANDWIDTH_1000            (  1 - 1)
-#define BANDWIDTH_333             (  3 - 1)
-#define BANDWIDTH_100             ( 10 - 1)
-#define BANDWIDTH_30              ( 33 - 1)
-#define BANDWIDTH_10              (100 - 1)
+#define BANDWIDTH_8000            (  1 - 1)
+#define BANDWIDTH_4000            (  2 - 1)
+#define BANDWIDTH_1000            (  8 - 1)
+#define BANDWIDTH_333             ( 24 - 1)
+#define BANDWIDTH_100             ( 80 - 1)
+#define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
 #define BANDWIDTH_2000            (  2 - 1)
