@@ -192,7 +192,6 @@ dsp_process(int16_t *capture, size_t length)
 //  int64_t ref_s = 0;
 //  int64_t ref_c = 0;
 
-  i=0;
   do{
     int32_t sc = ((int32_t *)sincos_tbl)[i];
     int32_t sr = ((int32_t *)capture)[i];
