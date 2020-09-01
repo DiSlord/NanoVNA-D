@@ -119,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.24"
+#define VERSION "1.0.25"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -532,8 +532,8 @@ VNA_SHELL_FUNCTION(cmd_time)
   rtc_set_time(dt_buf[1], dt_buf[0]);
   return;
 usage:
-  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
-  shell_printf("usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time_cmd);
+  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n"\
+               "usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time[6], time[5], time[4], time[2], time[1], time[0], time_cmd);
 }
 #endif
 
@@ -930,11 +930,23 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
   return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
 }
 
+#define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)
+#define MIN_BANDWIDTH      ((AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/512 + 1)
+
 VNA_SHELL_FUNCTION(cmd_bandwidth)
 {
-  if (argc != 1)
+  int user_bw;
+  if (argc == 1)
+    user_bw = my_atoui(argv[0]);
+  else if (argc == 2){
+    int f = my_atoui(argv[0]);
+         if (f > MAX_BANDWIDTH) user_bw = 0;
+    else if (f < MIN_BANDWIDTH) user_bw = 511;
+    else user_bw = ((AUDIO_ADC_FREQ+AUDIO_SAMPLES_COUNT/2)/AUDIO_SAMPLES_COUNT)/f - 1;
+  }
+  else
     goto result;
-  set_bandwidth(my_atoui(argv[0]));
+  set_bandwidth(user_bw);
 result:
   shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency(config.bandwidth));
 }
