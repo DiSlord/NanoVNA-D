@@ -108,7 +108,6 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 int8_t  sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
@@ -123,7 +122,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.20"
+#define VERSION "1.0.24"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -497,11 +496,15 @@ usage:
 
 VNA_SHELL_FUNCTION(cmd_power)
 {
-  if (argc != 1) {
-    shell_printf("usage: power {0-3}\r\n");
+  if (argc == 0) {
+    shell_printf("power: %d\r\n", current_props._power);
     return;
   }
-  drive_strength = my_atoui(argv[0]);
+  if (argc != 1) {
+    shell_printf("usage: power {0-3}|{255 - auto}\r\n");
+    return;
+  }
+  current_props._power = my_atoui(argv[0]);
 //  set_frequency(frequency);
 }
 
@@ -518,7 +521,10 @@ VNA_SHELL_FUNCTION(cmd_time)
   //            0    1   2       4      5     6
   // time[] ={sec, min, hr, 0, day, month, year, 0}
   uint8_t   *time = (uint8_t*)dt_buf;
-
+  if (argc == 3 &&  get_str_index(argv[0], "b") == 0){
+    rtc_set_time(my_atoui(argv[1]), my_atoui(argv[2]));
+    return;
+  }
   if (argc!=2) goto usage;
   int idx = get_str_index(argv[0], time_cmd);
   uint32_t val = my_atoui(argv[1]);
@@ -530,7 +536,7 @@ VNA_SHELL_FUNCTION(cmd_time)
   return;
 usage:
   shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
-  shell_printf("usage: time [%s] 0-99\r\n", time_cmd);
+  shell_printf("usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time_cmd);
 }
 #endif
 
@@ -635,7 +641,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if SPI_BUFFER_SIZE < (3*LCD_WIDTH + 1)
+#if SPI_BUFFER_SIZE < (3*LCD_WIDTH)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
@@ -695,11 +701,11 @@ config_t config = {
   .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
   .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-//  .touch_cal =        { 338, 522, 153, 192 },  // 2.8 inch LCD panel
+//  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  .vbat_offset = 500,
+  .vbat_offset = 120,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -737,6 +743,7 @@ void load_default_properties(void)
   current_props._active_marker   = 0;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
+  current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 //Checksum add on caldata_save
 //current_props.checksum = 0;
 }
@@ -914,11 +921,11 @@ VNA_SHELL_FUNCTION(cmd_gain)
 
 static int set_frequency(uint32_t freq)
 {
-  return si5351_set_frequency(freq, drive_strength);
+  return si5351_set_frequency(freq, current_props._power);
 }
 
 void set_bandwidth(uint16_t bw_count){
-  config.bandwidth = bw_count&0xFF;
+  config.bandwidth = bw_count&0x1FF;
   redraw_request|=REDRAW_FREQUENCY;
 }
 
@@ -943,6 +950,12 @@ void set_sweep_points(uint16_t points){
   update_frequencies(cal_status & CALSTAT_APPLY);
 
 }
+
+#define SCAN_MASK_OUT_FREQ       0b00000001
+#define SCAN_MASK_OUT_DATA0      0b00000010
+#define SCAN_MASK_OUT_DATA1      0b00000100
+#define SCAN_MASK_NO_CALIBRATION 0b00001000
+#define SCAN_MASK_BINARY         0b10000000
 
 VNA_SHELL_FUNCTION(cmd_scan)
 {
@@ -974,21 +987,106 @@ VNA_SHELL_FUNCTION(cmd_scan)
     mask = my_atoui(argv[3]);
     sweep_mode = (mask>>1)&3;
   }
-  set_frequencies(start, stop, points);
-  if (cal_status & CALSTAT_APPLY)
-    cal_interpolate();
+
+  uint32_t old_cal_status = cal_status;
+  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+    set_frequencies(start, stop, points);
+    if (cal_status & CALSTAT_APPLY)
+      cal_interpolate();
+  }
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_mode);
+
+  cal_status = old_cal_status; // restore
+
   pause_sweep();
-  sweep(false, sweep_mode);
-  // Output data after if set (faster data recive)
+  // Output data after if set (faster data receive)
   if (mask) {
-    for (i = 0; i < points; i++) {
-      if (mask & 1) shell_printf("%u ", frequencies[i]);
-      if (mask & 2) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
-      if (mask & 4) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
-      shell_printf("\r\n");
+    if (mask&SCAN_MASK_BINARY){
+      streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
+      streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(uint32_t));  // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
+        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
+      }
+    }
+    else{
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", frequencies[i]);
+        if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
+        if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
+        shell_printf("\r\n");
+      }
     }
   }
 }
+
+#define ENABLE_SCANBIN_COMMAND
+
+#ifdef ENABLE_SCANBIN_COMMAND
+VNA_SHELL_FUNCTION(cmd_scan_bin)
+{
+  uint32_t start, stop;
+  uint16_t points = sweep_points;
+  int i;
+  if (argc < 2 || argc > 4) {
+    shell_printf("usage: scan_bin {start(Hz)} {stop(Hz)} [points] [outmask]\r\n");
+    return;
+  }
+
+  start = my_atoui(argv[0]);
+  stop = my_atoui(argv[1]);
+  if (start == 0 || stop == 0 || start > stop) {
+      shell_printf("frequency range is invalid\r\n");
+      return;
+  }
+  if (argc >= 3) {
+    points = my_atoui(argv[2]);
+    if (points == 0 || points > POINTS_COUNT) {
+      shell_printf("sweep points exceeds range "define_to_STR(POINTS_COUNT)"\r\n");
+      return;
+    }
+    sweep_points = points;
+  }
+  uint16_t mask = 0;
+  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+  if (argc == 4) {
+    mask = my_atoui(argv[3]);
+    sweep_mode = (mask>>1)&3;
+  }
+
+  uint32_t old_cal_status = cal_status;
+  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+    set_frequencies(start, stop, points);
+    if (cal_status & CALSTAT_APPLY)
+      cal_interpolate();
+  }
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_mode);
+
+  cal_status = old_cal_status; // restore
+
+  pause_sweep();
+
+  streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
+  streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
+  // Output data after if set (faster data receive)
+  if (mask) {
+    for (i = 0; i < points; i++) {
+      if (mask & 1) streamWrite(shell_stream, (void *)&frequencies[i], 4);  // 4 bytes .. frequency
+      if (mask & 2) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2); // 8 bytes .. S11 real/imag
+      if (mask & 4) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
+    }
+  }
+}
+#endif
 
 static void
 update_marker_index(void)
@@ -2376,6 +2474,9 @@ typedef struct {
 static const VNAShellCommand commands[] =
 {
     {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#ifdef ENABLE_SCANBIN_COMMAND
+    {"scan_bin"    , cmd_scan_bin    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
@@ -2520,15 +2621,26 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 // Parse and run command line
 //
+
+// #define DEBUG_CONSOLE_SHOW
+
+#ifdef DEBUG_CONSOLE_SHOW
+void debug_log(int offs, char *log){
+  static uint16_t shell_line_y = 0;
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  shell_line_y+=FONT_STR_HEIGHT;
+  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
+}
+#endif
+
 static void VNAShell_executeLine(char *line)
 {
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-#if 0 // debug console log
-  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
-  ili9341_drawstring(lp, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
-  osalThreadSleepMilliseconds(1000);
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+  debug_log(0, lp);
 #endif
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
@@ -2564,6 +2676,9 @@ static void VNAShell_executeLine(char *line)
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
       }
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+      debug_log(10, "ok");
+#endif
       return;
     }
   }

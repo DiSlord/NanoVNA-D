@@ -50,7 +50,7 @@
 // Set SPI1 more faster use PPRE2 max speed
 #define STM32_PPRE2                         STM32_PPRE2_DIV1
 #define STM32_MCOSEL                        STM32_MCOSEL_PLLDIV2
-#define STM32_ADC12PRES                     STM32_ADC12PRES_DIV1
+#define STM32_ADC12PRES                     STM32_ADC12PRES_DIV2
 //#define STM32_ADC34PRES                     STM32_ADC34PRES_DIV1
 #define STM32_USART1SW                      STM32_USART1SW_PCLK
 //#define STM32_USART2SW                      STM32_USART2SW_PCLK

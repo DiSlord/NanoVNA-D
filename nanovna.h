@@ -230,11 +230,12 @@ extern const char *info_about[];
 #define BANDWIDTH_30              ( 33 - 1)
 #define BANDWIDTH_10              (100 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 8000
-#define BANDWIDTH_1000            (  1 - 1)
-#define BANDWIDTH_333             (  3 - 1)
-#define BANDWIDTH_100             ( 10 - 1)
-#define BANDWIDTH_30              ( 33 - 1)
-#define BANDWIDTH_10              (100 - 1)
+#define BANDWIDTH_8000            (  1 - 1)
+#define BANDWIDTH_4000            (  2 - 1)
+#define BANDWIDTH_1000            (  8 - 1)
+#define BANDWIDTH_333             ( 24 - 1)
+#define BANDWIDTH_100             ( 80 - 1)
+#define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
 #define BANDWIDTH_2000            (  2 - 1)
@@ -419,6 +420,11 @@ enum trace_type {
 // Electrical Delay
 // Phase
 
+// marker smith value format
+enum marker_smithvalue {
+  MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
+};
+
 // config.freq_mode flags
 #define FREQ_MODE_START_STOP    0x0
 #define FREQ_MODE_CENTER_SPAN   0x1
@@ -477,7 +483,8 @@ typedef struct properties {
   int8_t _active_marker;
   uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
   uint8_t _marker_smith_format;
-  uint8_t _reserved[40];
+  uint8_t _power;
+  uint8_t _reserved[39];
   uint32_t checksum;
 } properties_t;
 //on POINTS_COUNT = 201, sizeof(properties_t) == 0x2000
@@ -540,6 +547,16 @@ extern  uint8_t redraw_request;
 #define RGB565(r,g,b)  ( (((g)&0x1c)<<11) | (((b)&0xf8)<<5) | ((r)&0xf8) | (((g)&0xe0)>>5) )
 #define RGBHEX(hex) ( (((hex)&0x001c00)<<3) | (((hex)&0x0000f8)<<5) | (((hex)&0xf80000)>>16) | (((hex)&0x00e000)>>13) )
 
+#ifdef __USE_DISPLAY_DMA__
+// Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
+//#define DISPLAY_CELL_BUFFER_COUNT     1
+// Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
+#define DISPLAY_CELL_BUFFER_COUNT     2
+#else
+// Always one if no DMA mode
+#define DISPLAY_CELL_BUFFER_COUNT     1
+#endif
+
 // Define size of screen buffer in pixels (one pixel 16bit size)
 #define SPI_BUFFER_SIZE             2048
 
@@ -562,6 +579,9 @@ extern  uint8_t redraw_request;
 extern uint16_t foreground_color;
 extern uint16_t background_color;
 
+// Define pixel format
+typedef uint16_t pixel_t;
+
 extern uint16_t spi_buffer[SPI_BUFFER_SIZE];
 
 // Used for easy define big Bitmap as 0bXXXXXXXXX image
@@ -573,7 +593,11 @@ extern uint16_t spi_buffer[SPI_BUFFER_SIZE];
 void ili9341_init(void);
 void ili9341_test(int mode);
 void ili9341_bulk(int x, int y, int w, int h);
+void ili9341_bulk_continue(int x, int y, int w, int h);
+void ili9341_bulk_finish(void);
 void ili9341_fill(int x, int y, int w, int h, uint16_t color);
+pixel_t *ili9341_get_cell_buffer(void);
+
 void ili9341_set_foreground(uint16_t fg);
 void ili9341_set_background(uint16_t fg);
 void ili9341_clear_screen(void);
@@ -679,8 +703,14 @@ void clear_all_config_prop_data(void);
 /*
  * ui.c
  */
-extern void ui_init(void);
-extern void ui_process(void);
+void ui_init(void);
+void ui_process(void);
+
+void handle_touch_interrupt(void);
+
+void touch_cal_exec(void);
+void touch_draw_test(void);
+void enter_dfu(void);
 
 // Irq operation process set
 #define OP_NONE       0x00
@@ -694,35 +724,20 @@ enum lever_mode {
   LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY
 };
 
-// marker smith value format
-enum marker_smithvalue {
-  MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
-};
-
 typedef struct uistat {
-  int8_t digit; /* 0~5 */
-  int8_t digit_mode;
-  int8_t current_trace; /* 0..3 */
-  uint32_t value; // for editing at numeric input area
-//  uint32_t previous_value;
+  uint32_t value;       // for editing at numeric input area
+//  int8_t digit;       // 0~5 used in numeric input (disabled)
+//  int8_t digit_mode;  // used in numeric input (disabled)
+  int8_t current_trace; // 0..3 (-1 for disabled)
+
   uint8_t lever_mode;
-  uint8_t marker_delta;
-  uint8_t marker_tracking;
+  uint8_t marker_delta:1;
+  uint8_t marker_tracking:1;
 } uistat_t;
 
 extern uistat_t uistat;
-void ui_init(void);
-void ui_show(void);
-void ui_hide(void);
-
-void touch_start_watchdog(void);
-void handle_touch_interrupt(void);
 
 #define TOUCH_THRESHOLD 2000
-
-void touch_cal_exec(void);
-void touch_draw_test(void);
-void enter_dfu(void);
 
 /*
  * adc.c
@@ -733,8 +748,8 @@ void enter_dfu(void);
 
 void adc_init(void);
 uint16_t adc_single_read(uint32_t chsel);
-void adc_start_analog_watchdogd(void);
-void adc_stop(void);
+void adc_start_analog_watchdog(void);
+void adc_stop_analog_watchdog(void);
 int16_t adc_vbat_read(void);
 
 /*
