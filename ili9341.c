@@ -314,8 +314,8 @@ static void spi_init(void)
 static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
-//  while (SPI_IS_BUSY(LCD_SPI))
-//    ;
+  while (SPI_IS_BUSY(LCD_SPI))
+    ;
 //  ili9341_bulk_finish();
   LCD_CS_LOW;
   LCD_DC_CMD;
