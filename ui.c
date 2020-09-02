@@ -351,7 +351,7 @@ touch_prepare_sense(void)
 //  chThdSleepMilliseconds(10); // Wait 10ms for denounce touch
 }
 
-static void
+void
 touch_start_watchdog(void)
 {
   if (touch_status_flag&TOUCH_INTERRUPT_ENABLED) return;
@@ -359,7 +359,7 @@ touch_start_watchdog(void)
   adc_start_analog_watchdog();
 }
 
-static void
+void
 touch_stop_watchdog(void)
 {
   if (!(touch_status_flag&TOUCH_INTERRUPT_ENABLED)) return;
@@ -1038,6 +1038,40 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   draw_menu();
 }
 
+#ifdef __LCD_BRIGHTNESS__
+static void
+menu_brightness(int item, uint8_t data)
+{
+  (void)item;
+  (void)data;
+  uint16_t value = config.dac_value;
+  ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40, config.menu_normal_color);
+  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
+  ili9341_set_background(config.menu_normal_color);
+  ili9341_drawstring(S_LARROW" BRIGHTNESS "S_RARROW, LCD_WIDTH/2-46, LCD_HEIGHT/2-6);
+  while (TRUE) {
+    int status = btn_check();
+    if (status & (EVT_UP|EVT_DOWN)) {
+      do {
+        if (status & EVT_UP)
+          value+=50;
+        if (status & EVT_DOWN)
+          value-=50;
+        if (value< 700) value = 700;
+        if (value>3300) value = 3300;
+        dacPutChannelX(&DACD2, 0, value);
+        status = btn_wait_release();
+      } while (status != 0);
+    }
+    if (status == EVT_BUTTON_SINGLE_CLICK)
+      break;
+  }
+  config.dac_value = value;
+  dacPutChannelX(&DACD2, 0, value);
+  request_to_redraw_grid();
+  ui_mode_normal();
+#endif
+
 #ifdef __USE_SD_CARD__
 #define SAVE_S1P_FILE  1
 #define SAVE_S2P_FILE  2
@@ -1394,6 +1428,9 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK, 0, "SAVE", menu_config_save_cb },
   { MT_SUBMENU,  0, "SWEEP\nPOINTS", menu_sweep_points },
   { MT_CALLBACK, 0, "VERSION", menu_config_cb },
+#ifdef __LCD_BRIGHTNESS__
+  { MT_CALLBACK, 0, "BRIGHTNESS", menu_brightness },
+#endif
   { MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -2553,7 +2590,7 @@ touch_pickup_marker(int touch_x, int touch_y)
       marker_position(m, t, &x, &y);
       x -= touch_x;
       y -= touch_y;
-      if ((x * x + y * y) < 20 * 20) {
+      if ((x * x + y * y) < MARKER_PICKUP_DISTANCE * MARKER_PICKUP_DISTANCE) {
         if (active_marker != m) {
           previous_marker = active_marker;
           active_marker = m;
@@ -2621,7 +2658,7 @@ made_screenshot(int touch_x, int touch_y)
 //  shell_printf("Screenshot\r\n");
   FRESULT res = f_mount(fs_volume, "", 1);
   // fs_volume, fs_file and fs_filename stored at end of spi_buffer!!!!!
-  uint16_t *buf = spi_buffer;
+  uint16_t *buf = (uint16_t *)spi_buffer;
 //  shell_printf("Mount = %d\r\n", res);
   if (res != FR_OK)
     return TRUE;
@@ -2637,7 +2674,7 @@ made_screenshot(int touch_x, int touch_y)
   if (res == FR_OK){
     res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
     for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
-      ili9341_read_memory(0, y, LCD_WIDTH, 1, LCD_WIDTH, buf);
+      ili9341_read_memory(0, y, LCD_WIDTH, 1, buf);
       for (i = 0; i < LCD_WIDTH; i++)
         buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
       res = f_write(fs_file, buf, LCD_WIDTH*sizeof(uint16_t), &size);

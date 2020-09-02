@@ -36,11 +36,7 @@ int16_t area_width  = AREA_WIDTH_NORMAL;
 int16_t area_height = AREA_HEIGHT_NORMAL;
 
 // Cell render use spi buffer
-pixel_t *cell_buffer = (pixel_t *)spi_buffer;
-// Cell size
-// Depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
-#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
-#define CELLHEIGHT (32)
+static pixel_t *cell_buffer;
 // Check buffer size
 #if CELLWIDTH*CELLHEIGHT > SPI_BUFFER_SIZE
 #error "Too small spi_buffer size SPI_BUFFER_SIZE < CELLWIDTH*CELLHEIGH"
@@ -1242,14 +1238,14 @@ search_nearest_index(int x, int y, int t)
 {
   index_t *index = trace_index[t];
   int min_i = -1;
-  int min_d = 1000;
+  int min_d = 30000;
   int i;
   for (i = 0; i < sweep_points; i++) {
     int16_t dx = x - CELL_X(index[i]);
     int16_t dy = y - CELL_Y(index[i]);
     if (dx < 0) dx = -dx;
     if (dy < 0) dy = -dy;
-    if (dx > 20 || dy > 20)
+    if (dx > MARKER_PICKUP_DISTANCE || dy > MARKER_PICKUP_DISTANCE)
       continue;
     int d = dx*dx + dy*dy;
     if (d < min_d) {
