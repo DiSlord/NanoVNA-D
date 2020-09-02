@@ -232,8 +232,11 @@ kaiser_window(float k, float n, float beta)
 static void
 transform_domain(void)
 {
-  // use spi_buffer as temporary buffer
-  // and calculate ifft for time domain
+  // use spi_buffer as temporary buffer and calculate ifft for time domain
+  // Need 2 * sizeof(float) * FFT_SIZE bytes for work
+#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#error "Need increase spi_buffer or use less FFT_SIZE value"
+#endif
   float* tmp = (float*)spi_buffer;
 
   uint16_t window_size = sweep_points, offset = 0;
@@ -642,13 +645,13 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if SPI_BUFFER_SIZE < (3*LCD_WIDTH)
+#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (2*LCD_WIDTH*2)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
   for (y = 0; y < LCD_HEIGHT; y += 2) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, 2, 2 * LCD_WIDTH, spi_buffer);
+    ili9341_read_memory(0, y, LCD_WIDTH, 2, spi_buffer);
     streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
   }
 }
@@ -2351,12 +2354,7 @@ VNA_SHELL_FUNCTION(cmd_color)
       // WARNING!!! Dirty hack for size, depend from config struct
       color = config.trace_color[i];
 #endif
-      color = ((color >>  3) & 0x001c00) |
-              ((color >>  5) & 0x0000f8) |
-              ((color << 16) & 0xf80000) |
-              ((color << 13) & 0x00e000);
-//    color = (color>>8)|(color<<8);
-//    color = ((color<<8)&0xF80000)|((color<<5)&0x00FC00)|((color<<3)&0x0000F8);
+      color = HEXRGB(color);
       shell_printf("   %d: 0x%06x\r\n", i, color);
     }
     return;
