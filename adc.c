@@ -95,7 +95,7 @@ uint16_t adc_single_read(uint32_t chsel)
 int16_t adc_vbat_read(void)
 {
 // Vbat measure averange count = 2^VBAT_AVERAGE
-#define VBAT_AVERAGE 5
+#define VBAT_AVERAGE 4
 // Measure vbat every 5 second
 #define VBAT_MEASURE_INTERVAL   50000
 
