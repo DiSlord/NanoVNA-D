@@ -214,7 +214,7 @@ void spi_TxWord(uint16_t data) {
 }
 
 // Transmit buffer to SPI bus  (len should be > 0)
-void spi_TxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_TxBuffer(const uint8_t *buffer, uint16_t len) {
   do {
     while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
     SPI_WRITE_8BIT(LCD_SPI, *buffer++);
@@ -242,6 +242,7 @@ void spi_DropRx(void){
   // Drop Rx buffer after tx and wait tx complete
   while (SPI_RX_IS_NOT_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI))
     (void)SPI_READ_8BIT(LCD_SPI);
+  (void)SPI_READ_8BIT(LCD_SPI);
 }
 
 #ifdef __USE_DISPLAY_DMA__
@@ -312,7 +313,9 @@ static void spi_init(void)
 static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
-//  while (SPI_IN_TX_RX);
+//  while (SPI_IN_TX_RX(LCD_SPI))
+//    ;
+// This only test code
 //  ili9341_bulk_finish();
   LCD_CS_LOW;
   LCD_DC_CMD;
@@ -327,6 +330,8 @@ static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
       ;
     SPI_WRITE_8BIT(LCD_SPI, *data++);
   }
+//  while (SPI_IN_TX_RX(LCD_SPI))
+//    ;
   //LCD_CS_HIGH;
 }
 
@@ -500,7 +505,7 @@ void ili9341_fill(int x, int y, int w, int h, pixel_t color)
 
 void ili9341_bulk_finish(void){
   dmaWaitCompletion(dmatx);        // Wait DMA
-  while (SPI_IS_BUSY(LCD_SPI));    // Wait tx
+  while (SPI_IN_TX_RX(LCD_SPI));   // Wait tx
 }
 
 static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
@@ -1130,7 +1135,6 @@ static bool SD_TxDataBlock(const uint8_t *buff, uint8_t token) {
 #else
   spi_TxBuffer((uint8_t*)buff, SD_SECTOR_SIZE);
 #endif
-  spi_DropRx();
   // Send CRC
 #ifdef  SD_USE_DATA_CRC
   uint16_t bcrc = crc16(buff, SD_SECTOR_SIZE);
