@@ -552,6 +552,7 @@ show_version(void)
 void
 enter_dfu(void)
 {
+#if 0
   touch_stop_watchdog();
 
   int x = 5, y = 20;
@@ -564,6 +565,7 @@ enter_dfu(void)
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
+#endif
 }
 
 static void
