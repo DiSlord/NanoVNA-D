@@ -22,6 +22,7 @@
 
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
+#define __LCD_BRIGHTNESS__
 // Add RTC clock support
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
@@ -224,11 +225,12 @@ extern const char *info_about[];
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 192kHz one measure give 192000/48=4000Hz
 // Define additional measure count for menus
 #if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 16000
-#define BANDWIDTH_1000            (  1 - 1)
-#define BANDWIDTH_333             (  3 - 1)
-#define BANDWIDTH_100             ( 10 - 1)
-#define BANDWIDTH_30              ( 33 - 1)
-#define BANDWIDTH_10              (100 - 1)
+#define BANDWIDTH_8000            (  1 - 1)
+#define BANDWIDTH_4000            (  2 - 1)
+#define BANDWIDTH_1000            (  8 - 1)
+#define BANDWIDTH_333             ( 24 - 1)
+#define BANDWIDTH_100             ( 80 - 1)
+#define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 8000
 #define BANDWIDTH_8000            (  1 - 1)
 #define BANDWIDTH_4000            (  2 - 1)
@@ -286,6 +288,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define LCD_WIDTH                   480
 #define LCD_HEIGHT                  320
 
+// Define maximum distance in pixel for pickup marker (can be bigger for big displays)
+#define MARKER_PICKUP_DISTANCE    20
 // Used marker size settings
 #define _USE_BIG_MARKER_     1
 // Used font settings
@@ -542,11 +546,7 @@ extern  uint8_t redraw_request;
 /*
  * ili9341.c
  */
-// SPI bus revert byte order
-//gggBBBbb RRRrrGGG
-#define RGB565(r,g,b)  ( (((g)&0x1c)<<11) | (((b)&0xf8)<<5) | ((r)&0xf8) | (((g)&0xe0)>>5) )
-#define RGBHEX(hex) ( (((hex)&0x001c00)<<3) | (((hex)&0x0000f8)<<5) | (((hex)&0xf80000)>>16) | (((hex)&0x00e000)>>13) )
-
+// Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
 #ifdef __USE_DISPLAY_DMA__
 // Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
 //#define DISPLAY_CELL_BUFFER_COUNT     1
@@ -557,8 +557,43 @@ extern  uint8_t redraw_request;
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
 
-// Define size of screen buffer in pixels (one pixel 16bit size)
+// Define LCD pixel format
+//#define LCD_8BIT_MODE
+#define LCD_16BIT_MODE
+
+#ifdef LCD_8BIT_MODE
+typedef uint8_t pixel_t;
+//  8-bit RRRGGGBB
+//#define RGB332(r,g,b)  ( (((r)&0xE0)>>0) | (((g)&0xE0)>>3) | (((b)&0xC0)>>5))
+#define RGB565(r,g,b)  ( (((r)&0xE0)>>0) | (((g)&0xE0)>>3) | (((b)&0xC0)>>6))
+#define RGBHEX(hex)    ( (((hex)&0xE00000)>>16) | (((hex)&0x00E000)>>11) | (((hex)&0x0000C0)>>6) )
+#define HEXRGB(hex)    ( (((hex)<<16)&0xE00000) | (((hex)<<11)&0x00E000) | (((hex)<<6)&0x0000C0) )
+#define LCD_PIXEL_SIZE        1
+// Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
+#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLHEIGHT (64)
+// Define size of screen buffer in pixel_t
+#define SPI_BUFFER_SIZE             4096
+#endif
+
+#ifdef LCD_16BIT_MODE
+typedef uint16_t pixel_t;
+// SPI bus revert byte order
+// 16-bit gggBBBbb RRRrrGGG
+#define RGB565(r,g,b)  ( (((g)&0x1c)<<11) | (((b)&0xf8)<<5) | ((r)&0xf8) | (((g)&0xe0)>>5) )
+#define RGBHEX(hex) ( (((hex)&0x001c00)<<3) | (((hex)&0x0000f8)<<5) | (((hex)&0xf80000)>>16) | (((hex)&0x00e000)>>13) )
+#define HEXRGB(hex) ( (((hex)>>3)&0x001c00) | (((hex)>>5)&0x0000f8) | (((hex)<<16)&0xf80000) | (((hex)<<13)&0x00e000) )
+#define LCD_PIXEL_SIZE        2
+// Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
+#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLHEIGHT (32)
+// Define size of screen buffer in pixel_t
 #define SPI_BUFFER_SIZE             2048
+#endif
+
+#ifndef SPI_BUFFER_SIZE
+#error "Define LCD pixel format"
+#endif
 
 #define DEFAULT_FG_COLOR            RGB565(255,255,255)
 #define DEFAULT_BG_COLOR            RGB565(  0,  0,  0)
@@ -579,10 +614,7 @@ extern  uint8_t redraw_request;
 extern uint16_t foreground_color;
 extern uint16_t background_color;
 
-// Define pixel format
-typedef uint16_t pixel_t;
-
-extern uint16_t spi_buffer[SPI_BUFFER_SIZE];
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 
 // Used for easy define big Bitmap as 0bXXXXXXXXX image
 #define _BMP8(d)                                                        ((d)&0xFF)
@@ -595,11 +627,11 @@ void ili9341_test(int mode);
 void ili9341_bulk(int x, int y, int w, int h);
 void ili9341_bulk_continue(int x, int y, int w, int h);
 void ili9341_bulk_finish(void);
-void ili9341_fill(int x, int y, int w, int h, uint16_t color);
+void ili9341_fill(int x, int y, int w, int h, pixel_t color);
 pixel_t *ili9341_get_cell_buffer(void);
 
-void ili9341_set_foreground(uint16_t fg);
-void ili9341_set_background(uint16_t fg);
+void ili9341_set_foreground(pixel_t fg);
+void ili9341_set_background(pixel_t fg);
 void ili9341_clear_screen(void);
 void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void ili9341_drawchar(uint8_t ch, int x, int y);
@@ -608,9 +640,11 @@ void ili9341_drawstringV(const char *str, int x, int y);
 int  ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
 void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size);
 void ili9341_drawfont(uint8_t ch, int x, int y);
-void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
+void ili9341_read_memory(int x, int y, int w, int h, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
+
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
+void     lcd_setBrightness(uint16_t b);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__

@@ -122,15 +122,19 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.24"
+#define VERSION "1.0.25"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)"k IF, "define_to_STR(AUDIO_ADC_FREQ_K)"k ADC]",
-  "Build Time: " __DATE__ " - " __TIME__,
+  "Version: " VERSION " ["\
+  "p:"define_to_STR(POINTS_COUNT)", "\
+  "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
+  "ADC:"define_to_STR(AUDIO_ADC_FREQ_K)"k, "\
+  "Lcd:"define_to_STR(LCD_WIDTH)"x"define_to_STR(LCD_HEIGHT)\
+  "]",  "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
   "Architecture: " PORT_ARCHITECTURE_NAME " Core Variant: " PORT_CORE_VARIANT_NAME,
@@ -231,8 +235,11 @@ kaiser_window(float k, float n, float beta)
 static void
 transform_domain(void)
 {
-  // use spi_buffer as temporary buffer
-  // and calculate ifft for time domain
+  // use spi_buffer as temporary buffer and calculate ifft for time domain
+  // Need 2 * sizeof(float) * FFT_SIZE bytes for work
+#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#error "Need increase spi_buffer or use less FFT_SIZE value"
+#endif
   float* tmp = (float*)spi_buffer;
 
   uint16_t window_size = sweep_points, offset = 0;
@@ -535,8 +542,8 @@ VNA_SHELL_FUNCTION(cmd_time)
   rtc_set_time(dt_buf[1], dt_buf[0]);
   return;
 usage:
-  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
-  shell_printf("usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time_cmd);
+  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n"\
+               "usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time[6], time[5], time[4], time[2], time[1], time[0], time_cmd);
 }
 #endif
 
@@ -641,13 +648,13 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if SPI_BUFFER_SIZE < (3*LCD_WIDTH)
+#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (2*LCD_WIDTH*2)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
   for (y = 0; y < LCD_HEIGHT; y += 2) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, 2, 2 * LCD_WIDTH, spi_buffer);
+    ili9341_read_memory(0, y, LCD_WIDTH, 2, spi_buffer);
     streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
   }
 }
@@ -933,11 +940,23 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
   return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
 }
 
+#define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)
+#define MIN_BANDWIDTH      ((AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/512 + 1)
+
 VNA_SHELL_FUNCTION(cmd_bandwidth)
 {
-  if (argc != 1)
+  int user_bw;
+  if (argc == 1)
+    user_bw = my_atoui(argv[0]);
+  else if (argc == 2){
+    int f = my_atoui(argv[0]);
+         if (f > MAX_BANDWIDTH) user_bw = 0;
+    else if (f < MIN_BANDWIDTH) user_bw = 511;
+    else user_bw = ((AUDIO_ADC_FREQ+AUDIO_SAMPLES_COUNT/2)/AUDIO_SAMPLES_COUNT)/f - 1;
+  }
+  else
     goto result;
-  set_bandwidth(my_atoui(argv[0]));
+  set_bandwidth(user_bw);
 result:
   shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency(config.bandwidth));
 }
@@ -2338,12 +2357,7 @@ VNA_SHELL_FUNCTION(cmd_color)
       // WARNING!!! Dirty hack for size, depend from config struct
       color = config.trace_color[i];
 #endif
-      color = ((color >>  3) & 0x001c00) |
-              ((color >>  5) & 0x0000f8) |
-              ((color << 16) & 0xf80000) |
-              ((color << 13) & 0x00e000);
-//    color = (color>>8)|(color<<8);
-//    color = ((color<<8)&0xF80000)|((color<<5)&0x00FC00)|((color<<3)&0x0000F8);
+      color = HEXRGB(color);
       shell_printf("   %d: 0x%06x\r\n", i, color);
     }
     return;

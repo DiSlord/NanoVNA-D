@@ -43,8 +43,8 @@
 
 uint16_t spi_buffer[SPI_BUFFER_SIZE];
 // Default foreground & background colors
-uint16_t foreground_color = 0;
-uint16_t background_color = 0;
+pixel_t foreground_color = 0;
+pixel_t background_color = 0;
 
 // Display width and height definition
 #define ILI9341_WIDTH     480
@@ -204,19 +204,17 @@ static void dmaStreamFlush(uint32_t len)
 #endif
 
 // SPI transmit byte to SPI (no wait complete transmit)
-static inline void spi_TxByte(uint8_t data) {
-  while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
+void spi_TxByte(uint8_t data) {
   SPI_WRITE_8BIT(LCD_SPI, data);
 }
 
 // Transmit word to SPI bus (if SPI in 8 bit mode LSB send first!!!!!)
-static inline void spi_TxWord(uint16_t data) {
-  while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
+void spi_TxWord(uint16_t data) {
   SPI_WRITE_16BIT(LCD_SPI, data);
 }
 
 // Transmit buffer to SPI bus  (len should be > 0)
-static void spi_TxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_TxBuffer(const uint8_t *buffer, uint16_t len) {
   do {
     while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
     SPI_WRITE_8BIT(LCD_SPI, *buffer++);
@@ -232,7 +230,7 @@ static uint8_t spi_RxByte(void) {
 }
 
 // Receive buffer from SPI bus (len should be > 0)
-static void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
   do{
     SPI_WRITE_8BIT(LCD_SPI, 0xFF);
     while (SPI_RX_IS_EMPTY(LCD_SPI));
@@ -240,10 +238,11 @@ static void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
   }while(--len);
 }
 
-static void spi_DropRx(void){
+void spi_DropRx(void){
   // Drop Rx buffer after tx and wait tx complete
   while (SPI_RX_IS_NOT_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI))
     (void)SPI_READ_8BIT(LCD_SPI);
+  (void)SPI_READ_8BIT(LCD_SPI);
 }
 
 #ifdef __USE_DISPLAY_DMA__
@@ -314,19 +313,25 @@ static void spi_init(void)
 static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
-//  while (SPI_IS_BUSY(LCD_SPI))
+//  while (SPI_IN_TX_RX(LCD_SPI))
 //    ;
+// This only test code
 //  ili9341_bulk_finish();
   LCD_CS_LOW;
   LCD_DC_CMD;
   SPI_WRITE_8BIT(LCD_SPI, cmd);
   // Need wait transfer complete and set data bit
-  while (SPI_IS_BUSY(LCD_SPI))
+  while (SPI_IN_TX_RX(LCD_SPI))
     ;
   // Send command data (if need)
   LCD_DC_DATA;
-  while (len-- > 0)
-    spi_TxByte(*data++);
+  while (len-- > 0) {
+    while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
+      ;
+    SPI_WRITE_8BIT(LCD_SPI, *data++);
+  }
+//  while (SPI_IN_TX_RX(LCD_SPI))
+//    ;
   //LCD_CS_HIGH;
 }
 
@@ -336,16 +341,8 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
   ili9341_bulk_finish();
   // Set read speed (if need different)
   SPI_BR_SET(LCD_SPI, SPI_BR_DIV256);
-  LCD_CS_LOW;
-  LCD_DC_CMD;
-  SPI_WRITE_8BIT(LCD_SPI, cmd);
-  // Need wait transfer complete and set data bit
-  while (SPI_IN_TX_RX(LCD_SPI))
-    ;
-  // Send command data (if need)
-  LCD_DC_DATA;
-  while (len-- > 0)
-    spi_TxByte(*data++);
+  // Send
+  send_command(cmd, len, data);
 
   // Skip data from rx buffer
   spi_DropRx();
@@ -450,20 +447,26 @@ static uint8_t LCD_dma_status = 0;
 
 pixel_t *ili9341_get_cell_buffer(void){
 #if DISPLAY_CELL_BUFFER_COUNT == 1
-  return (pixel_t *)spi_buffer;
+  return spi_buffer;
 #else
-  return (pixel_t *)(&spi_buffer[LCD_dma_status&LCD_BUFFER_1 ? SPI_BUFFER_SIZE/2 : 0]);
+  return &spi_buffer[(LCD_dma_status&LCD_BUFFER_1) ? SPI_BUFFER_SIZE/2 : 0];
 #endif
 }
 
 #ifndef __USE_DISPLAY_DMA__
-void ili9341_fill(int x, int y, int w, int h, uint16_t color)
+void ili9341_fill(int x, int y, int w, int h, pixel_t color)
 {
   ili9341_setWindow(x, y ,w, h);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   uint32_t len = w * h;
   do {
-    spi_TxWord(color);
+    while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
+      ;
+#if LCD_PIXEL_SIZE == 2
+    SPI_WRITE_16BIT(LCD_SPI, color);
+#else
+    SPI_WRITE_8BIT(LCD_SPI, color);
+#endif
   }while(--len);
 }
 
@@ -487,30 +490,35 @@ void ili9341_bulk_finish(void){
 // Use DMA for send data
 //
 // Fill region by some color
-void ili9341_fill(int x, int y, int w, int h, uint16_t color)
+void ili9341_fill(int x, int y, int w, int h, pixel_t color)
 {
   ili9341_setWindow(x, y ,w, h);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   dmaStreamSetMemory0(dmatx, &color);
+#if LCD_PIXEL_SIZE == 2
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD);
+#else
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE);
+#endif
   dmaStreamFlush(w * h);
-  while (SPI_IS_BUSY(LCD_SPI));    // Wait tx
-  LCD_CS_HIGH;
 }
 
 void ili9341_bulk_finish(void){
   dmaWaitCompletion(dmatx);        // Wait DMA
-  while (SPI_IS_BUSY(LCD_SPI));    // Wait tx
-  LCD_CS_HIGH;
+  while (SPI_IN_TX_RX(LCD_SPI));   // Wait tx
 }
 
-static void ili9341_DMA_bulk(int x, int y, int w, int h, uint16_t *buffer){
+static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   ili9341_setWindow(x, y ,w, h);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
 
   dmaStreamSetMemory0(dmatx, buffer);
+#if LCD_PIXEL_SIZE == 2
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD | STM32_DMA_CR_MINC);
+#else
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
-  dmaStreamSetTransactionSize(dmatx, w * h * sizeof(pixel_t));
+#endif
+  dmaStreamSetTransactionSize(dmatx, w * h);
   dmaStreamEnable(dmatx);
 }
 
@@ -535,8 +543,9 @@ void ili9341_bulk_continue(int x, int y, int w, int h)
 #endif
 
 // Copy screen data to buffer
-void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t *out)
+void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
+  uint16_t len = w * h;
   ili9341_setWindow(x, y, w, h);
   send_command(ILI9341_MEMORY_READ, 0, NULL);
   // Skip data from rx buffer
@@ -565,12 +574,12 @@ void ili9341_clear_screen(void)
   ili9341_fill(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT, background_color);
 }
 
-void ili9341_set_foreground(uint16_t fg)
+void ili9341_set_foreground(pixel_t fg)
 {
   foreground_color = fg;
 }
 
-void ili9341_set_background(uint16_t bg)
+void ili9341_set_background(pixel_t bg)
 {
   background_color = bg; 
 }
@@ -585,7 +594,7 @@ void ili9341_set_rotation(uint8_t r)
 //static uint8_t bit_align = 0;
 void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b)
 {
-  pixel_t *buf = (pixel_t *)spi_buffer;
+  pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
   for (uint16_t c = 0; c < height; c++) {
     for (uint16_t r = 0; r < width; r++) {
@@ -640,7 +649,7 @@ void ili9341_drawstringV(const char *str, int x, int y)
 
 int ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
 {
-  pixel_t *buf =(pixel_t *) spi_buffer;
+  pixel_t *buf = spi_buffer;
   const uint8_t *char_buf = FONT_GET_DATA(ch);
   uint16_t w = FONT_GET_WIDTH(ch);
   for (int c = 0; c < FONT_GET_HEIGHT; c++, char_buf++) {
@@ -1126,7 +1135,6 @@ static bool SD_TxDataBlock(const uint8_t *buff, uint8_t token) {
 #else
   spi_TxBuffer((uint8_t*)buff, SD_SECTOR_SIZE);
 #endif
-  spi_DropRx();
   // Send CRC
 #ifdef  SD_USE_DATA_CRC
   uint16_t bcrc = crc16(buff, SD_SECTOR_SIZE);
