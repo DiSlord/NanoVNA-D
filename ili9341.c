@@ -41,7 +41,7 @@
 //Not define if need use some as Tx speed
 #define LCD_SPI_RX_SPEED SPI_BR_DIV4
 
-uint16_t spi_buffer[SPI_BUFFER_SIZE];
+pixel_t spi_buffer[SPI_BUFFER_SIZE];
 // Default foreground & background colors
 pixel_t foreground_color = 0;
 pixel_t background_color = 0;
