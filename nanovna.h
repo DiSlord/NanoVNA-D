@@ -549,9 +549,9 @@ extern  uint8_t redraw_request;
 // Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
 #ifdef __USE_DISPLAY_DMA__
 // Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
-#define DISPLAY_CELL_BUFFER_COUNT     1
+//#define DISPLAY_CELL_BUFFER_COUNT     1
 // Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
-//#define DISPLAY_CELL_BUFFER_COUNT     2
+#define DISPLAY_CELL_BUFFER_COUNT     2
 #else
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
