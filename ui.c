@@ -532,13 +532,14 @@ show_version(void)
     char buffer[32];
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d",
+    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d"  /*" (%s)"/**/,
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
       RTC_TR_HOUR(dr),
       RTC_TR_MIN(dr),
-      RTC_TR_SEC(dr));
+      RTC_TR_SEC(dr)/*,
+      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? "LSE" : "LSI"/**/);
     ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
@@ -552,6 +553,7 @@ show_version(void)
 void
 enter_dfu(void)
 {
+#if 1
   touch_stop_watchdog();
 
   int x = 5, y = 20;
@@ -564,6 +566,7 @@ enter_dfu(void)
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
+#endif
 }
 
 static void
@@ -1070,6 +1073,7 @@ menu_brightness(int item, uint8_t data)
   dacPutChannelX(&DACD2, 0, value);
   request_to_redraw_grid();
   ui_mode_normal();
+}
 #endif
 
 #ifdef __USE_SD_CARD__

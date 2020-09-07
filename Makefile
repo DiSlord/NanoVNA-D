@@ -207,7 +207,9 @@ CPPWARN = -Wall -Wextra -Wundef
 
 # List all user C define here, like -D_DEBUG=1
 UDEFS = -DSHELL_CMD_TEST_ENABLED=FALSE -DSHELL_CMD_MEM_ENABLED=FALSE -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\"
-#Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU
+#Enable if use RTC and need auto select source LSE or LSI
+UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
+#Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU and no VNA_AUTO_SELECT_RTC_SOURCE
 #UDEFS+= -DVNA_USE_LSE
 
 # Define ASM defines here
