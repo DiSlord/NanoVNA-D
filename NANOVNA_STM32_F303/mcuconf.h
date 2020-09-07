@@ -75,8 +75,6 @@
 // Use auto select source (LSE or LSI)
 //!!!! Need disable hal_lld_backup_domain_init() in hal_lld.c for current CPU!!!!
 //        And if need correct rtc_init part
-#define VNA_AUTO_SELECT_RTC_SOURCE
-
 #ifdef VNA_AUTO_SELECT_RTC_SOURCE
  #define STM32_LSEDRV                        (3 << 3)
  #define STM32_RTCSEL                        STM32_RTCSEL_NOCLOCK
