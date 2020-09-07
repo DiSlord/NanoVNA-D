@@ -532,13 +532,14 @@ show_version(void)
     char buffer[32];
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d",
+    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d"  /*" (%s)"/**/,
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
       RTC_TR_HOUR(dr),
       RTC_TR_MIN(dr),
-      RTC_TR_SEC(dr));
+      RTC_TR_SEC(dr)/*,
+      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? "LSE" : "LSI"/**/);
     ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
