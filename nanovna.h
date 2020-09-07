@@ -191,6 +191,7 @@ void set_sweep_frequency(int type, uint32_t frequency);
 uint32_t get_sweep_frequency(int type);
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
+void set_power(uint8_t value);
 
 double my_atof(const char *p);
 
@@ -611,8 +612,8 @@ typedef uint16_t pixel_t;
 #define DEFAULT_RISE_EDGE_COLOR     RGB565(255,255,255);
 #define DEFAULT_FALLEN_EDGE_COLOR   RGB565(128,128,128);
 
-extern uint16_t foreground_color;
-extern uint16_t background_color;
+extern pixel_t foreground_color;
+extern pixel_t background_color;
 
 extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 

@@ -532,13 +532,14 @@ show_version(void)
     char buffer[32];
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d",
+    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d"  " (%s)",
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
       RTC_TR_HOUR(dr),
       RTC_TR_MIN(dr),
-      RTC_TR_SEC(dr));
+      RTC_TR_SEC(dr),
+      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? "LSE" : "LSI");
     ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
@@ -616,7 +617,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
   switch (item) {
   case 3: // RESET
     cal_status = 0;
-    current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+    set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
     break;
   case 4: // CORRECTION
     // toggle applying correction
@@ -824,14 +825,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 {
   (void)item;
-  if (data > SI5351_CLK_DRIVE_STRENGTH_8MA) data = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   if (b){
     b->icon = current_props._power == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = 2+data*2;
     return;
   }
-  current_props._power = data;
-  draw_cal_status();
+  set_power(data);
   draw_menu();
 }
 

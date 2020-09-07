@@ -242,8 +242,10 @@ CPPWARN = -Wall -Wextra -Wundef
 # List all user C define here, like -D_DEBUG=1
 ifeq ($(TARGET),F303)
  UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303 -D__FPU_PRESENT -D__FPU_USED -DST7796S
-#Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU
-UDEFS+= -DVNA_USE_LSE
+#Enable if use RTC and need auto select source LSE or LSI
+UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
+#Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU and no VNA_AUTO_SELECT_RTC_SOURCE
+#UDEFS+= -DVNA_USE_LSE
 #-DCH_DBG_STATISTICS 
 else
  UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 
