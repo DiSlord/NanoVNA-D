@@ -119,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.27"
+#define VERSION "1.0.28"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -498,6 +498,13 @@ usage:
   shell_printf("usage: freq {frequency(Hz)}\r\n");
 }
 
+void set_power(uint8_t value){
+  if (value > SI5351_CLK_DRIVE_STRENGTH_8MA) value = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  if (current_props._power == value) return;
+  current_props._power = value;
+  redraw_request|=REDRAW_CAL_STATUS;
+}
+
 VNA_SHELL_FUNCTION(cmd_power)
 {
   if (argc == 0) {
@@ -508,7 +515,7 @@ VNA_SHELL_FUNCTION(cmd_power)
     shell_printf("usage: power {0-3}|{255 - auto}\r\n");
     return;
   }
-  current_props._power = my_atoui(argv[0]);
+  set_power(my_atoi(argv[0]));
 //  set_frequency(frequency);
 }
 
@@ -2344,7 +2351,7 @@ VNA_SHELL_FUNCTION(cmd_color)
     shell_printf("usage: color {id} {rgb24}\r\n");
     for (i=-3; i < TRACES_MAX; i++) {
 #if 0
-      switch(i) {
+      switch(i)f {
         case -3: color = config.grid_color; break;
         case -2: color = config.menu_normal_color; break;
         case -1: color = config.menu_active_color; break;
