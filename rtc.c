@@ -56,22 +56,28 @@ uint32_t rtc_get_FAT(void) {
   return fattime;
 }
 
-// Beginning of configuration procedure.
-static void rtc_enter_init(void){
-  RTC->ISR |= RTC_ISR_INIT;
-  while ((RTC->ISR & RTC_ISR_INITF) == 0)
-    ;
-}
-
 // Finish of configuration procedure.
 static void rtc_exit_init(void) {
   RTC->ISR &= ~RTC_ISR_INIT;
 }
 
+// Beginning of configuration procedure.
+static bool rtc_enter_init(void){
+  RTC->ISR |= RTC_ISR_INIT;
+  uint32_t count = 65536;
+  while (--count)
+    if (RTC->ISR & RTC_ISR_INITF)
+      return true;
+  return false;
+}
+
+
+
 void rtc_set_time(uint32_t dr, uint32_t tr) {
-  rtc_enter_init();
-  RTC->TR = tr;     // Write TR register
-  RTC->DR = dr;     // Write TD register
+  if (rtc_enter_init()){
+    RTC->TR = tr;     // Write TR register
+    RTC->DR = dr;     // Write TD register
+  }
   rtc_exit_init();
 }
 
@@ -146,11 +152,12 @@ void rtc_init(void){
                                                   STM32_RTC_LSI_PRER;
   // If calendar has not been initialized yet then proceed with the initial setup.
   if ((RTC->ISR & RTC_ISR_INITS) == 0 || RTC->PRER != rtc_prer) {
-    rtc_enter_init();
-    RTC->CR   = 0;
-    RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
-    RTC->PRER = rtc_prer;         // Prescaler value loaded in registers 2 times
-    RTC->PRER = rtc_prer;
+    if (rtc_enter_init()){
+      RTC->CR   = 0;
+      RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
+      RTC->PRER = rtc_prer;         // Prescaler value loaded in registers 2 times
+      RTC->PRER = rtc_prer;
+    }
     // Finalizing of configuration procedure.
     rtc_exit_init();
   }

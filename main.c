@@ -122,7 +122,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.28"
+#define VERSION "1.0.30"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -710,16 +710,13 @@ usage:
 config_t config = {
   .magic =             CONFIG_MAGIC,
   .dac_value =         1922,
-  .grid_color =        DEFAULT_GRID_COLOR,
-  .menu_normal_color = DEFAULT_MENU_COLOR,
-  .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
-  .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
+  .lcd_palette = LCD_DEFAULT_PALETTE,
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
 //  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  .vbat_offset = 120,
+  .vbat_offset = 320,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -865,6 +862,7 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
 //  START_PROFILE;
+  ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
@@ -899,10 +897,11 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
     if (config.bandwidth >= BANDWIDTH_100)
-      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
+      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
   }
+  ili9341_set_background(LCD_GRID_COLOR);
   if (config.bandwidth >= BANDWIDTH_100)
-    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1, DEFAULT_GRID_COLOR);
+    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -983,6 +982,7 @@ void set_sweep_points(uint16_t points){
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
 #define SCAN_MASK_BINARY         0b10000000
 
+static uint8_t scan_bin_mode = 0;
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   uint32_t start, stop;
@@ -1011,6 +1011,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
   if (argc == 4) {
     mask = my_atoui(argv[3]);
+    if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
     sweep_mode = (mask>>1)&3;
   }
 
@@ -1049,6 +1050,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
       }
     }
   }
+  scan_bin_mode = 0;
 }
 
 #define ENABLE_SCANBIN_COMMAND
@@ -1056,61 +1058,9 @@ VNA_SHELL_FUNCTION(cmd_scan)
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
 {
-  uint32_t start, stop;
-  uint16_t points = sweep_points;
-  int i;
-  if (argc < 2 || argc > 4) {
-    shell_printf("usage: scan_bin {start(Hz)} {stop(Hz)} [points] [outmask]\r\n");
-    return;
-  }
-
-  start = my_atoui(argv[0]);
-  stop = my_atoui(argv[1]);
-  if (start == 0 || stop == 0 || start > stop) {
-      shell_printf("frequency range is invalid\r\n");
-      return;
-  }
-  if (argc >= 3) {
-    points = my_atoui(argv[2]);
-    if (points == 0 || points > POINTS_COUNT) {
-      shell_printf("sweep points exceeds range "define_to_STR(POINTS_COUNT)"\r\n");
-      return;
-    }
-    sweep_points = points;
-  }
-  uint16_t mask = 0;
-  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
-  if (argc == 4) {
-    mask = my_atoui(argv[3]);
-    sweep_mode = (mask>>1)&3;
-  }
-
-  uint32_t old_cal_status = cal_status;
-  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
-  // Rebuild frequency table if need
-  if (frequencies[0]!=start || frequencies[points-1]!=stop){
-    set_frequencies(start, stop, points);
-    if (cal_status & CALSTAT_APPLY)
-      cal_interpolate();
-  }
-
-  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
-    sweep(false, sweep_mode);
-
-  cal_status = old_cal_status; // restore
-
-  pause_sweep();
-
-  streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
-  streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
-  // Output data after if set (faster data receive)
-  if (mask) {
-    for (i = 0; i < points; i++) {
-      if (mask & 1) streamWrite(shell_stream, (void *)&frequencies[i], 4);  // 4 bytes .. frequency
-      if (mask & 2) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2); // 8 bytes .. S11 real/imag
-      if (mask & 4) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
-    }
-  }
+  scan_bin_mode = 1;
+  cmd_scan(argc, argv);
+  scan_bin_mode = 0;
 }
 #endif
 
@@ -2352,40 +2302,20 @@ VNA_SHELL_FUNCTION(cmd_color)
   int i;
   if (argc != 2) {
     shell_printf("usage: color {id} {rgb24}\r\n");
-    for (i=-3; i < TRACES_MAX; i++) {
-#if 0
-      switch(i)f {
-        case -3: color = config.grid_color; break;
-        case -2: color = config.menu_normal_color; break;
-        case -1: color = config.menu_active_color; break;
-        default: color = config.trace_color[i];break;
-      }
-#else
-      // WARNING!!! Dirty hack for size, depend from config struct
-      color = config.trace_color[i];
-#endif
+    for (i=0; i < MAX_PALETTE; i++) {
+      color = GET_PALTETTE_COLOR(i);
       color = HEXRGB(color);
-      shell_printf("   %d: 0x%06x\r\n", i, color);
+      shell_printf(" %2d: 0x%06x\r\n", i, color);
     }
     return;
   }
   i = my_atoi(argv[0]);
-  if (i < -3 && i >= TRACES_MAX)
+  if (i >= MAX_PALETTE)
     return;
   color = RGBHEX(my_atoui(argv[1]));
-#if 0
-  switch(i) {
-    case -3: config.grid_color = color; break;
-    case -2: config.menu_normal_color = color; break;
-    case -1: config.menu_active_color = color; break;
-    default: config.trace_color[i] = color;break;
-  }
-#else
-  // WARNING!!! Dirty hack for size, depend from config struct
-  config.trace_color[i] = color;
-#endif
+  config.lcd_palette[i] = color;
   // Redraw all
-  redraw_request|= REDRAW_AREA;
+  redraw_request|= REDRAW_AREA|REDRAW_CAL_STATUS|REDRAW_FREQUENCY;
 }
 #endif
 
