@@ -119,7 +119,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.28"
+#define VERSION "1.0.30"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -707,10 +707,7 @@ usage:
 config_t config = {
   .magic =             CONFIG_MAGIC,
   .dac_value =         1922,
-  .grid_color =        DEFAULT_GRID_COLOR,
-  .menu_normal_color = DEFAULT_MENU_COLOR,
-  .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
-  .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
+  .lcd_palette = LCD_DEFAULT_PALETTE,
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
   .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
 //  .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
@@ -862,6 +859,7 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
 //  START_PROFILE;
+  ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
@@ -896,10 +894,11 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
     if (config.bandwidth >= BANDWIDTH_100)
-      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
+      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
   }
+  ili9341_set_background(LCD_GRID_COLOR);
   if (config.bandwidth >= BANDWIDTH_100)
-    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1, DEFAULT_GRID_COLOR);
+    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -2349,40 +2348,20 @@ VNA_SHELL_FUNCTION(cmd_color)
   int i;
   if (argc != 2) {
     shell_printf("usage: color {id} {rgb24}\r\n");
-    for (i=-3; i < TRACES_MAX; i++) {
-#if 0
-      switch(i)f {
-        case -3: color = config.grid_color; break;
-        case -2: color = config.menu_normal_color; break;
-        case -1: color = config.menu_active_color; break;
-        default: color = config.trace_color[i];break;
-      }
-#else
-      // WARNING!!! Dirty hack for size, depend from config struct
-      color = config.trace_color[i];
-#endif
+    for (i=0; i < MAX_PALETTE; i++) {
+      color = GET_PALTETTE_COLOR(i);
       color = HEXRGB(color);
-      shell_printf("   %d: 0x%06x\r\n", i, color);
+      shell_printf(" %2d: 0x%06x\r\n", i, color);
     }
     return;
   }
   i = my_atoi(argv[0]);
-  if (i < -3 && i >= TRACES_MAX)
+  if (i >= MAX_PALETTE)
     return;
   color = RGBHEX(my_atoui(argv[1]));
-#if 0
-  switch(i) {
-    case -3: config.grid_color = color; break;
-    case -2: config.menu_normal_color = color; break;
-    case -1: config.menu_active_color = color; break;
-    default: config.trace_color[i] = color;break;
-  }
-#else
-  // WARNING!!! Dirty hack for size, depend from config struct
-  config.trace_color[i] = color;
-#endif
+  config.lcd_palette[i] = color;
   // Redraw all
-  redraw_request|= REDRAW_AREA;
+  redraw_request|= REDRAW_AREA|REDRAW_CAL_STATUS|REDRAW_FREQUENCY;
 }
 #endif
 

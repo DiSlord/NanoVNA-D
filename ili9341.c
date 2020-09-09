@@ -504,11 +504,11 @@ void ili9341_bulk_finish(void){
 // Use DMA for send data
 //
 // Fill region by some color
-void ili9341_fill(int x, int y, int w, int h, pixel_t color)
+void ili9341_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y ,w, h);
   send_command(ILI9341_MEMORY_WRITE, 0, NULL);
-  dmaStreamSetMemory0(dmatx, &color);
+  dmaStreamSetMemory0(dmatx, &background_color);
 #if LCD_PIXEL_SIZE == 2
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD);
 #else
@@ -596,17 +596,17 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 
 void ili9341_clear_screen(void)
 {
-  ili9341_fill(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT, background_color);
+  ili9341_fill(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT);
 }
 
-void ili9341_set_foreground(pixel_t fg)
+void ili9341_set_foreground(uint16_t fg_idx)
 {
-  foreground_color = fg;
+  foreground_color = GET_PALTETTE_COLOR(fg_idx);
 }
 
-void ili9341_set_background(pixel_t bg)
+void ili9341_set_background(uint16_t bg_idx)
 {
-  background_color = bg; 
+  background_color = GET_PALTETTE_COLOR(bg_idx);
 }
 
 void ili9341_set_rotation(uint8_t r)
@@ -728,7 +728,7 @@ void ili9341_line(int x0, int y0, int x1, int y1)
     if (e2 <  dy) { err += dx; y0 += sy; }
   }
 #endif
-
+  SWAP(foreground_color, background_color);
   if (x0 > x1) {
     SWAP(x0, x1);
     SWAP(y0, y1);
@@ -753,12 +753,13 @@ void ili9341_line(int x0, int y0, int x1, int y1)
       }
     }
     if (dy > 0)
-      ili9341_fill(x0, y0, dx, dy, foreground_color);
+      ili9341_fill(x0, y0, dx, dy);
     else
-      ili9341_fill(x0, y0+dy, dx, -dy, foreground_color);
+      ili9341_fill(x0, y0+dy, dx, -dy);
     x0 += dx;
     y0 += dy;
   }
+  SWAP(foreground_color, background_color);
 }
 
 #if 0

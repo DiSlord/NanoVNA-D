@@ -408,6 +408,8 @@ extern int16_t area_height;
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
 
+#define MAX_PALETTE     24
+
 // trace 
 #define MAX_TRACE_TYPE 13
 enum trace_type {
@@ -456,19 +458,16 @@ typedef struct marker {
 
 typedef struct config {
   uint32_t magic;
-  uint16_t dac_value;
-  uint16_t grid_color;
-  uint16_t menu_normal_color;
-  uint16_t menu_active_color;
-  uint16_t trace_color[TRACES_MAX];
-  int16_t  touch_cal[4];
   uint32_t harmonic_freq_threshold;
+  uint16_t dac_value;
+  int16_t  touch_cal[4];
   uint16_t vbat_offset;
   uint16_t bandwidth;
+  uint16_t lcd_palette[MAX_PALETTE];
   uint8_t  freq_mode;
-  uint8_t _reserved[23];
+  uint8_t _reserved[49];
   uint32_t checksum;
-} config_t; // sizeof = 64
+} config_t; // sizeof = 124
 
 typedef struct properties {
   uint32_t magic;
@@ -594,21 +593,49 @@ typedef uint16_t pixel_t;
 #error "Define LCD pixel format"
 #endif
 
-#define DEFAULT_FG_COLOR            RGB565(255,255,255)
-#define DEFAULT_BG_COLOR            RGB565(  0,  0,  0)
-#define DEFAULT_GRID_COLOR          RGB565(128,128,128)
-#define DEFAULT_MENU_COLOR          RGB565(230,230,230)
-#define DEFAULT_MENU_TEXT_COLOR     RGB565(  0,  0,  0)
-#define DEFAULT_MENU_ACTIVE_COLOR   RGB565(210,210,210)
-#define DEFAULT_TRACE_1_COLOR       RGB565(255,255,  0)
-#define DEFAULT_TRACE_2_COLOR       RGB565(  0,255,255)
-#define DEFAULT_TRACE_3_COLOR       RGB565(  0,255,  0)
-#define DEFAULT_TRACE_4_COLOR       RGB565(255,  0,255)
-#define DEFAULT_NORMAL_BAT_COLOR    RGB565( 31,227,  0)
-#define DEFAULT_LOW_BAT_COLOR       RGB565(255,  0,  0)
-#define DEFAULT_SPEC_INPUT_COLOR    RGB565(128,255,128);
-#define DEFAULT_RISE_EDGE_COLOR     RGB565(255,255,255);
-#define DEFAULT_FALLEN_EDGE_COLOR   RGB565(196,196,196);
+#define LCD_BG_COLOR             0
+#define LCD_FG_COLOR             1
+#define LCD_GRID_COLOR           2
+#define LCD_MENU_COLOR           3
+#define LCD_MENU_TEXT_COLOR      4
+#define LCD_MENU_ACTIVE_COLOR    5
+#define LCD_TRACE_1_COLOR        6
+#define LCD_TRACE_2_COLOR        7
+#define LCD_TRACE_3_COLOR        8
+#define LCD_TRACE_4_COLOR        9
+#define LCD_NORMAL_BAT_COLOR    10
+#define LCD_LOW_BAT_COLOR       11
+#define LCD_SPEC_INPUT_COLOR    12
+#define LCD_RISE_EDGE_COLOR     13
+#define LCD_FALLEN_EDGE_COLOR   14
+#define LCD_SWEEP_LINE_COLOR    15
+#define LCD_BW_TEXT_COLOR       16
+#define LCD_INPUT_TEXT_COLOR    17
+#define LCD_INPUT_BG_COLOR      18
+
+#define LCD_DEFAULT_PALETTE {\
+[LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
+[LCD_FG_COLOR         ] = RGB565(255,255,255), \
+[LCD_GRID_COLOR       ] = RGB565(128,128,128), \
+[LCD_MENU_COLOR       ] = RGB565(230,230,230), \
+[LCD_MENU_TEXT_COLOR  ] = RGB565(  0,  0,  0), \
+[LCD_MENU_ACTIVE_COLOR] = RGB565(210,210,210), \
+[LCD_TRACE_1_COLOR    ] = RGB565(255,255,  0), \
+[LCD_TRACE_2_COLOR    ] = RGB565(  0,255,255), \
+[LCD_TRACE_3_COLOR    ] = RGB565(  0,255,  0), \
+[LCD_TRACE_4_COLOR    ] = RGB565(255,  0,255), \
+[LCD_NORMAL_BAT_COLOR ] = RGB565( 31,227,  0), \
+[LCD_LOW_BAT_COLOR    ] = RGB565(255,  0,  0), \
+[LCD_SPEC_INPUT_COLOR ] = RGB565(128,255,128), \
+[LCD_RISE_EDGE_COLOR  ] = RGB565(255,255,255), \
+[LCD_FALLEN_EDGE_COLOR] = RGB565(128,128,128), \
+[LCD_SWEEP_LINE_COLOR ] = RGB565(  0,  0,255), \
+[LCD_BW_TEXT_COLOR    ] = RGB565(128,128,128), \
+[LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
+[LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
+}
+
+#define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]
 
 extern pixel_t foreground_color;
 extern pixel_t background_color;
@@ -626,11 +653,11 @@ void ili9341_test(int mode);
 void ili9341_bulk(int x, int y, int w, int h);
 void ili9341_bulk_continue(int x, int y, int w, int h);
 void ili9341_bulk_finish(void);
-void ili9341_fill(int x, int y, int w, int h, pixel_t color);
+void ili9341_fill(int x, int y, int w, int h);
 pixel_t *ili9341_get_cell_buffer(void);
 
-void ili9341_set_foreground(pixel_t fg);
-void ili9341_set_background(pixel_t fg);
+void ili9341_set_foreground(uint16_t fg_idx);
+void ili9341_set_background(uint16_t bg_idx);
 void ili9341_clear_screen(void);
 void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void ili9341_drawchar(uint8_t ch, int x, int y);

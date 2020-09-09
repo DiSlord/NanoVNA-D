@@ -851,7 +851,7 @@ markmap_upperarea(void)
 // in most cases _compute_outcode clip calculation not give render line speedup
 //
 static inline void
-cell_drawline(int x0, int y0, int x1, int y1, int c)
+cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 {
   if (x0 < 0 && x1 < 0) return;
   if (y0 < 0 && y1 < 0) return;
@@ -1288,7 +1288,7 @@ draw_cell(int m, int n)
   int x, y;
   int i0, i1, i;
   int t;
-  uint16_t c;
+  pixel_t c;
   // Clip cell by area
   if (x0 + w > area_width)
     w = area_width - x0;
@@ -1308,21 +1308,40 @@ draw_cell(int m, int n)
 #if CELLWIDTH%8 != 0
 #error "CELLWIDTH % 8 should be == 0 for speed, or need rewrite cell cleanup"
 #endif
+#if LCD_PIXEL_SIZE == 2
   // Set DEFAULT_BG_COLOR for 8 pixels in one cycle
-  int count = h*CELLWIDTH / (16/sizeof(pixel_t));
+  int count = h*CELLWIDTH / 8;
   uint32_t *p = (uint32_t *)cell_buffer;
+  uint32_t clr = GET_PALTETTE_COLOR(LCD_BG_COLOR) | (GET_PALTETTE_COLOR(LCD_BG_COLOR) << 16);
   while (count--) {
-    p[0] = DEFAULT_BG_COLOR | (DEFAULT_BG_COLOR << 16);
-    p[1] = DEFAULT_BG_COLOR | (DEFAULT_BG_COLOR << 16);
-    p[2] = DEFAULT_BG_COLOR | (DEFAULT_BG_COLOR << 16);
-    p[3] = DEFAULT_BG_COLOR | (DEFAULT_BG_COLOR << 16);
+    p[0] = clr;
+    p[1] = clr;
+    p[2] = clr;
+    p[3] = clr;
     p += 4;
   }
+#elif  LCD_PIXEL_SIZE == 1
+  // Set DEFAULT_BG_COLOR for 16 pixels in one cycle
+  int count = h*CELLWIDTH / 16;
+  uint32_t *p = (uint32_t *)cell_buffer;
+  uint32_t clr = (GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 0)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 8) |
+                 (GET_PALTETTE_COLOR(LCD_BG_COLOR)<<16)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<<24);
+  while (count--) {
+    p[0] = clr;
+    p[1] = clr;
+    p[2] = clr;
+    p[3] = clr;
+    p += 4;
+  }
+#else
+#error "Write cell fill for different  LCD_PIXEL_SIZE"
+#endif
+
 #endif
 
 // Draw grid
 #if 1
-  c = config.grid_color;
+  c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
   // Generate grid type list
   uint32_t trace_type = 0;
   for (t = 0; t < TRACES_MAX; t++) {
@@ -1374,7 +1393,7 @@ draw_cell(int m, int n)
   for (t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
       continue;
-    c = config.trace_color[t];
+    c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     // draw polar plot (check all points)
     i0 = 0;
     i1 = 0;
@@ -1416,10 +1435,10 @@ draw_cell(int m, int n)
           y + MARKER_HEIGHT >= 0 && y - MARKER_HEIGHT < CELLHEIGHT){
 //        draw_marker(x, y, config.trace_color[t], i);
           // Draw marker plate
-          ili9341_set_foreground(config.trace_color[t]);
+          ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
           // Draw marker number
-          ili9341_set_foreground(DEFAULT_BG_COLOR);
+          ili9341_set_foreground(LCD_BG_COLOR);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(i+1));
       }
     }
@@ -1443,7 +1462,7 @@ draw_cell(int m, int n)
     if (x + REFERENCE_WIDTH >= 0 && x - REFERENCE_WIDTH < CELLWIDTH) {
       int y = HEIGHT - float2int((get_trace_refpos(t) * GRIDY)) - y0 - REFERENCE_Y_OFFSET;
       if (y + REFERENCE_HEIGHT >= 0 && y - REFERENCE_HEIGHT < CELLHEIGHT){
-        ili9341_set_foreground(config.trace_color[t]);
+        ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
         cell_blit_bitmap(x , y, REFERENCE_WIDTH, REFERENCE_HEIGHT, reference_bitmap);
       }
     }
@@ -1558,7 +1577,7 @@ cell_draw_marker_info(int x0, int y0)
       int xpos = 1 + (j%2)*(WIDTH/2) + CELLOFFSETX - x0;
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
-      ili9341_set_foreground(config.trace_color[t]);
+      ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
       if (mk == active_marker)
         cell_drawstring(S_SARROW, xpos, ypos);
       xpos += 5;
@@ -1580,7 +1599,7 @@ cell_draw_marker_info(int x0, int y0)
         trace_get_value_string_delta(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index, markers[active_marker].index);
       else
         trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index);
-      ili9341_set_foreground(DEFAULT_FG_COLOR);
+      ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
       j++;
     }
@@ -1592,14 +1611,14 @@ cell_draw_marker_info(int x0, int y0)
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
       plot_printf(buf, sizeof buf, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
-      ili9341_set_foreground(DEFAULT_FG_COLOR);
+      ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
       xpos += 27;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         uint32_t freq  = frequencies[idx];
         uint32_t freq1 = frequencies[idx0];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
-        plot_printf(buf, sizeof buf, "%c%.13qHz", freq >= freq1 ? '+' : '-', delta);
+        plot_printf(buf, sizeof buf, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
         plot_printf(buf, sizeof buf, "%Fs (%Fm)", time_of_index(idx) - time_of_index(idx0), distance_of_index(idx) - distance_of_index(idx0));
       }
@@ -1612,7 +1631,7 @@ cell_draw_marker_info(int x0, int y0)
       int xpos = 1 + (j%2)*(WIDTH/2) + CELLOFFSETX - x0;
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
-      ili9341_set_foreground(config.trace_color[t]);
+      ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
       if (t == uistat.current_trace)
         cell_drawstring(S_SARROW, xpos, ypos);
       xpos += 5;
@@ -1625,7 +1644,7 @@ cell_draw_marker_info(int x0, int y0)
       xpos += n * 5 + 2;
       //xpos += 60;
       trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], idx);
-      ili9341_set_foreground(DEFAULT_FG_COLOR);
+      ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
       j++;
     }
@@ -1634,7 +1653,7 @@ cell_draw_marker_info(int x0, int y0)
     int xpos = (WIDTH/2+40) + CELLOFFSETX - x0;
     int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
-    ili9341_set_foreground(DEFAULT_FG_COLOR);
+    ili9341_set_foreground(LCD_FG_COLOR);
     if (uistat.lever_mode == LM_MARKER)
       cell_drawstring(S_SARROW, xpos, ypos);
     xpos += 5;
@@ -1649,7 +1668,7 @@ cell_draw_marker_info(int x0, int y0)
     }
     cell_drawstring(buf, xpos, ypos);
   }
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
   if (electrical_delay != 0) {
     // draw electrical delay
     int xpos = 21 + CELLOFFSETX - x0;
@@ -1685,9 +1704,9 @@ draw_frequencies(void)
     plot_printf(buf1, sizeof(buf1), " START 0s");
     plot_printf(buf2, sizeof(buf2), "STOP %Fs (%Fm)", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
   }
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
-  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT);
   if (uistat.lever_mode == LM_CENTER)
     buf1[0] = S_SARROW[0];
   if (uistat.lever_mode == LM_SPAN)
@@ -1695,7 +1714,7 @@ draw_frequencies(void)
   ili9341_drawstring(buf1, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
   ili9341_drawstring(buf2, FREQUENCIES_XPOS2, FREQUENCIES_YPOS);
   plot_printf(buf1, sizeof(buf1), "bw:%uHz %up", get_bandwidth_frequency(config.bandwidth), sweep_points);
-  ili9341_set_foreground(DEFAULT_GRID_COLOR);
+  ili9341_set_foreground(LCD_BW_TEXT_COLOR);
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }
 
@@ -1705,9 +1724,9 @@ draw_cal_status(void)
   int x = 0;
   int y = 100;
   char c[3];
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
-  ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT), DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT));
   c[2] = 0;
   if (cal_status & CALSTAT_APPLY) {
     c[0] = cal_status & CALSTAT_INTERPOLATED ? 'c' : 'C';
@@ -1743,8 +1762,8 @@ static void draw_battery_status(void)
     return;
   uint8_t string_buf[16];
   // Set battery color
-  ili9341_set_foreground(vbat < BATTERY_WARNING_LEVEL ? DEFAULT_LOW_BAT_COLOR : DEFAULT_NORMAL_BAT_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_foreground(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
 //  plot_printf(string_buf, sizeof string_buf, "V:%d", vbat);
 //  ili9341_drawstringV(string_buf, 1, 60);
   // Prepare battery bitmap image
@@ -1777,7 +1796,7 @@ request_to_redraw_grid(void)
 void
 redraw_frame(void)
 {
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
   ili9341_clear_screen();
   draw_frequencies();
   draw_cal_status();
