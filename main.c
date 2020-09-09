@@ -979,6 +979,7 @@ void set_sweep_points(uint16_t points){
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
 #define SCAN_MASK_BINARY         0b10000000
 
+static uint8_t scan_bin_mode = 0;
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   uint32_t start, stop;
@@ -1007,6 +1008,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
   if (argc == 4) {
     mask = my_atoui(argv[3]);
+    if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
     sweep_mode = (mask>>1)&3;
   }
 
@@ -1045,6 +1047,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
       }
     }
   }
+  scan_bin_mode = 0;
 }
 
 #define ENABLE_SCANBIN_COMMAND
@@ -1052,61 +1055,9 @@ VNA_SHELL_FUNCTION(cmd_scan)
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
 {
-  uint32_t start, stop;
-  uint16_t points = sweep_points;
-  int i;
-  if (argc < 2 || argc > 4) {
-    shell_printf("usage: scan_bin {start(Hz)} {stop(Hz)} [points] [outmask]\r\n");
-    return;
-  }
-
-  start = my_atoui(argv[0]);
-  stop = my_atoui(argv[1]);
-  if (start == 0 || stop == 0 || start > stop) {
-      shell_printf("frequency range is invalid\r\n");
-      return;
-  }
-  if (argc >= 3) {
-    points = my_atoui(argv[2]);
-    if (points == 0 || points > POINTS_COUNT) {
-      shell_printf("sweep points exceeds range "define_to_STR(POINTS_COUNT)"\r\n");
-      return;
-    }
-    sweep_points = points;
-  }
-  uint16_t mask = 0;
-  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
-  if (argc == 4) {
-    mask = my_atoui(argv[3]);
-    sweep_mode = (mask>>1)&3;
-  }
-
-  uint32_t old_cal_status = cal_status;
-  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
-  // Rebuild frequency table if need
-  if (frequencies[0]!=start || frequencies[points-1]!=stop){
-    set_frequencies(start, stop, points);
-    if (cal_status & CALSTAT_APPLY)
-      cal_interpolate();
-  }
-
-  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
-    sweep(false, sweep_mode);
-
-  cal_status = old_cal_status; // restore
-
-  pause_sweep();
-
-  streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
-  streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
-  // Output data after if set (faster data receive)
-  if (mask) {
-    for (i = 0; i < points; i++) {
-      if (mask & 1) streamWrite(shell_stream, (void *)&frequencies[i], 4);  // 4 bytes .. frequency
-      if (mask & 2) streamWrite(shell_stream, (void *)&measured[0][i][0], 4 * 2); // 8 bytes .. S11 real/imag
-      if (mask & 4) streamWrite(shell_stream, (void *)&measured[1][i][0], 4 * 2);
-    }
-  }
+  scan_bin_mode = 1;
+  cmd_scan(argc, argv);
+  scan_bin_mode = 0;
 }
 #endif
 
