@@ -438,8 +438,8 @@ touch_cal_exec(void)
 {
   int x1, x2, y1, y2;
 
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
   ili9341_clear_screen();
   ili9341_line(0, 0, 0, 32);
   ili9341_line(0, 0, 32, 0);
@@ -471,8 +471,8 @@ touch_draw_test(void)
 {
   int x0, y0;
   int x1, y1;
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
   ili9341_clear_screen();
   ili9341_drawstring("TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH", OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT);
 
@@ -506,8 +506,8 @@ static void
 show_version(void)
 {
   int x = 5, y = 5, i = 1;
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
 
   ili9341_clear_screen();
   uint16_t shift = 0b000100000;
@@ -557,8 +557,8 @@ enter_dfu(void)
   touch_stop_watchdog();
 
   int x = 5, y = 20;
-  ili9341_set_foreground(DEFAULT_FG_COLOR);
-  ili9341_set_background(DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
   // leave a last message 
   ili9341_clear_screen();
   ili9341_drawstring("DFU: Device Firmware Update Mode\n"
@@ -581,14 +581,18 @@ select_lever_mode(int mode)
 static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
 {
   if (b){
-     if ((data == CAL_OPEN  && (cal_status & CALSTAT_OPEN))
-      || (data == CAL_SHORT && (cal_status & CALSTAT_SHORT))
-      || (data == CAL_LOAD  && (cal_status & CALSTAT_LOAD))
-      || (data == CAL_ISOLN && (cal_status & CALSTAT_ISOLN))
-      || (data == CAL_THRU  && (cal_status & CALSTAT_THRU)))
-          b->icon = BUTTON_ICON_CHECK;
+    static const uint8_t c_mask_list[5]={
+     [CAL_LOAD] = CALSTAT_LOAD,
+     [CAL_OPEN] = CALSTAT_OPEN,
+     [CAL_SHORT]= CALSTAT_SHORT,
+     [CAL_THRU] = CALSTAT_THRU,
+     [CAL_ISOLN]= CALSTAT_ISOLN,
+    };
+    if (cal_status & c_mask_list[data]) b->icon = BUTTON_ICON_CHECK;
     return;
   }
+  // TODO: Hack! reset button state
+  last_button = 0;
   cal_collect(data);
   selection = item+1;
 //  draw_cal_status();
@@ -708,8 +712,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   (void)item;
   if (b){
     if (trace[data].enabled){
-      b->bg = config.trace_color[data];
-      if (data == selection) b->fg = ~config.trace_color[data];
+      b->bg = LCD_TRACE_1_COLOR + data;
+      if (data == selection) b->bg = LCD_MENU_ACTIVE_COLOR;
       if (uistat.current_trace == data)
         b->icon = BUTTON_ICON_CHECK;
     }
@@ -1046,9 +1050,9 @@ menu_brightness(int item, uint8_t data)
   (void)item;
   (void)data;
   uint16_t value = config.dac_value;
-  ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40, config.menu_normal_color);
-  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
-  ili9341_set_background(config.menu_normal_color);
+  ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
+  ili9341_set_background(LCD_MENU_COLOR);
+  ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40);
   ili9341_drawstring(S_LARROW" BRIGHTNESS "S_RARROW, LCD_WIDTH/2-46, LCD_HEIGHT/2-6);
   while (TRUE) {
     int status = btn_check();
@@ -1640,28 +1644,29 @@ static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
   uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
-  ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2), b->bg);
+  ili9341_set_background(b->bg);ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
   if (bw==0) return;
-  uint16_t br = DEFAULT_RISE_EDGE_COLOR;
-  uint16_t bd = DEFAULT_FALLEN_EDGE_COLOR;
+  uint16_t br = LCD_RISE_EDGE_COLOR;
+  uint16_t bd = LCD_FALLEN_EDGE_COLOR;
   uint16_t type = b->border;
-  ili9341_fill(x,          y,           w, bw, type&BUTTON_BORDER_TOP    ? br : bd); // top
-  ili9341_fill(x + w - bw, y,          bw,  h, type&BUTTON_BORDER_RIGHT  ? br : bd); // right
-  ili9341_fill(x,          y,          bw,  h, type&BUTTON_BORDER_LEFT   ? br : bd); // left
-  ili9341_fill(x,          y + h - bw,  w, bw, type&BUTTON_BORDER_BOTTOM ? br : bd); // bottom
+  ili9341_set_background(type&BUTTON_BORDER_TOP    ? br : bd);ili9341_fill(x,          y,           w, bw); // top
+  ili9341_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);ili9341_fill(x + w - bw, y,          bw,  h); // right
+  ili9341_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);ili9341_fill(x,          y,          bw,  h); // left
+  ili9341_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);ili9341_fill(x,          y + h - bw,  w, bw); // bottom
 }
 
 void drawMessageBox(char *header, char *text, uint32_t delay){
   button_t b;
-  b.bg = config.menu_normal_color;
-  b.fg = DEFAULT_MENU_TEXT_COLOR;
+  b.bg = LCD_MENU_COLOR;
+  b.fg = LCD_MENU_TEXT_COLOR;
   b.border = BUTTON_BORDER_FLAT|1;
   draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-  ili9341_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3, DEFAULT_FG_COLOR);
+  ili9341_set_background(LCD_FG_COLOR);
+  ili9341_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
   ili9341_set_foreground(b.fg);
   ili9341_set_background(b.bg);
   ili9341_drawstring(header, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10, LCD_HEIGHT/2-40 + 5);
-  ili9341_set_background(DEFAULT_FG_COLOR);
+  ili9341_set_background(LCD_FG_COLOR);
   ili9341_drawstring(text, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20, LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14);
   chThdSleepMilliseconds(delay);
 }
@@ -1671,20 +1676,20 @@ draw_keypad(void)
 {
   int i = 0;
   button_t button;
-  button.fg = DEFAULT_MENU_TEXT_COLOR;
+  button.fg = LCD_MENU_TEXT_COLOR;
   while (keypads[i].c != KP_NONE) {
-    button.bg = config.menu_normal_color;
+    button.bg = LCD_MENU_COLOR;
     if (i == selection){
-      button.bg = config.menu_active_color;
+      button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
     }
     else
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
-    ili9341_set_foreground(button.fg);
-    ili9341_set_background(button.bg);
     int x = KP_GET_X(keypads[i].x);
     int y = KP_GET_Y(keypads[i].y);
     draw_button(x, y, KP_WIDTH, KP_HEIGHT, &button);
+    ili9341_set_foreground(button.fg);
+    ili9341_set_background(button.bg);
     ili9341_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
@@ -1695,9 +1700,9 @@ draw_keypad(void)
 static void
 draw_numeric_area_frame(void)
 {
-  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, DEFAULT_FG_COLOR);
-  ili9341_set_foreground(DEFAULT_MENU_TEXT_COLOR);
-  ili9341_set_background(DEFAULT_FG_COLOR);
+  ili9341_set_foreground(LCD_INPUT_TEXT_COLOR);
+  ili9341_set_background(LCD_INPUT_BG_COLOR);
+  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
   ili9341_drawstring(keypads_mode_tbl[keypad_mode].name, 10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2);
   //ili9341_drawfont(KP_KEYPAD, 300, 216);
 }
@@ -1711,8 +1716,8 @@ draw_numeric_input(const char *buf)
   uint16_t xsim = 0b0010010000000000;
 
   for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 10 && buf[i]; i++, xsim<<=1) {
-    uint16_t fg = DEFAULT_MENU_TEXT_COLOR;
-    uint16_t bg = DEFAULT_FG_COLOR;
+    uint16_t fg = LCD_INPUT_TEXT_COLOR;
+    uint16_t bg = LCD_INPUT_BG_COLOR;
     int c = buf[i];
     if (c == '.')
       c = KP_PERIOD;
@@ -1722,11 +1727,11 @@ draw_numeric_input(const char *buf)
       c = c - '0';
 #ifdef USE_NUMERIC_INPUT
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
-      fg = DEFAULT_SPEC_INPUT_COLOR;
+      fg = LCD_SPEC_INPUT_COLOR;
         focused = true;
       if (uistat.digit_mode){
-        bg = DEFAULT_SPEC_INPUT_COLOR;
-        fg = DEFAULT_MENU_TEXT_COLOR;
+        bg = LCD_SPEC_INPUT_COLOR;
+        fg = LCD_INPUT_TEXT_COLOR;
       }
     }
 #endif
@@ -1736,12 +1741,13 @@ draw_numeric_input(const char *buf)
     if (c >= 0) // c is number
       ili9341_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
     else        // erase
-      ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_WIDTH+2+8, bg);
+      ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_WIDTH+2+8);
 
     x += xsim&0x8000 ? NUM_FONT_GET_WIDTH+2+8 : NUM_FONT_GET_WIDTH+2;
   }
   // erase last
-  ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8, DEFAULT_FG_COLOR);
+  ili9341_set_background(LCD_INPUT_BG_COLOR);
+  ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8);
 }
 
 static int
@@ -1876,12 +1882,12 @@ draw_menu_buttons(const menuitem_t *menu)
       continue;
 
     button_t button;
-    button.bg = config.menu_normal_color;
-    button.fg = DEFAULT_MENU_TEXT_COLOR;
+    button.bg = LCD_MENU_COLOR;
+    button.fg = LCD_MENU_TEXT_COLOR;
     button.icon = BUTTON_ICON_NONE;
     // focus only in MENU mode but not in KEYPAD mode
     if (ui_mode == UI_MENU && i == selection){
-      button.bg = config.menu_active_color;
+      button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
     }
     else
@@ -1906,8 +1912,9 @@ draw_menu_buttons(const menuitem_t *menu)
     int lines = menu_is_multiline(button_text);
     ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
+  ili9341_set_background(LCD_BG_COLOR);
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
-    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, DEFAULT_BG_COLOR);
+    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT);
   }
 }
 
@@ -1952,7 +1959,8 @@ draw_menu(void)
 static void
 erase_menu_buttons(void)
 {
-//  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX, DEFAULT_BG_COLOR);
+//  ili9341_set_background(LCD_BG_COLOR);
+//  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
 }
 
 static void
@@ -1973,7 +1981,8 @@ ui_mode_menu(void)
 static void
 erase_numeric_input(void)
 {
-  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
 }
 
 static void
