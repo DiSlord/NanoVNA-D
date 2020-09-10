@@ -310,7 +310,7 @@ static void spi_init(void)
 }
 
 // Disable inline for this function
-static void send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
+static void ili9341_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
 //  while (SPI_IN_TX_RX(LCD_SPI))
@@ -342,7 +342,7 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
   // Set read speed (if need different)
   SPI_BR_SET(LCD_SPI, SPI_BR_DIV256);
   // Send
-  send_command(cmd, len, data);
+  ili9341_send_command(cmd, len, data);
 
   // Skip data from rx buffer
   spi_DropRx();
@@ -423,7 +423,7 @@ void ili9341_init(void)
   LCD_RESET_NEGATE;
   const uint8_t *p;
   for (p = ili9341_init_seq; *p; ) {
-    send_command(p[0], p[1], &p[2]);
+    ili9341_send_command(p[0], p[1], &p[2]);
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
   }
@@ -435,8 +435,8 @@ static void ili9341_setWindow(int x, int y, int w, int h){
 //uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
-  send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
-  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
+  ili9341_send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
+  ili9341_send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
 }
 
 #if 0
@@ -444,7 +444,7 @@ static void ili9341_setWindow(int x, int y, int w, int h){
 void ili9341_bulk_8bit(int x, int y, int w, int h, uint16_t *palette)
 {
   ili9341_setWindow(x, y ,w, h);
-  send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   uint8_t *buf = (uint8_t *)spi_buffer;
   int32_t len = w * h;
   do {
@@ -471,7 +471,7 @@ pixel_t *ili9341_get_cell_buffer(void){
 void ili9341_fill(int x, int y, int w, int h, pixel_t color)
 {
   ili9341_setWindow(x, y ,w, h);
-  send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   uint32_t len = w * h;
   do {
     while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
@@ -487,7 +487,7 @@ void ili9341_fill(int x, int y, int w, int h, pixel_t color)
 void ili9341_bulk(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y ,w, h);
-  send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   spi_TxBuffer((uint8_t *)spi_buffer, w * h * sizeof(pixel_t));
 }
 
@@ -507,7 +507,7 @@ void ili9341_bulk_finish(void){
 void ili9341_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y ,w, h);
-  send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   dmaStreamSetMemory0(dmatx, &background_color);
 #if LCD_PIXEL_SIZE == 2
   dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD);
@@ -524,7 +524,7 @@ void ili9341_bulk_finish(void){
 
 static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   ili9341_setWindow(x, y ,w, h);
-  send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
 
   dmaStreamSetMemory0(dmatx, buffer);
 #if LCD_PIXEL_SIZE == 2
@@ -561,7 +561,7 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
   ili9341_setWindow(x, y, w, h);
-  send_command(ILI9341_MEMORY_READ, 0, NULL);
+  ili9341_send_command(ILI9341_MEMORY_READ, 0, NULL);
   // Skip data from rx buffer
   spi_DropRx();
   // Set read speed (if need different)
@@ -613,7 +613,7 @@ void ili9341_set_rotation(uint8_t r)
 {
   //  static const uint8_t rotation_const[]={DISPLAY_ROTATION_0, DISPLAY_ROTATION_90,
   //  DISPLAY_ROTATION_180, DISPLAY_ROTATION_270};
-  send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &r);
+  ili9341_send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &r);
 }
 
 //static uint8_t bit_align = 0;
@@ -704,9 +704,9 @@ static void ili9341_pixel(int x, int y, uint16_t color)
 {
   uint32_t xx = __REV16(x|((x)<<16));
   uint32_t yy = __REV16(y|((y)<<16));
-  send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t*)&xx);
-  send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
-  send_command(ILI9341_MEMORY_WRITE, 2, &color);
+  ili9341_send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t*)&xx);
+  ili9341_send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
+  ili9341_send_command(ILI9341_MEMORY_WRITE, 2, &color);
 }
 #endif
 
@@ -789,7 +789,7 @@ void ili9341_test(int mode)
       }
       break;
     case 2:
-      //send_command16(0x55, 0xff00);
+      //ili9341_send_command(0x55, 0xff00);
       ili9341_pixel(64, 64, 0xaa55);
     break;
 #endif

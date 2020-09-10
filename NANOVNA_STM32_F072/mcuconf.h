@@ -59,6 +59,9 @@
 #define STM32_I2C1SW                        STM32_I2C1SW_SYSCLK
 #define STM32_USART1SW                      STM32_USART1SW_PCLK
 
+// Define STM32_I2C1_CLOCK as 48MHz (STM32_I2C1SW is STM32_I2C1SW_SYSCLK)
+#define STM32_I2C1_CLOCK                    48
+
 /*
  * RTC driver system settings for stm32f303
  */

@@ -90,6 +90,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_I2C_TIMINGS
 // Enable band setting command, used for debug
 //#define ENABLE_BAND_COMMAND
+// Enable scan_bin command (need use ex scan in future)
+#define ENABLE_SCANBIN_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -658,7 +660,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
   for (y = 0; y < LCD_HEIGHT; y += 2) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, 2, spi_buffer);
+    ili9341_read_memory(0, y, LCD_WIDTH, 2, (uint16_t *)spi_buffer);
     streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
   }
 }
@@ -979,7 +981,10 @@ void set_sweep_points(uint16_t points){
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
 #define SCAN_MASK_BINARY         0b10000000
 
+#ifdef ENABLE_SCANBIN_COMMAND
 static uint8_t scan_bin_mode = 0;
+#endif
+
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   uint32_t start, stop;
@@ -1008,7 +1013,9 @@ VNA_SHELL_FUNCTION(cmd_scan)
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
   if (argc == 4) {
     mask = my_atoui(argv[3]);
+#ifdef ENABLE_SCANBIN_COMMAND
     if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
+#endif
     sweep_mode = (mask>>1)&3;
   }
 
@@ -1049,8 +1056,6 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   scan_bin_mode = 0;
 }
-
-#define ENABLE_SCANBIN_COMMAND
 
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
@@ -2628,36 +2633,54 @@ THD_FUNCTION(myshellThread, p)
 }
 #endif
 
+// Define i2c bus speed, add predefined for 400k,600k,900k
+#define STM32_I2C_SPEED                     600
+
+#if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
+#if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)  |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+#endif
+#elif  STM32_I2C1_CLOCK == 48 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
+ #if   STM32_I2C_SPEED == 400 // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(5U)  |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+ #elif STM32_I2C_SPEED == 600 // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U)
+ #elif STM32_I2C_SPEED == 900 // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(23U)   | STM32_TIMINGR_SCLL(30U)
+ #endif
+#elif  STM32_I2C1_CLOCK == 72 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 72MHz)
+ #if   STM32_I2C_SPEED == 400 // ~400kHz @ SYSCLK 72MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U)
+ #elif STM32_I2C_SPEED == 600 // ~600kHz @ SYSCLK 72MHz, manually get values, x1.5 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(40U)   | STM32_TIMINGR_SCLL(80U)
+ #elif STM32_I2C_SPEED == 900 // ~900kHz @ SYSCLK 72MHz, manually get values, x2 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(40U)
+ #endif
+#endif
+
+#ifndef STM32_I2C_TIMINGR
+#error "Need define I2C bus TIMINGR settings"
+#endif
+
 // I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
 static const I2CConfig i2ccfg = {
-  .timingr =     // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
-#if STM32_I2C1SW == STM32_I2C1SW_HSI
-  // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
-  // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
-  STM32_TIMINGR_PRESC(0U)  |
-  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |
-  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
-  // Old values voodoo magic 400kHz @ HSI 8MHz
-  //0x00300506,
-#elif  STM32_I2C1SW == STM32_I2C1SW_SYSCLK
-  // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
-  // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
-//  STM32_TIMINGR_PRESC(5U)  |
-//  STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |
-//  STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U),
-  // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
-  STM32_TIMINGR_PRESC(0U)  |
-  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-  STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U),
-  // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
-//  STM32_TIMINGR_PRESC(0U)  |
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-//  STM32_TIMINGR_SCLH(23U)   | STM32_TIMINGR_SCLL(30U),
-#else
-#error "Need Define STM32_I2C1SW and set correct TIMINGR settings"
-#endif
-  .cr1 = 0,     // CR1 register initialization.
-  .cr2 = 0      // CR2 register initialization.
+  .timingr = STM32_I2C_TIMINGR,  // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
+  .cr1 = 0,                      // CR1 register initialization.
+  .cr2 = 0                       // CR2 register initialization.
 };
 
 static DACConfig dac1cfg1 = {
