@@ -62,6 +62,9 @@
 #define STM32_USB_CLOCK_REQUIRED            TRUE
 #define STM32_USBPRE                        STM32_USBPRE_DIV1P5
 
+// Define STM32_I2C1_CLOCK as 72MHz (STM32_I2C1SW is STM32_I2C1SW_SYSCLK)
+#define STM32_I2C1_CLOCK                    72
+
 /*
  * RTC driver system settings for stm32f303
  */
