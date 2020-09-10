@@ -93,6 +93,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_I2C_TIMINGS
 // Enable band setting command, used for debug
 //#define ENABLE_BAND_COMMAND
+// Enable scan_bin command (need use ex scan in future)
+#define ENABLE_SCANBIN_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -108,7 +110,6 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-static uint8_t drive_strength = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 int8_t  sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
@@ -123,15 +124,19 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.20"
+#define VERSION "1.0.30"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2020 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Version: " VERSION " ["define_to_STR(POINTS_COUNT)"p, "define_to_STR(FREQUENCY_IF_K)"k IF, "define_to_STR(AUDIO_ADC_FREQ_K)"k ADC]",
-  "Build Time: " __DATE__ " - " __TIME__,
+  "Version: " VERSION " ["\
+  "p:"define_to_STR(POINTS_COUNT)", "\
+  "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
+  "ADC:"define_to_STR(AUDIO_ADC_FREQ_K)"k, "\
+  "Lcd:"define_to_STR(LCD_WIDTH)"x"define_to_STR(LCD_HEIGHT)\
+  "]",  "Build Time: " __DATE__ " - " __TIME__,
   "Kernel: " CH_KERNEL_VERSION,
   "Compiler: " PORT_COMPILER_NAME,
   "Architecture: " PORT_ARCHITECTURE_NAME " Core Variant: " PORT_CORE_VARIANT_NAME,
@@ -232,8 +237,11 @@ kaiser_window(float k, float n, float beta)
 static void
 transform_domain(void)
 {
-  // use spi_buffer as temporary buffer
-  // and calculate ifft for time domain
+  // use spi_buffer as temporary buffer and calculate ifft for time domain
+  // Need 2 * sizeof(float) * FFT_SIZE bytes for work
+#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#error "Need increase spi_buffer or use less FFT_SIZE value"
+#endif
   float* tmp = (float*)spi_buffer;
 
   uint16_t window_size = sweep_points, offset = 0;
@@ -495,13 +503,24 @@ usage:
   shell_printf("usage: freq {frequency(Hz)}\r\n");
 }
 
+void set_power(uint8_t value){
+  if (value > SI5351_CLK_DRIVE_STRENGTH_8MA) value = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  if (current_props._power == value) return;
+  current_props._power = value;
+  redraw_request|=REDRAW_CAL_STATUS;
+}
+
 VNA_SHELL_FUNCTION(cmd_power)
 {
-  if (argc != 1) {
-    shell_printf("usage: power {0-3}\r\n");
+  if (argc == 0) {
+    shell_printf("power: %d\r\n", current_props._power);
     return;
   }
-  drive_strength = my_atoui(argv[0]);
+  if (argc != 1) {
+    shell_printf("usage: power {0-3}|{255 - auto}\r\n");
+    return;
+  }
+  set_power(my_atoi(argv[0]));
 //  set_frequency(frequency);
 }
 
@@ -518,7 +537,10 @@ VNA_SHELL_FUNCTION(cmd_time)
   //            0    1   2       4      5     6
   // time[] ={sec, min, hr, 0, day, month, year, 0}
   uint8_t   *time = (uint8_t*)dt_buf;
-
+  if (argc == 3 &&  get_str_index(argv[0], "b") == 0){
+    rtc_set_time(my_atoui(argv[1]), my_atoui(argv[2]));
+    return;
+  }
   if (argc!=2) goto usage;
   int idx = get_str_index(argv[0], time_cmd);
   uint32_t val = my_atoui(argv[1]);
@@ -529,8 +551,8 @@ VNA_SHELL_FUNCTION(cmd_time)
   rtc_set_time(dt_buf[1], dt_buf[0]);
   return;
 usage:
-  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n", time[6], time[5], time[4], time[2], time[1], time[0]);
-  shell_printf("usage: time [%s] 0-99\r\n", time_cmd);
+  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n"\
+               "usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time[6], time[5], time[4], time[2], time[1], time[0], time_cmd);
 }
 #endif
 
@@ -635,13 +657,13 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if SPI_BUFFER_SIZE < (3*LCD_WIDTH + 1)
+#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (2*LCD_WIDTH*2)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
   // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
   for (y = 0; y < LCD_HEIGHT; y += 2) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, 2, 2 * LCD_WIDTH, spi_buffer);
+    ili9341_read_memory(0, y, LCD_WIDTH, 2, (uint16_t *)spi_buffer);
     streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
   }
 }
@@ -690,16 +712,13 @@ usage:
 config_t config = {
   .magic =             CONFIG_MAGIC,
   .dac_value =         1922,
-  .grid_color =        DEFAULT_GRID_COLOR,
-  .menu_normal_color = DEFAULT_MENU_COLOR,
-  .menu_active_color = DEFAULT_MENU_ACTIVE_COLOR,
-  .trace_color =       { DEFAULT_TRACE_1_COLOR, DEFAULT_TRACE_2_COLOR, DEFAULT_TRACE_3_COLOR, DEFAULT_TRACE_4_COLOR },
+  .lcd_palette = LCD_DEFAULT_PALETTE,
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-//  .touch_cal =        { 338, 522, 153, 192 },  // 2.8 inch LCD panel
+//  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   .freq_mode = FREQ_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  .vbat_offset = 500,
+  .vbat_offset = 320,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -737,6 +756,7 @@ void load_default_properties(void)
   current_props._active_marker   = 0;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
+  current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 //Checksum add on caldata_save
 //current_props.checksum = 0;
 }
@@ -844,6 +864,7 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
 //  START_PROFILE;
+  ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
@@ -878,10 +899,11 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
     if (config.bandwidth >= BANDWIDTH_100)
-      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1, RGB565(0,0,255));
+      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
   }
+  ili9341_set_background(LCD_GRID_COLOR);
   if (config.bandwidth >= BANDWIDTH_100)
-    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1, DEFAULT_GRID_COLOR);
+    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -914,11 +936,11 @@ VNA_SHELL_FUNCTION(cmd_gain)
 
 static int set_frequency(uint32_t freq)
 {
-  return si5351_set_frequency(freq, drive_strength);
+  return si5351_set_frequency(freq, current_props._power);
 }
 
 void set_bandwidth(uint16_t bw_count){
-  config.bandwidth = bw_count&0xFF;
+  config.bandwidth = bw_count&0x1FF;
   redraw_request|=REDRAW_FREQUENCY;
 }
 
@@ -926,11 +948,23 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
   return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
 }
 
+#define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)
+#define MIN_BANDWIDTH      ((AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/512 + 1)
+
 VNA_SHELL_FUNCTION(cmd_bandwidth)
 {
-  if (argc != 1)
+  int user_bw;
+  if (argc == 1)
+    user_bw = my_atoui(argv[0]);
+  else if (argc == 2){
+    int f = my_atoui(argv[0]);
+         if (f > MAX_BANDWIDTH) user_bw = 0;
+    else if (f < MIN_BANDWIDTH) user_bw = 511;
+    else user_bw = ((AUDIO_ADC_FREQ+AUDIO_SAMPLES_COUNT/2)/AUDIO_SAMPLES_COUNT)/f - 1;
+  }
+  else
     goto result;
-  set_bandwidth(my_atoui(argv[0]));
+  set_bandwidth(user_bw);
 result:
   shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency(config.bandwidth));
 }
@@ -943,6 +977,16 @@ void set_sweep_points(uint16_t points){
   update_frequencies(cal_status & CALSTAT_APPLY);
 
 }
+
+#define SCAN_MASK_OUT_FREQ       0b00000001
+#define SCAN_MASK_OUT_DATA0      0b00000010
+#define SCAN_MASK_OUT_DATA1      0b00000100
+#define SCAN_MASK_NO_CALIBRATION 0b00001000
+#define SCAN_MASK_BINARY         0b10000000
+
+#ifdef ENABLE_SCANBIN_COMMAND
+static uint8_t scan_bin_mode = 0;
+#endif
 
 VNA_SHELL_FUNCTION(cmd_scan)
 {
@@ -972,23 +1016,58 @@ VNA_SHELL_FUNCTION(cmd_scan)
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
   if (argc == 4) {
     mask = my_atoui(argv[3]);
+#ifdef ENABLE_SCANBIN_COMMAND
+    if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
+#endif
     sweep_mode = (mask>>1)&3;
   }
-  set_frequencies(start, stop, points);
-  if (cal_status & CALSTAT_APPLY)
-    cal_interpolate();
+
+  uint32_t old_cal_status = cal_status;
+  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
+  // Rebuild frequency table if need
+  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+    set_frequencies(start, stop, points);
+    if (cal_status & CALSTAT_APPLY)
+      cal_interpolate();
+  }
+
+  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_mode);
+
+  cal_status = old_cal_status; // restore
+
   pause_sweep();
-  sweep(false, sweep_mode);
-  // Output data after if set (faster data recive)
+  // Output data after if set (faster data receive)
   if (mask) {
-    for (i = 0; i < points; i++) {
-      if (mask & 1) shell_printf("%u ", frequencies[i]);
-      if (mask & 2) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
-      if (mask & 4) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
-      shell_printf("\r\n");
+    if (mask&SCAN_MASK_BINARY){
+      streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
+      streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(uint32_t));  // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
+        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
+      }
+    }
+    else{
+      for (i = 0; i < points; i++) {
+        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", frequencies[i]);
+        if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
+        if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
+        shell_printf("\r\n");
+      }
     }
   }
+  scan_bin_mode = 0;
 }
+
+#ifdef ENABLE_SCANBIN_COMMAND
+VNA_SHELL_FUNCTION(cmd_scan_bin)
+{
+  scan_bin_mode = 1;
+  cmd_scan(argc, argv);
+  scan_bin_mode = 0;
+}
+#endif
 
 static void
 update_marker_index(void)
@@ -2228,45 +2307,20 @@ VNA_SHELL_FUNCTION(cmd_color)
   int i;
   if (argc != 2) {
     shell_printf("usage: color {id} {rgb24}\r\n");
-    for (i=-3; i < TRACES_MAX; i++) {
-#if 0
-      switch(i) {
-        case -3: color = config.grid_color; break;
-        case -2: color = config.menu_normal_color; break;
-        case -1: color = config.menu_active_color; break;
-        default: color = config.trace_color[i];break;
-      }
-#else
-      // WARNING!!! Dirty hack for size, depend from config struct
-      color = config.trace_color[i];
-#endif
-      color = ((color >>  3) & 0x001c00) |
-              ((color >>  5) & 0x0000f8) |
-              ((color << 16) & 0xf80000) |
-              ((color << 13) & 0x00e000);
-//    color = (color>>8)|(color<<8);
-//    color = ((color<<8)&0xF80000)|((color<<5)&0x00FC00)|((color<<3)&0x0000F8);
-      shell_printf("   %d: 0x%06x\r\n", i, color);
+    for (i=0; i < MAX_PALETTE; i++) {
+      color = GET_PALTETTE_COLOR(i);
+      color = HEXRGB(color);
+      shell_printf(" %2d: 0x%06x\r\n", i, color);
     }
     return;
   }
   i = my_atoi(argv[0]);
-  if (i < -3 && i >= TRACES_MAX)
+  if (i >= MAX_PALETTE)
     return;
   color = RGBHEX(my_atoui(argv[1]));
-#if 0
-  switch(i) {
-    case -3: config.grid_color = color; break;
-    case -2: config.menu_normal_color = color; break;
-    case -1: config.menu_active_color = color; break;
-    default: config.trace_color[i] = color;break;
-  }
-#else
-  // WARNING!!! Dirty hack for size, depend from config struct
-  config.trace_color[i] = color;
-#endif
+  config.lcd_palette[i] = color;
   // Redraw all
-  redraw_request|= REDRAW_AREA;
+  redraw_request|= REDRAW_AREA|REDRAW_CAL_STATUS|REDRAW_FREQUENCY;
 }
 #endif
 
@@ -2376,6 +2430,9 @@ typedef struct {
 static const VNAShellCommand commands[] =
 {
     {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#ifdef ENABLE_SCANBIN_COMMAND
+    {"scan_bin"    , cmd_scan_bin    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
@@ -2520,15 +2577,26 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 // Parse and run command line
 //
+
+// #define DEBUG_CONSOLE_SHOW
+
+#ifdef DEBUG_CONSOLE_SHOW
+void debug_log(int offs, char *log){
+  static uint16_t shell_line_y = 0;
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  shell_line_y+=FONT_STR_HEIGHT;
+  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
+}
+#endif
+
 static void VNAShell_executeLine(char *line)
 {
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-#if 0 // debug console log
-  ili9341_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
-  ili9341_drawstring(lp, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
-  osalThreadSleepMilliseconds(1000);
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+  debug_log(0, lp);
 #endif
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
@@ -2564,6 +2632,9 @@ static void VNAShell_executeLine(char *line)
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
       }
+#ifdef DEBUG_CONSOLE_SHOW // debug console log
+      debug_log(10, "ok");
+#endif
       return;
     }
   }
@@ -2587,20 +2658,54 @@ THD_FUNCTION(myshellThread, p)
 }
 #endif
 
+// Define i2c bus speed, add predefined for 400k,600k,900k
+#define STM32_I2C_SPEED                     600
+
+#if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
+#if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)  |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+#endif
+#elif  STM32_I2C1_CLOCK == 48 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
+ #if   STM32_I2C_SPEED == 400 // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(5U)  |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+ #elif STM32_I2C_SPEED == 600 // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U)
+ #elif STM32_I2C_SPEED == 900 // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(23U)   | STM32_TIMINGR_SCLL(30U)
+ #endif
+#elif  STM32_I2C1_CLOCK == 72 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 72MHz)
+ #if   STM32_I2C_SPEED == 400 // ~400kHz @ SYSCLK 72MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U)
+ #elif STM32_I2C_SPEED == 600 // ~600kHz @ SYSCLK 72MHz, manually get values, x1.5 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(40U)   | STM32_TIMINGR_SCLL(80U)
+ #elif STM32_I2C_SPEED == 900 // ~900kHz @ SYSCLK 72MHz, manually get values, x2 I2C speed
+ #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
+                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(40U)
+ #endif
+#endif
+
+#ifndef STM32_I2C_TIMINGR
+#error "Need define I2C bus TIMINGR settings"
+#endif
+
 // I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
 static const I2CConfig i2ccfg = {
-  .timingr  = STM32_TIMINGR_PRESC(0U)  |
-  // 72MHz I2CCLK. ~ 400kHz i2c
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-//  STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U),
-  // 72MHz I2CCLK. ~ 600kHz i2c
-  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-  STM32_TIMINGR_SCLH(40U)   | STM32_TIMINGR_SCLL(80U),
-  // 72MHz I2CCLK. ~ 900kHz i2c
-//  STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |
-//  STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U),
-  .cr1      = 0,
-  .cr2      = 0
+  .timingr = STM32_I2C_TIMINGR,  // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
+  .cr1 = 0,                      // CR1 register initialization.
+  .cr2 = 0                       // CR2 register initialization.
 };
 
 static DACConfig dac1cfg1 = {

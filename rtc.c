@@ -56,90 +56,112 @@ uint32_t rtc_get_FAT(void) {
   return fattime;
 }
 
-void rtc_set_time(uint32_t dr, uint32_t tr) {
-  // Beginning of configuration procedure.
-  RTC->ISR |= RTC_ISR_INIT;
-  while ((RTC->ISR & RTC_ISR_INITF) == 0)
-    ;
-  // Writing the registers.
-  RTC->TR = tr;
-  RTC->DR = dr;
+// Finish of configuration procedure.
+static void rtc_exit_init(void) {
   RTC->ISR &= ~RTC_ISR_INIT;
 }
 
-#define RTC_PRER(a, s)              ((((a) - 1) << 16) | ((s) - 1))
+// Beginning of configuration procedure.
+static bool rtc_enter_init(void){
+  RTC->ISR |= RTC_ISR_INIT;
+  uint32_t count = 65536;
+  while (--count)
+    if (RTC->ISR & RTC_ISR_INITF)
+      return true;
+  return false;
+}
 
-// Initiate RTC clock, LSE or LSI generators initiate by ChibiOS !!!
-void rtc_init(void){
-  // Disable write protection.
-  RTC->WPR = 0xCA;
-  RTC->WPR = 0x53;
-  // If calendar has not been initialized yet then proceed with the initial setup.
-  if (!(RTC->ISR & RTC_ISR_INITS)) {
-    // Beginning of configuration procedure.
-    RTC->ISR |= RTC_ISR_INIT;
-    while ((RTC->ISR & RTC_ISR_INITF) == 0)
-      ;
-    RTC->CR   = 0;
-    RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
-    RTC->PRER = RTC_PRER(STM32_RTC_PRESA_VALUE, STM32_RTC_PRESS_VALUE);
-    RTC->PRER = RTC_PRER(STM32_RTC_PRESA_VALUE, STM32_RTC_PRESS_VALUE);
-    RTC->ISR &= ~RTC_ISR_INIT;
+
+
+void rtc_set_time(uint32_t dr, uint32_t tr) {
+  if (rtc_enter_init()){
+    RTC->TR = tr;     // Write TR register
+    RTC->DR = dr;     // Write TD register
   }
-  else
-    RTC->ISR &= ~RTC_ISR_RSF;
-#if 0
-  // ChibiOS init BDCR by self!!
+  rtc_exit_init();
+}
+
+#ifdef VNA_AUTO_SELECT_RTC_SOURCE
+
+// Enable LSE bypass if need
+#if defined(STM32_LSE_BYPASS)
+#define STM32_LSE_BYPASS     RCC_BDCR_LSEBYP
+#else
+#define STM32_LSE_BYPASS     0
+#endif
+
+// Startup LSE or if not work, LSI generator
+static void rtc_start_source(void){
+  // LSE already work (enabled and ready)
+  if ((RCC->BDCR & (RCC_BDCR_LSEON|RCC_BDCR_LSERDY|STM32_LSE_BYPASS)) == (RCC_BDCR_LSEON|RCC_BDCR_LSERDY|STM32_LSE_BYPASS))
+    return;
+  // If LSE not enabled, try startup
+  RCC->BDCR |= STM32_LSEDRV | STM32_LSE_BYPASS | RCC_BDCR_LSEON;
+  uint32_t count = 65536;
+  // Waits until LSE is stable. or count == 0
+  do{
+    if (RCC->BDCR & RCC_BDCR_LSERDY) return;
+  }while (--count);
+  // Startup LSI if not allow start LSE
+  RCC->CSR |= RCC_CSR_LSION;
+  while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
+}
+
+void auto_backup_domain_init(void){
+  // Init Backup domain, RTC clock source
+  uint32_t rtc_drv;
+  // Backup domain access enabled and left open.
+  PWR->CR |= PWR_CR_DBP;
+  // Start/check source
+  rtc_start_source();
+  // Check LSE ready, if ok, select as source
+  rtc_drv = RCC->BDCR & RCC_BDCR_LSERDY ? STM32_RTCSEL_LSE|RCC_BDCR_RTCEN :  // Select LSE as source
+                                          STM32_RTCSEL_LSI|RCC_BDCR_RTCEN;   // Select LSI as source
+  // If the backup domain hasn't been initialized yet or work on different source, then proceed with initialization
+  if ((RCC->BDCR & (STM32_RTCSEL_MASK|RCC_BDCR_RTCEN)) != rtc_drv)
+  {
+    // Backup domain reset, for change source.
+    RCC->BDCR = RCC_BDCR_BDRST;
+    RCC->BDCR = 0;
+    // Startup again source generator
+    rtc_start_source();
+    // Select new clock source. And enable
+    RCC->BDCR|= rtc_drv;
+  }
+}
+#endif
+
+// Initiate RTC clock
+void rtc_init(void){
+#ifdef VNA_AUTO_SELECT_RTC_SOURCE
+  // Auto start LSE or LSI source for RTC
+  auto_backup_domain_init();
+#else
+  // ChibiOS init BDCR LSE or LSI source by self from user defined source
   // For add auto select RTC source need rewrite it
   // see hal_lld_backup_domain_init() in hal_lld.c for every CPU
   // Default RTC clock is LSE, but it possible not launch if no quartz installed
-  uint32_t rtc_drv  = STM32_RTCSEL_LSI;
-  uint32_t rtc_prer = RTC_PRER(40, 1000);
-
-  // If LSE off try launch it
-  if ((RCC->BDCR & RCC_BDCR_LSEON) == 0){
-    // Try start LSE
-    RCC->BDCR |= STM32_LSEDRV | RCC_BDCR_LSEON;
-    uint32_t count = 65535;
-    do{
-      if (RCC->BDCR & RCC_BDCR_LSERDY) break;
-    }while (--count);// Waits until LSE is stable. or count == 0
-  }
-  // Check, if LSE ready, then prepare it data
-  if (RCC->BDCR & RCC_BDCR_LSERDY){
-    rtc_drv = STM32_RTCSEL_LSE;
-    rtc_prer = RTC_PRER(32, 1024);
-  } else{
-    // Try start LSI
-    RCC->CSR |= RCC_CSR_LSION;
-    while ((RCC->CSR & RCC_CSR_LSIRDY) == 0)
-      ;
-  }
-
-  PWR->CR |= PWR_CR_DBP;
-  // If the backup domain hasn't been initialized yet then proceed with initialization or source different
-  if ((RCC->BDCR & RCC_BDCR_RTCEN) == 0 || (RCC->BDCR & STM32_RTCSEL_MASK)!=rtc_drv) {
-    // Backup domain reset.
-    RCC->BDCR = RCC_BDCR_BDRST;
-    RCC->BDCR = 0;
-    // Selects clock source.
-    RCC->BDCR |= rtc_drv;
-    // Disable write protection.
-    RTC->WPR = 0xCA;
-    RTC->WPR = 0x53;
-    // Beginning of configuration procedure.
-    RTC->ISR |= RTC_ISR_INIT;
-    while ((RTC->ISR & RTC_ISR_INITF) == 0)
-      ;
-    // Prescaler value loaded in registers.
-    RTC->CR   = 0;
-    RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
-    RTC->PRER = rtc_prer;
-    RTC->PRER = rtc_prer;
+#endif
+  uint32_t src = RCC->BDCR & STM32_RTCSEL_MASK;
+  if (src == STM32_RTCSEL_NOCLOCK) return;
+  // If calendar has not been initialized yet or different PRER settings then proceed with the initial setup.
+  // Disable write protection.
+  RTC->WPR = 0xCA;
+  RTC->WPR = 0x53;
+  uint32_t rtc_prer = (src == STM32_RTCSEL_LSE) ? STM32_RTC_LSE_PRER :
+                                                  STM32_RTC_LSI_PRER;
+  // If calendar has not been initialized yet then proceed with the initial setup.
+  if ((RTC->ISR & RTC_ISR_INITS) == 0 || RTC->PRER != rtc_prer) {
+    if (rtc_enter_init()){
+      RTC->CR   = 0;
+      RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
+      RTC->PRER = rtc_prer;         // Prescaler value loaded in registers 2 times
+      RTC->PRER = rtc_prer;
+    }
     // Finalizing of configuration procedure.
-    RTC->ISR &= ~RTC_ISR_INIT;
-    RCC->BDCR |= RCC_BDCR_RTCEN;  // RTC clock enabled.
+    rtc_exit_init();
   }
-#endif
+  else
+    RTC->ISR &= ~RTC_ISR_RSF;
 }
-#endif
+#endif // __USE_RTC__

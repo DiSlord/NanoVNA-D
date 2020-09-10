@@ -22,6 +22,7 @@
 
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
+#define __LCD_BRIGHTNESS__
 // Add RTC clock support
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
@@ -190,6 +191,7 @@ void set_sweep_frequency(int type, uint32_t frequency);
 uint32_t get_sweep_frequency(int type);
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
+void set_power(uint8_t value);
 
 double my_atof(const char *p);
 
@@ -224,17 +226,19 @@ extern const char *info_about[];
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 192kHz one measure give 192000/48=4000Hz
 // Define additional measure count for menus
 #if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 16000
-#define BANDWIDTH_1000            (  1 - 1)
-#define BANDWIDTH_333             (  3 - 1)
-#define BANDWIDTH_100             ( 10 - 1)
-#define BANDWIDTH_30              ( 33 - 1)
-#define BANDWIDTH_10              (100 - 1)
+#define BANDWIDTH_8000            (  1 - 1)
+#define BANDWIDTH_4000            (  2 - 1)
+#define BANDWIDTH_1000            (  8 - 1)
+#define BANDWIDTH_333             ( 24 - 1)
+#define BANDWIDTH_100             ( 80 - 1)
+#define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 8000
-#define BANDWIDTH_1000            (  1 - 1)
-#define BANDWIDTH_333             (  3 - 1)
-#define BANDWIDTH_100             ( 10 - 1)
-#define BANDWIDTH_30              ( 33 - 1)
-#define BANDWIDTH_10              (100 - 1)
+#define BANDWIDTH_8000            (  1 - 1)
+#define BANDWIDTH_4000            (  2 - 1)
+#define BANDWIDTH_1000            (  8 - 1)
+#define BANDWIDTH_333             ( 24 - 1)
+#define BANDWIDTH_100             ( 80 - 1)
+#define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
 #define BANDWIDTH_2000            (  2 - 1)
@@ -285,6 +289,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define LCD_WIDTH                   480
 #define LCD_HEIGHT                  320
 
+// Define maximum distance in pixel for pickup marker (can be bigger for big displays)
+#define MARKER_PICKUP_DISTANCE    20
 // Used marker size settings
 #define _USE_BIG_MARKER_     1
 // Used font settings
@@ -402,6 +408,8 @@ extern int16_t area_height;
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
 
+#define MAX_PALETTE     24
+
 // trace 
 #define MAX_TRACE_TYPE 13
 enum trace_type {
@@ -418,6 +426,11 @@ enum trace_type {
 // SWR: SCALE, REFPOS, REFVAL
 // Electrical Delay
 // Phase
+
+// marker smith value format
+enum marker_smithvalue {
+  MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
+};
 
 // config.freq_mode flags
 #define FREQ_MODE_START_STOP    0x0
@@ -445,20 +458,16 @@ typedef struct marker {
 
 typedef struct config {
   uint32_t magic;
-  uint16_t dac_value;
-  uint16_t grid_color;
-  uint16_t menu_normal_color;
-  uint16_t menu_active_color;
-  uint16_t trace_color[TRACES_MAX];
-  int16_t  touch_cal[4];
   uint32_t harmonic_freq_threshold;
+  uint16_t dac_value;
+  int16_t  touch_cal[4];
   uint16_t vbat_offset;
   uint16_t bandwidth;
+  uint16_t lcd_palette[MAX_PALETTE];
   uint8_t  freq_mode;
-  uint8_t _reserved[23];
-
+  uint8_t _reserved[49];
   uint32_t checksum;
-} config_t; // sizeof = 64
+} config_t; // sizeof = 124
 
 typedef struct properties {
   uint32_t magic;
@@ -477,7 +486,8 @@ typedef struct properties {
   int8_t _active_marker;
   uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
   uint8_t _marker_smith_format;
-  uint8_t _reserved[40];
+  uint8_t _power;
+  uint8_t _reserved[39];
   uint32_t checksum;
 } properties_t;
 //on POINTS_COUNT = 201, sizeof(properties_t) == 0x2000
@@ -535,34 +545,103 @@ extern  uint8_t redraw_request;
 /*
  * ili9341.c
  */
+// Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
+#ifdef __USE_DISPLAY_DMA__
+// Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
+//#define DISPLAY_CELL_BUFFER_COUNT     1
+// Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
+#define DISPLAY_CELL_BUFFER_COUNT     2
+#else
+// Always one if no DMA mode
+#define DISPLAY_CELL_BUFFER_COUNT     1
+#endif
+
+// Define LCD pixel format
+//#define LCD_8BIT_MODE
+#define LCD_16BIT_MODE
+
+#ifdef LCD_8BIT_MODE
+typedef uint8_t pixel_t;
+//  8-bit RRRGGGBB
+//#define RGB332(r,g,b)  ( (((r)&0xE0)>>0) | (((g)&0xE0)>>3) | (((b)&0xC0)>>5))
+#define RGB565(r,g,b)  ( (((r)&0xE0)>>0) | (((g)&0xE0)>>3) | (((b)&0xC0)>>6))
+#define RGBHEX(hex)    ( (((hex)&0xE00000)>>16) | (((hex)&0x00E000)>>11) | (((hex)&0x0000C0)>>6) )
+#define HEXRGB(hex)    ( (((hex)<<16)&0xE00000) | (((hex)<<11)&0x00E000) | (((hex)<<6)&0x0000C0) )
+#define LCD_PIXEL_SIZE        1
+// Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
+#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLHEIGHT (64)
+// Define size of screen buffer in pixel_t
+#define SPI_BUFFER_SIZE             4096
+#endif
+
+#ifdef LCD_16BIT_MODE
+typedef uint16_t pixel_t;
 // SPI bus revert byte order
-//gggBBBbb RRRrrGGG
+// 16-bit gggBBBbb RRRrrGGG
 #define RGB565(r,g,b)  ( (((g)&0x1c)<<11) | (((b)&0xf8)<<5) | ((r)&0xf8) | (((g)&0xe0)>>5) )
 #define RGBHEX(hex) ( (((hex)&0x001c00)<<3) | (((hex)&0x0000f8)<<5) | (((hex)&0xf80000)>>16) | (((hex)&0x00e000)>>13) )
-
-// Define size of screen buffer in pixels (one pixel 16bit size)
+#define HEXRGB(hex) ( (((hex)>>3)&0x001c00) | (((hex)>>5)&0x0000f8) | (((hex)<<16)&0xf80000) | (((hex)<<13)&0x00e000) )
+#define LCD_PIXEL_SIZE        2
+// Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
+#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLHEIGHT (32)
+// Define size of screen buffer in pixel_t
 #define SPI_BUFFER_SIZE             2048
+#endif
 
-#define DEFAULT_FG_COLOR            RGB565(255,255,255)
-#define DEFAULT_BG_COLOR            RGB565(  0,  0,  0)
-#define DEFAULT_GRID_COLOR          RGB565(128,128,128)
-#define DEFAULT_MENU_COLOR          RGB565(230,230,230)
-#define DEFAULT_MENU_TEXT_COLOR     RGB565(  0,  0,  0)
-#define DEFAULT_MENU_ACTIVE_COLOR   RGB565(210,210,210)
-#define DEFAULT_TRACE_1_COLOR       RGB565(255,255,  0)
-#define DEFAULT_TRACE_2_COLOR       RGB565(  0,255,255)
-#define DEFAULT_TRACE_3_COLOR       RGB565(  0,255,  0)
-#define DEFAULT_TRACE_4_COLOR       RGB565(255,  0,255)
-#define DEFAULT_NORMAL_BAT_COLOR    RGB565( 31,227,  0)
-#define DEFAULT_LOW_BAT_COLOR       RGB565(255,  0,  0)
-#define DEFAULT_SPEC_INPUT_COLOR    RGB565(128,255,128);
-#define DEFAULT_RISE_EDGE_COLOR     RGB565(255,255,255);
-#define DEFAULT_FALLEN_EDGE_COLOR   RGB565(128,128,128);
+#ifndef SPI_BUFFER_SIZE
+#error "Define LCD pixel format"
+#endif
 
-extern uint16_t foreground_color;
-extern uint16_t background_color;
+#define LCD_BG_COLOR             0
+#define LCD_FG_COLOR             1
+#define LCD_GRID_COLOR           2
+#define LCD_MENU_COLOR           3
+#define LCD_MENU_TEXT_COLOR      4
+#define LCD_MENU_ACTIVE_COLOR    5
+#define LCD_TRACE_1_COLOR        6
+#define LCD_TRACE_2_COLOR        7
+#define LCD_TRACE_3_COLOR        8
+#define LCD_TRACE_4_COLOR        9
+#define LCD_NORMAL_BAT_COLOR    10
+#define LCD_LOW_BAT_COLOR       11
+#define LCD_SPEC_INPUT_COLOR    12
+#define LCD_RISE_EDGE_COLOR     13
+#define LCD_FALLEN_EDGE_COLOR   14
+#define LCD_SWEEP_LINE_COLOR    15
+#define LCD_BW_TEXT_COLOR       16
+#define LCD_INPUT_TEXT_COLOR    17
+#define LCD_INPUT_BG_COLOR      18
 
-extern uint16_t spi_buffer[SPI_BUFFER_SIZE];
+#define LCD_DEFAULT_PALETTE {\
+[LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
+[LCD_FG_COLOR         ] = RGB565(255,255,255), \
+[LCD_GRID_COLOR       ] = RGB565(128,128,128), \
+[LCD_MENU_COLOR       ] = RGB565(230,230,230), \
+[LCD_MENU_TEXT_COLOR  ] = RGB565(  0,  0,  0), \
+[LCD_MENU_ACTIVE_COLOR] = RGB565(210,210,210), \
+[LCD_TRACE_1_COLOR    ] = RGB565(255,255,  0), \
+[LCD_TRACE_2_COLOR    ] = RGB565(  0,255,255), \
+[LCD_TRACE_3_COLOR    ] = RGB565(  0,255,  0), \
+[LCD_TRACE_4_COLOR    ] = RGB565(255,  0,255), \
+[LCD_NORMAL_BAT_COLOR ] = RGB565( 31,227,  0), \
+[LCD_LOW_BAT_COLOR    ] = RGB565(255,  0,  0), \
+[LCD_SPEC_INPUT_COLOR ] = RGB565(128,255,128), \
+[LCD_RISE_EDGE_COLOR  ] = RGB565(255,255,255), \
+[LCD_FALLEN_EDGE_COLOR] = RGB565(128,128,128), \
+[LCD_SWEEP_LINE_COLOR ] = RGB565(  0,  0,255), \
+[LCD_BW_TEXT_COLOR    ] = RGB565(128,128,128), \
+[LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
+[LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
+}
+
+#define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]
+
+extern pixel_t foreground_color;
+extern pixel_t background_color;
+
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 
 // Used for easy define big Bitmap as 0bXXXXXXXXX image
 #define _BMP8(d)                                                        ((d)&0xFF)
@@ -573,9 +652,13 @@ extern uint16_t spi_buffer[SPI_BUFFER_SIZE];
 void ili9341_init(void);
 void ili9341_test(int mode);
 void ili9341_bulk(int x, int y, int w, int h);
-void ili9341_fill(int x, int y, int w, int h, uint16_t color);
-void ili9341_set_foreground(uint16_t fg);
-void ili9341_set_background(uint16_t fg);
+void ili9341_bulk_continue(int x, int y, int w, int h);
+void ili9341_bulk_finish(void);
+void ili9341_fill(int x, int y, int w, int h);
+pixel_t *ili9341_get_cell_buffer(void);
+
+void ili9341_set_foreground(uint16_t fg_idx);
+void ili9341_set_background(uint16_t bg_idx);
 void ili9341_clear_screen(void);
 void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void ili9341_drawchar(uint8_t ch, int x, int y);
@@ -584,9 +667,11 @@ void ili9341_drawstringV(const char *str, int x, int y);
 int  ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
 void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size);
 void ili9341_drawfont(uint8_t ch, int x, int y);
-void ili9341_read_memory(int x, int y, int w, int h, int len, uint16_t* out);
+void ili9341_read_memory(int x, int y, int w, int h, uint16_t* out);
 void ili9341_line(int x0, int y0, int x1, int y1);
+
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
+void     lcd_setBrightness(uint16_t b);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__
@@ -679,8 +764,14 @@ void clear_all_config_prop_data(void);
 /*
  * ui.c
  */
-extern void ui_init(void);
-extern void ui_process(void);
+void ui_init(void);
+void ui_process(void);
+
+void handle_touch_interrupt(void);
+
+void touch_cal_exec(void);
+void touch_draw_test(void);
+void enter_dfu(void);
 
 // Irq operation process set
 #define OP_NONE       0x00
@@ -694,35 +785,20 @@ enum lever_mode {
   LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY
 };
 
-// marker smith value format
-enum marker_smithvalue {
-  MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
-};
-
 typedef struct uistat {
-  int8_t digit; /* 0~5 */
-  int8_t digit_mode;
-  int8_t current_trace; /* 0..3 */
-  uint32_t value; // for editing at numeric input area
-//  uint32_t previous_value;
+  uint32_t value;       // for editing at numeric input area
+//  int8_t digit;       // 0~5 used in numeric input (disabled)
+//  int8_t digit_mode;  // used in numeric input (disabled)
+  int8_t current_trace; // 0..3 (-1 for disabled)
+
   uint8_t lever_mode;
-  uint8_t marker_delta;
-  uint8_t marker_tracking;
+  uint8_t marker_delta:1;
+  uint8_t marker_tracking:1;
 } uistat_t;
 
 extern uistat_t uistat;
-void ui_init(void);
-void ui_show(void);
-void ui_hide(void);
-
-void touch_start_watchdog(void);
-void handle_touch_interrupt(void);
 
 #define TOUCH_THRESHOLD 2000
-
-void touch_cal_exec(void);
-void touch_draw_test(void);
-void enter_dfu(void);
 
 /*
  * adc.c
@@ -733,8 +809,8 @@ void enter_dfu(void);
 
 void adc_init(void);
 uint16_t adc_single_read(uint32_t chsel);
-void adc_start_analog_watchdogd(void);
-void adc_stop(void);
+void adc_start_analog_watchdog(void);
+void adc_stop_analog_watchdog(void);
 int16_t adc_vbat_read(void);
 
 /*
