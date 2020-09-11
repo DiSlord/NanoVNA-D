@@ -33,8 +33,6 @@ uistat_t uistat = {
  marker_delta: FALSE,
  marker_tracking : FALSE,
 };
-// Obsolete value input variant
-//#define USE_NUMERIC_INPUT
 
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
@@ -199,7 +197,7 @@ static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 void drawMessageBox(char *header, char *text, uint32_t delay);
 
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
 static void ui_mode_numeric(int _keypad_mode);
 #endif
 
@@ -856,7 +854,7 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
   if (data == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
     data = KM_SCALEDELAY;
   }
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
     ui_mode_numeric(data);
 //    ui_process_numeric();
@@ -964,7 +962,9 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
     markers[active_marker].index = i;
   uistat.marker_tracking = false;
   redraw_marker(active_marker);
+#ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
+#endif
   draw_menu();
 }
 
@@ -1725,7 +1725,7 @@ draw_numeric_input(const char *buf)
       c = KP_MINUS;
     else// if (c >= '0' && c <= '9')
       c = c - '0';
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
       fg = LCD_SPEC_INPUT_COLOR;
         focused = true;
@@ -1977,7 +1977,7 @@ ui_mode_menu(void)
   draw_menu();
 }
 
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
 static void
 erase_numeric_input(void)
 {
@@ -2229,7 +2229,7 @@ ui_mode_normal(void)
 static void
 leave_ui_mode()
 {
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   if (ui_mode == UI_NUMERIC) {
     request_to_draw_cells_behind_numeric_input();
     erase_numeric_input();
@@ -2269,6 +2269,7 @@ lever_move_marker(int status)
   } while (status != 0);
 }
 
+#ifdef UI_USE_LEVELER_SEARCH_MODE
 static void
 lever_search_marker(int status)
 {
@@ -2284,6 +2285,7 @@ lever_search_marker(int status)
     }
   }
 }
+#endif
 
 // ex. 10942 -> 10000
 //      6791 ->  5000
@@ -2358,7 +2360,9 @@ ui_process_normal(void)
     } else {
     switch (uistat.lever_mode) {
       case LM_MARKER: lever_move_marker(status);   break;
+#ifdef UI_USE_LEVELER_SEARCH_MODE
       case LM_SEARCH: lever_search_marker(status); break;
+#endif
       case LM_CENTER:
         lever_move(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER);
         break;
@@ -2552,7 +2556,7 @@ ui_process_lever(void)
   case UI_MENU:
     ui_process_menu();
     break;
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   case UI_NUMERIC:
     ui_process_numeric();
     break;
@@ -2749,7 +2753,7 @@ void ui_process_touch(void)
     case UI_MENU:
       menu_apply_touch(touch_x, touch_y);
       break;
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
     case UI_NUMERIC:
       numeric_apply_touch(touch_x, touch_y);
       break;

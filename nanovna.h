@@ -432,10 +432,11 @@ enum marker_smithvalue {
   MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
 };
 
-// config.freq_mode flags
-#define FREQ_MODE_START_STOP    0x0
-#define FREQ_MODE_CENTER_SPAN   0x1
-#define FREQ_MODE_DOTTED_GRID   0x2
+// config._mode flags
+#define VNA_MODE_START_STOP    0x0
+#define VNA_MODE_CENTER_SPAN   0x1
+#define VNA_MODE_DOTTED_GRID   0x2
+#define VNA_MODE_SERIAL        0x4
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -464,7 +465,7 @@ typedef struct config {
   uint16_t vbat_offset;
   uint16_t bandwidth;
   uint16_t lcd_palette[MAX_PALETTE];
-  uint8_t  freq_mode;
+  uint8_t  _mode;
   uint8_t _reserved[49];
   uint32_t checksum;
 } config_t; // sizeof = 124
@@ -747,8 +748,8 @@ extern uint16_t lastsaveid;
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
 
-#define FREQ_IS_STARTSTOP() (!(config.freq_mode&FREQ_MODE_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN() (config.freq_mode&FREQ_MODE_CENTER_SPAN)
+#define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
 
 int caldata_save(uint32_t id);
@@ -763,6 +764,12 @@ void clear_all_config_prop_data(void);
 /*
  * ui.c
  */
+
+// Obsolete value input variant
+//#define UI_USE_NUMERIC_INPUT
+// Enter in leveler search mode after search click
+//#define UI_USE_LEVELER_SEARCH_MODE
+
 void ui_init(void);
 void ui_process(void);
 
