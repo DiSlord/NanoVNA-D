@@ -695,7 +695,7 @@ void ili9341_line(int x0, int y0, int x1, int y1)
   int dy = y1 - y0, sy = 1; if (dy < 0) {dy = -dy; sy = -1;}
   int err = (dx > dy ? dx : -dy) / 2;
   while (1) {
-    ili9341_pixel(x0, y0, DEFAULT_FG_COLOR);
+    ili9341_pixel(x0, y0, RGB565(255,255,255));
     if (x0 == x1 && y0 == y1)
       break;
     int e2 = err;

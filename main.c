@@ -92,6 +92,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_BAND_COMMAND
 // Enable scan_bin command (need use ex scan in future)
 #define ENABLE_SCANBIN_COMMAND
+// Enable debug for console command
+// #define DEBUG_CONSOLE_SHOW
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -182,9 +184,10 @@ static THD_FUNCTION(Thread1, arg)
         }
       }
     }
+#ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
-    draw_all(completed);  // flush markmap only if scan completed to prevent
-                          // remaining traces
+    draw_all(completed);  // flush markmap only if scan completed to prevent remaining traces
+#endif
   }
 }
 
@@ -713,7 +716,7 @@ config_t config = {
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
 //  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
-  .freq_mode = FREQ_MODE_START_STOP,
+  .freq_mode = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   .vbat_offset = 320,
   .bandwidth = BANDWIDTH_1000
@@ -1147,7 +1150,7 @@ set_sweep_frequency(int type, uint32_t freq)
   ensure_edit_config();
   switch (type) {
     case ST_START:
-      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config._mode &= ~VNA_MODE_CENTER_SPAN;
       if (frequency0 != freq) {
         frequency0 = freq;
         // if start > stop then make start = stop
@@ -1155,7 +1158,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_STOP:
-      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config._mode &= ~VNA_MODE_CENTER_SPAN;
       if (frequency1 != freq) {
         frequency1 = freq;
         // if start > stop then make start = stop
@@ -1163,7 +1166,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CENTER:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       uint32_t center = frequency0 / 2 + frequency1 / 2;
       if (center != freq) {
         uint32_t span = frequency1 - frequency0;
@@ -1178,7 +1181,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_SPAN:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       if (frequency1 - frequency0 != freq) {
         uint32_t center = frequency0 / 2 + frequency1 / 2;
         if (center < START_MIN + freq / 2) {
@@ -1192,7 +1195,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CW:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       if (frequency0 != freq || frequency1 != freq) {
         frequency0 = freq;
         frequency1 = freq;
@@ -2553,12 +2556,12 @@ static int VNAShell_readLine(char *line, int max_size)
 // Parse and run command line
 //
 
-// #define DEBUG_CONSOLE_SHOW
-
 #ifdef DEBUG_CONSOLE_SHOW
 void debug_log(int offs, char *log){
   static uint16_t shell_line_y = 0;
-  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
   ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
   shell_line_y+=FONT_STR_HEIGHT;
   if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
