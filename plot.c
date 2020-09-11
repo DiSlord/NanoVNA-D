@@ -1732,7 +1732,6 @@ draw_cal_status(void)
     c[0] = cal_status & CALSTAT_INTERPOLATED ? 'c' : 'C';
     c[1] = active_props == &current_props ? '*' : '0' + lastsaveid;
     ili9341_drawstring(c, x, y);
-    y +=FONT_STR_HEIGHT;
   }
   int i;
   static const struct {char text, zero, mask;} calibration_text[]={
@@ -1742,12 +1741,12 @@ draw_cal_status(void)
     {'T', 0, CALSTAT_ET},
     {'X', 0, CALSTAT_EX}
   };
-  for (i = 0; i < 5; i++, y+=FONT_STR_HEIGHT)
+  for (i = 0; i < 5; i++)
     if (cal_status & calibration_text[i].mask)
-      ili9341_drawstring(&calibration_text[i].text, x, y);
+      ili9341_drawstring(&calibration_text[i].text, x, y+=FONT_STR_HEIGHT);
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
-  ili9341_drawstring(c, x, y);
+  ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
 }
 
 // Draw battery level
