@@ -133,6 +133,69 @@ void SI4432_Reset(void)
   }
 }
 
+void SI4432_Write_Byte(uint8_t ADR, uint8_t DATA)
+{
+  SI_CS_LOW;
+  ADR |= 0x80 ; // RW = 1
+  SI4432_shiftOut( ADR );
+  SI4432_shiftOut( DATA );
+  SI_CS_HIGH;
+}
+
+uint8_t SI4432_Read_Byte( uint8_t ADR )
+{
+  uint8_t DATA ;
+  SI_CS_LOW;
+  SI4432_shiftOut( ADR );
+  DATA = SI4432_shiftIn();
+  SI_CS_HIGH;
+  return DATA;
+}
+
+static void SI4432_switch_on(void) {
+  SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1f); // GPIO0 to GND Close SI5351 out
+  SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1d); // GPIO1 to VDD Open SI4432
+  int count = 0;
+  if (( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) == 2)
+    return; // Already in transmit mode
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x02);
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x0b);
+  chThdSleepMilliseconds(10);
+  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 2) {
+    chThdSleepMilliseconds(10);
+  }
+}
+
+static void SI4432_switch_off(void) {
+  SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1d); // GPIO0 to VDD - Open SI5351 out
+  SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1f); // GPIO1 to GND - Close SI4432
+  int count = 0;
+  if (( SI4432_Read_Byte (SI4432_DEV_STATUS) & 0x03 ) == 1)
+    return; // Already in receive mode
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x02);
+  chThdSleepMilliseconds(3);
+  SI4432_Write_Byte(SI4432_STATE, 0x07);
+  chThdSleepMilliseconds(10);
+  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 1) {
+    chThdSleepMilliseconds(5);
+  }
+}
+
+static bool si_enabled = false;
+void SI4432_switch(bool en){
+  if (si_enabled == en) return;
+  SI4432_Select();
+  if (en)
+    SI4432_switch_on();
+  else
+    SI4432_switch_off();
+  SI4432_Deselect();
+  si_enabled = en;
+}
+
 void SI4432_Init(void){
   // Store old port settings for software SPI mode
 #ifndef USE_HARDWARE_SPI_MODE
@@ -190,71 +253,8 @@ void SI4432_Init(void){
   SI4432_Write_Byte(SI4432_AGC_OVERRIDE, 0x60); // AGC, no LNA, fast gain increment
 
   // Switch off si4432
-  SI4432_switch(false);
+  SI4432_switch_off();
   SI4432_Deselect();
-}
-
-void SI4432_Write_Byte(uint8_t ADR, uint8_t DATA)
-{
-  SI_CS_LOW;
-  ADR |= 0x80 ; // RW = 1
-  SI4432_shiftOut( ADR );
-  SI4432_shiftOut( DATA );
-  SI_CS_HIGH;
-}
-
-uint8_t SI4432_Read_Byte( uint8_t ADR )
-{
-  uint8_t DATA ;
-  SI_CS_LOW;
-  SI4432_shiftOut( ADR );
-  DATA = SI4432_shiftIn();
-  SI_CS_HIGH;
-  return DATA;
-}
-
-void SI4432_switch_on(void) {
-  SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1f); // GPIO0 to GND
-  SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1d); // GPIO1 to VDD
-  int count = 0;
-  if (( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) == 2)
-    return; // Already in transmit mode
-  chThdSleepMilliseconds(3);
-  SI4432_Write_Byte(SI4432_STATE, 0x02);
-  chThdSleepMilliseconds(3);
-  SI4432_Write_Byte(SI4432_STATE, 0x0b);
-  chThdSleepMilliseconds(10);
-  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 2) {
-    chThdSleepMilliseconds(10);
-  }
-}
-
-void SI4432_switch_off(void) {
-  SI4432_Write_Byte(SI4432_GPIO0_CONF, 0x1d); // GPIO0 to VDD
-  SI4432_Write_Byte(SI4432_GPIO1_CONF, 0x1f); // GPIO1 to GND
-  int count = 0;
-  if (( SI4432_Read_Byte (SI4432_DEV_STATUS) & 0x03 ) == 1)
-    return; // Already in receive mode
-  chThdSleepMilliseconds(3);
-  SI4432_Write_Byte(SI4432_STATE, 0x02);
-  chThdSleepMilliseconds(3);
-  SI4432_Write_Byte(SI4432_STATE, 0x07);
-  chThdSleepMilliseconds(10);
-  while (count++ < 100 && ( SI4432_Read_Byte(SI4432_DEV_STATUS) & 0x03 ) != 1) {
-    chThdSleepMilliseconds(5);
-  }
-}
-
-static bool si_enabled = false;
-void SI4432_switch(bool en){
-  if (si_enabled == en) return;
-  SI4432_Select();
-  if (en)
-    SI4432_switch_on();
-  else
-    SI4432_switch_off();
-  SI4432_Deselect();
-  si_enabled = en;
 }
 
 void SI4432_Set_Frequency ( uint32_t Freq ) {
