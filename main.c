@@ -37,7 +37,7 @@
 // enable this need reduce spi_buffer size, by default shell run in main thread
 // #define VNA_SHELL_THREAD
 
-static BaseSequentialStream *shell_stream = (BaseSequentialStream *)&SDU1;
+static BaseSequentialStream *shell_stream;
 
 // Shell new line
 #define VNA_SHELL_NEWLINE_STR    "\r\n"
@@ -93,7 +93,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable scan_bin command (need use ex scan in future)
 #define ENABLE_SCANBIN_COMMAND
 // Enable debug for console command
-// #define DEBUG_CONSOLE_SHOW
+//#define DEBUG_CONSOLE_SHOW
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -143,6 +143,22 @@ const char *info_about[]={
   "Platform: " PLATFORM_NAME,
   0 // sentinel
 };
+
+// Allow draw some debug on LCD
+#ifdef DEBUG_CONSOLE_SHOW
+void my_debug_log(int offs, char *log){
+  static uint16_t shell_line_y = 0;
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
+  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  shell_line_y+=FONT_STR_HEIGHT;
+  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
+}
+#define DEBUG_LOG(offs, text)    my_debug_log(offs, text);
+#else
+#define DEBUG_LOG(offs, text)
+#endif
 
 static THD_WORKING_AREA(waThread1, 768);
 static THD_FUNCTION(Thread1, arg)
@@ -716,8 +732,9 @@ config_t config = {
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
 //  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
-  .freq_mode = VNA_MODE_START_STOP,
+  ._mode     = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
+  ._serial_speed = USART_SPEED_SETTING(SERIAL_DEFAULT_BITRATE),
   .vbat_offset = 320,
   .bandwidth = BANDWIDTH_1000
 };
@@ -2513,6 +2530,85 @@ VNA_SHELL_FUNCTION(cmd_help)
  * VNA shell functions
  */
 
+// Check Serial connection requirements
+#ifdef __USE_SERIAL_CONSOLE__
+#if HAL_USE_SERIAL == FALSE
+#error "For serial console need HAL_USE_SERIAL as TRUE in halconf.h"
+#endif
+
+#define PREPARE_STREAM shell_stream = (config._mode&VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+void shell_update_speed(void){
+  // Restart Serial for drop connection, and change to USB
+  SerialConfig s_config = {USART_GET_SPEED(config._serial_speed), 0, USART_CR2_STOP1_BITS, 0 };
+  sdStop(&SD1);
+  sdStart(&SD1, &s_config);  // USART config
+}
+
+void shell_reset_console(void){
+  // Restart USB for drop connection and stars Serial
+  sduStop(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+  // Restart Serial, and set speed
+  shell_update_speed();
+}
+
+static bool shell_check_connect(void){
+  if (config._mode & VNA_MODE_SERIAL)
+    return true;
+  return SDU1.config->usbp->state == USB_ACTIVE;
+}
+
+static void shell_init_connection(void){
+/*
+ * Initializes a serial-over-USB CDC driver.
+ */
+  sduObjectInit(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+
+/*
+ * Activates the USB driver and then the USB bus pull-up on D+.
+ * Note, a delay is inserted in order to not have to disconnect the cable
+ * after a reset.
+ */
+  usbDisconnectBus(serusbcfg.usbp);
+  chThdSleepMilliseconds(100);
+  usbStart(serusbcfg.usbp, &usbcfg);
+  usbConnectBus(serusbcfg.usbp);
+
+  shell_reset_console();
+  PREPARE_STREAM;
+}
+
+#else
+// Only USB console, shell_stream always on USB
+#define PREPARE_STREAM
+
+// Check connection as Active, if no suspend input
+static bool shell_check_connect(void){
+  return SDU1.config->usbp->state == USB_ACTIVE;
+}
+
+// Init shell I/O connection over USB
+static void shell_init_connection(void){
+/*
+ * Initializes a serial-over-USB CDC driver.
+ */
+  sduObjectInit(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+/*
+ * Activates the USB driver and then the USB bus pull-up on D+.
+ * Note, a delay is inserted in order to not have to disconnect the cable
+ * after a reset.
+ */
+  usbDisconnectBus(serusbcfg.usbp);
+  chThdSleepMilliseconds(100);
+  usbStart(serusbcfg.usbp, &usbcfg);
+  usbConnectBus(serusbcfg.usbp);
+
+  shell_stream = (BaseSequentialStream *)&SDU1;
+}
+#endif
+
 //
 // Read command line from shell_stream
 //
@@ -2520,6 +2616,8 @@ static int VNAShell_readLine(char *line, int max_size)
 {
   // Read line from input stream
   uint8_t c;
+  // Prepare I/O for shell_stream
+  PREPARE_STREAM;
   char *ptr = line;
   while (1) {
     // Return 0 only if stream not active
@@ -2555,27 +2653,13 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 // Parse and run command line
 //
-
-#ifdef DEBUG_CONSOLE_SHOW
-void debug_log(int offs, char *log){
-  static uint16_t shell_line_y = 0;
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
-  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
-  shell_line_y+=FONT_STR_HEIGHT;
-  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
-}
-#endif
-
 static void VNAShell_executeLine(char *line)
 {
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-#ifdef DEBUG_CONSOLE_SHOW // debug console log
-  debug_log(0, lp);
-#endif
+
+//  DEBUG_LOG(0, lp); // debug console log
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
     while (*lp == ' ' || *lp == '\t') lp++;
@@ -2610,9 +2694,7 @@ static void VNAShell_executeLine(char *line)
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
       }
-#ifdef DEBUG_CONSOLE_SHOW // debug console log
-      debug_log(10, "ok");
-#endif
+//      DEBUG_LOG(10, "ok");
       return;
     }
   }
@@ -2636,7 +2718,10 @@ THD_FUNCTION(myshellThread, p)
 }
 #endif
 
-// Define i2c bus speed, add predefined for 400k,600k,900k
+/*
+ * I2C bus settings
+ */
+// Define i2c bus speed, add predefined for 400k, 600k, 900k
 #define STM32_I2C_SPEED                     600
 
 #if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
@@ -2715,33 +2800,26 @@ int main(void)
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
-  // MCO on PA8
-  //palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(0));
-/*
- * Initializes a serial-over-USB CDC driver.
- */
-  sduObjectInit(&SDU1);
-  sduStart(&SDU1, &serusbcfg);
-/*
- * Activates the USB driver and then the USB bus pull-up on D+.
- * Note, a delay is inserted in order to not have to disconnect the cable
- * after a reset.
- */
-  usbDisconnectBus(serusbcfg.usbp);
-  chThdSleepMilliseconds(100);
-  usbStart(serusbcfg.usbp, &usbcfg);
-  usbConnectBus(serusbcfg.usbp);
 
 /*
  * SPI LCD Initialize
  */
   ili9341_init();
 
-/* restore config */
+/*
+ * Restore config
+ */
   config_recall();
 
-/* restore frequencies and calibration 0 slot properties from flash memory */
+/*
+ * restore frequencies and calibration 0 slot properties from flash memory
+ */
   load_properties(0);
+
+/*
+ * Init Shell console connection data
+ */
+  shell_init_connection();
 
 /*
  * I2C bus
@@ -2776,7 +2854,7 @@ int main(void)
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
 
   while (1) {
-    if (SDU1.config->usbp->state == USB_ACTIVE) {
+    if (shell_check_connect()) {
 #ifdef VNA_SHELL_THREAD
 #if CH_CFG_USE_WAITEXIT == FALSE
 #error "VNA_SHELL_THREAD use chThdWait, need enable CH_CFG_USE_WAITEXIT in chconf.h"
@@ -2793,7 +2871,7 @@ int main(void)
           VNAShell_executeLine(shell_line);
         else
           chThdSleepMilliseconds(200);
-      } while (SDU1.config->usbp->state == USB_ACTIVE);
+      } while (shell_check_connect());
 #endif
     }
     chThdSleepMilliseconds(1000);

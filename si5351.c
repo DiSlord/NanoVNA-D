@@ -36,10 +36,16 @@
 #define SI5351_I2C_ADDR     0x60
 
 static uint8_t  current_band   = 0;
+static uint8_t  current_power  = 0;
 static uint32_t current_freq   = 0;
 static int32_t  current_offset = FREQUENCY_OFFSET;
 // Use cache for this reg, not update if not change
 static uint8_t  clk_cache[3] = {0, 0, 0};
+
+static void si5351_reset_cache(void){
+  current_band = 0;
+  current_freq = 0;
+}
 
 // Generator ready delays, values in x100 us
 #if 0
@@ -72,8 +78,8 @@ uint32_t si5351_get_frequency(void)
 
 void si5351_set_frequency_offset(int32_t offset)
 {
+  si5351_reset_cache();
   current_offset = offset;
-  current_freq = 0; // reset freq, for
 }
 
 void si5351_bulk_write(const uint8_t *buf, int len)
@@ -170,15 +176,14 @@ void si5351_disable_output(void)
 {
   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
   si5351_bulk_write(disable_output, sizeof(disable_output));
-  current_band = 0;
+  si5351_reset_cache();
 }
 
 void si5351_enable_output(void)
 {
   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
 //si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
-  current_freq = 0;
-  current_band = 0;
+  si5351_reset_cache();
 }
 
 // Set PLL freq = XTALFREQ * (mult + num/denom)
@@ -478,6 +483,11 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
     freq/=align;
     freq*=align;
     ofreq = freq + current_offset;
+  }
+  // Check current power settings
+  if (current_power != drive_strength){
+    si5351_reset_cache();
+    current_power = drive_strength;
   }
 
   if (freq == current_freq)
