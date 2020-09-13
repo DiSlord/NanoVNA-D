@@ -23,6 +23,8 @@
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
 //#define __LCD_BRIGHTNESS__
+// Allow enter to DFU from menu or command
+#define __DFU_SOFTWARE_MODE__
 // Add RTC clock support
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)

@@ -551,7 +551,7 @@ show_version(void)
 void
 enter_dfu(void)
 {
-#if 1
+#ifdef __DFU_SOFTWARE_MODE__
   touch_stop_watchdog();
 
   int x = 5, y = 20;
@@ -609,19 +609,21 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   menu_push_submenu(menu_save);
 }
 
+#define MENU_CAL2_RESET    0
+#define MENU_CAL2_APPLY    1
 static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
 {
-  (void)data;
+  (void)item;
   if (b){
-    if (item == 4) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    if (data == MENU_CAL2_APPLY) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  switch (item) {
-  case 3: // RESET
+  switch (data) {
+  case MENU_CAL2_RESET: // RESET
     cal_status = 0;
     set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
     break;
-  case 4: // CORRECTION
+  case MENU_CAL2_APPLY: // CORRECTION
     // toggle applying correction
     cal_status ^= CALSTAT_APPLY;
     break;
@@ -644,17 +646,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   draw_cal_status();
 }
 
+#define MENU_CONFIG_TOUCH_CAL   0
+#define MENU_CONFIG_TOUCH_TEST  1
+#define MENU_CONFIG_VERSION     2
 static UI_FUNCTION_CALLBACK(menu_config_cb)
 {
-  (void)data;
-  switch (item) {
-  case 0:
+  (void)item;
+  switch (data) {
+  case MENU_CONFIG_TOUCH_CAL:
       touch_cal_exec();
       break;
-  case 1:
+  case MENU_CONFIG_TOUCH_TEST:
       touch_draw_test();
       break;
-  case 4:
+  case MENU_CONFIG_VERSION:
       show_version();
       break;
   }
@@ -670,13 +675,14 @@ static UI_FUNCTION_CALLBACK(menu_config_save_cb)
   config_save();
   menu_move_back(true);
 }
-
+#ifdef __DFU_SOFTWARE_MODE__
 static UI_FUNCTION_CALLBACK(menu_dfu_cb)
 {
   (void)item;
   (void)data;
   enter_dfu();
 }
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
 {
@@ -938,23 +944,27 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
   //redraw_all();
 }
 
+#define MENU_MARKER_S_MAX    0
+#define MENU_MARKER_S_MIN    1
+#define MENU_MARKER_S_LEFT   2
+#define MENU_MARKER_S_RIGHT  3
 static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
 {
-  (void)data;
+  (void)item;
   int i = -1;
   if (active_marker == -1)
     return;
 
-  switch (item) {
-  case 0: /* maximum */
-  case 1: /* minimum */
+  switch (data) {
+  case MENU_MARKER_S_MAX: /* maximum */
+  case MENU_MARKER_S_MIN: /* minimum */
     set_marker_search(item);
     i = marker_search();
     break;
-  case 2: /* search Left */
+  case MENU_MARKER_S_LEFT: /* search Left */
     i = marker_search_left(markers[active_marker].index);
     break;
-  case 3: /* search right */
+  case MENU_MARKER_S_RIGHT: /* search right */
     i = marker_search_right(markers[active_marker].index);
     break;
   }
@@ -1227,11 +1237,11 @@ const menuitem_t menu_power[] = {
 };
 
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,      0, "POWER",     menu_power },
-  { MT_SUBMENU,      0, "SAVE",      menu_save },
-  { MT_ADV_CALLBACK, 0, "RESET",     menu_cal2_acb },
-  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal2_acb },
+  { MT_SUBMENU,                   0, "CALIBRATE", menu_calop },
+  { MT_SUBMENU,                   0, "POWER",     menu_power },
+  { MT_SUBMENU,                   0, "SAVE",      menu_save },
+  { MT_ADV_CALLBACK, MENU_CAL2_RESET, "RESET",    menu_cal2_acb },
+  { MT_ADV_CALLBACK, MENU_CAL2_APPLY, "APPLY",    menu_cal2_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1394,10 +1404,10 @@ const menuitem_t menu_marker_ops[] = {
 
 const menuitem_t menu_marker_search[] = {
   //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "MAXIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "MINIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_MAX,  "MAXIMUM", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_MIN,  "MINIMUM", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_LEFT,  "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_RIGHT, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
   { MT_ADV_CALLBACK, 0, "TRACKING", menu_marker_tracking_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1422,22 +1432,26 @@ const menuitem_t menu_marker[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+#ifdef __DFU_SOFTWARE_MODE__
 const menuitem_t menu_dfu[] = {
   { MT_CALLBACK, 0, "RESET AND\nENTER DFU", menu_dfu_cb },
   { MT_CANCEL, 0, S_LARROW"CANCEL", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
+#endif
 
 const menuitem_t menu_config[] = {
-  { MT_CALLBACK, 0, "TOUCH CAL", menu_config_cb },
-  { MT_CALLBACK, 0, "TOUCH TEST", menu_config_cb },
-  { MT_CALLBACK, 0, "SAVE", menu_config_save_cb },
-  { MT_SUBMENU,  0, "SWEEP\nPOINTS", menu_sweep_points },
-  { MT_CALLBACK, 0, "VERSION", menu_config_cb },
+  { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
+  { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
+  { MT_SUBMENU,                       0, "SWEEP\nPOINTS", menu_sweep_points },
+  { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
-  { MT_CALLBACK, 0, "BRIGHTNESS", menu_brightness },
+  { MT_CALLBACK,                      0, "BRIGHTNESS",    menu_brightness },
 #endif
-  { MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
+#ifdef __DFU_SOFTWARE_MODE__
+  { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
