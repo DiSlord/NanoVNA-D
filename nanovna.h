@@ -413,6 +413,7 @@ extern int16_t area_height;
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
 
+// Max palette indexes in config
 #define MAX_PALETTE     24
 
 // trace 
@@ -438,10 +439,13 @@ enum marker_smithvalue {
 };
 
 // config._mode flags
-#define VNA_MODE_START_STOP    0x0
-#define VNA_MODE_CENTER_SPAN   0x1
-#define VNA_MODE_DOTTED_GRID   0x2
-#define VNA_MODE_SERIAL        0x4
+#define VNA_MODE_START_STOP       0x00
+#define VNA_MODE_CENTER_SPAN      0x01
+#define VNA_MODE_DOTTED_GRID      0x02
+// Connection flag
+#define VNA_MODE_CONNECTION_MASK  0x04
+#define VNA_MODE_SERIAL           0x04
+#define VNA_MODE_USB              0x00
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -471,7 +475,8 @@ typedef struct config {
   uint16_t bandwidth;
   uint16_t lcd_palette[MAX_PALETTE];
   uint8_t  _mode;
-  uint8_t _reserved[49];
+  uint8_t _serial_speed;
+  uint8_t _reserved[48];
   uint32_t checksum;
 } config_t; // sizeof = 124
 
@@ -509,6 +514,18 @@ void set_trace_refpos(int t, float refpos);
 float get_trace_scale(int t);
 float get_trace_refpos(int t);
 const char *get_trace_typename(int t);
+
+//
+// Shell config functions and macros
+// Serial connect definitions not used if Serial mode disabled
+// Minimum speed - USART_SPEED_MULTIPLIER
+// Maximum speed - USART_SPEED_MULTIPLIER * 256
+// Can be: 19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
+#define USART_SPEED_MULTIPLIER          19200
+#define USART_SPEED_SETTING(speed)     ((speed)/USART_SPEED_MULTIPLIER - 1)
+#define USART_GET_SPEED(idx)           (((idx) + 1) * USART_SPEED_MULTIPLIER)
+void shell_update_speed(void);
+void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
 float get_electrical_delay(void);

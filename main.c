@@ -93,7 +93,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable scan_bin command (need use ex scan in future)
 #define ENABLE_SCANBIN_COMMAND
 // Enable debug for console command
-// #define DEBUG_CONSOLE_SHOW
+//#define DEBUG_CONSOLE_SHOW
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -734,6 +734,7 @@ config_t config = {
 //  .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   ._mode     = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
+  ._serial_speed = USART_SPEED_SETTING(SERIAL_DEFAULT_BITRATE),
   .vbat_offset = 190,
   .bandwidth = BANDWIDTH_1000
 };
@@ -2534,8 +2535,51 @@ VNA_SHELL_FUNCTION(cmd_help)
 #if HAL_USE_SERIAL == FALSE
 #error "For serial console need HAL_USE_SERIAL as TRUE in halconf.h"
 #endif
-#endif
 
+#define PREPARE_STREAM shell_stream = (config._mode&VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+void shell_update_speed(void){
+  // Restart Serial for drop connection, and change to USB
+  SerialConfig s_config = {USART_GET_SPEED(config._serial_speed), 0, USART_CR2_STOP1_BITS, 0 };
+  sdStop(&SD1);
+  sdStart(&SD1, &s_config);  // USART config
+}
+
+void shell_reset_console(void){
+  // Restart USB for drop connection and stars Serial
+  sduStop(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+  // Restart Serial, and set speed
+  shell_update_speed();
+}
+
+static bool shell_check_connect(void){
+  if (config._mode & VNA_MODE_SERIAL)
+    return true;
+  return SDU1.config->usbp->state == USB_ACTIVE;
+}
+
+static void shell_init_connection(void){
+/*
+ * Initializes a serial-over-USB CDC driver.
+ */
+  sduObjectInit(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+
+/*
+ * Activates the USB driver and then the USB bus pull-up on D+.
+ * Note, a delay is inserted in order to not have to disconnect the cable
+ * after a reset.
+ */
+  usbDisconnectBus(serusbcfg.usbp);
+  chThdSleepMilliseconds(100);
+  usbStart(serusbcfg.usbp, &usbcfg);
+  usbConnectBus(serusbcfg.usbp);
+
+  shell_reset_console();
+  PREPARE_STREAM;
+}
+
+#else
 // Only USB console, shell_stream always on USB
 #define PREPARE_STREAM
 
@@ -2563,6 +2607,7 @@ static void shell_init_connection(void){
 
   shell_stream = (BaseSequentialStream *)&SDU1;
 }
+#endif
 
 //
 // Read command line from shell_stream
