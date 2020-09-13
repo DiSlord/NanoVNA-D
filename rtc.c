@@ -107,6 +107,16 @@ static void rtc_start_source(void){
   while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
 }
 
+static void resetBCDR(uint32_t rtc_drv){
+  // Backup domain reset, for change source.
+  RCC->BDCR = RCC_BDCR_BDRST;
+  RCC->BDCR = 0;
+  // Startup again source generator
+  rtc_start_source();
+  // Select new clock source. And enable
+  RCC->BDCR|= rtc_drv;
+}
+
 void auto_backup_domain_init(void){
   // Init Backup domain, RTC clock source
   uint32_t rtc_drv;
@@ -119,15 +129,12 @@ void auto_backup_domain_init(void){
                                           STM32_RTCSEL_LSI|RCC_BDCR_RTCEN;   // Select LSI as source
   // If the backup domain hasn't been initialized yet or work on different source, then proceed with initialization
   if ((RCC->BDCR & (STM32_RTCSEL_MASK|RCC_BDCR_RTCEN)) != rtc_drv)
-  {
-    // Backup domain reset, for change source.
-    RCC->BDCR = RCC_BDCR_BDRST;
-    RCC->BDCR = 0;
-    // Startup again source generator
-    rtc_start_source();
-    // Select new clock source. And enable
-    RCC->BDCR|= rtc_drv;
-  }
+    resetBCDR(rtc_drv);
+  // Check RTC clock, and reset backup domain to LSI if clock not start
+  if (rtc_enter_init())
+    rtc_exit_init();
+  else
+    resetBCDR(STM32_RTCSEL_LSI|RCC_BDCR_RTCEN);
 }
 #endif
 
@@ -137,7 +144,7 @@ void rtc_init(void){
   // Auto start LSE or LSI source for RTC
   auto_backup_domain_init();
 #else
-  // ChibiOS init BDCR LSE or LSI source by self from user defined source
+  // ChibiOS init BDCR LSE or LSI source by self from user defined in mcuconf.h source
   // For add auto select RTC source need rewrite it
   // see hal_lld_backup_domain_init() in hal_lld.c for every CPU
   // Default RTC clock is LSE, but it possible not launch if no quartz installed
