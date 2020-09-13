@@ -22,6 +22,7 @@
 
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
+// LCD or hardware allow change brightness, add menu item for this
 //#define __LCD_BRIGHTNESS__
 // Allow enter to DFU from menu or command
 #define __DFU_SOFTWARE_MODE__
@@ -29,6 +30,8 @@
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
+// If enabled serial in halconf.h, possible enable serial console control
+//#define __USE_SERIAL_CONSOLE__
 
 /*
  * main.c
