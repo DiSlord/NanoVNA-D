@@ -424,7 +424,7 @@ static const DACConfig dac1cfg1 = {
   datamode:     DAC_DHRM_12BIT_RIGHT
 };
 
-static void lcd_initBrightness(){
+static void lcd_initBrightness(void){
   dacStart(&DACD2, &dac1cfg1);
 }
 
