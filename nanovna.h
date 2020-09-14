@@ -24,6 +24,8 @@
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
 //#define __LCD_BRIGHTNESS__
+// Use DAC (in H4 used for brightness used DAC, so need enable __LCD_BRIGHTNESS__ for it)
+//#define __VNA_ENABLE_DAC__
 // Allow enter to DFU from menu or command
 #define __DFU_SOFTWARE_MODE__
 // Add RTC clock support
@@ -476,7 +478,8 @@ typedef struct config {
   uint16_t lcd_palette[MAX_PALETTE];
   uint8_t  _mode;
   uint8_t _serial_speed;
-  uint8_t _reserved[48];
+  uint8_t _brightness;
+  uint8_t _reserved[47];
   uint32_t checksum;
 } config_t; // sizeof = 124
 
@@ -577,6 +580,9 @@ extern  uint8_t redraw_request;
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
+
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
 
 // Define LCD pixel format
 //#define LCD_8BIT_MODE

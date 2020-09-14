@@ -1088,7 +1088,7 @@ menu_brightness(int item, uint8_t data)
 {
   (void)item;
   (void)data;
-  uint16_t value = config.dac_value;
+  int16_t value = config._brightness;
   ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
   ili9341_set_background(LCD_MENU_COLOR);
   ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40);
@@ -1097,21 +1097,19 @@ menu_brightness(int item, uint8_t data)
     int status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
       do {
-        if (status & EVT_UP)
-          value+=50;
-        if (status & EVT_DOWN)
-          value-=50;
-        if (value< 700) value = 700;
-        if (value>3300) value = 3300;
-        dacPutChannelX(&DACD2, 0, value);
+        if (status & EVT_UP  ) value+=5;
+        if (status & EVT_DOWN) value-=5;
+        if (value <   0) value =   0;
+        if (value > 100) value = 100;
+        lcd_setBrightness(value);
         status = btn_wait_release();
       } while (status != 0);
     }
     if (status == EVT_BUTTON_SINGLE_CLICK)
       break;
   }
-  config.dac_value = value;
-  dacPutChannelX(&DACD2, 0, value);
+  config._brightness = (uint8_t)value;
+  lcd_setBrightness(value);
   request_to_redraw_grid();
   ui_mode_normal();
 }
