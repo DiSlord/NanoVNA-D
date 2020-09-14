@@ -1470,14 +1470,24 @@ const menuitem_t menu_dfu[] = {
 #endif
 
 #ifdef __USE_SERIAL_CONSOLE__
+//19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
+const menuitem_t menu_serial_speed2[] = {
+  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 460800), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 921600), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, USART_SPEED_SETTING(1843200), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, USART_SPEED_SETTING(3686400), "%u", menu_serial_speed_acb },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_serial_speed[] = {
   { MT_ADV_CALLBACK, USART_SPEED_SETTING( 19200), "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, USART_SPEED_SETTING( 38400), "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, USART_SPEED_SETTING( 57600), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 74800), "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, USART_SPEED_SETTING(115200), "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, USART_SPEED_SETTING(230400), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(460800), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(921600), "%u", menu_serial_speed_acb },
+  { MT_SUBMENU, 0, S_RARROW" MORE", menu_serial_speed2 },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
