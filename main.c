@@ -572,6 +572,18 @@ usage:
 }
 #endif
 
+#ifdef __VNA_ENABLE_DAC__
+// Check DAC enabled in ChibiOS
+#if HAL_USE_DAC == FALSE
+#error "Need set HAL_USE_DAC in halconf.h for use DAC"
+#endif
+
+static const DACConfig dac1cfg1 = {
+  //init:         1922U,
+  init:         0,
+  datamode:     DAC_DHRM_12BIT_RIGHT
+};
+
 VNA_SHELL_FUNCTION(cmd_dac)
 {
   int value;
@@ -584,6 +596,7 @@ VNA_SHELL_FUNCTION(cmd_dac)
   config.dac_value = value;
   dacPutChannelX(&DACD2, 0, value);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_threshold)
 {
@@ -736,6 +749,7 @@ config_t config = {
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._serial_speed = USART_SPEED_SETTING(SERIAL_DEFAULT_BITRATE),
   .vbat_offset = 320,
+  ._brightness = DEFAULT_BRIGHTNESS,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -2443,7 +2457,9 @@ static const VNAShellCommand commands[] =
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
 #endif
+#ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , 0},
+#endif
     {"saveconfig"  , cmd_saveconfig  , 0},
     {"clearconfig" , cmd_clearconfig , 0},
 #ifdef ENABLED_DUMP_COMMAND
@@ -2792,30 +2808,20 @@ static const I2CConfig i2ccfg = {
   .cr2 = 0                       // CR2 register initialization.
 };
 
-static DACConfig dac1cfg1 = {
-  //init:         1922U,
-  init:         0,
-  datamode:     DAC_DHRM_12BIT_RIGHT
-};
-
-
 // Main thread stack size defined in makefile USE_PROCESS_STACKSIZE = 0x200
 // Profile stack usage (enable threads command by def ENABLE_THREADS_COMMAND) show:
 // Stack maximum usage = 472 bytes (need test more and run all commands), free stack = 40 bytes
 //
 int main(void)
 {
+/*
+ * Initialize ChibiOS systems
+ */
   halInit();
   chSysInit();
 
 /*
- * Starting DAC1 driver, setting up the output pin as analog as suggested
- * by the Reference Manual.
- */
-  dacStart(&DACD2, &dac1cfg1);
-
-/*
- * Initialize RTC library
+ * Initialize RTC library (not used ChibiOS RTC module)
  */
 #ifdef __USE_RTC__
   rtc_init();
@@ -2826,7 +2832,7 @@ int main(void)
 #endif
 
 /*
- * SPI LCD Initialize
+ * SPI bus and LCD Initialize
  */
   ili9341_init();
 
@@ -2848,8 +2854,6 @@ int main(void)
 /*
  * I2C bus
  */
-  //palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
-  //palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
   i2cStart(&I2CD1, &i2ccfg);
 
 /*
@@ -2867,14 +2871,32 @@ int main(void)
   i2sStart(&I2SD2, &i2sconfig);
   i2sStartExchange(&I2SD2);
 
+/*
+ * UI (menu, touch, buttons) and plot initialize
+ */
   ui_init();
   //Initialize graph plotting
   plot_init();
   redraw_frame();
 
-  // Set config DAC value
-  dacPutChannelX(&DACD2, 0, config.dac_value);
+/*
+ * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
+ */
+#ifdef  __VNA_ENABLE_DAC__
+  dacStart(&DACD2, &dac1cfg1);
+  dacPutChannelX(&DACD2, 0, config.dac_value);  // Set config DAC value
+#endif
 
+/*
+ * Set LCD display brightness
+ */
+#ifdef  __LCD_BRIGHTNESS__
+  lcd_setBrightness(config._brightness);
+#endif
+
+/*
+ * Startup sweep thread
+ */
   chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
 
   while (1) {
