@@ -523,7 +523,7 @@ const char *get_trace_typename(int t);
 // Serial connect definitions not used if Serial mode disabled
 // Minimum speed - USART_SPEED_MULTIPLIER
 // Maximum speed - USART_SPEED_MULTIPLIER * 256
-// Can be: 19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
+// Can be: 19200, 38400, 57600, 76800, 115200, 230400, 460800, 921600, 1843200, 3686400
 #define USART_SPEED_MULTIPLIER          19200
 #define USART_SPEED_SETTING(speed)     ((speed)/USART_SPEED_MULTIPLIER - 1)
 #define USART_GET_SPEED(idx)           (((idx) + 1) * USART_SPEED_MULTIPLIER)
