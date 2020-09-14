@@ -123,7 +123,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.30"
+#define VERSION "1.0.33"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2536,46 +2536,63 @@ VNA_SHELL_FUNCTION(cmd_help)
 #error "For serial console need HAL_USE_SERIAL as TRUE in halconf.h"
 #endif
 
+// Before start process command from shell, need select input stream
 #define PREPARE_STREAM shell_stream = (config._mode&VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+
+// Update Serial connection speed and settings
 void shell_update_speed(void){
-  // Restart Serial for drop connection, and change to USB
+  // Update Serial speed settings
   SerialConfig s_config = {USART_GET_SPEED(config._serial_speed), 0, USART_CR2_STOP1_BITS, 0 };
   sdStop(&SD1);
   sdStart(&SD1, &s_config);  // USART config
 }
 
+// Reset shell I/O queue
 void shell_reset_console(void){
-  // Restart USB for drop connection and stars Serial
-  sduStop(&SDU1);
-  sduStart(&SDU1, &serusbcfg);
-  // Restart Serial, and set speed
-  shell_update_speed();
+  // Reset I/O queue over USB (for USB need also connect/disconnect)
+  if (config._mode & VNA_MODE_SERIAL)
+    sduDisconnectI(&SDU1);
+  else
+    sduConfigureHookI(&SDU1);
+  // Reset I/O queue over Serial
+  oqResetI(&SD1.oqueue);
+  iqResetI(&SD1.iqueue);
 }
 
+// Check active connection for Shell
 static bool shell_check_connect(void){
+  // Serial connection always active
   if (config._mode & VNA_MODE_SERIAL)
     return true;
-  return SDU1.config->usbp->state == USB_ACTIVE;
+  // USB connection can be USB_SUSPENDED
+  return usbGetDriverStateI(&USBD1) == USB_ACTIVE;
 }
 
 static void shell_init_connection(void){
 /*
- * Initializes a serial-over-USB CDC driver.
+ * Initializes and start serial-over-USB CDC driver SDU1, connected to USBD1
  */
   sduObjectInit(&SDU1);
   sduStart(&SDU1, &serusbcfg);
+
+/*
+ * Set Serial speed settings for SD1
+ */
+  shell_update_speed();
 
 /*
  * Activates the USB driver and then the USB bus pull-up on D+.
  * Note, a delay is inserted in order to not have to disconnect the cable
  * after a reset.
  */
-  usbDisconnectBus(serusbcfg.usbp);
+  usbDisconnectBus(&USBD1);
   chThdSleepMilliseconds(100);
-  usbStart(serusbcfg.usbp, &usbcfg);
-  usbConnectBus(serusbcfg.usbp);
+  usbStart(&USBD1, &usbcfg);
+  usbConnectBus(&USBD1);
 
-  shell_reset_console();
+/*
+ *  Set I/O stream (SDU1 or SD1) for shell
+ */
   PREPARE_STREAM;
 }
 
@@ -2591,20 +2608,24 @@ static bool shell_check_connect(void){
 // Init shell I/O connection over USB
 static void shell_init_connection(void){
 /*
- * Initializes a serial-over-USB CDC driver.
+ * Initializes and start serial-over-USB CDC driver SDU1, connected to USBD1
  */
   sduObjectInit(&SDU1);
   sduStart(&SDU1, &serusbcfg);
+
 /*
  * Activates the USB driver and then the USB bus pull-up on D+.
  * Note, a delay is inserted in order to not have to disconnect the cable
  * after a reset.
  */
-  usbDisconnectBus(serusbcfg.usbp);
+  usbDisconnectBus(&USBD1);
   chThdSleepMilliseconds(100);
-  usbStart(serusbcfg.usbp, &usbcfg);
-  usbConnectBus(serusbcfg.usbp);
+  usbStart(&USBD1, &usbcfg);
+  usbConnectBus(&USBD1);
 
+/*
+ *  Set I/O stream SDU1 for shell
+ */
   shell_stream = (BaseSequentialStream *)&SDU1;
 }
 #endif
@@ -2793,8 +2814,11 @@ int main(void)
  */
   dacStart(&DACD2, &dac1cfg1);
 
+/*
+ * Initialize RTC library
+ */
 #ifdef __USE_RTC__
-  rtc_init(); // Initialize RTC library
+  rtc_init();
 #endif
 
 #ifdef USE_VARIABLE_OFFSET
