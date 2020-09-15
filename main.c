@@ -98,6 +98,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_SCANBIN_COMMAND
 // Enable debug for console command
 //#define DEBUG_CONSOLE_SHOW
+// Enable transform command
+#define ENABLE_USART_COMMAND
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -127,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.34"
+#define VERSION "1.0.36"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2431,6 +2433,21 @@ VNA_SHELL_FUNCTION(cmd_threads)
 }
 #endif
 
+#ifdef ENABLE_USART_COMMAND
+VNA_SHELL_FUNCTION(cmd_usart)
+{
+  uint32_t time = 2000; // 200ms wait answer by default
+  if (argc == 0 || argc > 2 || (config._mode & VNA_MODE_SERIAL)) return;
+  if (argc == 2) time = my_atoui(argv[1])*10;
+  sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
+  sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
+  uint32_t size;
+  uint8_t buffer[64];
+  while ((size = sdReadTimeout(&SD1, buffer, sizeof(buffer), time)))
+    streamWrite(&SDU1, buffer, size);
+}
+#endif
+
 //=============================================================================
 VNA_SHELL_FUNCTION(cmd_help);
 
@@ -2500,6 +2517,9 @@ static const VNAShellCommand commands[] =
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
     {"reset"       , cmd_reset       , 0},
+#ifdef ENABLE_USART_COMMAND
+    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
 #endif
