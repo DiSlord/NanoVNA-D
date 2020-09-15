@@ -68,6 +68,10 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_INFO_COMMAND
 // Enable color command, allow change config color for traces, grid, menu
 #define ENABLE_COLOR_COMMAND
+// Enable transform command
+#define ENABLE_TRANSFORM_COMMAND
+// Enable sample command
+//#define ENABLE_SAMPLE_COMMAND
 // Enable I2C command for send data to AIC3204, used for debug
 //#define ENABLE_I2C_COMMAND
 // Enable LCD command for send data to LCD screen, used for debug
@@ -715,7 +719,7 @@ VNA_SHELL_FUNCTION(cmd_gamma)
 #endif
 
 static void (*sample_func)(float *gamma) = calculate_gamma;
-
+#ifdef ENABLE_SAMPLE_COMMAND
 VNA_SHELL_FUNCTION(cmd_sample)
 {
   if (argc != 1) goto usage;
@@ -737,6 +741,7 @@ VNA_SHELL_FUNCTION(cmd_sample)
 usage:
   shell_printf("usage: sample {%s}\r\n", cmd_sample_list);
 }
+#endif
 
 config_t config = {
   .magic =             CONFIG_MAGIC,
@@ -2046,6 +2051,7 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
   }
 }
 
+#ifdef ENABLE_TRANSFORM_COMMAND
 static void
 set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 {
@@ -2110,6 +2116,7 @@ VNA_SHELL_FUNCTION(cmd_transform)
 usage:
   shell_printf("usage: transform {%s} [...]\r\n", cmd_transform_list);
 }
+#endif
 
 #ifdef ENABLE_TEST_COMMAND
 VNA_SHELL_FUNCTION(cmd_test)
@@ -2449,7 +2456,7 @@ static const VNAShellCommand commands[] =
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"reset"       , cmd_reset       , 0},
+    {"power"       , cmd_power       , 0},
 #ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
 #endif
@@ -2474,8 +2481,9 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_GAIN_COMMAND
     {"gain"        , cmd_gain        , CMD_WAIT_MUTEX},
 #endif
-    {"power"       , cmd_power       , 0},
+#ifdef ENABLE_SAMPLE_COMMAND
     {"sample"      , cmd_sample      , 0},
+#endif
 #ifdef ENABLE_TEST_COMMAND
     {"test"        , cmd_test        , 0},
 #endif
@@ -2491,10 +2499,13 @@ static const VNAShellCommand commands[] =
     {"edelay"      , cmd_edelay      , 0},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
+    {"reset"       , cmd_reset       , 0},
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
 #endif
+#ifdef ENABLE_TRANSFORM_COMMAND
     {"transform"   , cmd_transform   , 0},
+#endif
     {"threshold"   , cmd_threshold   , 0},
     {"help"        , cmd_help        , 0},
 #ifdef ENABLE_INFO_COMMAND
@@ -2563,13 +2574,20 @@ void shell_update_speed(void){
   sdStart(&SD1, &s_config);  // USART config
 }
 
+// Check USB connection status
+static bool usb_IsActive(void){
+  return usbGetDriverStateI(&USBD1) == USB_ACTIVE;
+}
+
 // Reset shell I/O queue
 void shell_reset_console(void){
   // Reset I/O queue over USB (for USB need also connect/disconnect)
-  if (config._mode & VNA_MODE_SERIAL)
-    sduDisconnectI(&SDU1);
-  else
-    sduConfigureHookI(&SDU1);
+  if (usb_IsActive()){
+    if (config._mode & VNA_MODE_SERIAL)
+      sduDisconnectI(&SDU1);
+    else
+      sduConfigureHookI(&SDU1);
+  }
   // Reset I/O queue over Serial
   oqResetI(&SD1.oqueue);
   iqResetI(&SD1.iqueue);
@@ -2581,7 +2599,7 @@ static bool shell_check_connect(void){
   if (config._mode & VNA_MODE_SERIAL)
     return true;
   // USB connection can be USB_SUSPENDED
-  return usbGetDriverStateI(&USBD1) == USB_ACTIVE;
+  return usb_IsActive();
 }
 
 static void shell_init_connection(void){
