@@ -1055,15 +1055,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
 }
 
 #ifdef __USE_SERIAL_CONSOLE__
+static const uint32_t usart_speed[] = {19200, 38400, 57600, 115200, 230400, 460800, 921600};
 static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
 {
   (void)item;
+  uint32_t speed = usart_speed[data];
   if (b){
-    b->icon = config._serial_speed == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.u = USART_GET_SPEED(data);
+    b->icon = config._serial_speed == speed ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = speed;
     return;
   }
-  config._serial_speed = data;
+  config._serial_speed = speed;
   shell_update_speed();
   draw_menu();
 }
@@ -1091,8 +1093,9 @@ menu_brightness(int item, uint8_t data)
   int16_t value = config._brightness;
   ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
   ili9341_set_background(LCD_MENU_COLOR);
-  ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40);
-  ili9341_drawstring(S_LARROW" BRIGHTNESS "S_RARROW, LCD_WIDTH/2-46, LCD_HEIGHT/2-6);
+  ili9341_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
+  ili9341_drawstring("BRIGHTNESS", LCD_WIDTH/2-35, LCD_HEIGHT/2-13);
+  ili9341_drawstring(S_LARROW" USE LEVELER BUTTON "S_RARROW, LCD_WIDTH/2-72, LCD_HEIGHT/2+2);
   while (TRUE) {
     int status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
@@ -1471,25 +1474,24 @@ const menuitem_t menu_dfu[] = {
 //19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
 #if 0
 const menuitem_t menu_serial_speed2[] = {
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 460800), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 921600), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(1843200), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(3686400), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 7, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 8, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 9, "%u", menu_serial_speed_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 #endif
 
 const menuitem_t menu_serial_speed[] = {
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 19200), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 38400), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 57600), "%u", menu_serial_speed_acb },
-//  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 76800), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(115200), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING(230400), "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 0, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 1, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 2, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 3, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 4, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 5, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
 //  { MT_SUBMENU, 0, S_RARROW" MORE", menu_serial_speed2 },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 460800), "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, USART_SPEED_SETTING( 921600), "%u", menu_serial_speed_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
