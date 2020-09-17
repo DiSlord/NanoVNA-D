@@ -343,6 +343,19 @@ static int shell_printf(const char *fmt, ...)
   return formatted_bytes;
 }
 
+#ifdef __USE_SERIAL_CONSOLE__
+// Serial Shell commands output
+int serial_shell_printf(const char *fmt, ...)
+{
+  va_list ap;
+  int formatted_bytes;
+  va_start(ap, fmt);
+  formatted_bytes = chvprintf((BaseSequentialStream *)&SD1, fmt, ap);
+  va_end(ap);
+  return formatted_bytes;
+}
+#endif
+
 VNA_SHELL_FUNCTION(cmd_pause)
 {
   (void)argc;
@@ -754,7 +767,7 @@ config_t config = {
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   ._mode     = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  ._serial_speed = USART_SPEED_SETTING(SERIAL_DEFAULT_BITRATE),
+  ._serial_speed = SERIAL_DEFAULT_BITRATE,
   .vbat_offset = 320,
   ._brightness = DEFAULT_BRIGHTNESS,
   .bandwidth = BANDWIDTH_1000
@@ -2434,6 +2447,17 @@ VNA_SHELL_FUNCTION(cmd_threads)
 #endif
 
 #ifdef ENABLE_USART_COMMAND
+VNA_SHELL_FUNCTION(cmd_usart_cfg)
+{
+  if (argc != 1) goto result;
+  uint32_t speed = my_atoui(argv[0]);
+  if (speed < 300) speed = 300;
+  config._serial_speed = speed;
+  shell_update_speed();
+result:
+  shell_printf("Serial: %u baud\r\n", config._serial_speed);
+}
+
 VNA_SHELL_FUNCTION(cmd_usart)
 {
   uint32_t time = 2000; // 200ms wait answer by default
@@ -2518,6 +2542,7 @@ static const VNAShellCommand commands[] =
     {"vbat"        , cmd_vbat        , 0},
     {"reset"       , cmd_reset       , 0},
 #ifdef ENABLE_USART_COMMAND
+    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
 #endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
@@ -2589,7 +2614,7 @@ VNA_SHELL_FUNCTION(cmd_help)
 // Update Serial connection speed and settings
 void shell_update_speed(void){
   // Update Serial speed settings
-  SerialConfig s_config = {USART_GET_SPEED(config._serial_speed), 0, USART_CR2_STOP1_BITS, 0 };
+  SerialConfig s_config = {config._serial_speed, 0, USART_CR2_STOP1_BITS, 0 };
   sdStop(&SD1);
   sdStart(&SD1, &s_config);  // USART config
 }
@@ -2782,7 +2807,6 @@ THD_FUNCTION(myshellThread, p)
 {
   (void)p;
   chRegSetThreadName("shell");
-  shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
   while (true) {
     shell_printf(VNA_SHELL_PROMPT_STR);
     if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
@@ -2858,13 +2882,6 @@ int main(void)
   halInit();
   chSysInit();
 
-/*
- * Initialize RTC library (not used ChibiOS RTC module)
- */
-#ifdef __USE_RTC__
-  rtc_init();
-#endif
-
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
@@ -2898,6 +2915,13 @@ int main(void)
  * Start si5351
  */
   si5351_init();
+
+/*
+ * Initialize RTC library (not used ChibiOS RTC module)
+ */
+#ifdef __USE_RTC__
+  rtc_init();
+#endif
 
 /*
  * I2S Initialize
@@ -2939,6 +2963,7 @@ int main(void)
 
   while (1) {
     if (shell_check_connect()) {
+      shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
 #ifdef VNA_SHELL_THREAD
 #if CH_CFG_USE_WAITEXIT == FALSE
 #error "VNA_SHELL_THREAD use chThdWait, need enable CH_CFG_USE_WAITEXIT in chconf.h"
@@ -2948,7 +2973,6 @@ int main(void)
                                             myshellThread, NULL);
       chThdWait(shelltp);
 #else
-      shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
       do {
         shell_printf(VNA_SHELL_PROMPT_STR);
         if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
@@ -2998,8 +3022,8 @@ void hard_fault_handler_c(uint32_t *sp)
   int y = 0;
   int x = 20;
   char buf[16];
-  ili9341_set_background(0x0000);
-  ili9341_set_foreground(0xFFFF);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
   plot_printf(buf, sizeof(buf), "SP  0x%08x",  (uint32_t)sp);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
   plot_printf(buf, sizeof(buf), "R0  0x%08x",  r0);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
   plot_printf(buf, sizeof(buf), "R1  0x%08x",  r1);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);

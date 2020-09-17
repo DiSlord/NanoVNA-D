@@ -476,12 +476,13 @@ typedef struct config {
   uint16_t vbat_offset;
   uint16_t bandwidth;
   uint16_t lcd_palette[MAX_PALETTE];
+  uint32_t _serial_speed;
+  uint32_t _serial_config;
   uint8_t  _mode;
-  uint8_t _serial_speed;
   uint8_t _brightness;
-  uint8_t _reserved[47];
+  uint8_t _reserved[24];
   uint32_t checksum;
-} config_t; // sizeof = 124
+} config_t; // sizeof = 108
 
 typedef struct properties {
   uint32_t magic;
@@ -520,14 +521,7 @@ float get_trace_refpos(int t);
 const char *get_trace_typename(int t);
 
 //
-// Shell config functions and macros
-// Serial connect definitions not used if Serial mode disabled
-// Minimum speed - USART_SPEED_MULTIPLIER
-// Maximum speed - USART_SPEED_MULTIPLIER * 256
-// Can be: 19200, 38400, 57600, 76800, 115200, 230400, 460800, 921600, 1843200, 3686400
-#define USART_SPEED_MULTIPLIER          19200
-#define USART_SPEED_SETTING(speed)     ((speed)/USART_SPEED_MULTIPLIER - 1)
-#define USART_GET_SPEED(idx)           (((idx) + 1) * USART_SPEED_MULTIPLIER)
+// Shell config functions and macros for Serial connect, not used if Serial mode disabled
 void shell_update_speed(void);
 void shell_reset_console(void);
 

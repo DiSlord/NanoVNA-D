@@ -97,11 +97,9 @@ static void rtc_start_source(void){
     return;
   // If LSE not enabled, try startup
   RCC->BDCR |= STM32_LSEDRV | STM32_LSE_BYPASS | RCC_BDCR_LSEON;
-  uint32_t count = 65536;
-  // Waits until LSE is stable. or count == 0
-  do{
-    if (RCC->BDCR & RCC_BDCR_LSERDY) return;
-  }while (--count);
+  // Waits until LSE is stable.
+  chThdSleepMilliseconds(50);
+  if (RCC->BDCR & RCC_BDCR_LSERDY) return;
   // Startup LSI if not allow start LSE
   RCC->CSR |= RCC_CSR_LSION;
   while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
