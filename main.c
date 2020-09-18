@@ -115,7 +115,7 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-int8_t  sweep_mode = SWEEP_ENABLE;
+uint8_t sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 // sweep operation variables
@@ -198,9 +198,9 @@ static THD_FUNCTION(Thread1, arg)
       plot_into_index(measured);
       redraw_request |= REDRAW_CELLS | REDRAW_BATTERY;
 
-      if (uistat.marker_tracking) {
+      if (uistat.marker_tracking && active_marker != -1) {
         int i = marker_search();
-        if (i != -1 && active_marker != -1) {
+        if (i != -1) {
           markers[active_marker].index = i;
           redraw_request |= REDRAW_MARKER;
         }
