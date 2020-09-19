@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.36"
+#define VERSION "1.0.38"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -763,8 +763,8 @@ config_t config = {
   .dac_value =         1922,
   .lcd_palette = LCD_DEFAULT_PALETTE,
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
-//  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
-  .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
+  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
+//  .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
   ._mode     = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,

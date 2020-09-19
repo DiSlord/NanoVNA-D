@@ -1003,6 +1003,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
   draw_menu();
 }
 
+#ifdef __USE_LC_MATCHING__
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_lc_match_acb)
+{
+  (void)item;
+  (void)data;
+  if (b){
+    b->icon = domain_mode & TD_LC_MATH ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  domain_mode^=TD_LC_MATH;
+  ui_mode_normal();
+}
+#endif
+
 static void
 active_marker_select(int item)
 {
@@ -1449,6 +1463,9 @@ const menuitem_t menu_marker_smith[] = {
   { MT_ADV_CALLBACK, MS_REIM,"Re+Im", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RX,  "R+jX", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RLC, "R+L/C", menu_marker_smith_acb },
+#ifdef __USE_LC_MATCHING__
+  { MT_ADV_CALLBACK,      0, "L/C MATCH", menu_marker_lc_match_acb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
