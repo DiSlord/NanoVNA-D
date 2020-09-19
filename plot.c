@@ -35,6 +35,9 @@ static int16_t grid_width;
 int16_t area_width  = AREA_WIDTH_NORMAL;
 int16_t area_height = AREA_HEIGHT_NORMAL;
 
+// Counter for sweep
+uint16_t sweep_count = 0;
+
 // Cell render use spi buffer
 static pixel_t *cell_buffer;
 // Check buffer size
@@ -54,8 +57,8 @@ typedef uint16_t map_t;
 typedef uint32_t map_t;
 #endif
 
-map_t   markmap[2][MAX_MARKMAP_Y];
-uint8_t current_mappage = 0;
+static map_t   markmap[2][MAX_MARKMAP_Y];
+static uint8_t current_mappage = 0;
 
 // Trace data cache, for faster redraw cells
 //   CELL_X[16:31] x position
@@ -951,6 +954,11 @@ cell_drawstring(char *str, int x, int y)
   }
 }
 
+// Include L/C match functions
+#ifdef __USE_LC_MATCHING__
+  #include "lc_matching.c"
+#endif
+
 #define REFERENCE_WIDTH    6
 #define REFERENCE_HEIGHT   5
 #define REFERENCE_X_OFFSET 5
@@ -1123,6 +1131,11 @@ markmap_marker(int marker)
     int y = CELL_Y(index) - Y_MARKER_OFFSET;
     invalidate_rect(x, y, x+MARKER_WIDTH-1, y+MARKER_HEIGHT-1);
   }
+// Update L/C match area for redraw
+#ifdef __USE_LC_MATCHING__
+  if ((domain_mode & TD_LC_MATH) && marker == active_marker)
+    lc_match_mark_area();
+#endif
 }
 
 static void
@@ -1273,7 +1286,7 @@ plot_into_index(float measured[2][POINTS_COUNT][2])
     if (trace[t].enabled && trace[t].polar)
       quicksort(trace_index[t], 0, sweep_points);
 #endif
-
+  sweep_count++;
   mark_cells_from_index();
   markmap_all_markers();
 }
@@ -1448,6 +1461,11 @@ draw_cell(int m, int n)
 #if 1
   if (n <= (3*FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
+#endif
+// L/C match data output
+#ifdef __USE_LC_MATCHING__
+  if (domain_mode & TD_LC_MATH)
+    cell_draw_lc_match(x0, y0);
 #endif
 //  PULSE;
 // Draw reference position (<10 system ticks for all screen calls)

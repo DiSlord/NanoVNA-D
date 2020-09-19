@@ -34,6 +34,8 @@
 #define __USE_SD_CARD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
+// Add LC match function
+#define __USE_LC_MATCHING__
 
 /*
  * main.c
@@ -178,6 +180,8 @@ extern uint32_t frequencies[POINTS_COUNT];
 #define TD_WINDOW_NORMAL (0b00<<3)
 #define TD_WINDOW_MINIMUM (0b01<<3)
 #define TD_WINDOW_MAXIMUM (0b10<<3)
+// L/C match enable option
+#define TD_LC_MATH        (1<<5)
 
 #if   POINTS_COUNT <= 256
 #define FFT_SIZE   256
@@ -402,6 +406,17 @@ extern int16_t area_height;
 // Key x, y position (0 - 15) on screen
 #define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
 #define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
+#endif
+
+#ifdef __USE_LC_MATCHING__
+// X and Y offset to L/C match text
+ #define STR_LC_MATH_X      (OFFSETX +  0)
+// Better be aligned by cell
+ #define STR_LC_MATH_Y      (OFFSETY + 32)
+// 1/3 Width of text (need 3 column for data)
+ #define STR_LC_MATH_WIDTH  (FONT_WIDTH * 10)
+// String Height (need 2 + 0..4 string)
+ #define STR_LC_MATH_HEIGHT (FONT_STR_HEIGHT + 2)
 #endif
 
 // Additional chars in fonts
