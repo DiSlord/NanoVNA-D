@@ -1,8 +1,5 @@
 NanoVNA - Very tiny handheld Vector Network Analyzer
 ==========================================================
-
-[![GitHub release](https://github.com/DiSlord/NanoVNA-D/releases/tag/1.0.38)][release]
-
 [release]: https://github.com/DiSlord/NanoVNA-D/releases
 
 <div align="center">
