@@ -1,10 +1,6 @@
 NanoVNA - Very tiny handheld Vector Network Analyzer
 ==========================================================
-
-[![GitHub release](http://img.shields.io/github/release/ttrftech/NanoVNA.svg?style=flat)][release]
-[![CircleCI](https://circleci.com/gh/ttrftech/NanoVNA.svg?style=shield)](https://circleci.com/gh/ttrftech/NanoVNA)
-
-[release]: https://github.com/ttrftech/NanoVNA/releases
+[release]: https://github.com/DiSlord/NanoVNA-D/releases
 
 <div align="center">
 <img src="/doc/nanovna.jpg" width="480px">
@@ -108,11 +104,12 @@ Hardware design material is disclosed to prevent bad quality clone. Please let m
 * Switch Science(ja) [NanoVNA-H](https://www.switch-science.com/catalog/6405/) [NanoVNA-H4](https://www.switch-science.com/catalog/6406/)
 
 ## Credit
+* [@DiSlord](https://github.com/DiSlord/)
 
+## Based on code from:
 * [@edy555](https://github.com/edy555)
 
 ### Contributors
-
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)
-* [@DiSlord](https://github.com/DiSlord/)
+
