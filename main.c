@@ -98,8 +98,10 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_SCANBIN_COMMAND
 // Enable debug for console command
 //#define DEBUG_CONSOLE_SHOW
-// Enable transform command
+// Enable usart command
 #define ENABLE_USART_COMMAND
+// Enable SD card console command
+//#define ENABLE_SD_CARD_CMD
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -129,7 +131,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.38"
+#define VERSION "1.0.39"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -268,7 +270,8 @@ transform_domain(void)
 
   uint16_t window_size = sweep_points, offset = 0;
   uint8_t is_lowpass = FALSE;
-  switch (domain_mode & TD_FUNC) {
+  uint8_t td_func = domain_mode & TD_FUNC;
+  switch (td_func) {
     case TD_FUNC_BANDPASS:
       offset = 0;
       window_size = sweep_points;
@@ -284,7 +287,7 @@ transform_domain(void)
   float beta = 0.0;
   switch (domain_mode & TD_WINDOW) {
     case TD_WINDOW_MINIMUM:
-      beta = 0.0;  // this is rectangular
+//    beta = 0.0;  // this is rectangular
       break;
     case TD_WINDOW_NORMAL:
       beta = 6.0;
@@ -294,12 +297,36 @@ transform_domain(void)
       break;
   }
 
+#if 1
+  // recalculate the scale factor if any window details are changed.
+  // the scale factor is to compensate for windowing.
+  static float window_scale = 1.0f;
+  static uint16_t td_cache = 0;
+  uint16_t td_check = (domain_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
+  if (td_cache!=td_check){
+    td_cache=td_check;
+    if (td_func == TD_FUNC_LOWPASS_STEP)
+      window_scale = 1.0f;
+    else {
+      window_scale = 0.0f;
+      for (int i = 0; i < sweep_points; i++)
+        window_scale += kaiser_window(i + offset, window_size, beta);
+      window_scale = (FFT_SIZE/2) / window_scale;
+      if (td_func == TD_FUNC_BANDPASS)
+        window_scale *= 2;
+    }
+  }
+#else
+  // Disable compensation
+  #define window_scale 1
+#endif
+
   uint16_t ch_mask = get_sweep_mode();
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     memcpy(tmp, measured[ch], sizeof(measured[0]));
     for (int i = 0; i < sweep_points; i++) {
-      float w = kaiser_window(i + offset, window_size, beta);
+      float w = kaiser_window(i + offset, window_size, beta) * window_scale;
       tmp[i * 2 + 0] *= w;
       tmp[i * 2 + 1] *= w;
     }
@@ -2472,6 +2499,82 @@ VNA_SHELL_FUNCTION(cmd_usart)
 }
 #endif
 
+#ifdef ENABLE_SD_CARD_CMD
+#ifndef __USE_SD_CARD__
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
+#endif
+// Fat file system work area (at the end of spi_buffer)
+static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
+// FatFS file object (at the end of spi_buffer)
+static FIL   *fs_file     = (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL));
+
+static FRESULT cmd_sd_card_mount(void){
+  const FRESULT res = f_mount(fs_volume, "", 1);
+  if (res != FR_OK)
+    shell_printf("error: card not mounted\r\n");
+  return res;
+}
+
+VNA_SHELL_FUNCTION(cmd_sd_list)
+{
+  (void)argc;
+  (void)argv;
+
+  DIR dj;
+  FILINFO fno;
+  FRESULT res;
+  shell_printf("sd_list:\r\n");
+  res = cmd_sd_card_mount();
+  if (res != FR_OK)
+    return;
+  res = f_findfirst(&dj, &fno, "", "*.*");
+  while (res == FR_OK && fno.fname[0])
+  {
+    shell_printf("%s %u\r\n", fno.fname, fno.fsize);
+    res = f_findnext(&dj, &fno);
+  }
+  f_closedir(&dj);
+}
+
+VNA_SHELL_FUNCTION(cmd_sd_readfile)
+{
+  FRESULT res;
+  char *buf = (char *)spi_buffer;
+  if (argc < 1)
+  {
+     shell_printf("usage: sd_readfile {filename}\r\n");
+     return;
+  }
+  const char *filename = argv[0];
+  shell_printf("sd_readfile: %s\r\n", filename);
+  res = cmd_sd_card_mount();
+  if (res != FR_OK)
+    return;
+
+  res = f_open(fs_file, filename, FA_OPEN_EXISTING | FA_READ);
+  if (res != FR_OK)
+  {
+    shell_printf("error: %s not opened\r\n", filename);
+    return;
+  }
+
+  // number of bytes to follow (file size)
+  const uint32_t filesize = f_size(fs_file);
+  streamWrite(shell_stream, (void *)&filesize, 4);
+
+  // file data (send all data from file)
+  while (1)
+  {
+    UINT size = 0;
+    res = f_read(fs_file, buf, 512, &size);
+    if (res != FR_OK || size == 0)
+      break;
+    streamWrite(shell_stream, (void *)buf, size);
+  }
+  res = f_close(fs_file);
+}
+#endif
+
 //=============================================================================
 VNA_SHELL_FUNCTION(cmd_help);
 
@@ -2504,6 +2607,10 @@ static const VNAShellCommand commands[] =
     {"bandwidth"   , cmd_bandwidth   , 0},
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
+#endif
+#ifdef ENABLE_SD_CARD_CMD
+    {"sd_list"       , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"sd_readfile"   , cmd_sd_readfile , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
 #endif
 #ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , 0},
