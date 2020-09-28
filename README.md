@@ -106,6 +106,7 @@ Hardware design material is disclosed to prevent bad quality clone. Please let m
 * [@edy555](https://github.com/edy555)
 
 ### Contributors
+* [@OneOfEleven](https://github.com/OneOfEleven)
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)
 
