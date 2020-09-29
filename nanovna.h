@@ -36,6 +36,8 @@
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
 #define __USE_LC_MATCHING__
+// Use buildin table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
+#define __VNA_USE_MATH_TABLES__
 
 /*
  * main.c
@@ -188,6 +190,9 @@ extern uint32_t frequencies[POINTS_COUNT];
 #elif POINTS_COUNT <= 512
 #define FFT_SIZE   512
 #endif
+
+// Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
+void arm_sin_cos_f32(float angle, float * pSinVal, float * pCosVal);
 
 void cal_collect(int type);
 void cal_done(void);
