@@ -28,9 +28,10 @@
 
 // Use table increase transform speed from 6500 tick to 2025, increase code size on 700 bytes
 // Use compact table, increase code size on 208 bytes, and not decrease speed
-// If defined __VNA_USE_MATH_TABLES__, in this case need always use table
+// Used only if not defined __VNA_USE_MATH_TABLES__ (use self table for TTF or direct sin/cos calculations)
 #define FFT_USE_SIN_COS_TABLE
 
+// Use sin table and interpolation for sin/sos calculations
 #ifdef __VNA_USE_MATH_TABLES__
 // Use 512 table for calculation sin/cos value, also use this table for FFT
 #define FAST_MATH_TABLE_SIZE 512
@@ -41,8 +42,8 @@
 static const float sin_table_512[FAST_MATH_TABLE_SIZE/2 + 1] = {
 	/*
 	 * float has about 7.2 digits of precision
-		for (int i = 0; i < FFT_SIZE - (FFT_SIZE / 4); i++) {
-			printf("% .8f,%c", sin(2 * M_PI * i / FFT_SIZE), i % 8 == 7 ? '\n' : ' ');
+		for (int i = 0; i < FAST_MATH_TABLE_SIZE; i++) {
+			printf("% .8f,%c", sin(2 * M_PI * i / FAST_MATH_TABLE_SIZE), i % 8 == 7 ? '\n' : ' ');
 		}
 	*/
 	 0.00000000f, 0.01227154f, 0.02454123f, 0.03680722f, 0.04906767f, 0.06132074f, 0.07356456f, 0.08579731f,
@@ -161,16 +162,17 @@ static const float sin_table_256[] = {
 	-0.98078528, -0.98527764, -0.98917651, -0.99247953, -0.99518473, -0.99729046, -0.99879546, -0.99969882,*/
 };
 // full size table:
-//   sin = sin_table[i   ]
-//   cos = sin_table[i+64]
+//   sin = sin_table_256[i   ]
+//   cos = sin_table_256[i+64]
 //#define FFT_SIN(i) sin_table_256[(i)]
 //#define FFT_COS(i) sin_table_256[(i)+64]
 
 // for size use only 0-64 indexes
-//   sin = i > 64 ? sin_table[128-i] : sin_table[   i];
-//   cos = i > 64 ?-sin_table[ i-64] : sin_table[64-i];
+//   sin = i > 64 ? sin_table_256[128-i] : sin_table_256[   i];
+//   cos = i > 64 ?-sin_table_256[ i-64] : sin_table_256[64-i];
 #define FFT_SIN(i) ((i) > 64 ? sin_table_256[128-(i)] : sin_table_256[   (i)])
 #define FFT_COS(i) ((i) > 64 ?-sin_table_256[ (i)-64] : sin_table_256[64-(i)])
+
 #elif FFT_SIZE == 512
 static const float sin_table_512[] = {
 	/*
@@ -230,23 +232,29 @@ static const float sin_table_512[] = {
 	-0.99518473, -0.99631261, -0.99729046, -0.99811811, -0.99879546, -0.99932238, -0.99969882, -0.99992470*/
 };
 // full size table:
-//   sin = sin_table[i    ]
-//   cos = sin_table[i+128]
+//   sin = sin_table_512[i    ]
+//   cos = sin_table_512[i+128]
 //#define FFT_SIN(i) sin_table_512[(i)    ]
 //#define FFT_COS(i) sin_table_512[(i)+128]
 
 // for size use only 0-128 indexes
-//   sin = i > 128 ? sin_table[256-i] : sin_table[    i];
-//   cos = i > 128 ?-sin_table[i-128] : sin_table[128-i];
+//   sin = i > 128 ? sin_table_512[256-i] : sin_table_512[    i];
+//   cos = i > 128 ?-sin_table_512[i-128] : sin_table_512[128-i];
 #define FFT_SIN(i) ((i) > 128 ? sin_table_512[256-(i)] : sin_table_512[    (i)])
 #define FFT_COS(i) ((i) > 128 ?-sin_table_512[(i)-128] : sin_table_512[128-(i)])
+
 #else
 #error "Need build table for new FFT size"
 #endif
 
-#endif
+#else
+// Not use FFT_USE_SIN_COS_TABLE, use direct sin/cos calculations
+#define FFT_SIN(k) sin(2 * VNA_PI * (k) / FFT_SIZE)
+#define FFT_COS(k) cos(2 * VNA_PI * (k) / FFT_SIZE);
 
-#endif
+#endif // FFT_USE_SIN_COS_TABLE
+
+#endif // __VNA_USE_MATH_TABLES__
 
 static uint16_t reverse_bits(uint16_t x, int n) {
 	uint16_t result = 0;
@@ -296,13 +304,8 @@ static void fft(float array[][2], const uint8_t dir) {
 		for (i = 0; i < n; i+=2*halfsize) {
 			for (j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
 				uint16_t l = j + halfsize;
-#ifdef FFT_USE_SIN_COS_TABLE
 				float s = FFT_SIN(k);
 				float c = FFT_COS(k);
-#else
-				float c = cos(2 * VNA_PI * k / FFT_SIZE);
-				float s = sin(2 * VNA_PI * k / FFT_SIZE);
-#endif
 				float tpre =  array[l][real] * c + array[l][imag] * s;
 				float tpim = -array[l][real] * s + array[l][imag] * c;
 				array[l][real] = array[j][real] - tpre;
@@ -323,7 +326,7 @@ static inline void fft_inverse(float array[][2]) {
 }
 
 // Return sin/cos value angle in range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
-void arm_sin_cos_f32(float angle, float * pSinVal, float * pCosVal)
+void vna_sin_cos(float angle, float * pSinVal, float * pCosVal)
 {
 #ifndef __VNA_USE_MATH_TABLES__
   // Use default sin/cos functions
@@ -331,20 +334,19 @@ void arm_sin_cos_f32(float angle, float * pSinVal, float * pCosVal)
   *pSinVal = sin(angle);
   *pCosVal = cos(angle);
 #else
-  const float Dn = 2 * VNA_PI / FAST_MATH_TABLE_SIZE; // delta between the two points (fixed);
-  float fract;              //
+  const float Dn = 2 * VNA_PI / FAST_MATH_TABLE_SIZE; // delta between the two points in table (fixed);
   uint16_t indexS, indexC;  // Index variable
   float f1, f2, d1, d2;     // Two nearest output values
-  float Df;
-  float temp;
+  float Df, fract, temp;
 
-  // Scale input from range 0.0 to 1.0 to table size (for cosine add 0.25 (pi/2) to read sine table)
-  temp = angle * FAST_MATH_TABLE_SIZE;
-  if (temp < 0)
-    temp = -temp;
+  // Round angle to range 0.0 to 1.0
+  temp = fabsf(angle);
+  temp-= (uint32_t)temp;//floorf(temp);
+  // Scale input from range 0.0 to 1.0 to table size
+  temp*= FAST_MATH_TABLE_SIZE;
 
   indexS = temp;
-  indexC = indexS + (FAST_MATH_TABLE_SIZE / 4);
+  indexC = indexS + (FAST_MATH_TABLE_SIZE / 4); // cosine add 0.25 (pi/2) to read from sine table
   // Calculation of fractional value
   fract  = temp - indexS;
   // Align indexes to table
@@ -352,10 +354,17 @@ void arm_sin_cos_f32(float angle, float * pSinVal, float * pCosVal)
   indexC&= (FAST_MATH_TABLE_SIZE-1);
 
   // Read two nearest values of input value from the cos & sin tables
+#if 0
   f1 = GET_SIN_TABLE(indexC  );
   f2 = GET_SIN_TABLE(indexC+1);
   d1 = GET_SIN_TABLE(indexS  );
   d2 = GET_SIN_TABLE(indexS+1);
+#else
+  if (indexC < 256){f1 = sin_table_512[indexC    +0];f2 = sin_table_512[indexC    +1];}
+  else             {f1 =-sin_table_512[indexC-256+0];f2 =-sin_table_512[indexC-256+1];}
+  if (indexS < 256){d1 = sin_table_512[indexS    +0];d2 = sin_table_512[indexS    +1];}
+  else             {d1 =-sin_table_512[indexS-256+0];d2 =-sin_table_512[indexS-256+1];}
+#endif
 
   // Calculation of cosine value
   Df = f2 - f1;          // delta between the values of the functions
