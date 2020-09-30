@@ -1572,7 +1572,7 @@ static void apply_edelay(void)
   float s, c;
   uint16_t sweep_mode = get_sweep_mode();
   for (i=0;i<sweep_points;i++){
-    arm_sin_cos_f32(electrical_delay * frequencies[i] * 1E-12, &s, &c);
+    vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
     if (sweep_mode & SWEEP_CH0_MEASURE){
       real = measured[0][i][0];
       imag = measured[0][i][1];

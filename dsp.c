@@ -38,7 +38,7 @@ void generate_DSP_Table(int offset){
   float w = step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
-    arm_sin_cos_f32(w, &s, &c);
+    vna_sin_cos(w, &s, &c);
     sincos_tbl[i][0] = s*32768.0 + 0.5;
     sincos_tbl[i][1] = c*32768.0 + 0.5;
     w+=step;

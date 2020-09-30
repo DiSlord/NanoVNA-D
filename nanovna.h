@@ -192,7 +192,7 @@ extern uint32_t frequencies[POINTS_COUNT];
 #endif
 
 // Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
-void arm_sin_cos_f32(float angle, float * pSinVal, float * pCosVal);
+void vna_sin_cos(float angle, float * pSinVal, float * pCosVal);
 
 void cal_collect(int type);
 void cal_done(void);
