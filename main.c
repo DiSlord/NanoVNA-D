@@ -941,6 +941,8 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     return false;
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
+  // Cache channel
+  tlv320aic3204_select(sweep_mode & SWEEP_CH0_MEASURE ? 0 : 1);
 //  START_PROFILE;
   ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
@@ -3155,3 +3157,7 @@ void hard_fault_handler_c(uint32_t *sp)
   while (true) {
   }
 }
+// For new compilers
+//void _exit(int){}
+//void _kill(void){}
+//void _getpid(void){}

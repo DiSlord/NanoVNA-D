@@ -656,6 +656,7 @@ typedef uint16_t pixel_t;
 #define LCD_BW_TEXT_COLOR       16
 #define LCD_INPUT_TEXT_COLOR    17
 #define LCD_INPUT_BG_COLOR      18
+#define LCD_LC_MATCH_COLOR      19
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -677,6 +678,7 @@ typedef uint16_t pixel_t;
 [LCD_BW_TEXT_COLOR    ] = RGB565(128,128,128), \
 [LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
 [LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
+[LCD_LC_MATCH_COLOR   ] = RGB565(255,255,255), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]

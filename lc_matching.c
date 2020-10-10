@@ -226,7 +226,7 @@ static void cell_draw_lc_match(int x0, int y0)
   int yp = STR_LC_MATH_Y - y0;
 
   ili9341_set_background(LCD_BG_COLOR);
-  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_foreground(LCD_LC_MATCH_COLOR);
 
   if (yp > -FONT_GET_HEIGHT && yp < CELLHEIGHT)
   {
