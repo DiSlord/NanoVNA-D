@@ -203,6 +203,7 @@ void SI4432_Init(void){
 #endif
 
   SI4432_Select();
+/*
   SI4432_Reset();
   SI4432_Write_Byte(SI4432_STATE, 0x80);
   chThdSleepMilliseconds(10);
@@ -251,7 +252,7 @@ void SI4432_Init(void){
 
   SI4432_Write_Byte(SI4432_DATAACCESS_CONTROL, 0x61); // Disable all packet handling
   SI4432_Write_Byte(SI4432_AGC_OVERRIDE, 0x60); // AGC, no LNA, fast gain increment
-
+*/
   // Switch off si4432
   SI4432_switch_off();
   SI4432_Deselect();

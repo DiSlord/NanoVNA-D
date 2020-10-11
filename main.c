@@ -38,7 +38,7 @@
 // enable this need reduce spi_buffer size, by default shell run in main thread
 // #define VNA_SHELL_THREAD
 
-static BaseSequentialStream *shell_stream = (BaseSequentialStream *)&SDU1;
+static BaseSequentialStream *shell_stream;
 
 // Shell new line
 #define VNA_SHELL_NEWLINE_STR    "\r\n"
@@ -69,6 +69,10 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_INFO_COMMAND
 // Enable color command, allow change config color for traces, grid, menu
 #define ENABLE_COLOR_COMMAND
+// Enable transform command
+#define ENABLE_TRANSFORM_COMMAND
+// Enable sample command
+//#define ENABLE_SAMPLE_COMMAND
 // Enable I2C command for send data to AIC3204, used for debug
 //#define ENABLE_I2C_COMMAND
 // Enable LCD command for send data to LCD screen, used for debug
@@ -95,6 +99,12 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_BAND_COMMAND
 // Enable scan_bin command (need use ex scan in future)
 #define ENABLE_SCANBIN_COMMAND
+// Enable debug for console command
+//#define DEBUG_CONSOLE_SHOW
+// Enable usart command
+#define ENABLE_USART_COMMAND
+// Enable SD card console command
+//#define ENABLE_SD_CARD_CMD
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -110,7 +120,7 @@ static void transform_domain(void);
 static  int32_t my_atoi(const char *p);
 static uint32_t my_atoui(const char *p);
 
-int8_t  sweep_mode = SWEEP_ENABLE;
+uint8_t sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 // sweep operation variables
@@ -124,7 +134,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.30"
+#define VERSION "1.0.39"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -144,6 +154,22 @@ const char *info_about[]={
   "Platform: " PLATFORM_NAME,
   0 // sentinel
 };
+
+// Allow draw some debug on LCD
+#ifdef DEBUG_CONSOLE_SHOW
+void my_debug_log(int offs, char *log){
+  static uint16_t shell_line_y = 0;
+  ili9341_set_foreground(LCD_FG_COLOR);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
+  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  shell_line_y+=FONT_STR_HEIGHT;
+  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
+}
+#define DEBUG_LOG(offs, text)    my_debug_log(offs, text);
+#else
+#define DEBUG_LOG(offs, text)
+#endif
 
 static THD_WORKING_AREA(waThread1, 768);
 static THD_FUNCTION(Thread1, arg)
@@ -177,17 +203,18 @@ static THD_FUNCTION(Thread1, arg)
       plot_into_index(measured);
       redraw_request |= REDRAW_CELLS | REDRAW_BATTERY;
 
-      if (uistat.marker_tracking) {
+      if (uistat.marker_tracking && active_marker != -1) {
         int i = marker_search();
-        if (i != -1 && active_marker != -1) {
+        if (i != -1) {
           markers[active_marker].index = i;
           redraw_request |= REDRAW_MARKER;
         }
       }
     }
+#ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
-    draw_all(completed);  // flush markmap only if scan completed to prevent
-                          // remaining traces
+    draw_all(completed);  // flush markmap only if scan completed to prevent remaining traces
+#endif
   }
 }
 
@@ -246,7 +273,8 @@ transform_domain(void)
 
   uint16_t window_size = sweep_points, offset = 0;
   uint8_t is_lowpass = FALSE;
-  switch (domain_mode & TD_FUNC) {
+  uint8_t td_func = domain_mode & TD_FUNC;
+  switch (td_func) {
     case TD_FUNC_BANDPASS:
       offset = 0;
       window_size = sweep_points;
@@ -262,7 +290,7 @@ transform_domain(void)
   float beta = 0.0;
   switch (domain_mode & TD_WINDOW) {
     case TD_WINDOW_MINIMUM:
-      beta = 0.0;  // this is rectangular
+//    beta = 0.0;  // this is rectangular
       break;
     case TD_WINDOW_NORMAL:
       beta = 6.0;
@@ -272,12 +300,36 @@ transform_domain(void)
       break;
   }
 
+#if 1
+  // recalculate the scale factor if any window details are changed.
+  // the scale factor is to compensate for windowing.
+  static float window_scale = 1.0f;
+  static uint16_t td_cache = 0;
+  uint16_t td_check = (domain_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
+  if (td_cache!=td_check){
+    td_cache=td_check;
+    if (td_func == TD_FUNC_LOWPASS_STEP)
+      window_scale = 1.0f;
+    else {
+      window_scale = 0.0f;
+      for (int i = 0; i < sweep_points; i++)
+        window_scale += kaiser_window(i + offset, window_size, beta);
+      window_scale = (FFT_SIZE/2) / window_scale;
+      if (td_func == TD_FUNC_BANDPASS)
+        window_scale *= 2;
+    }
+  }
+#else
+  // Disable compensation
+  #define window_scale 1
+#endif
+
   uint16_t ch_mask = get_sweep_mode();
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     memcpy(tmp, measured[ch], sizeof(measured[0]));
     for (int i = 0; i < sweep_points; i++) {
-      float w = kaiser_window(i + offset, window_size, beta);
+      float w = kaiser_window(i + offset, window_size, beta) * window_scale;
       tmp[i * 2 + 0] *= w;
       tmp[i * 2 + 1] *= w;
     }
@@ -320,6 +372,19 @@ static int shell_printf(const char *fmt, ...)
   va_end(ap);
   return formatted_bytes;
 }
+
+#ifdef __USE_SERIAL_CONSOLE__
+// Serial Shell commands output
+int serial_shell_printf(const char *fmt, ...)
+{
+  va_list ap;
+  int formatted_bytes;
+  va_start(ap, fmt);
+  formatted_bytes = chvprintf((BaseSequentialStream *)&SD1, fmt, ap);
+  va_end(ap);
+  return formatted_bytes;
+}
+#endif
 
 VNA_SHELL_FUNCTION(cmd_pause)
 {
@@ -556,6 +621,18 @@ usage:
 }
 #endif
 
+#ifdef __VNA_ENABLE_DAC__
+// Check DAC enabled in ChibiOS
+#if HAL_USE_DAC == FALSE
+#error "Need set HAL_USE_DAC in halconf.h for use DAC"
+#endif
+
+static const DACConfig dac1cfg1 = {
+  //init:         1922U,
+  init:         0,
+  datamode:     DAC_DHRM_12BIT_RIGHT
+};
+
 VNA_SHELL_FUNCTION(cmd_dac)
 {
   int value;
@@ -568,6 +645,7 @@ VNA_SHELL_FUNCTION(cmd_dac)
   config.dac_value = value;
   dacPutChannelX(&DACD2, 0, value);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_threshold)
 {
@@ -686,7 +764,7 @@ VNA_SHELL_FUNCTION(cmd_gamma)
 #endif
 
 static void (*sample_func)(float *gamma) = calculate_gamma;
-
+#ifdef ENABLE_SAMPLE_COMMAND
 VNA_SHELL_FUNCTION(cmd_sample)
 {
   if (argc != 1) goto usage;
@@ -708,6 +786,7 @@ VNA_SHELL_FUNCTION(cmd_sample)
 usage:
   shell_printf("usage: sample {%s}\r\n", cmd_sample_list);
 }
+#endif
 
 config_t config = {
   .magic =             CONFIG_MAGIC,
@@ -716,9 +795,11 @@ config_t config = {
 //  .touch_cal =         { 693, 605, 124, 171 },  // 2.4 inch LCD panel
 //  .touch_cal =         { 358, 544, 162, 198 },  // 2.8 inch LCD panel
   .touch_cal =         { 272, 521, 114, 153 },  //4.0" LCD
-  .freq_mode = FREQ_MODE_START_STOP,
+  ._mode     = VNA_MODE_START_STOP,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
+  ._serial_speed = SERIAL_DEFAULT_BITRATE,
   .vbat_offset = 320,
+  ._brightness = DEFAULT_BRIGHTNESS,
   .bandwidth = BANDWIDTH_1000
 };
 
@@ -863,6 +944,8 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
     return false;
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
+  // Cache channel
+  tlv320aic3204_select(sweep_mode & SWEEP_CH0_MEASURE ? 0 : 1);
 //  START_PROFILE;
   ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
@@ -1014,13 +1097,19 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   uint16_t mask = 0;
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+#ifdef ENABLE_SCANBIN_COMMAND
   if (argc == 4) {
     mask = my_atoui(argv[3]);
-#ifdef ENABLE_SCANBIN_COMMAND
     if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
-#endif
     sweep_mode = (mask>>1)&3;
   }
+  scan_bin_mode = 0;
+#else
+  if (argc == 4) {
+    mask = my_atoui(argv[3]);
+    sweep_mode = (mask>>1)&3;
+  }
+#endif
 
   uint32_t old_cal_status = cal_status;
   if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
@@ -1057,7 +1146,6 @@ VNA_SHELL_FUNCTION(cmd_scan)
       }
     }
   }
-  scan_bin_mode = 0;
 }
 
 #ifdef ENABLE_SCANBIN_COMMAND
@@ -1150,7 +1238,7 @@ set_sweep_frequency(int type, uint32_t freq)
   ensure_edit_config();
   switch (type) {
     case ST_START:
-      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config._mode &= ~VNA_MODE_CENTER_SPAN;
       if (frequency0 != freq) {
         frequency0 = freq;
         // if start > stop then make start = stop
@@ -1158,7 +1246,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_STOP:
-      config.freq_mode &= ~FREQ_MODE_CENTER_SPAN;
+      config._mode &= ~VNA_MODE_CENTER_SPAN;
       if (frequency1 != freq) {
         frequency1 = freq;
         // if start > stop then make start = stop
@@ -1166,7 +1254,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CENTER:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       uint32_t center = frequency0 / 2 + frequency1 / 2;
       if (center != freq) {
         uint32_t span = frequency1 - frequency0;
@@ -1181,7 +1269,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_SPAN:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       if (frequency1 - frequency0 != freq) {
         uint32_t center = frequency0 / 2 + frequency1 / 2;
         if (center < START_MIN + freq / 2) {
@@ -1195,7 +1283,7 @@ set_sweep_frequency(int type, uint32_t freq)
       }
       break;
     case ST_CW:
-      config.freq_mode |= FREQ_MODE_CENTER_SPAN;
+      config._mode |= VNA_MODE_CENTER_SPAN;
       if (frequency0 != freq || frequency1 != freq) {
         frequency0 = freq;
         frequency1 = freq;
@@ -1490,12 +1578,11 @@ static void apply_CH1_error_term_at(int i)
 static void apply_edelay(void)
 {
   int i;
+  float real, imag;
+  float s, c;
   uint16_t sweep_mode = get_sweep_mode();
   for (i=0;i<sweep_points;i++){
-    float w = 2 * VNA_PI * electrical_delay * frequencies[i] * 1E-12;
-    float s = sin(w);
-    float c = cos(w);
-    float real, imag;
+    vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
     if (sweep_mode & SWEEP_CH0_MEASURE){
       real = measured[0][i][0];
       imag = measured[0][i][1];
@@ -2015,6 +2102,7 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
   }
 }
 
+#ifdef ENABLE_TRANSFORM_COMMAND
 static void
 set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 {
@@ -2079,6 +2167,7 @@ VNA_SHELL_FUNCTION(cmd_transform)
 usage:
   shell_printf("usage: transform {%s} [...]\r\n", cmd_transform_list);
 }
+#endif
 
 #ifdef ENABLE_TEST_COMMAND
 VNA_SHELL_FUNCTION(cmd_test)
@@ -2412,6 +2501,108 @@ VNA_SHELL_FUNCTION(cmd_threads)
 }
 #endif
 
+#ifdef ENABLE_USART_COMMAND
+VNA_SHELL_FUNCTION(cmd_usart_cfg)
+{
+  if (argc != 1) goto result;
+  uint32_t speed = my_atoui(argv[0]);
+  if (speed < 300) speed = 300;
+  config._serial_speed = speed;
+  shell_update_speed();
+result:
+  shell_printf("Serial: %u baud\r\n", config._serial_speed);
+}
+
+VNA_SHELL_FUNCTION(cmd_usart)
+{
+  uint32_t time = 2000; // 200ms wait answer by default
+  if (argc == 0 || argc > 2 || (config._mode & VNA_MODE_SERIAL)) return;
+  if (argc == 2) time = my_atoui(argv[1])*10;
+  sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
+  sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
+  uint32_t size;
+  uint8_t buffer[64];
+  while ((size = sdReadTimeout(&SD1, buffer, sizeof(buffer), time)))
+    streamWrite(&SDU1, buffer, size);
+}
+#endif
+
+#ifdef ENABLE_SD_CARD_CMD
+#ifndef __USE_SD_CARD__
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
+#endif
+// Fat file system work area (at the end of spi_buffer)
+static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
+// FatFS file object (at the end of spi_buffer)
+static FIL   *fs_file     = (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL));
+
+static FRESULT cmd_sd_card_mount(void){
+  const FRESULT res = f_mount(fs_volume, "", 1);
+  if (res != FR_OK)
+    shell_printf("error: card not mounted\r\n");
+  return res;
+}
+
+VNA_SHELL_FUNCTION(cmd_sd_list)
+{
+  (void)argc;
+  (void)argv;
+
+  DIR dj;
+  FILINFO fno;
+  FRESULT res;
+  shell_printf("sd_list:\r\n");
+  res = cmd_sd_card_mount();
+  if (res != FR_OK)
+    return;
+  res = f_findfirst(&dj, &fno, "", "*.*");
+  while (res == FR_OK && fno.fname[0])
+  {
+    shell_printf("%s %u\r\n", fno.fname, fno.fsize);
+    res = f_findnext(&dj, &fno);
+  }
+  f_closedir(&dj);
+}
+
+VNA_SHELL_FUNCTION(cmd_sd_readfile)
+{
+  FRESULT res;
+  char *buf = (char *)spi_buffer;
+  if (argc < 1)
+  {
+     shell_printf("usage: sd_readfile {filename}\r\n");
+     return;
+  }
+  const char *filename = argv[0];
+  shell_printf("sd_readfile: %s\r\n", filename);
+  res = cmd_sd_card_mount();
+  if (res != FR_OK)
+    return;
+
+  res = f_open(fs_file, filename, FA_OPEN_EXISTING | FA_READ);
+  if (res != FR_OK)
+  {
+    shell_printf("error: %s not opened\r\n", filename);
+    return;
+  }
+
+  // number of bytes to follow (file size)
+  const uint32_t filesize = f_size(fs_file);
+  streamWrite(shell_stream, (void *)&filesize, 4);
+
+  // file data (send all data from file)
+  while (1)
+  {
+    UINT size = 0;
+    res = f_read(fs_file, buf, 512, &size);
+    if (res != FR_OK || size == 0)
+      break;
+    streamWrite(shell_stream, (void *)buf, size);
+  }
+  res = f_close(fs_file);
+}
+#endif
+
 //=============================================================================
 VNA_SHELL_FUNCTION(cmd_help);
 
@@ -2437,7 +2628,7 @@ static const VNAShellCommand commands[] =
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"reset"       , cmd_reset       , 0},
+    {"power"       , cmd_power       , 0},
 #ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
 #endif
@@ -2445,7 +2636,13 @@ static const VNAShellCommand commands[] =
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
 #endif
+#ifdef ENABLE_SD_CARD_CMD
+    {"sd_list"       , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"sd_readfile"   , cmd_sd_readfile , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
+#ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , 0},
+#endif
     {"saveconfig"  , cmd_saveconfig  , 0},
     {"clearconfig" , cmd_clearconfig , 0},
 #ifdef ENABLED_DUMP_COMMAND
@@ -2460,8 +2657,9 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_GAIN_COMMAND
     {"gain"        , cmd_gain        , CMD_WAIT_MUTEX},
 #endif
-    {"power"       , cmd_power       , 0},
+#ifdef ENABLE_SAMPLE_COMMAND
     {"sample"      , cmd_sample      , 0},
+#endif
 #ifdef ENABLE_TEST_COMMAND
     {"test"        , cmd_test        , 0},
 #endif
@@ -2477,10 +2675,17 @@ static const VNAShellCommand commands[] =
     {"edelay"      , cmd_edelay      , 0},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
+    {"reset"       , cmd_reset       , 0},
+#ifdef ENABLE_USART_COMMAND
+    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
 #endif
+#ifdef ENABLE_TRANSFORM_COMMAND
     {"transform"   , cmd_transform   , 0},
+#endif
     {"threshold"   , cmd_threshold   , 0},
     {"help"        , cmd_help        , 0},
 #ifdef ENABLE_INFO_COMMAND
@@ -2535,6 +2740,113 @@ VNA_SHELL_FUNCTION(cmd_help)
  * VNA shell functions
  */
 
+// Check Serial connection requirements
+#ifdef __USE_SERIAL_CONSOLE__
+#if HAL_USE_SERIAL == FALSE
+#error "For serial console need HAL_USE_SERIAL as TRUE in halconf.h"
+#endif
+
+// Before start process command from shell, need select input stream
+#define PREPARE_STREAM shell_stream = (config._mode&VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+
+// Update Serial connection speed and settings
+void shell_update_speed(void){
+  // Update Serial speed settings
+  SerialConfig s_config = {config._serial_speed, 0, USART_CR2_STOP1_BITS, 0 };
+  sdStop(&SD1);
+  sdStart(&SD1, &s_config);  // USART config
+}
+
+// Check USB connection status
+static bool usb_IsActive(void){
+  return usbGetDriverStateI(&USBD1) == USB_ACTIVE;
+}
+
+// Reset shell I/O queue
+void shell_reset_console(void){
+  // Reset I/O queue over USB (for USB need also connect/disconnect)
+  if (usb_IsActive()){
+    if (config._mode & VNA_MODE_SERIAL)
+      sduDisconnectI(&SDU1);
+    else
+      sduConfigureHookI(&SDU1);
+  }
+  // Reset I/O queue over Serial
+  oqResetI(&SD1.oqueue);
+  iqResetI(&SD1.iqueue);
+}
+
+// Check active connection for Shell
+static bool shell_check_connect(void){
+  // Serial connection always active
+  if (config._mode & VNA_MODE_SERIAL)
+    return true;
+  // USB connection can be USB_SUSPENDED
+  return usb_IsActive();
+}
+
+static void shell_init_connection(void){
+/*
+ * Initializes and start serial-over-USB CDC driver SDU1, connected to USBD1
+ */
+  sduObjectInit(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+
+/*
+ * Set Serial speed settings for SD1
+ */
+  shell_update_speed();
+
+/*
+ * Activates the USB driver and then the USB bus pull-up on D+.
+ * Note, a delay is inserted in order to not have to disconnect the cable
+ * after a reset.
+ */
+  usbDisconnectBus(&USBD1);
+  chThdSleepMilliseconds(100);
+  usbStart(&USBD1, &usbcfg);
+  usbConnectBus(&USBD1);
+
+/*
+ *  Set I/O stream (SDU1 or SD1) for shell
+ */
+  PREPARE_STREAM;
+}
+
+#else
+// Only USB console, shell_stream always on USB
+#define PREPARE_STREAM
+
+// Check connection as Active, if no suspend input
+static bool shell_check_connect(void){
+  return SDU1.config->usbp->state == USB_ACTIVE;
+}
+
+// Init shell I/O connection over USB
+static void shell_init_connection(void){
+/*
+ * Initializes and start serial-over-USB CDC driver SDU1, connected to USBD1
+ */
+  sduObjectInit(&SDU1);
+  sduStart(&SDU1, &serusbcfg);
+
+/*
+ * Activates the USB driver and then the USB bus pull-up on D+.
+ * Note, a delay is inserted in order to not have to disconnect the cable
+ * after a reset.
+ */
+  usbDisconnectBus(&USBD1);
+  chThdSleepMilliseconds(100);
+  usbStart(&USBD1, &usbcfg);
+  usbConnectBus(&USBD1);
+
+/*
+ *  Set I/O stream SDU1 for shell
+ */
+  shell_stream = (BaseSequentialStream *)&SDU1;
+}
+#endif
+
 //
 // Read command line from shell_stream
 //
@@ -2542,6 +2854,8 @@ static int VNAShell_readLine(char *line, int max_size)
 {
   // Read line from input stream
   uint8_t c;
+  // Prepare I/O for shell_stream
+  PREPARE_STREAM;
   char *ptr = line;
   while (1) {
     // Return 0 only if stream not active
@@ -2577,27 +2891,13 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 // Parse and run command line
 //
-
-// #define DEBUG_CONSOLE_SHOW
-
-#ifdef DEBUG_CONSOLE_SHOW
-void debug_log(int offs, char *log){
-  static uint16_t shell_line_y = 0;
-  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT, DEFAULT_BG_COLOR);
-  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
-  shell_line_y+=FONT_STR_HEIGHT;
-  if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
-}
-#endif
-
 static void VNAShell_executeLine(char *line)
 {
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-#ifdef DEBUG_CONSOLE_SHOW // debug console log
-  debug_log(0, lp);
-#endif
+
+//  DEBUG_LOG(0, lp); // debug console log
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
     while (*lp == ' ' || *lp == '\t') lp++;
@@ -2632,9 +2932,7 @@ static void VNAShell_executeLine(char *line)
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
       }
-#ifdef DEBUG_CONSOLE_SHOW // debug console log
-      debug_log(10, "ok");
-#endif
+//      DEBUG_LOG(10, "ok");
       return;
     }
   }
@@ -2647,7 +2945,6 @@ THD_FUNCTION(myshellThread, p)
 {
   (void)p;
   chRegSetThreadName("shell");
-  shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
   while (true) {
     shell_printf(VNA_SHELL_PROMPT_STR);
     if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
@@ -2658,7 +2955,10 @@ THD_FUNCTION(myshellThread, p)
 }
 #endif
 
-// Define i2c bus speed, add predefined for 400k,600k,900k
+/*
+ * I2C bus settings
+ */
+// Define i2c bus speed, add predefined for 400k, 600k, 900k
 #define STM32_I2C_SPEED                     600
 
 #if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
@@ -2708,77 +3008,61 @@ static const I2CConfig i2ccfg = {
   .cr2 = 0                       // CR2 register initialization.
 };
 
-static DACConfig dac1cfg1 = {
-  //init:         1922U,
-  init:         0,
-  datamode:     DAC_DHRM_12BIT_RIGHT
-};
-
-
 // Main thread stack size defined in makefile USE_PROCESS_STACKSIZE = 0x200
 // Profile stack usage (enable threads command by def ENABLE_THREADS_COMMAND) show:
 // Stack maximum usage = 472 bytes (need test more and run all commands), free stack = 40 bytes
 //
 int main(void)
 {
+/*
+ * Initialize ChibiOS systems
+ */
   halInit();
   chSysInit();
-
-/*
- * Starting DAC1 driver, setting up the output pin as analog as suggested
- * by the Reference Manual.
- */
-  dacStart(&DACD2, &dac1cfg1);
-
-#ifdef __USE_RTC__
-  rtc_init(); // Initialize RTC library
-#endif
 
 #ifdef USE_VARIABLE_OFFSET
   generate_DSP_Table(FREQUENCY_OFFSET);
 #endif
-  // MCO on PA8
-  //palSetPadMode(GPIOA, 8, PAL_MODE_ALTERNATE(0));
-/*
- * Initializes a serial-over-USB CDC driver.
- */
-  sduObjectInit(&SDU1);
-  sduStart(&SDU1, &serusbcfg);
-/*
- * Activates the USB driver and then the USB bus pull-up on D+.
- * Note, a delay is inserted in order to not have to disconnect the cable
- * after a reset.
- */
-  usbDisconnectBus(serusbcfg.usbp);
-  chThdSleepMilliseconds(100);
-  usbStart(serusbcfg.usbp, &usbcfg);
-  usbConnectBus(serusbcfg.usbp);
 
 /*
- * SPI LCD Initialize
+ * SPI bus and LCD Initialize
  */
   ili9341_init();
 
   // Init si4432 after SPI bus init
   SI4432_Init();
 
-/* restore config */
+/*
+ * Restore config
+ */
   config_recall();
 
-/* restore frequencies and calibration 0 slot properties from flash memory */
+/*
+ * restore frequencies and calibration 0 slot properties from flash memory
+ */
   load_properties(0);
+
+/*
+ * Init Shell console connection data
+ */
+  shell_init_connection();
 
 /*
  * I2C bus
  */
-  //palSetPadMode(GPIOB, 8, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
-  //palSetPadMode(GPIOB, 9, PAL_MODE_ALTERNATE(1) | PAL_STM32_OTYPE_OPENDRAIN);
   i2cStart(&I2CD1, &i2ccfg);
 
 /*
  * Start si5351
  */
   si5351_init();
+
+/*
+ * Initialize RTC library (not used ChibiOS RTC module)
+ */
+#ifdef __USE_RTC__
+  rtc_init();
+#endif
 
 /*
  * I2S Initialize
@@ -2790,18 +3074,37 @@ int main(void)
   i2sStart(&I2SD2, &i2sconfig);
   i2sStartExchange(&I2SD2);
 
+/*
+ * UI (menu, touch, buttons) and plot initialize
+ */
   ui_init();
   //Initialize graph plotting
   plot_init();
   redraw_frame();
 
-  // Set config DAC value
-  dacPutChannelX(&DACD2, 0, config.dac_value);
+/*
+ * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
+ */
+#ifdef  __VNA_ENABLE_DAC__
+  dacStart(&DACD2, &dac1cfg1);
+  dacPutChannelX(&DACD2, 0, config.dac_value);  // Set config DAC value
+#endif
 
-  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
+/*
+ * Set LCD display brightness
+ */
+#ifdef  __LCD_BRIGHTNESS__
+  lcd_setBrightness(config._brightness);
+#endif
+
+/*
+ * Startup sweep thread
+ */
+  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-10, Thread1, NULL);
 
   while (1) {
-    if (SDU1.config->usbp->state == USB_ACTIVE) {
+    if (shell_check_connect()) {
+      shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
 #ifdef VNA_SHELL_THREAD
 #if CH_CFG_USE_WAITEXIT == FALSE
 #error "VNA_SHELL_THREAD use chThdWait, need enable CH_CFG_USE_WAITEXIT in chconf.h"
@@ -2811,14 +3114,13 @@ int main(void)
                                             myshellThread, NULL);
       chThdWait(shelltp);
 #else
-      shell_printf(VNA_SHELL_NEWLINE_STR"NanoVNA Shell"VNA_SHELL_NEWLINE_STR);
       do {
         shell_printf(VNA_SHELL_PROMPT_STR);
         if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
           VNAShell_executeLine(shell_line);
         else
           chThdSleepMilliseconds(200);
-      } while (SDU1.config->usbp->state == USB_ACTIVE);
+      } while (shell_check_connect());
 #endif
     }
     chThdSleepMilliseconds(1000);
@@ -2861,8 +3163,8 @@ void hard_fault_handler_c(uint32_t *sp)
   int y = 0;
   int x = 20;
   char buf[16];
-  ili9341_set_background(0x0000);
-  ili9341_set_foreground(0xFFFF);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
   plot_printf(buf, sizeof(buf), "SP  0x%08x",  (uint32_t)sp);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
   plot_printf(buf, sizeof(buf), "R0  0x%08x",  r0);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
   plot_printf(buf, sizeof(buf), "R1  0x%08x",  r1);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
@@ -2888,3 +3190,7 @@ void hard_fault_handler_c(uint32_t *sp)
   while (true) {
   }
 }
+// For new compilers
+//void _exit(int){}
+//void _kill(void){}
+//void _getpid(void){}

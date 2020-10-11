@@ -22,11 +22,22 @@
 
 // Need enable HAL_USE_SPI in halconf.h
 #define __USE_DISPLAY_DMA__
+// LCD or hardware allow change brightness, add menu item for this
 #define __LCD_BRIGHTNESS__
+// Use DAC (in H4 used for brightness used DAC, so need enable __LCD_BRIGHTNESS__ for it)
+//#define __VNA_ENABLE_DAC__
+// Allow enter to DFU from menu or command
+//#define __DFU_SOFTWARE_MODE__
 // Add RTC clock support
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
+// If enabled serial in halconf.h, possible enable serial console control
+#define __USE_SERIAL_CONSOLE__
+// Add LC match function
+#define __USE_LC_MATCHING__
+// Use buildin table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
+#define __VNA_USE_MATH_TABLES__
 
 /*
  * main.c
@@ -171,12 +182,17 @@ extern uint32_t frequencies[POINTS_COUNT];
 #define TD_WINDOW_NORMAL (0b00<<3)
 #define TD_WINDOW_MINIMUM (0b01<<3)
 #define TD_WINDOW_MAXIMUM (0b10<<3)
+// L/C match enable option
+#define TD_LC_MATH        (1<<5)
 
 #if   POINTS_COUNT <= 256
 #define FFT_SIZE   256
 #elif POINTS_COUNT <= 512
 #define FFT_SIZE   512
 #endif
+
+// Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
+void vna_sin_cos(float angle, float * pSinVal, float * pCosVal);
 
 void cal_collect(int type);
 void cal_done(void);
@@ -202,7 +218,7 @@ void set_sweep_points(uint16_t points);
 
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
-extern int8_t sweep_mode;
+extern  uint8_t sweep_mode;
 extern const char *info_about[];
 
 /*
@@ -397,6 +413,17 @@ extern int16_t area_height;
 #define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
 #endif
 
+#ifdef __USE_LC_MATCHING__
+// X and Y offset to L/C match text
+ #define STR_LC_MATH_X      (OFFSETX +  0)
+// Better be aligned by cell
+ #define STR_LC_MATH_Y      (OFFSETY + 32)
+// 1/3 Width of text (need 3 column for data)
+ #define STR_LC_MATH_WIDTH  (FONT_WIDTH * 10)
+// String Height (need 2 + 0..4 string)
+ #define STR_LC_MATH_HEIGHT (FONT_STR_HEIGHT + 2)
+#endif
+
 // Additional chars in fonts
 #define S_DELTA    "\027"  // hex 0x17
 #define S_SARROW   "\030"  // hex 0x18
@@ -408,6 +435,7 @@ extern int16_t area_height;
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
 
+// Max palette indexes in config
 #define MAX_PALETTE     24
 
 // trace 
@@ -432,10 +460,14 @@ enum marker_smithvalue {
   MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
 };
 
-// config.freq_mode flags
-#define FREQ_MODE_START_STOP    0x0
-#define FREQ_MODE_CENTER_SPAN   0x1
-#define FREQ_MODE_DOTTED_GRID   0x2
+// config._mode flags
+#define VNA_MODE_START_STOP       0x00
+#define VNA_MODE_CENTER_SPAN      0x01
+#define VNA_MODE_DOTTED_GRID      0x02
+// Connection flag
+#define VNA_MODE_CONNECTION_MASK  0x04
+#define VNA_MODE_SERIAL           0x04
+#define VNA_MODE_USB              0x00
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -464,10 +496,13 @@ typedef struct config {
   uint16_t vbat_offset;
   uint16_t bandwidth;
   uint16_t lcd_palette[MAX_PALETTE];
-  uint8_t  freq_mode;
-  uint8_t _reserved[49];
+  uint32_t _serial_speed;
+  uint32_t _serial_config;
+  uint8_t  _mode;
+  uint8_t _brightness;
+  uint8_t _reserved[24];
   uint32_t checksum;
-} config_t; // sizeof = 124
+} config_t; // sizeof = 108
 
 typedef struct properties {
   uint32_t magic;
@@ -504,6 +539,11 @@ void set_trace_refpos(int t, float refpos);
 float get_trace_scale(int t);
 float get_trace_refpos(int t);
 const char *get_trace_typename(int t);
+
+//
+// Shell config functions and macros for Serial connect, not used if Serial mode disabled
+void shell_update_speed(void);
+void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
 float get_electrical_delay(void);
@@ -555,6 +595,9 @@ extern  uint8_t redraw_request;
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
+
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
 
 // Define LCD pixel format
 //#define LCD_8BIT_MODE
@@ -613,6 +656,7 @@ typedef uint16_t pixel_t;
 #define LCD_BW_TEXT_COLOR       16
 #define LCD_INPUT_TEXT_COLOR    17
 #define LCD_INPUT_BG_COLOR      18
+#define LCD_LC_MATCH_COLOR      19
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -634,6 +678,7 @@ typedef uint16_t pixel_t;
 [LCD_BW_TEXT_COLOR    ] = RGB565(128,128,128), \
 [LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
 [LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
+[LCD_LC_MATCH_COLOR   ] = RGB565(255,255,255), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]
@@ -717,16 +762,16 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 
 #define FLASH_PAGESIZE 0x800
 
-#define SAVEAREA_MAX 3
+#define SAVEAREA_MAX 5
 
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
-#define SAVE_CONFIG_SIZE        0x00001000
+#define SAVE_CONFIG_SIZE        0x00000800
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_PROP_CONFIG_SIZE   0x00004000
-// Save config_t and properties_t flash area (see flash7  : org = 0x08030000, len = 64k from *.ld settings)
+// Save config_t and properties_t flash area (see flash7  : org = 0x0802B800, len = 82k from *.ld settings)
 // Properties save area follow after config
-// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  64k
-#define SAVE_CONFIG_ADDR        0x08030000
+// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00010000  82k
+#define SAVE_CONFIG_ADDR        0x0802B800
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
 
@@ -748,8 +793,8 @@ extern uint16_t lastsaveid;
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
 
-#define FREQ_IS_STARTSTOP() (!(config.freq_mode&FREQ_MODE_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN() (config.freq_mode&FREQ_MODE_CENTER_SPAN)
+#define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
 
 int caldata_save(uint32_t id);
@@ -764,6 +809,12 @@ void clear_all_config_prop_data(void);
 /*
  * ui.c
  */
+
+// Obsolete value input variant
+//#define UI_USE_NUMERIC_INPUT
+// Enter in leveler search mode after search click
+//#define UI_USE_LEVELER_SEARCH_MODE
+
 void ui_init(void);
 void ui_process(void);
 

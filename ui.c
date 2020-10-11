@@ -33,8 +33,6 @@ uistat_t uistat = {
  marker_delta: FALSE,
  marker_tracking : FALSE,
 };
-// Obsolete value input variant
-//#define USE_NUMERIC_INPUT
 
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
@@ -199,7 +197,7 @@ static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 void drawMessageBox(char *header, char *text, uint32_t delay);
 
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
 static void ui_mode_numeric(int _keypad_mode);
 #endif
 
@@ -553,7 +551,7 @@ show_version(void)
 void
 enter_dfu(void)
 {
-#if 0
+#ifdef __DFU_SOFTWARE_MODE__
   touch_stop_watchdog();
 
   int x = 5, y = 20;
@@ -611,19 +609,21 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   menu_push_submenu(menu_save);
 }
 
+#define MENU_CAL2_RESET    0
+#define MENU_CAL2_APPLY    1
 static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
 {
-  (void)data;
+  (void)item;
   if (b){
-    if (item == 4) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    if (data == MENU_CAL2_APPLY) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  switch (item) {
-  case 3: // RESET
+  switch (data) {
+  case MENU_CAL2_RESET: // RESET
     cal_status = 0;
     set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
     break;
-  case 4: // CORRECTION
+  case MENU_CAL2_APPLY: // CORRECTION
     // toggle applying correction
     cal_status ^= CALSTAT_APPLY;
     break;
@@ -646,17 +646,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   draw_cal_status();
 }
 
+#define MENU_CONFIG_TOUCH_CAL   0
+#define MENU_CONFIG_TOUCH_TEST  1
+#define MENU_CONFIG_VERSION     2
 static UI_FUNCTION_CALLBACK(menu_config_cb)
 {
-  (void)data;
-  switch (item) {
-  case 0:
+  (void)item;
+  switch (data) {
+  case MENU_CONFIG_TOUCH_CAL:
       touch_cal_exec();
       break;
-  case 1:
+  case MENU_CONFIG_TOUCH_TEST:
       touch_draw_test();
       break;
-  case 4:
+  case MENU_CONFIG_VERSION:
       show_version();
       break;
   }
@@ -673,12 +676,14 @@ static UI_FUNCTION_CALLBACK(menu_config_save_cb)
   menu_move_back(true);
 }
 
+#ifdef __DFU_SOFTWARE_MODE__
 static UI_FUNCTION_CALLBACK(menu_dfu_cb)
 {
   (void)item;
   (void)data;
   enter_dfu();
 }
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
 {
@@ -856,7 +861,7 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
   if (data == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
     data = KM_SCALEDELAY;
   }
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
     ui_mode_numeric(data);
 //    ui_process_numeric();
@@ -940,23 +945,27 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
   //redraw_all();
 }
 
+#define MENU_MARKER_S_MAX    0
+#define MENU_MARKER_S_MIN    1
+#define MENU_MARKER_S_LEFT   2
+#define MENU_MARKER_S_RIGHT  3
 static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
 {
-  (void)data;
+  (void)item;
   int i = -1;
   if (active_marker == -1)
     return;
 
-  switch (item) {
-  case 0: /* maximum */
-  case 1: /* minimum */
+  switch (data) {
+  case MENU_MARKER_S_MAX: /* maximum */
+  case MENU_MARKER_S_MIN: /* minimum */
     set_marker_search(item);
     i = marker_search();
     break;
-  case 2: /* search Left */
+  case MENU_MARKER_S_LEFT: /* search Left */
     i = marker_search_left(markers[active_marker].index);
     break;
-  case 3: /* search right */
+  case MENU_MARKER_S_RIGHT: /* search right */
     i = marker_search_right(markers[active_marker].index);
     break;
   }
@@ -964,7 +973,9 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
     markers[active_marker].index = i;
   uistat.marker_tracking = false;
   redraw_marker(active_marker);
+#ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
+#endif
   draw_menu();
 }
 
@@ -991,6 +1002,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
   redraw_marker(active_marker);
   draw_menu();
 }
+
+#ifdef __USE_LC_MATCHING__
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_lc_match_acb)
+{
+  (void)item;
+  (void)data;
+  if (b){
+    b->icon = domain_mode & TD_LC_MATH ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  domain_mode^=TD_LC_MATH;
+  ui_mode_normal();
+}
+#endif
 
 static void
 active_marker_select(int item)
@@ -1043,36 +1068,65 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   draw_menu();
 }
 
+#ifdef __USE_SERIAL_CONSOLE__
+static const uint32_t usart_speed[] = {19200, 38400, 57600, 115200, 230400, 460800, 921600};
+static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
+{
+  (void)item;
+  uint32_t speed = usart_speed[data];
+  if (b){
+    b->icon = config._serial_speed == speed ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = speed;
+    return;
+  }
+  config._serial_speed = speed;
+  shell_update_speed();
+  draw_menu();
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
+{
+  (void)item;
+  if (b){
+    b->icon = (config._mode&VNA_MODE_CONNECTION_MASK) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    return;
+  }
+  config._mode&=~VNA_MODE_CONNECTION_MASK;
+  config._mode|=data;
+  shell_reset_console();
+  draw_menu();
+}
+#endif
+
 #ifdef __LCD_BRIGHTNESS__
 static void
 menu_brightness(int item, uint8_t data)
 {
   (void)item;
   (void)data;
-  uint16_t value = config.dac_value;
+  int16_t value = config._brightness;
   ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
   ili9341_set_background(LCD_MENU_COLOR);
-  ili9341_fill(LCD_WIDTH/2-64, LCD_HEIGHT/2-20, 128, 40);
-  ili9341_drawstring(S_LARROW" BRIGHTNESS "S_RARROW, LCD_WIDTH/2-46, LCD_HEIGHT/2-6);
+  ili9341_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
+  ili9341_drawstring("BRIGHTNESS", LCD_WIDTH/2-35, LCD_HEIGHT/2-13);
+  ili9341_drawstring(S_LARROW" USE LEVELER BUTTON "S_RARROW, LCD_WIDTH/2-72, LCD_HEIGHT/2+2);
   while (TRUE) {
     int status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
       do {
-        if (status & EVT_UP)
-          value+=50;
-        if (status & EVT_DOWN)
-          value-=50;
-        if (value< 700) value = 700;
-        if (value>3300) value = 3300;
-        dacPutChannelX(&DACD2, 0, value);
+        if (status & EVT_UP  ) value+=5;
+        if (status & EVT_DOWN) value-=5;
+        if (value <   0) value =   0;
+        if (value > 100) value = 100;
+        lcd_setBrightness(value);
         status = btn_wait_release();
       } while (status != 0);
     }
     if (status == EVT_BUTTON_SINGLE_CLICK)
       break;
   }
-  config.dac_value = value;
-  dacPutChannelX(&DACD2, 0, value);
+  config._brightness = (uint8_t)value;
+  lcd_setBrightness(value);
   request_to_redraw_grid();
   ui_mode_normal();
 }
@@ -1227,11 +1281,11 @@ const menuitem_t menu_power[] = {
 };
 
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,      0, "POWER",     menu_power },
-  { MT_SUBMENU,      0, "SAVE",      menu_save },
-  { MT_ADV_CALLBACK, 0, "RESET",     menu_cal2_acb },
-  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal2_acb },
+  { MT_SUBMENU,                   0, "CALIBRATE", menu_calop },
+  { MT_SUBMENU,                   0, "POWER",     menu_power },
+  { MT_SUBMENU,                   0, "SAVE",      menu_save },
+  { MT_ADV_CALLBACK, MENU_CAL2_RESET, "RESET",    menu_cal2_acb },
+  { MT_ADV_CALLBACK, MENU_CAL2_APPLY, "APPLY",    menu_cal2_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1394,10 +1448,10 @@ const menuitem_t menu_marker_ops[] = {
 
 const menuitem_t menu_marker_search[] = {
   //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "MAXIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "MINIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
-  { MT_CALLBACK, 0, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_MAX,  "MAXIMUM", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_MIN,  "MINIMUM", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_LEFT,  "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
+  { MT_CALLBACK, MENU_MARKER_S_RIGHT, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
   { MT_ADV_CALLBACK, 0, "TRACKING", menu_marker_tracking_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1409,6 +1463,9 @@ const menuitem_t menu_marker_smith[] = {
   { MT_ADV_CALLBACK, MS_REIM,"Re+Im", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RX,  "R+jX", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RLC, "R+L/C", menu_marker_smith_acb },
+#ifdef __USE_LC_MATCHING__
+  { MT_ADV_CALLBACK,      0, "L/C MATCH", menu_marker_lc_match_acb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1422,22 +1479,64 @@ const menuitem_t menu_marker[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+#ifdef __DFU_SOFTWARE_MODE__
 const menuitem_t menu_dfu[] = {
   { MT_CALLBACK, 0, "RESET AND\nENTER DFU", menu_dfu_cb },
   { MT_CANCEL, 0, S_LARROW"CANCEL", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
+#endif
+
+#ifdef __USE_SERIAL_CONSOLE__
+//19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
+#if 0
+const menuitem_t menu_serial_speed2[] = {
+  { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 7, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 8, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 9, "%u", menu_serial_speed_acb },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+#endif
+
+const menuitem_t menu_serial_speed[] = {
+  { MT_ADV_CALLBACK, 0, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 1, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 2, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 3, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 4, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 5, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
+//  { MT_SUBMENU, 0, S_RARROW" MORE", menu_serial_speed2 },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
+const menuitem_t menu_connection[] = {
+  { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",    menu_connection_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL", menu_connection_acb },
+  { MT_SUBMENU,  0, "SERIAL\nSPEED", menu_serial_speed },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+#endif
 
 const menuitem_t menu_config[] = {
-  { MT_CALLBACK, 0, "TOUCH CAL", menu_config_cb },
-  { MT_CALLBACK, 0, "TOUCH TEST", menu_config_cb },
-  { MT_CALLBACK, 0, "SAVE", menu_config_save_cb },
-  { MT_SUBMENU,  0, "SWEEP\nPOINTS", menu_sweep_points },
-  { MT_CALLBACK, 0, "VERSION", menu_config_cb },
-#ifdef __LCD_BRIGHTNESS__
-  { MT_CALLBACK, 0, "BRIGHTNESS", menu_brightness },
+  { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
+  { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
+  { MT_SUBMENU,                       0, "SWEEP\nPOINTS", menu_sweep_points },
+#ifdef __USE_SERIAL_CONSOLE__
+  { MT_SUBMENU,  0, "CONNECTION", menu_connection},
 #endif
-//  { MT_SUBMENU, 0, S_RARROW"DFU", menu_dfu },
+  { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
+#ifdef __LCD_BRIGHTNESS__
+  { MT_CALLBACK,                      0, "BRIGHTNESS",    menu_brightness },
+#endif
+#ifdef __DFU_SOFTWARE_MODE__
+  { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1725,7 +1824,7 @@ draw_numeric_input(const char *buf)
       c = KP_MINUS;
     else// if (c >= '0' && c <= '9')
       c = c - '0';
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
       fg = LCD_SPEC_INPUT_COLOR;
         focused = true;
@@ -1977,7 +2076,7 @@ ui_mode_menu(void)
   draw_menu();
 }
 
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
 static void
 erase_numeric_input(void)
 {
@@ -2229,7 +2328,7 @@ ui_mode_normal(void)
 static void
 leave_ui_mode()
 {
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   if (ui_mode == UI_NUMERIC) {
     request_to_draw_cells_behind_numeric_input();
     erase_numeric_input();
@@ -2269,6 +2368,7 @@ lever_move_marker(int status)
   } while (status != 0);
 }
 
+#ifdef UI_USE_LEVELER_SEARCH_MODE
 static void
 lever_search_marker(int status)
 {
@@ -2284,6 +2384,7 @@ lever_search_marker(int status)
     }
   }
 }
+#endif
 
 // ex. 10942 -> 10000
 //      6791 ->  5000
@@ -2358,7 +2459,9 @@ ui_process_normal(void)
     } else {
     switch (uistat.lever_mode) {
       case LM_MARKER: lever_move_marker(status);   break;
+#ifdef UI_USE_LEVELER_SEARCH_MODE
       case LM_SEARCH: lever_search_marker(status); break;
+#endif
       case LM_CENTER:
         lever_move(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER);
         break;
@@ -2552,7 +2655,7 @@ ui_process_lever(void)
   case UI_MENU:
     ui_process_menu();
     break;
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
   case UI_NUMERIC:
     ui_process_numeric();
     break;
@@ -2749,7 +2852,7 @@ void ui_process_touch(void)
     case UI_MENU:
       menu_apply_touch(touch_x, touch_y);
       break;
-#ifdef USE_NUMERIC_INPUT
+#ifdef UI_USE_NUMERIC_INPUT
     case UI_NUMERIC:
       numeric_apply_touch(touch_x, touch_y);
       break;

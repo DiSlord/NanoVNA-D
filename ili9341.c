@@ -400,9 +400,35 @@ static const uint8_t ST7796S_init_seq[] = {
   0 // sentinel
 };
 
+#ifdef __LCD_BRIGHTNESS__
+#if HAL_USE_DAC == FALSE
+#error "Need set HAL_USE_DAC in halconf.h for use __LCD_BRIGHTNESS__"
+#endif
+
+static const DACConfig dac1cfg1 = {
+  init:         0,
+  datamode:     DAC_DHRM_12BIT_RIGHT
+};
+
+static void lcd_initBrightness(void){
+  dacStart(&DACD2, &dac1cfg1);
+}
+
+// Brightness control range 0 - 100
+void lcd_setBrightness(uint16_t b){
+  b = 700 + b*((3300-700)/100);
+  dacPutChannelX(&DACD2, 0, b);
+}
+#else
+#define lcd_initBrightness()
+#endif
+
 void ili9341_init(void)
 {
   spi_init();
+  // Init Brightness if LCD support
+  lcd_initBrightness();
+
   LCD_DC_DATA;
   LCD_RESET_ASSERT;
   chThdSleepMilliseconds(10);
@@ -695,7 +721,7 @@ void ili9341_line(int x0, int y0, int x1, int y1)
   int dy = y1 - y0, sy = 1; if (dy < 0) {dy = -dy; sy = -1;}
   int err = (dx > dy ? dx : -dy) / 2;
   while (1) {
-    ili9341_pixel(x0, y0, DEFAULT_FG_COLOR);
+    ili9341_pixel(x0, y0, RGB565(255,255,255));
     if (x0 == x1 && y0 == y1)
       break;
     int e2 = err;

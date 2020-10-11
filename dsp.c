@@ -34,12 +34,14 @@ void generate_DSP_Table(int offset){
   // N = offset * AUDIO_SAMPLES_COUNT / audio_freq; should be integer
   // AUDIO_SAMPLES_COUNT = N * audio_freq / offset; N - minimum integer value for get integer AUDIO_SAMPLES_COUNT
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
-  float step = 2 * VNA_PI * offset / audio_freq;
-  float v = step/2;
+  float step = offset / audio_freq;
+  float w = step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
-    sincos_tbl[i][0] = sin(v)*32768.0 + 0.5;
-    sincos_tbl[i][1] = cos(v)*32768.0 + 0.5;
-    v+=step;
+    float s, c;
+    vna_sin_cos(w, &s, &c);
+    sincos_tbl[i][0] = s*32768.0 + 0.5;
+    sincos_tbl[i][1] = c*32768.0 + 0.5;
+    w+=step;
   }
 }
 #elif FREQUENCY_OFFSET==7000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)

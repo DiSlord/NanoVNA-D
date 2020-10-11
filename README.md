@@ -1,10 +1,6 @@
 NanoVNA - Very tiny handheld Vector Network Analyzer
 ==========================================================
-
-[![GitHub release](http://img.shields.io/github/release/ttrftech/NanoVNA.svg?style=flat)][release]
-[![CircleCI](https://circleci.com/gh/ttrftech/NanoVNA.svg?style=shield)](https://circleci.com/gh/ttrftech/NanoVNA)
-
-[release]: https://github.com/ttrftech/NanoVNA/releases
+[release]: https://github.com/DiSlord/NanoVNA-D/releases
 
 <div align="center">
 <img src="/doc/nanovna.jpg" width="480px">
@@ -80,6 +76,7 @@ Or simply use make.
 
 There are seveal numbers of great companion PC tools from third-party.
 
+* [NanoVNA-App software](https://github.com/OneOfEleven/NanoVNA-H/blob/master/Release/NanoVNA-App.exe) by OneOfEleven
 * [NanoVNASharp Windows software](https://drive.google.com/drive/folders/1IZEtx2YdqchaTO8Aa9QbhQ8g_Pr5iNhr) by hugen79
 * [NanoVNA WebSerial/WebUSB](https://github.com/cho45/NanoVNA-WebUSB-Client) by cho45
 * [Android NanoVNA app](https://play.google.com/store/apps/details?id=net.lowreal.nanovnawebapp) by cho45
@@ -102,17 +99,14 @@ There are seveal numbers of great companion PC tools from third-party.
 
 Hardware design material is disclosed to prevent bad quality clone. Please let me know if you would have your own unit.
 
-## Authorized Distributor
-
-* [Nooelec](https://www.nooelec.com/store/nanovna-bundle.html)
-* Switch Science(ja) [NanoVNA-H](https://www.switch-science.com/catalog/6405/) [NanoVNA-H4](https://www.switch-science.com/catalog/6406/)
-
 ## Credit
+* [@DiSlord](https://github.com/DiSlord/)
 
+## Based on code from:
 * [@edy555](https://github.com/edy555)
 
 ### Contributors
-
+* [@OneOfEleven](https://github.com/OneOfEleven)
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)
-* [@DiSlord](https://github.com/DiSlord/)
+
