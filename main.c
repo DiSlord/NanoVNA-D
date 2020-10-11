@@ -1097,6 +1097,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   uint16_t mask = 0;
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+
 #ifdef ENABLE_SCANBIN_COMMAND
   if (argc == 4) {
     mask = my_atoui(argv[3]);

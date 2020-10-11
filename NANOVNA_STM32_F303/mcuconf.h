@@ -236,7 +236,7 @@
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
 #define STM32_SPI_SPI1_IRQ_PRIORITY         3
-#define STM32_SPI_SPI2_IRQ_PRIORITY         2
+#define STM32_SPI_SPI2_IRQ_PRIORITY         3
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
 
 /*
