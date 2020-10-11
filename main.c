@@ -1094,13 +1094,20 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   uint16_t mask = 0;
   uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+
+#ifdef ENABLE_SCANBIN_COMMAND
   if (argc == 4) {
     mask = my_atoui(argv[3]);
-#ifdef ENABLE_SCANBIN_COMMAND
     if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
-#endif
     sweep_mode = (mask>>1)&3;
   }
+  scan_bin_mode = 0;
+#else
+  if (argc == 4) {
+    mask = my_atoui(argv[3]);
+    sweep_mode = (mask>>1)&3;
+  }
+#endif
 
   uint32_t old_cal_status = cal_status;
   if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
@@ -1137,7 +1144,6 @@ VNA_SHELL_FUNCTION(cmd_scan)
       }
     }
   }
-  scan_bin_mode = 0;
 }
 
 #ifdef ENABLE_SCANBIN_COMMAND
