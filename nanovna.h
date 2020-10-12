@@ -209,7 +209,9 @@ void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
 void set_power(uint8_t value);
 
-double my_atof(const char *p);
+int32_t  my_atoi(const char *p);
+uint32_t my_atoui(const char *p);
+double   my_atof(const char *p);
 
 void toggle_sweep(void);
 void load_default_properties(void);

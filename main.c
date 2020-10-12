@@ -114,8 +114,6 @@ static int  set_frequency(uint32_t freq);
 static void set_frequencies(uint32_t start, uint32_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t sweep_mode);
 static void transform_domain(void);
-static  int32_t my_atoi(const char *p);
-static uint32_t my_atoui(const char *p);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
 uint8_t redraw_request = 0; // contains REDRAW_XXX flags
@@ -428,7 +426,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
 // Rewrite universal standart str to value functions to more compact
 //
 // Convert string to int32
-static int32_t my_atoi(const char *p)
+int32_t my_atoi(const char *p)
 {
   int32_t value = 0;
   uint32_t c;
@@ -446,7 +444,7 @@ static int32_t my_atoi(const char *p)
 //  0o - for oct radix
 //  0b - for bin radix
 //  default dec radix
-static uint32_t my_atoui(const char *p)
+uint32_t my_atoui(const char *p)
 {
   uint32_t value = 0, radix = 10, c;
   if (*p == '+') p++;
@@ -1989,14 +1987,12 @@ usage:
                "trace {0|1|2|3} {%s} {value}\r\n", cmd_type_list, cmd_scale_ref_list);
 }
 
-
 void set_electrical_delay(float picoseconds)
 {
   if (electrical_delay != picoseconds) {
     electrical_delay = picoseconds;
     force_set_markmap();
   }
-  redraw_request |= REDRAW_MARKER;
 }
 
 float get_electrical_delay(void)
