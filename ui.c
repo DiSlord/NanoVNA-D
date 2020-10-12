@@ -1727,16 +1727,16 @@ static const keypads_t keypads_time[] = {
 };
 
 static const keypads_list keypads_mode_tbl[KM_NONE] = {
-  {keypads_freq , "START"    }, // start
-  {keypads_freq , "STOP"     }, // stop
-  {keypads_freq , "CENTER"   }, // center
-  {keypads_freq , "SPAN"     }, // span
-  {keypads_freq , "CW FREQ"  }, // cw freq
-  {keypads_scale, "SCALE"    }, // scale
-  {keypads_scale, "REFPOS"   }, // refpos
-  {keypads_time , "EDELAY"   }, // electrical delay
-  {keypads_scale, "VELOCITY%"}, // velocity factor
-  {keypads_time , "DELAY"    }  // scale of delay
+[KM_START]           = {keypads_freq , "START"    }, // start
+[KM_STOP]            = {keypads_freq , "STOP"     }, // stop
+[KM_CENTER]          = {keypads_freq , "CENTER"   }, // center
+[KM_SPAN]            = {keypads_freq , "SPAN"     }, // span
+[KM_CW]              = {keypads_freq , "CW FREQ"  }, // cw freq
+[KM_SCALE]           = {keypads_scale, "SCALE"    }, // scale
+[KM_REFPOS]          = {keypads_scale, "REFPOS"   }, // refpos
+[KM_EDELAY]          = {keypads_time , "EDELAY"   }, // electrical delay
+[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%"}, // velocity factor
+[KM_SCALEDELAY]      = {keypads_time , "DELAY"    }  // scale of delay
 };
 
 static void
@@ -2342,7 +2342,7 @@ leave_ui_mode()
   draw_frequencies();
 }
 
-#define MARKER_SPEEDUP  (804 / POINTS_COUNT)
+#define MARKER_SPEEDUP  (808 / POINTS_COUNT)
 static void
 lever_move_marker(int status)
 {
@@ -2553,9 +2553,10 @@ keypad_click(int key)
       set_trace_scale(uistat.current_trace, value * 1e-12); // pico second
       break;
     }
-
     return KP_DONE;
-  } else if (c <= 9 && kp_index < NUMINPUT_LEN) {
+  }
+
+  if (c <= 9 && kp_index < NUMINPUT_LEN) {
     kp_buf[kp_index++] = '0' + c;
   } else if (c == KP_PERIOD && kp_index < NUMINPUT_LEN) {
     // check period in former input

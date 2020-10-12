@@ -102,8 +102,8 @@ void update_grid(void)
   grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
   grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
 
-  force_set_markmap();
-  redraw_request |= REDRAW_FREQUENCY;
+//  force_set_markmap();
+  redraw_request |= REDRAW_FREQUENCY|REDRAW_AREA;
 }
 
 static inline int
