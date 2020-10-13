@@ -23,9 +23,6 @@ typedef struct
 {
    uint32_t Hz;
    float R0;
-   float RL;
-   float XL;
-   float VSWR;
    // L-Network solution structure
    t_lc_match matches[4];
    int16_t num_matches;
@@ -38,25 +35,22 @@ static void lc_match_quadratic_equation(float a, float b, float c, float *x)
 {
   const float d = (b * b) - (4.0f * a * c);
   if (d < 0){
-    x[0] = 0.0f;
-    x[1] = 0.0f;
+    x[0] = x[1] = 0.0f;
+    return;
   }
-  else{
-    const float sd = sqrtf(d);
-    const float a2 = 2.0f * a;
-    x[0] = (-b + sd) / a2;
-    x[1] = (-b - sd) / a2;
-  }
+  const float sd = sqrtf(d);
+  const float a2 = 2.0f * a;
+  x[0] = (-b + sd) / a2;
+  x[1] = (-b - sd) / a2;
 }
 
 // Calculate two solutions for ZL where (R + X * X / R) > R0
 static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
 {
-  float xs[2];
   float xp[2];
 
   const float a = R0 - RL;
-  const float b =  2.0f * XL * R0;
+  const float b = 2.0f * XL * R0;
   const float c = R0 * ((XL * XL) + (RL * RL));
   lc_match_quadratic_equation(a, b, c, xp);
 
@@ -67,19 +61,15 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
   const float XL1 =  RL * xp[0];
   const float RL2 =  RL + 0.0f;
   const float XL2 =  XL + xp[0];
-  xs[0] = -((RL2 * XL1) - (RL1 * XL2)) / ((RL2 * RL2) + (XL2 * XL2));
+  matches[0].xs  = -((RL2 * XL1) - (RL1 * XL2)) / ((RL2 * RL2) + (XL2 * XL2));
+  matches[0].xps = 0.0f;
+  matches[0].xpl = xp[0];
 
   const float RL3 = -XL * xp[1];
   const float XL3 =  RL * xp[1];
   const float RL4 =  RL + 0.0f;
   const float XL4 =  XL + xp[1];
-  xs[1] = -((RL4 * XL3) - (RL3 * XL4)) / ((RL4 * RL4) + (XL4 * XL4));
-
-  matches[0].xs  = xs[0];
-  matches[0].xps = 0.0f;
-  matches[0].xpl = xp[0];
-
-  matches[1].xs  = xs[1];
+  matches[1].xs  =-((RL4 * XL3) - (RL3 * XL4)) / ((RL4 * RL4) + (XL4 * XL4));
   matches[1].xps = 0.0f;
   matches[1].xpl = xp[1];
 }
@@ -88,10 +78,7 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
 static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
 {
   float xs[2];
-  float xp[2];
-
   // Calculate Xs
-
   const float a = 1.0f;
   const float b = 2.0f * XL;
   const float c = (RL * RL) + (XL * XL) - (R0 * RL);
@@ -100,14 +87,15 @@ static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
   // got two serial impedances that change ZL to the Y.real = 1/R0
   //
   // now calculate impedances parallel to source
-
   const float RL1 = RL  + 0.0f;
   const float XL1 = XL  + xs[0];
   const float RL3 = RL1 * R0;
   const float XL3 = XL1 * R0;
   const float RL5 = RL1 - R0;
   const float XL5 = XL1 - 0.0f;
-  xp[0] = ((RL5 * XL3) - (RL3 * XL5)) / ((RL5 * RL5) + (XL5 * XL5));
+  matches[0].xs  = xs[0];
+  matches[0].xps = ((RL5 * XL3) - (RL3 * XL5)) / ((RL5 * RL5) + (XL5 * XL5));
+  matches[0].xpl = 0.0f;
 
   const float RL2 = RL  + 0.0f;
   const float XL2 = XL  + xs[1];
@@ -115,33 +103,31 @@ static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
   const float XL4 = XL2 * R0;
   const float RL6 = RL2 - R0;
   const float XL6 = XL2 - 0.0f;
-  xp[1] = ((RL6 * XL4) - (RL4 * XL6)) / ((RL6 * RL6) + (XL6 * XL6));
-
-  matches[0].xs  = xs[0];
-  matches[0].xps = xp[0];
-  matches[0].xpl = 0.0f;
-
   matches[1].xs  = xs[1];
-  matches[1].xps = xp[1];
+  matches[1].xps = ((RL6 * XL4) - (RL4 * XL6)) / ((RL6 * RL6) + (XL6 * XL6));
   matches[1].xpl = 0.0f;
 }
 
-static int lc_match_calc(void)
+static int lc_match_calc(int index)
 {
   const float R0 = lc_match_array.R0;
-  const float RL = lc_match_array.RL;
-  const float XL = lc_match_array.XL;
-  const float vswr = lc_match_array.VSWR;
-  t_lc_match *matches = lc_match_array.matches;
+  // compute the impedance at the chosen frequency
+  const float *coeff = measured[0][index];
+  const float RL = resistance(coeff);
+  const float XL = reactance(coeff);
+
   if (RL <= 0.5f)
     return -1;
+
   const float q_factor = XL / RL;
+  const float vswr = swr(coeff);
   // no need for any matching
   if (vswr <= 1.1f || q_factor >= 100.0f)
     return 0;
 
   // only one solution is enough: just a serial reactance
   // this gives SWR < 1.1 if R is within the range 0.91 .. 1.1 of R0
+  t_lc_match *matches = lc_match_array.matches;
   if (RL > (R0 / 1.1f) && RL < (R0 * 1.1f)){
     matches[0].xpl = 0.0f;
     matches[0].xps = 0.0f;
@@ -167,32 +153,24 @@ static int lc_match_calc(void)
 
 static void lc_match_process(void)
 {
-  const int am = active_marker;
-  if (am < 0 || am >=MARKERS_MAX || current_props._markers[am].enabled == false)
+  const uint32_t am = (uint32_t)active_marker;
+  if (am >=MARKERS_MAX || current_props._markers[am].enabled == false)
     return;
 
-  const int index = current_props._markers[am].index;
-  if (index < 0 || index >= sweep_points)
+  const uint32_t index = current_props._markers[am].index;
+  if (index >= sweep_points || frequencies[index] == 0)
+    return;
+
+  // Made calculation only one time for current sweep and frequency
+  if (lc_match_array.sweep_n == sweep_count && lc_match_array.Hz == frequencies[index])
     return;
 
   lc_match_array.R0 = 50.0f;
   lc_match_array.Hz = frequencies[index];
-
-  if (lc_match_array.Hz == 0)
-    return;
-
-  if (lc_match_array.sweep_n == sweep_count && lc_match_array.Hz == frequencies[index])
-    return;
-
   lc_match_array.sweep_n = sweep_count;
 
-  const float *coeff = measured[0][index];
-  // compute the impedance at the chosen frequency
-  lc_match_array.RL = resistance(coeff);
-  lc_match_array.XL = reactance(coeff);
-  lc_match_array.VSWR = swr(coeff);
   // compute the possible LC matches
-  lc_match_array.num_matches = lc_match_calc();
+  lc_match_array.num_matches = lc_match_calc(index);
 }
 
 //
