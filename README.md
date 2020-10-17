@@ -39,6 +39,7 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
 ## Fetch source code
 
 Fetch source and submodule.
+
     $ git clone https://github.com/DiSlord/NanoVNA-D.git
     $ cd NanoVNA
     $ git submodule update --init --recursive
