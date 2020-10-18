@@ -102,7 +102,6 @@ void update_grid(void)
   grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
   grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
 
-//  force_set_markmap();
   redraw_request |= REDRAW_FREQUENCY|REDRAW_AREA;
 }
 
@@ -629,9 +628,6 @@ format_smith_value(char *buf, int len, const float coeff[2], uint32_t frequency)
   plot_printf(buf, len, format, zr, zi);
 }
 
-//84272	    804	  40568	 125644	  1eacc	build/ch.elf
-//83804	    804	  40568	 125176	  1e8f8	build/ch.elf
-//83744	    804	  40568	 125116	  1e8bc	build/ch.elf
 #if MAX_TRACE_TYPE != 13
 #error "Redefined trace_type list, need check format_list"
 #endif
@@ -728,7 +724,7 @@ static float distance_of_index(int idx)
   return distance * velocity_factor;
 }
 
-static inline void
+static void
 mark_map(int x, int y)
 {
   if (y >= 0 && y < MAX_MARKMAP_Y && x >= 0 && x < MAX_MARKMAP_X)
@@ -1102,14 +1098,6 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
-void
-marker_position(int m, int t, int *x, int *y)
-{
-  index_t index = trace_index[t][markers[m].index];
-  *x = CELL_X(index);
-  *y = CELL_Y(index);
-}
-
 static int greater(int x, int y) { return x > y; }
 static int lesser(int x, int y) { return x < y; }
 
@@ -1199,20 +1187,22 @@ marker_search_right(int from)
 }
 
 int
+distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y)
+{
+  index_t index = trace_index[t][idx];
+  x-= CELL_X(index);
+  y-= CELL_Y(index);
+  return x*x + y*y;
+}
+
+int
 search_nearest_index(int x, int y, int t)
 {
-  index_t *index = trace_index[t];
   int min_i = -1;
-  int min_d = 30000;
+  int min_d = MARKER_PICKUP_DISTANCE * MARKER_PICKUP_DISTANCE;
   int i;
   for (i = 0; i < sweep_points; i++) {
-    int16_t dx = x - CELL_X(index[i]);
-    int16_t dy = y - CELL_Y(index[i]);
-    if (dx < 0) dx = -dx;
-    if (dy < 0) dy = -dy;
-    if (dx > MARKER_PICKUP_DISTANCE || dy > MARKER_PICKUP_DISTANCE)
-      continue;
-    int d = dx*dx + dy*dy;
+    int d = distance_to_index(t, i, x , y);
     if (d < min_d) {
       min_d = d;
       min_i = i;
@@ -1498,9 +1488,9 @@ draw_all(bool flush)
 // Call this function then need fast draw marker and marker info
 // Used in ui.c for leveler move marker, drag marker and etc.
 void
-redraw_marker(int marker)
+redraw_marker(int8_t marker)
 {
-  if (marker < 0)
+  if (marker == MARKER_INVALID)
     return;
   // mark map on new position of marker
   markmap_marker(marker);
@@ -1534,11 +1524,12 @@ cell_draw_marker_info(int x0, int y0)
 {
   char buf[24];
   int t;
-  if (active_marker < 0)
+  if (active_marker == MARKER_INVALID)
     return;
   int idx = markers[active_marker].index;
   int j = 0;
-  if (previous_marker != -1 && uistat.current_trace != -1) {
+
+  if (previous_marker != MARKER_INVALID && uistat.current_trace != -1) {
     int t = uistat.current_trace;
     int mk;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
@@ -1575,7 +1566,7 @@ cell_draw_marker_info(int x0, int y0)
     }
 
     // draw marker delta
-    if (!uistat.marker_delta && previous_marker >= 0 && active_marker != previous_marker && markers[previous_marker].enabled) {
+    if (!uistat.marker_delta && active_marker != previous_marker) {
       int idx0 = markers[previous_marker].index;
       int xpos = (WIDTH/2+30) + CELLOFFSETX - x0;
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;

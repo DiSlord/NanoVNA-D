@@ -24,7 +24,11 @@
 #include <string.h>
 
 uint16_t lastsaveid = 0;
-static uint32_t checksum_ok = 0;
+#if SAVEAREA_MAX >= 8
+#error "Increase checksum_ok type for save more cache slots"
+#endif
+// properties CRC check cache (max 8 slots)
+static uint8_t checksum_ok = 0;
 
 static int flash_wait_for_last_operation(void)
 {
@@ -137,7 +141,7 @@ int
 caldata_recall(uint32_t id)
 {
   if (id >= SAVEAREA_MAX)
-    return -1;
+    goto load_default;
   // point to saved area on the flash memory
   properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
 
@@ -153,7 +157,7 @@ caldata_recall(uint32_t id)
   return 0;
 load_default:
   load_default_properties();
-  return lastsaveid;
+  return 1;
 }
 
 // Used in interpolate
