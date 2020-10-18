@@ -2477,6 +2477,7 @@ VNA_SHELL_FUNCTION(cmd_threads)
 }
 #endif
 
+#ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
 VNA_SHELL_FUNCTION(cmd_usart_cfg)
 {
@@ -2501,6 +2502,7 @@ VNA_SHELL_FUNCTION(cmd_usart)
   while ((size = sdReadTimeout(&SD1, buffer, sizeof(buffer), time)))
     streamWrite(&SDU1, buffer, size);
 }
+#endif
 #endif
 
 #ifdef ENABLE_SD_CARD_CMD
@@ -2652,9 +2654,11 @@ static const VNAShellCommand commands[] =
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"vbat"        , cmd_vbat        , 0},
     {"reset"       , cmd_reset       , 0},
+#ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
     {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+#endif
 #endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
     {"vbat_offset" , cmd_vbat_offset , 0},
