@@ -39,8 +39,8 @@ void generate_DSP_Table(int offset){
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sin_cos(w, &s, &c);
-    sincos_tbl[i][0] = s*32768.0 + 0.5;
-    sincos_tbl[i][1] = c*32768.0 + 0.5;
+    sincos_tbl[i][0] = s*32768.0;
+    sincos_tbl[i][1] = c*32768.0;
     w+=step;
   }
 }
@@ -179,10 +179,10 @@ dsp_process(int16_t *capture, size_t length)
 // Define DSP accumulator value type
 typedef int64_t acc_t;
 typedef float measure_t;
-acc_t acc_samp_s;
-acc_t acc_samp_c;
-acc_t acc_ref_s;
-acc_t acc_ref_c;
+static acc_t acc_samp_s;
+static acc_t acc_samp_c;
+static acc_t acc_ref_s;
+static acc_t acc_ref_c;
 // Cortex M4 DSP instruction use
 #include "dsp.h"
 void

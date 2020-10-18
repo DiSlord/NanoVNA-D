@@ -528,6 +528,7 @@ typedef struct properties {
 } properties_t;
 //on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
 
+#define MARKER_INVALID       -1
 extern int8_t previous_marker;
 extern config_t config;
 extern properties_t *active_props;
@@ -557,7 +558,7 @@ void redraw_frame(void);
 //void redraw_all(void);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
-void redraw_marker(int marker);
+void redraw_marker(int8_t marker);
 void plot_into_index(float measured[2][POINTS_COUNT][2]);
 void force_set_markmap(void);
 void draw_frequencies(void);
@@ -567,7 +568,7 @@ void draw_cal_status(void);
 
 //void markmap_all_markers(void);
 
-void marker_position(int m, int t, int *x, int *y);
+int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
 void set_marker_search(int mode);
 int marker_search(void);

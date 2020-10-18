@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.39"
+#define VERSION "1.0.40"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -184,13 +184,13 @@ static THD_FUNCTION(Thread1, arg)
     if (shell_function) {
       shell_function(shell_nargs - 1, &shell_args[1]);
       shell_function = 0;
-      osalThreadSleepMilliseconds(10);
+      chThdSleepMilliseconds(10);
       continue;
     }
     // Process UI inputs
     ui_process();
     // Process collected data, calculate trace coordinates and plot only if scan completed
-    if (sweep_mode & SWEEP_ENABLE && completed) {
+    if ((sweep_mode & SWEEP_ENABLE) && completed) {
       if (electrical_delay != 0) apply_edelay();
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain();
 
@@ -198,7 +198,7 @@ static THD_FUNCTION(Thread1, arg)
       plot_into_index(measured);
       redraw_request |= REDRAW_CELLS | REDRAW_BATTERY;
 
-      if (uistat.marker_tracking && active_marker != -1) {
+      if (uistat.marker_tracking && active_marker != MARKER_INVALID) {
         int i = marker_search();
         if (i != -1) {
           markers[active_marker].index = i;
@@ -1609,18 +1609,19 @@ cal_collect(int type)
     default:
       return;
   }
+  // Disable calibration apply
+  cal_status&= ~(CALSTAT_APPLY);
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config.bandwidth;  // store current setting
-  uint16_t status = cal_status;
   if (bw < BANDWIDTH_30)
     config.bandwidth = BANDWIDTH_30;
-  cal_status&= ~(CALSTAT_APPLY);
+
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
   sweep(false, src == 0 ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
   config.bandwidth = bw;          // restore
-  cal_status = status;
+
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
   redraw_request |= REDRAW_CAL_STATUS;
@@ -1822,7 +1823,7 @@ VNA_SHELL_FUNCTION(cmd_recall)
   if (id < 0 || id >= SAVEAREA_MAX)
     goto usage;
   // Check for success
-  if (load_properties(id) == -1)
+  if (load_properties(id))
     shell_printf("Err, default load\r\n");
   redraw_request |= REDRAW_CAL_STATUS;
   return;
@@ -2027,10 +2028,10 @@ VNA_SHELL_FUNCTION(cmd_marker)
   redraw_request |= REDRAW_MARKER;
   // Marker on|off command
   int enable = get_str_index(argv[0], cmd_marker_list);
-  if (enable>=1) {
-    active_marker = enable == 0 ? -1 : 1;
+  if (enable >= 0) { // string found: 0 - on, 1 - off
+    active_marker = enable == 1 ? MARKER_INVALID : 0;
     for (t = 0; t < MARKERS_MAX; t++)
-      markers[t].enabled = enable > 0;
+      markers[t].enabled = enable == 0;
     return;
   }
   t = my_atoi(argv[0])-1;
@@ -2046,7 +2047,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
 
   switch (get_str_index(argv[1], cmd_marker_list)) {
     case 0: markers[t].enabled = TRUE; active_marker = t; return;
-    case 1: markers[t].enabled =FALSE; if (active_marker == t) active_marker = -1; return;
+    case 1: markers[t].enabled =FALSE; if (active_marker == t) active_marker = MARKER_INVALID; return;
     default:
       // select active marker and move to index
       markers[t].enabled = TRUE;
@@ -2899,7 +2900,7 @@ static void VNAShell_executeLine(char *line)
         if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
         // Wait execute command in sweep thread
         do {
-          osalThreadSleepMilliseconds(100);
+          chThdSleepMilliseconds(100);
         } while (shell_function);
       } else {
         scp->sc_function(shell_nargs - 1, &shell_args[1]);
@@ -2922,7 +2923,7 @@ THD_FUNCTION(myshellThread, p)
     if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
       VNAShell_executeLine(shell_line);
     else // Putting a delay in order to avoid an endless loop trying to read an unavailable stream.
-      osalThreadSleepMilliseconds(100);
+      chThdSleepMilliseconds(100);
   }
 }
 #endif
