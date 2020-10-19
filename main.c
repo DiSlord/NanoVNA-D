@@ -2103,7 +2103,7 @@ set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 {
   if (mode != (domain_mode & DOMAIN_MODE)) {
     domain_mode = (domain_mode & ~DOMAIN_MODE) | (mode & DOMAIN_MODE);
-    redraw_request |= REDRAW_FREQUENCY;
+    redraw_request |= REDRAW_FREQUENCY | REDRAW_MARKER;
     uistat.lever_mode = LM_MARKER;
   }
 }

@@ -528,8 +528,6 @@ typedef struct properties {
 } properties_t;
 //on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
 
-#define MARKER_INVALID       -1
-extern int8_t previous_marker;
 extern config_t config;
 extern properties_t *active_props;
 extern properties_t current_props;
@@ -795,6 +793,8 @@ extern uint16_t lastsaveid;
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
 
+#define previous_marker uistat._previous_marker
+
 #define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
 #define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
@@ -838,12 +838,14 @@ enum lever_mode {
   LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY
 };
 
+#define MARKER_INVALID       -1
+#define TRACE_INVALID        -1
 typedef struct uistat {
-  uint32_t value;       // for editing at numeric input area
-//  int8_t digit;       // 0~5 used in numeric input (disabled)
-//  int8_t digit_mode;  // used in numeric input (disabled)
-  int8_t current_trace; // 0..3 (-1 for disabled)
-
+//  uint32_t value;         // for editing at numeric input area
+//  int8_t digit;           // 0~5 used in numeric input (disabled)
+//  int8_t digit_mode;      // used in numeric input (disabled)
+  int8_t  current_trace;    // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
+  int8_t  _previous_marker; // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   uint8_t lever_mode;
   uint8_t marker_delta:1;
   uint8_t marker_tracking:1;

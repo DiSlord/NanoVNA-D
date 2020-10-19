@@ -1109,7 +1109,7 @@ marker_search(void)
   int i;
   int found = 0;
 
-  if (uistat.current_trace == -1)
+  if (uistat.current_trace == TRACE_INVALID)
     return -1;
 
   int value = CELL_Y(trace_index[uistat.current_trace][0]);
@@ -1136,7 +1136,7 @@ marker_search_left(int from)
   int i;
   int found = -1;
 
-  if (uistat.current_trace == -1)
+  if (uistat.current_trace == TRACE_INVALID)
     return -1;
 
   int value = CELL_Y(trace_index[uistat.current_trace][from]);
@@ -1164,7 +1164,7 @@ marker_search_right(int from)
   int i;
   int found = -1;
 
-  if (uistat.current_trace == -1)
+  if (uistat.current_trace == TRACE_INVALID)
     return -1;
 
   int value = CELL_Y(trace_index[uistat.current_trace][from]);
@@ -1529,7 +1529,7 @@ cell_draw_marker_info(int x0, int y0)
   int idx = markers[active_marker].index;
   int j = 0;
 
-  if (previous_marker != MARKER_INVALID && uistat.current_trace != -1) {
+  if (previous_marker != MARKER_INVALID && uistat.current_trace != TRACE_INVALID) {
     int t = uistat.current_trace;
     int mk;
     for (mk = 0; mk < MARKERS_MAX; mk++) {

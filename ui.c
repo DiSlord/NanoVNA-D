@@ -29,6 +29,7 @@
 uistat_t uistat = {
 // digit: 6,
  current_trace: 0,
+ _previous_marker: MARKER_INVALID,
  lever_mode: LM_MARKER,
  marker_delta: FALSE,
  marker_tracking : FALSE,
@@ -60,8 +61,6 @@ static systime_t last_button_down_ticks;
 static systime_t last_button_repeat_ticks;
 
 volatile uint8_t operation_requested = OP_NONE;
-
-int8_t previous_marker = -1;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
@@ -906,7 +905,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
   case UI_MARKER_EDELAY: /* MARKERS->EDELAY */
     { 
-      if (uistat.current_trace == -1)
+      if (uistat.current_trace == TRACE_INVALID)
         break;
       float (*array)[2] = measured[trace[uistat.current_trace].channel];
       float v = groupdelay_from_array(markers[active_marker].index, array);
