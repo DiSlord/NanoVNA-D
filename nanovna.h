@@ -794,7 +794,7 @@ extern uint16_t lastsaveid;
 #define marker_smith_format current_props._marker_smith_format
 
 #define previous_marker uistat._previous_marker
-
+#define current_trace   uistat._current_trace
 #define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
 #define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
@@ -844,7 +844,7 @@ typedef struct uistat {
 //  uint32_t value;         // for editing at numeric input area
 //  int8_t digit;           // 0~5 used in numeric input (disabled)
 //  int8_t digit_mode;      // used in numeric input (disabled)
-  int8_t  current_trace;    // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
+  int8_t  _current_trace;   // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
   int8_t  _previous_marker; // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   uint8_t lever_mode;
   uint8_t marker_delta:1;

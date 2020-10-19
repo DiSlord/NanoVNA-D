@@ -1109,12 +1109,12 @@ marker_search(void)
   int i;
   int found = 0;
 
-  if (uistat.current_trace == TRACE_INVALID)
+  if (current_trace == TRACE_INVALID)
     return -1;
 
-  int value = CELL_Y(trace_index[uistat.current_trace][0]);
+  int value = CELL_Y(trace_index[current_trace][0]);
   for (i = 0; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index))) {
       value = CELL_Y(index);
       found = i;
@@ -1136,19 +1136,19 @@ marker_search_left(int from)
   int i;
   int found = -1;
 
-  if (uistat.current_trace == TRACE_INVALID)
+  if (current_trace == TRACE_INVALID)
     return -1;
 
-  int value = CELL_Y(trace_index[uistat.current_trace][from]);
+  int value = CELL_Y(trace_index[current_trace][from]);
   for (i = from - 1; i >= 0; i--) {
-    index_t index = trace_index[uistat.current_trace][i];
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index)))
       break;
     value = CELL_Y(index);
   }
 
   for (; i >= 0; i--) {
-    index_t index = trace_index[uistat.current_trace][i];
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(CELL_Y(index), value)) {
       break;
     }
@@ -1164,19 +1164,19 @@ marker_search_right(int from)
   int i;
   int found = -1;
 
-  if (uistat.current_trace == TRACE_INVALID)
+  if (current_trace == TRACE_INVALID)
     return -1;
 
-  int value = CELL_Y(trace_index[uistat.current_trace][from]);
+  int value = CELL_Y(trace_index[current_trace][from]);
   for (i = from + 1; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index)))
       break;
     value = CELL_Y(index);
   }
 
   for (; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(CELL_Y(index), value)) {
       break;
     }
@@ -1529,8 +1529,8 @@ cell_draw_marker_info(int x0, int y0)
   int idx = markers[active_marker].index;
   int j = 0;
 
-  if (previous_marker != MARKER_INVALID && uistat.current_trace != TRACE_INVALID) {
-    int t = uistat.current_trace;
+  if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
+    int t = current_trace;
     int mk;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
       if (!markers[mk].enabled)
@@ -1593,7 +1593,7 @@ cell_draw_marker_info(int x0, int y0)
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
       ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
-      if (t == uistat.current_trace)
+      if (t == current_trace)
         cell_drawstring(S_SARROW, xpos, ypos);
       xpos += 5;
       plot_printf(buf, sizeof buf, "CH%d", trace[t].channel);
@@ -1705,6 +1705,12 @@ draw_cal_status(void)
   for (i = 0; i < 5; i++)
     if (cal_status & calibration_text[i].mask)
       ili9341_drawstring(&calibration_text[i].text, x, y+=FONT_STR_HEIGHT);
+
+  if (cal_status & CALSTAT_APPLY){
+    const properties_t *src = caldata_reference();
+    if (src && src->_power != current_props._power)
+      ili9341_set_foreground(LCD_LOW_BAT_COLOR);
+  }
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
   ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
