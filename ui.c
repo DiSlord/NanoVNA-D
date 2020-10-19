@@ -28,7 +28,8 @@
 
 uistat_t uistat = {
 // digit: 6,
- current_trace: 0,
+ _current_trace: 0,
+ _previous_marker: MARKER_INVALID,
  lever_mode: LM_MARKER,
  marker_delta: FALSE,
  marker_tracking : FALSE,
@@ -60,8 +61,6 @@ static systime_t last_button_down_ticks;
 static systime_t last_button_repeat_ticks;
 
 volatile uint8_t operation_requested = OP_NONE;
-
-int8_t previous_marker = -1;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
@@ -699,12 +698,12 @@ static void
 choose_active_trace(void)
 {
   int i;
-  if (trace[uistat.current_trace].enabled)
+  if (trace[current_trace].enabled)
     // do nothing
     return;
   for (i = 0; i < TRACES_MAX; i++)
     if (trace[i].enabled) {
-      uistat.current_trace = i;
+      current_trace = i;
       return;
     }
 }
@@ -715,7 +714,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     if (trace[data].enabled){
       b->bg = LCD_TRACE_1_COLOR + data;
       if (data == selection) b->bg = LCD_MENU_ACTIVE_COLOR;
-      if (uistat.current_trace == data)
+      if (current_trace == data)
         b->icon = BUTTON_ICON_CHECK;
     }
     b->p1.u = data;
@@ -723,17 +722,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   }
 
   if (trace[data].enabled) {
-    if (data == uistat.current_trace) {
+    if (data == current_trace) {
       // disable if active trace is selected
       trace[data].enabled = FALSE;
       choose_active_trace();
     } else {
       // make active selected trace
-      uistat.current_trace = data;
+      current_trace = data;
     }
   } else {
     trace[data].enabled = TRUE;
-    uistat.current_trace = data;
+    current_trace = data;
   }
   request_to_redraw_grid();
   draw_menu();
@@ -742,11 +741,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
   if (b){
-    if (uistat.current_trace >=0 && trace[uistat.current_trace].type == data)
+    if (current_trace != TRACE_INVALID && trace[current_trace].type == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  set_trace_type(uistat.current_trace, data);
+  set_trace_type(current_trace, data);
   request_to_redraw_grid();
   ui_mode_normal();
   //redraw_all();
@@ -755,11 +754,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 {
   if (b){
-    if (uistat.current_trace >=0 && trace[uistat.current_trace].channel == data)
+    if (current_trace >=0 && trace[current_trace].channel == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  set_trace_channel(uistat.current_trace, data);
+  set_trace_channel(current_trace, data);
   menu_move_back(true);
 }
 
@@ -832,7 +831,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 
 static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
 {
-  if (data == KM_SCALE && trace[uistat.current_trace].type == TRC_DELAY) {
+  if (data == KM_SCALE && trace[current_trace].type == TRC_DELAY) {
     data = KM_SCALEDELAY;
   }
 #ifdef UI_USE_NUMERIC_INPUT
@@ -906,9 +905,9 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
   case UI_MARKER_EDELAY: /* MARKERS->EDELAY */
     { 
-      if (uistat.current_trace == -1)
+      if (current_trace == TRACE_INVALID)
         break;
-      float (*array)[2] = measured[trace[uistat.current_trace].channel];
+      float (*array)[2] = measured[trace[current_trace].channel];
       float v = groupdelay_from_array(markers[active_marker].index, array);
       set_electrical_delay(electrical_delay + (v / 1e-12));
     }
@@ -2072,10 +2071,10 @@ fetch_numeric_target(void)
     uistat.value = get_sweep_frequency(ST_CW);
     break;
   case KM_SCALE:
-    uistat.value = get_trace_scale(uistat.current_trace) * 1000;
+    uistat.value = get_trace_scale(current_trace) * 1000;
     break;
   case KM_REFPOS:
-    uistat.value = get_trace_refpos(uistat.current_trace) * 1000;
+    uistat.value = get_trace_refpos(current_trace) * 1000;
     break;
   case KM_EDELAY:
     uistat.value = get_electrical_delay();
@@ -2084,7 +2083,7 @@ fetch_numeric_target(void)
     uistat.value = velocity_factor * 100;
     break;
   case KM_SCALEDELAY:
-    uistat.value = get_trace_scale(uistat.current_trace) * 1e12;
+    uistat.value = get_trace_scale(current_trace) * 1e12;
     break;
   }
 
@@ -2118,10 +2117,10 @@ set_numeric_value(void)
     set_sweep_frequency(ST_CW, uistat.value);
     break;
   case KM_SCALE:
-    set_trace_scale(uistat.current_trace, uistat.value / 1000.0);
+    set_trace_scale(current_trace, uistat.value / 1000.0);
     break;
   case KM_REFPOS:
-    set_trace_refpos(uistat.current_trace, uistat.value / 1000.0);
+    set_trace_refpos(current_trace, uistat.value / 1000.0);
     break;
   case KM_EDELAY:
     set_electrical_delay(uistat.value);
@@ -2506,10 +2505,10 @@ keypad_click(int key)
       set_sweep_frequency(ST_CW, value);
       break;
     case KM_SCALE:
-      set_trace_scale(uistat.current_trace, value);
+      set_trace_scale(current_trace, value);
       break;
     case KM_REFPOS:
-      set_trace_refpos(uistat.current_trace, value);
+      set_trace_refpos(current_trace, value);
       break;
     case KM_EDELAY:
       set_electrical_delay(value); // pico seconds
@@ -2518,7 +2517,7 @@ keypad_click(int key)
       velocity_factor = value / 100.0;
       break;
     case KM_SCALEDELAY:
-      set_trace_scale(uistat.current_trace, value * 1e-12); // pico second
+      set_trace_scale(current_trace, value * 1e-12); // pico second
       break;
     }
     return KP_DONE;
@@ -2687,7 +2686,7 @@ touch_pickup_marker(int touch_x, int touch_y)
   }
   select_lever_mode(LM_MARKER);
   // select trace
-  uistat.current_trace = mt;
+  current_trace = mt;
   // drag marker until release
   drag_marker(mt, i);
   return TRUE;
