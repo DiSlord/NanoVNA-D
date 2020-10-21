@@ -529,14 +529,14 @@ show_version(void)
 #ifdef __USE_RTC__
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d"  " (%s)",
+    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d" " (LS%c)",
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
       RTC_TR_HOUR(dr),
       RTC_TR_MIN(dr),
       RTC_TR_SEC(dr),
-      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? "LSE" : "LSI");
+      (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? 'E' : 'I');
     ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
@@ -611,27 +611,27 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb)
   menu_push_submenu(menu_save);
 }
 
-#define MENU_CAL2_RESET    0
-#define MENU_CAL2_APPLY    1
-static UI_FUNCTION_ADV_CALLBACK(menu_cal2_acb)
+static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
 {
-  if (b){
-    if (data == MENU_CAL2_APPLY) b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  switch (data) {
-  case MENU_CAL2_RESET: // RESET
-    cal_status = 0;
-    set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
-    break;
-  case MENU_CAL2_APPLY: // CORRECTION
-    // toggle applying correction
-    cal_status ^= CALSTAT_APPLY;
-    break;
-  }
+  (void)data;
+  // RESET
+  cal_status = 0;
+  set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
   draw_menu();
   draw_cal_status();
-  //menu_move_back();
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  // toggle applying correction
+  cal_status ^= CALSTAT_APPLY;
+  draw_menu();
+  draw_cal_status();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
@@ -740,8 +740,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
+  if (current_trace == TRACE_INVALID) return;
   if (b){
-    if (current_trace != TRACE_INVALID && trace[current_trace].type == data)
+    if (trace[current_trace].type == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
@@ -753,8 +754,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 {
+  if (current_trace == TRACE_INVALID) return;
   if (b){
-    if (current_trace >=0 && trace[current_trace].channel == data)
+    if (trace[current_trace].channel == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
   }
@@ -935,10 +937,10 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
     i = marker_search();
     break;
   case MENU_MARKER_S_LEFT: /* search Left */
-    i = marker_search_left(markers[active_marker].index);
+    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_LEFT);
     break;
   case MENU_MARKER_S_RIGHT: /* search right */
-    i = marker_search_right(markers[active_marker].index);
+    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_RIGHT);
     break;
   }
   if (i != -1)
@@ -1248,11 +1250,11 @@ const menuitem_t menu_power[] = {
 };
 
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,                   0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,                   0, "POWER",     menu_power },
-  { MT_SUBMENU,                   0, "SAVE",      menu_save },
-  { MT_ADV_CALLBACK, MENU_CAL2_RESET, "RESET",    menu_cal2_acb },
-  { MT_ADV_CALLBACK, MENU_CAL2_APPLY, "APPLY",    menu_cal2_acb },
+  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
+  { MT_SUBMENU,      0, "POWER",     menu_power },
+  { MT_SUBMENU,      0, "SAVE",      menu_save },
+  { MT_CALLBACK,     0, "RESET",     menu_cal_reset_cb },
+  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal_apply_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1826,65 +1828,6 @@ menu_is_multiline(const char *label)
   return n;
 }
 
-#if 0
-// Obsolete, now use ADV_CALLBACK for change settings
-static void
-menu_item_modify_attribute(const menuitem_t *menu, int item, button_t *b)
-{
-  bool swap = false;
-  if (menu == menu_trace && item < TRACES_MAX) {
-    if (trace[item].enabled){
-      b->bg = config.trace_color[item];
-      if (item == selection) b->fg = ~config.trace_color[item];
-      swap = true;
-    }
-  } else if (menu == menu_marker_sel) {
-    if ((item  < 4 && markers[item].enabled) ||
-        (item == 5 && uistat.marker_delta))
-      swap = true;
-    else if (item == 5 && uistat.marker_delta)
-      swap = true;
-  } else if (menu == menu_marker_search) {
-    if (item == 4 && uistat.marker_tracking)
-      swap = true;
-  } else if (menu == menu_marker_smith) {
-    if (marker_smith_format == item)
-      swap = true;
-  } else if (menu == menu_calop) {
-    if ((item == 0 && (cal_status & CALSTAT_OPEN))
-        || (item == 1 && (cal_status & CALSTAT_SHORT))
-        || (item == 2 && (cal_status & CALSTAT_LOAD))
-        || (item == 3 && (cal_status & CALSTAT_ISOLN))
-        || (item == 4 && (cal_status & CALSTAT_THRU)))
-      swap = true;
-  } else if (menu == menu_stimulus) {
-    if (item == 5 /* PAUSE */ && !(sweep_mode&SWEEP_ENABLE))
-      swap = true;
-  } else if (menu == menu_cal) {
-    if (item == 3 /* CORRECTION */ && (cal_status & CALSTAT_APPLY))
-      swap = true;
-  } else if (menu == menu_bandwidth) {
-    if (menu_bandwidth[item].data == config.bandwidth)
-      swap = true;
-  } else if (menu == menu_sweep_points) {
-    if (menu_sweep_points[item].data == sweep_points)
-      swap = true;
-  } else if (menu == menu_transform) {
-    if ((item == 0 && (domain_mode & DOMAIN_MODE) == DOMAIN_TIME)
-       || (item == 1 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_IMPULSE)
-       || (item == 2 && (domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP)
-       || (item == 3 && (domain_mode & TD_FUNC) == TD_FUNC_BANDPASS)
-       ) swap = true;
-  } else if (menu == menu_transform_window) {
-      if ((item == 0 && (domain_mode & TD_WINDOW) == TD_WINDOW_MINIMUM)
-       || (item == 1 && (domain_mode & TD_WINDOW) == TD_WINDOW_NORMAL)
-       || (item == 2 && (domain_mode & TD_WINDOW) == TD_WINDOW_MAXIMUM)
-       ) swap = true;
-  }
-  if (swap) b->icon = BUTTON_ICON_CHECK;
-}
-#endif
-
 #define ICON_WIDTH        16
 #define ICON_HEIGHT       11
 static const uint8_t check_box[] = {
@@ -2436,7 +2379,7 @@ ui_process_normal(void)
         if (FREQ_IS_STARTSTOP())
           lever_move(status, ST_STOP);
         else
-        lever_zoom_span(status);
+          lever_zoom_span(status);
         break;
       case LM_EDELAY:
         lever_edelay(status);
@@ -2684,6 +2627,9 @@ touch_pickup_marker(int touch_x, int touch_y)
     previous_marker = active_marker;
     active_marker = i;
   }
+  // Disable tracking
+  uistat.marker_tracking = false;
+  // Leveler mode = marker move
   select_lever_mode(LM_MARKER);
   // select trace
   current_trace = mt;

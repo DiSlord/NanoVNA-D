@@ -811,18 +811,17 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 
   // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
   if (x1 < x0) { SWAP(x0, x1); SWAP(y0, y1); }
-  int dx = x1 - x0;
-  int dy = y1 - y0, sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
-  int err = (dx > dy ? dx : -dy) / 2;
-
+  int dx =-(x1 - x0);
+  int dy = (y1 - y0), sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
+  int err = (dy + dx < 0 ? -dx : -dy)>>1;
   while (1) {
     if (y0 >= 0 && y0 < CELLHEIGHT && x0 >= 0 && x0 < CELLWIDTH)
       cell_buffer[y0 * CELLWIDTH + x0] |= c;
     if (x0 == x1 && y0 == y1)
       return;
     int e2 = err;
-    if (e2 > -dx) { err -= dy; x0++;  }
-    if (e2 <  dy) { err += dx; y0+=sy;}
+    if (e2 > dx) { err-= dy; x0++;  }
+    if (e2 < dy) { err-= dx; y0+=sy;}
   }
 }
 
@@ -1098,10 +1097,19 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
+//
+// Marker search functions
+//
 static int greater(int x, int y) { return x > y; }
 static int lesser(int x, int y) { return x < y; }
 
 static int (*compare)(int x, int y) = lesser;
+
+void
+set_marker_search(int16_t mode)
+{
+  compare = (mode == MK_SEARCH_MIN) ? greater : lesser;
+}
 
 int
 marker_search(void)
@@ -1113,7 +1121,7 @@ marker_search(void)
     return -1;
 
   int value = CELL_Y(trace_index[current_trace][0]);
-  for (i = 0; i < sweep_points; i++) {
+  for (i = 1; i < sweep_points; i++) {
     index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index))) {
       value = CELL_Y(index);
@@ -1124,14 +1132,8 @@ marker_search(void)
   return found;
 }
 
-void
-set_marker_search(int mode)
-{
-  compare = (mode == 0) ? greater : lesser;
-}
-
 int
-marker_search_left(int from)
+marker_search_dir(int16_t from, int16_t dir)
 {
   int i;
   int found = -1;
@@ -1140,46 +1142,17 @@ marker_search_left(int from)
     return -1;
 
   int value = CELL_Y(trace_index[current_trace][from]);
-  for (i = from - 1; i >= 0; i--) {
+  for (i = from + dir; i >= 0 && i < sweep_points; i+=dir) {
     index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index)))
       break;
     value = CELL_Y(index);
   }
 
-  for (; i >= 0; i--) {
+  for (; i >= 0 && i < sweep_points; i+=dir) {
     index_t index = trace_index[current_trace][i];
-    if ((*compare)(CELL_Y(index), value)) {
+    if ((*compare)(CELL_Y(index), value))
       break;
-    }
-    found = i;
-    value = CELL_Y(index);
-  }
-  return found;
-}
-
-int
-marker_search_right(int from)
-{
-  int i;
-  int found = -1;
-
-  if (current_trace == TRACE_INVALID)
-    return -1;
-
-  int value = CELL_Y(trace_index[current_trace][from]);
-  for (i = from + 1; i < sweep_points; i++) {
-    index_t index = trace_index[current_trace][i];
-    if ((*compare)(value, CELL_Y(index)))
-      break;
-    value = CELL_Y(index);
-  }
-
-  for (; i < sweep_points; i++) {
-    index_t index = trace_index[current_trace][i];
-    if ((*compare)(CELL_Y(index), value)) {
-      break;
-    }
     found = i;
     value = CELL_Y(index);
   }
@@ -1211,6 +1184,9 @@ search_nearest_index(int x, int y, int t)
   return min_i;
 }
 
+//
+// Graph data cache for output
+//
 void
 plot_into_index(float measured[2][POINTS_COUNT][2])
 {
@@ -1223,11 +1199,14 @@ plot_into_index(float measured[2][POINTS_COUNT][2])
     for (i = 0; i < sweep_points; i++)
       index[i] = trace_into_index(t, i, measured[ch]);
   }
-#if 0
-  for (t = 0; t < TRACES_MAX; t++)
-    if (trace[t].enabled && trace[t].polar)
-      quicksort(trace_index[t], 0, sweep_points);
-#endif
+
+  // Marker track on data update
+  if (uistat.marker_tracking && active_marker != MARKER_INVALID) {
+    i = marker_search();
+    if (i != -1)
+      markers[active_marker].index = i;
+  }
+
   sweep_count++;
   mark_cells_from_index();
   markmap_all_markers();
@@ -1245,9 +1224,9 @@ draw_cell(int m, int n)
   int t;
   pixel_t c;
   // Clip cell by area
-  if (x0 + w > area_width)
+  if (w > area_width - x0)
     w = area_width - x0;
-  if (y0 + h > area_height)
+  if (h > area_height - y0)
     h = area_height - y0;
   if (w <= 0 || h <= 0)
     return;

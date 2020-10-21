@@ -197,14 +197,6 @@ static THD_FUNCTION(Thread1, arg)
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
       redraw_request |= REDRAW_CELLS | REDRAW_BATTERY;
-
-      if (uistat.marker_tracking && active_marker != MARKER_INVALID) {
-        int i = marker_search();
-        if (i != -1) {
-          markers[active_marker].index = i;
-          redraw_request |= REDRAW_MARKER;
-        }
-      }
     }
 #ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
