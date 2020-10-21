@@ -569,10 +569,15 @@ void draw_cal_status(void);
 
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
-void set_marker_search(int mode);
+
+// Marker search functions
+#define MK_SEARCH_LEFT    -1
+#define MK_SEARCH_RIGHT    1
+#define MK_SEARCH_MIN      0
+#define MK_SEARCH_MAX      1
+void set_marker_search(int16_t mode);
 int marker_search(void);
-int marker_search_left(int from);
-int marker_search_right(int from);
+int marker_search_dir(int16_t from, int16_t dir);
 
 // _request flag for update screen
 #define REDRAW_CELLS      (1<<0)
