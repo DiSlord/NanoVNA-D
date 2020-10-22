@@ -813,7 +813,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
   if (x1 < x0) { SWAP(x0, x1); SWAP(y0, y1); }
   int dx =-(x1 - x0);
   int dy = (y1 - y0), sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
-  int err = (dy + dx < 0 ? -dx : -dy)>>1;
+  int err = ((dy + dx) < 0 ? -dx : -dy) / 2;
   while (1) {
     if (y0 >= 0 && y0 < CELLHEIGHT && x0 >= 0 && x0 < CELLWIDTH)
       cell_buffer[y0 * CELLWIDTH + x0] |= c;
