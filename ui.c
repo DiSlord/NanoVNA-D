@@ -642,7 +642,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   }
   load_properties(data);
 //  menu_move_back(true);
-  update_grid();
   draw_cal_status();
 }
 
@@ -896,10 +895,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
         uint32_t freq2 = get_marker_frequency(previous_marker);
         if (freq2 == 0)
           return;
-        if (freq > freq2) {
-          freq2 = freq;
-          freq = get_marker_frequency(previous_marker);
-        }
+        if (freq > freq2) {uint32_t t = freq2; freq2 = freq; freq = t;}
         set_sweep_frequency(ST_START, freq);
         set_sweep_frequency(ST_STOP, freq2);
       }
@@ -943,10 +939,11 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
     i = marker_search_dir(markers[active_marker].index, MK_SEARCH_RIGHT);
     break;
   }
-  if (i != -1)
-    markers[active_marker].index = i;
+  if (i >= 0){
+    set_marker_index(active_marker, i);
+    redraw_marker(active_marker);
+  }
   uistat.marker_tracking = false;
-  redraw_marker(active_marker);
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
@@ -1497,7 +1494,7 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
   { MT_SUBMENU,                       0, "SWEEP\nPOINTS", menu_sweep_points },
 #ifdef __USE_SERIAL_CONSOLE__
-  { MT_SUBMENU,  0, "CONNECTION", menu_connection},
+  { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
@@ -2269,8 +2266,7 @@ lever_move_marker(int status)
         if (idx  > sweep_points-1)
           idx = sweep_points-1 ;
       }
-      markers[active_marker].index = idx;
-      markers[active_marker].frequency = frequencies[idx];
+      set_marker_index(active_marker, idx);
       redraw_marker(active_marker);
       step++;
     }
@@ -2589,8 +2585,7 @@ drag_marker(int t, int8_t m)
     touch_y -= OFFSETY;
     index = search_nearest_index(touch_x, touch_y, t);
     if (index >= 0) {
-      markers[m].index = index;
-      markers[m].frequency = frequencies[index];
+      set_marker_index(m, index);
       redraw_marker(m);
     }
   } while (touch_check()!= EVT_TOUCH_RELEASED);
