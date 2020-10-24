@@ -274,16 +274,16 @@ transform_domain(void)
       break;
   }
 
-  float beta = 0.0;
+  float beta = 0.0f;
   switch (domain_mode & TD_WINDOW) {
     case TD_WINDOW_MINIMUM:
-//    beta = 0.0;  // this is rectangular
+//    beta = 0.0f;  // this is rectangular
       break;
     case TD_WINDOW_NORMAL:
-      beta = 6.0;
+      beta = 6.0f;
       break;
     case TD_WINDOW_MAXIMUM:
-      beta = 13;
+      beta = 13.0f;
       break;
   }
 
@@ -678,13 +678,11 @@ VNA_SHELL_FUNCTION(cmd_data)
   float (*array)[2];
   if (argc == 1)
     sel = my_atoi(argv[0]);
-
-  if (sel == 0 || sel == 1)
-    array = measured[sel];
-  else if (sel >= 2 && sel < 7)
-    array = cal_data[sel-2];
-  else
+  if (sel < 0 || sel >=7)
     goto usage;
+
+  array = sel < 2 ? measured[sel] : cal_data[sel-2];
+
   for (i = 0; i < sweep_points; i++)
     shell_printf("%f %f\r\n", array[i][0], array[i][1]);
   return;
@@ -820,7 +818,7 @@ void load_default_properties(void)
   current_props._electrical_delay = 0.0;
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
-  current_props._velocity_factor =  0.7;
+  current_props._velocity_factor = 0.7;
   current_props._active_marker   = 0;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
@@ -1145,31 +1143,39 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
 }
 #endif
 
+void set_marker_index(int m, int idx)
+{
+  if (m == MARKER_INVALID || idx < 0 || idx >= sweep_points) return;
+  markers[m].index = idx;
+  markers[m].frequency = frequencies[idx];
+}
+
 static void
 update_marker_index(void)
 {
-  int m;
-  int i;
+  int m, idx;
+  uint32_t fstart = get_sweep_frequency(ST_START);
+  uint32_t fstop  = get_sweep_frequency(ST_STOP);
   for (m = 0; m < MARKERS_MAX; m++) {
     if (!markers[m].enabled)
       continue;
     uint32_t f = markers[m].frequency;
-    uint32_t fstart = get_sweep_frequency(ST_START);
-    uint32_t fstop  = get_sweep_frequency(ST_STOP);
-    if (f < fstart) {
-      markers[m].index = 0;
-      markers[m].frequency = fstart;
-    } else if (f >= fstop) {
-      markers[m].index = sweep_points-1;
-      markers[m].frequency = fstop;
-    } else {
-      for (i = 0; i < sweep_points-1; i++) {
-        if (frequencies[i] <= f && f < frequencies[i+1]) {
-          markers[m].index = f < (frequencies[i] / 2 + frequencies[i + 1] / 2) ? i : i + 1;
-          break;
-        }
+    if (f == 0) idx = markers[m].index; // Not need update index in no freq
+    else if (f < fstart) idx = 0;
+    else if (f >= fstop) idx = sweep_points-1;
+    else { // Search frequency index for marker frequency
+#if 1
+      for (idx = 1; idx < sweep_points; idx++) {
+        if (frequencies[idx] <= f) continue;
+        if (f < (frequencies[idx-1]/2 + frequencies[idx]/2)) idx--; // Correct closest idx
+        break;
       }
+#else
+      float r = ((float)(f - fstart))/(fstop - fstart);
+      idx = r * (sweep_points-1);
+#endif
     }
+    set_marker_index(m, idx);
   }
 }
 
@@ -1222,60 +1228,47 @@ set_sweep_frequency(int type, uint32_t freq)
     freq = START_MIN;
   if (freq > STOP_MAX)
     freq = STOP_MAX;
-
+  uint32_t center, span;
   ensure_edit_config();
   switch (type) {
     case ST_START:
       config._mode &= ~VNA_MODE_CENTER_SPAN;
-      if (frequency0 != freq) {
-        frequency0 = freq;
-        // if start > stop then make start = stop
-        if (frequency1 < freq) frequency1 = freq;
-      }
+      frequency0 = freq;
+      // if start > stop then make start = stop
+      if (frequency1 < freq) frequency1 = freq;
       break;
     case ST_STOP:
       config._mode &= ~VNA_MODE_CENTER_SPAN;
-      if (frequency1 != freq) {
-        frequency1 = freq;
+      frequency1 = freq;
         // if start > stop then make start = stop
-        if (frequency0 > freq) frequency0 = freq;
-      }
+      if (frequency0 > freq) frequency0 = freq;
       break;
     case ST_CENTER:
       config._mode |= VNA_MODE_CENTER_SPAN;
-      uint32_t center = frequency0 / 2 + frequency1 / 2;
-      if (center != freq) {
-        uint32_t span = frequency1 - frequency0;
-        if (freq < START_MIN + span / 2) {
-          span = (freq - START_MIN) * 2;
-        }
-        if (freq > STOP_MAX - span / 2) {
-          span = (STOP_MAX - freq) * 2;
-        }
-        frequency0 = freq - span / 2;
-        frequency1 = freq + span / 2;
-      }
+      center = freq;
+      span   = (frequency1 - frequency0)>>1;
+      if (span > center - START_MIN)
+        span = (center - START_MIN);
+      if (span > STOP_MAX - center)
+        span = (STOP_MAX - center);
+      frequency0 = center - span;
+      frequency1 = center + span;
       break;
     case ST_SPAN:
       config._mode |= VNA_MODE_CENTER_SPAN;
-      if (frequency1 - frequency0 != freq) {
-        uint32_t center = frequency0 / 2 + frequency1 / 2;
-        if (center < START_MIN + freq / 2) {
-          center = START_MIN + freq / 2;
-        }
-        if (center > STOP_MAX - freq / 2) {
-          center = STOP_MAX - freq / 2;
-        }
-        frequency0 = center - freq / 2;
-        frequency1 = center + freq / 2;
-      }
+      center = (frequency0>>1) + (frequency1>>1);
+      span = freq>>1;
+      if (center < START_MIN + span)
+        center = START_MIN + span;
+      if (center > STOP_MAX - span)
+        center = STOP_MAX - span;
+      frequency0 = center - span;
+      frequency1 = center + span;
       break;
     case ST_CW:
       config._mode |= VNA_MODE_CENTER_SPAN;
-      if (frequency0 != freq || frequency1 != freq) {
-        frequency0 = freq;
-        frequency1 = freq;
-      }
+      frequency0 = freq;
+      frequency1 = freq;
       break;
   }
   update_frequencies(cal_applied);
@@ -1694,19 +1687,19 @@ cal_interpolate(void)
         // found f between freqs at j and j+1
         float k1 = (delta == 0) ? 0.0 : (float)(f - src_f) / delta;
         // avoid glitch between freqs in different harmonics mode
-        uint16_t idx = j;
+        uint32_t idx = j;
         if (si5351_get_harmonic_lvl(src_f) != si5351_get_harmonic_lvl(src_f+delta)) {
           // f in prev harmonic, need extrapolate from prev 2 points
           if (si5351_get_harmonic_lvl(f) == si5351_get_harmonic_lvl(src_f)){
-            if (idx >=1){
-              idx--; k1+= 1.0;
+            if (idx >= 1){
+              idx--; k1+=1.0;
             }
             else // point limit
               k1 = 0.0;
           }
           // f in next harmonic, need extrapolate from next 2 points
           else {
-            if (idx<src_points){
+            if (idx < src_points){
               idx++; k1-=1.0;
             }
             else // point limit
@@ -1851,6 +1844,11 @@ const char *get_trace_typename(int t)
   return trace_info[trace[t].type].name;
 }
 
+const char *get_trace_chname(int t)
+{
+  return trc_channel_name[trace[t].channel];
+}
+
 void set_trace_type(int t, int type)
 {
   int enabled = type != TRC_OFF;
@@ -1915,7 +1913,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
     for (t = 0; t < TRACES_MAX; t++) {
       if (trace[t].enabled) {
         const char *type = get_trace_typename(t);
-        const char *channel = trc_channel_name[trace[t].channel];
+        const char *channel = get_trace_chname(t);
         float scale = get_trace_scale(t);
         float refpos = get_trace_refpos(t);
         shell_printf("%d %s %s %f %f\r\n", t, type, channel, scale, refpos);
@@ -1926,9 +1924,9 @@ VNA_SHELL_FUNCTION(cmd_trace)
 
   if (strcmp(argv[0], "all") == 0 &&
       argc > 1 && strcmp(argv[1], "off") == 0) {
-  for (t = 0; t < TRACES_MAX; t++)
+    for (t = 0; t < TRACES_MAX; t++)
       set_trace_type(t, TRC_OFF);
-    goto exit;
+    return;
   }
 
   t = my_atoi(argv[0]);
@@ -1936,7 +1934,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
     goto usage;
   if (argc == 1) {
     const char *type = get_trace_typename(t);
-    const char *channel = trc_channel_name[trace[t].channel];
+    const char *channel = get_trace_chname(t);
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
@@ -1947,33 +1945,25 @@ VNA_SHELL_FUNCTION(cmd_trace)
   static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|q|off";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
+    if (argc > 2) {
+      int src = my_atoi(argv[2]);
+      if (src != 0 && src != 1)
+        goto usage;
+      set_trace_channel(t, src);
+    }
     set_trace_type(t, type);
-    goto check_ch_num;
+    return;
   }
   //                                            0      1
   static const char cmd_scale_ref_list[] = "scale|refpos";
   if (argc >= 3) {
     switch (get_str_index(argv[1], cmd_scale_ref_list)) {
-      case 0:
-        //trace[t].scale = my_atof(argv[2]);
-        set_trace_scale(t, my_atof(argv[2]));
-        goto exit;
-      case 1:
-        //trace[t].refpos = my_atof(argv[2]);
-        set_trace_refpos(t, my_atof(argv[2]));
-        goto exit;
+      case 0: set_trace_scale(t, my_atof(argv[2])); break;
+      case 1: set_trace_refpos(t, my_atof(argv[2])); break;
       default:
         goto usage;
     }
   }
-check_ch_num:
-  if (argc > 2) {
-    int src = my_atoi(argv[2]);
-    if (src != 0 && src != 1)
-      goto usage;
-    trace[t].channel = src;
-  }
-exit:
   return;
 usage:
   shell_printf("trace {0|1|2|3|all} [%s] [src]\r\n"\
@@ -1995,13 +1985,11 @@ float get_electrical_delay(void)
 
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
-  if (argc == 0) {
+  if (argc != 1) {
     shell_printf("%f\r\n", electrical_delay);
     return;
   }
-  if (argc > 0) {
-    set_electrical_delay(my_atof(argv[0]));
-  }
+  set_electrical_delay(my_atof(argv[0]));
 }
 
 
@@ -2044,8 +2032,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
       // select active marker and move to index
       markers[t].enabled = TRUE;
       int index = my_atoi(argv[1]);
-      markers[t].index = index;
-      markers[t].frequency = frequencies[index];
+      set_marker_index(t, index);
       active_marker = t;
       return;
   }
@@ -2084,8 +2071,8 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
   (void)argc;
   (void)argv;
   for (i = 0; i < sweep_points; i++) {
-    if (frequencies[i] != 0)
-      shell_printf("%u\r\n", frequencies[i]);
+    if (frequencies[i] == 0) break;
+    shell_printf("%u\r\n", frequencies[i]);
   }
 }
 

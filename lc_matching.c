@@ -128,7 +128,7 @@ static int lc_match_calc(int index)
   // only one solution is enough: just a serial reactance
   // this gives SWR < 1.1 if R is within the range 0.91 .. 1.1 of R0
   t_lc_match *matches = lc_match_array.matches;
-  if (RL > (R0 / 1.1f) && RL < (R0 * 1.1f)){
+  if ((RL * 1.1f) > R0  && RL < (R0 * 1.1f)){
     matches[0].xpl = 0.0f;
     matches[0].xps = 0.0f;
     matches[0].xs  = -XL;
@@ -151,6 +151,14 @@ static int lc_match_calc(int index)
   return 4;
 }
 
+// Mark to redraw area under L/C match text
+static void lc_match_mark_area(void){
+  // Update area
+  int n = lc_match_array.num_matches; if (n < 0) n = 0;
+  invalidate_rect(STR_LC_MATH_X                        , STR_LC_MATH_Y,
+                  STR_LC_MATH_X + 3 * STR_LC_MATH_WIDTH, STR_LC_MATH_Y + (n + 2)*STR_LC_MATH_HEIGHT);
+}
+
 static void lc_match_process(void)
 {
   const uint32_t am = (uint32_t)active_marker;
@@ -171,6 +179,7 @@ static void lc_match_process(void)
 
   // compute the possible LC matches
   lc_match_array.num_matches = lc_match_calc(index);
+  lc_match_mark_area();
 }
 
 //
@@ -194,7 +203,7 @@ static void lc_match_x_str(uint32_t FHz, float X, int xp, int yp)
   cell_drawstring(str, xp, yp);
 }
 
-// Render L/C match tet to cell
+// Render L/C match to cell
 static void cell_draw_lc_match(int x0, int y0)
 {
   char s[32];
@@ -223,13 +232,13 @@ static void cell_draw_lc_match(int x0, int y0)
   yp += STR_LC_MATH_HEIGHT;
   if (yp >= CELLHEIGHT) return;
   if (lc_match_array.num_matches < 0)
-    cell_drawstring("No LC match for this lo", xp, yp);
+    cell_drawstring("No LC match for this", xp, yp);
   else if (lc_match_array.num_matches == 0)
     cell_drawstring("No need for LC match", xp, yp);
   else {
-    cell_drawstring("Src shunt", xp                      , yp);
-    cell_drawstring("Series"   , xp +   STR_LC_MATH_WIDTH, yp);
-    cell_drawstring("Load"     , xp + 2*STR_LC_MATH_WIDTH, yp);
+    cell_drawstring("Src shunt" , xp                      , yp);
+    cell_drawstring("Series"    , xp +   STR_LC_MATH_WIDTH, yp);
+    cell_drawstring("Load shunt", xp + 2*STR_LC_MATH_WIDTH, yp);
     for (int i = 0; i < lc_match_array.num_matches; i++){
       yp += STR_LC_MATH_HEIGHT;
       if (yp >= CELLHEIGHT) return;
@@ -240,12 +249,5 @@ static void cell_draw_lc_match(int x0, int y0)
       }
     }
   }
-}
-
-// Mark to redraw area under L/C match text
-static void lc_match_mark_area(void){
-  // Update area
-  invalidate_rect(STR_LC_MATH_X                        , STR_LC_MATH_Y,
-                  STR_LC_MATH_X + 3 * STR_LC_MATH_WIDTH, STR_LC_MATH_Y + (lc_match_array.num_matches + 2)*STR_LC_MATH_HEIGHT);
 }
 #endif

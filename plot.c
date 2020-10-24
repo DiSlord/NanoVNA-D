@@ -452,7 +452,7 @@ groupdelay(const float *v, const float *w, float deltaf)
 static float
 linear(const float *v)
 {
-  return - sqrtf(v[0]*v[0] + v[1]*v[1]);
+  return sqrtf(v[0]*v[0] + v[1]*v[1]);
 }
 
 /*
@@ -461,7 +461,7 @@ linear(const float *v)
 static float
 swr(const float *v)
 {
-  float x = -linear(v);
+  float x = linear(v);
   if (x >= 1)
     return INFINITY;
   return (1 + x)/(1 - x);
@@ -548,7 +548,7 @@ trace_into_index(int t, int i, float array[POINTS_COUNT][2])
     v = groupdelay_from_array(i, array);
     break;
   case TRC_LINEAR:
-    v =-linear(coeff);
+    v = linear(coeff);
     break;
   case TRC_SWR:
     v = (swr(coeff) - 1);
@@ -708,7 +708,7 @@ trace_get_info(int t, char *buf, int len)
     case TRC_SMITH:
     //case TRC_ADMIT:
     case TRC_POLAR:  format = (scale != 1.0) ? "%s %.1fFS" : "%s "; break;
-    default:         format = "%s %F/";break;
+    default:         format = "%s %F/"; break;
   }
   return plot_printf(buf, len, format, get_trace_typename(t), scale);
 }
@@ -768,7 +768,7 @@ static void
 mark_cells_from_index(void)
 {
   int t, i, j;
-  /* mark cells between each neighber points */
+  /* mark cells between each neighbor points */
   map_t *map = &markmap[current_mappage][0];
   for (t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
@@ -826,7 +826,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 }
 
 // Give a little speedup then draw rectangular plot (50 systick on all calls, all render req 700 systick)
-// Write more difficult algoritm for seach indexes not give speedup
+// Write more difficult algorithm for search indexes not give speedup
 static int
 search_index_range_x(int x1, int x2, index_t index[POINTS_COUNT], int *i0, int *i1)
 {
@@ -1078,11 +1078,6 @@ markmap_marker(int marker)
     int y = CELL_Y(index) - Y_MARKER_OFFSET;
     invalidate_rect(x, y, x+MARKER_WIDTH-1, y+MARKER_HEIGHT-1);
   }
-// Update L/C match area for redraw
-#ifdef __USE_LC_MATCHING__
-  if ((domain_mode & TD_LC_MATH) && marker == active_marker)
-    lc_match_mark_area();
-#endif
 }
 
 static void
@@ -1201,11 +1196,8 @@ plot_into_index(float measured[2][POINTS_COUNT][2])
   }
 
   // Marker track on data update
-  if (uistat.marker_tracking && active_marker != MARKER_INVALID) {
-    i = marker_search();
-    if (i != -1)
-      markers[active_marker].index = i;
-  }
+  if (uistat.marker_tracking && active_marker != MARKER_INVALID)
+    set_marker_index(active_marker, marker_search());
 
   sweep_count++;
   mark_cells_from_index();
@@ -1426,14 +1418,20 @@ draw_all_cells(bool flush_markmap)
   int m, n;
 //  START_PROFILE
   for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
-    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
-      if ((markmap[0][n] | markmap[1][n]) & (1 << m)) {
+    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++)
+      if ((markmap[0][n] | markmap[1][n]) & (1 << m))
         draw_cell(m, n);
-        //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(255,0,0));
-      }
-//      else
-        //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(0,255,0));
+#if 0
+  ili9341_bulk_finish();
+  for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
+    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
+      if ((markmap[0][n] | markmap[1][n]) & (1 << m))
+        ili9341_set_background(LCD_LOW_BAT_COLOR);
+      else
+        ili9341_set_background(LCD_NORMAL_BAT_COLOR);
+      ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2);
     }
+#endif
   if (flush_markmap) {
     // keep current map for update
     swap_markmap();
