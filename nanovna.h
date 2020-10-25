@@ -194,7 +194,7 @@ extern uint32_t frequencies[POINTS_COUNT];
 // Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
 void vna_sin_cos(float angle, float * pSinVal, float * pCosVal);
 
-void cal_collect(int type);
+void cal_collect(uint16_t type);
 void cal_done(void);
 
 #define MAX_FREQ_TYPE 5
@@ -220,6 +220,8 @@ void set_sweep_points(uint16_t points);
 
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
+#define SWEEP_BINARY  0x08
+
 extern  uint8_t sweep_mode;
 extern const char *info_about[];
 
@@ -880,6 +882,7 @@ int16_t adc_vbat_read(void);
 int plot_printf(char *str, int, const char *fmt, ...);
 #define PULSE do { palClearPad(GPIOC, GPIOC_LED); palSetPad(GPIOC, GPIOC_LED);} while(0)
 
+#define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
 #define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%06d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}
