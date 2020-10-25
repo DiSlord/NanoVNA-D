@@ -1671,7 +1671,7 @@ draw_cal_status(void)
     c[1] = active_props == &current_props ? '*' : '0' + lastsaveid;
     ili9341_drawstring(c, x, y);
   }
-  int i;
+  uint16_t i;
   static const struct {char text, zero, mask;} calibration_text[]={
     {'D', 0, CALSTAT_ED},
     {'R', 0, CALSTAT_ER},
@@ -1679,7 +1679,7 @@ draw_cal_status(void)
     {'T', 0, CALSTAT_ET},
     {'X', 0, CALSTAT_EX}
   };
-  for (i = 0; i < 5; i++)
+  for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
     if (cal_status & calibration_text[i].mask)
       ili9341_drawstring(&calibration_text[i].text, x, y+=FONT_STR_HEIGHT);
 

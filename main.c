@@ -107,12 +107,12 @@ static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
 static void apply_edelay(void);
 
-static uint16_t get_sweep_mode(void);
+static uint16_t get_sweep_mask(void);
 static void cal_interpolate(void);
 static void update_frequencies(bool interpolate);
 static int  set_frequency(uint32_t freq);
 static void set_frequencies(uint32_t start, uint32_t stop, uint16_t points);
-static bool sweep(bool break_on_operation, uint16_t sweep_mode);
+static bool sweep(bool break_on_operation, uint16_t ch_mask);
 static void transform_domain(void);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.40"
+#define VERSION "1.0.41"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -175,7 +175,7 @@ static THD_FUNCTION(Thread1, arg)
   while (1) {
     bool completed = false;
     if (sweep_mode&(SWEEP_ENABLE|SWEEP_ONCE)) {
-      completed = sweep(true, get_sweep_mode());
+      completed = sweep(true, get_sweep_mask());
       sweep_mode&=~SWEEP_ONCE;
     } else {
       __WFI();
@@ -311,7 +311,7 @@ transform_domain(void)
   #define window_scale 1
 #endif
 
-  uint16_t ch_mask = get_sweep_mode();
+  uint16_t ch_mask = get_sweep_mask();
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     memcpy(tmp, measured[ch], sizeof(measured[0]));
@@ -898,7 +898,7 @@ extern uint16_t timings[16];
 #else
 // Use x 100us settings
 #define DELAY_CHANNEL_CHANGE   3    // Delay for switch ADC channel
-#define DELAY_SWEEP_START     25    // Sweep start delay, allow remove noise at 1 point
+#define DELAY_SWEEP_START     50    // Sweep start delay, allow remove noise at 1 point
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config.bandwidth+2;}
@@ -908,38 +908,35 @@ extern uint16_t timings[16];
 #define SWEEP_CH0_MEASURE   1
 #define SWEEP_CH1_MEASURE   2
 
-static uint16_t get_sweep_mode(void){
-  uint16_t sweep_mode = 0;
+static uint16_t get_sweep_mask(void){
+  uint16_t ch_mask = 0;
   int t;
   for (t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
       continue;
-    if (trace[t].channel == 0) sweep_mode|=SWEEP_CH0_MEASURE;
-    if (trace[t].channel == 1) sweep_mode|=SWEEP_CH1_MEASURE;
+    if (trace[t].channel == 0) ch_mask|=SWEEP_CH0_MEASURE;
+    if (trace[t].channel == 1) ch_mask|=SWEEP_CH1_MEASURE;
   }
-  return sweep_mode;
+  return ch_mask;
 }
 
 // main loop for measurement
-bool sweep(bool break_on_operation, uint16_t sweep_mode)
+static bool sweep(bool break_on_operation, uint16_t ch_mask)
 {
   int delay;
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
-  if (break_on_operation && sweep_mode == 0)
+  if (break_on_operation && ch_mask == 0)
     return false;
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
-  // Cache channel
-  tlv320aic3204_select(sweep_mode & SWEEP_CH0_MEASURE ? 0 : 1);
 //  START_PROFILE;
   ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
-    if (frequencies[p_sweep] == 0) break;
     delay = set_frequency(frequencies[p_sweep]);
     // CH0:REFLECTION, reset and begin measure
-    if (sweep_mode & SWEEP_CH0_MEASURE){
+    if (ch_mask & SWEEP_CH0_MEASURE){
       tlv320aic3204_select(0);
       DSP_START(delay+st_delay);
       delay = DELAY_CHANNEL_CHANGE;
@@ -948,11 +945,11 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
       //================================================
       DSP_WAIT;
       (*sample_func)(measured[0][p_sweep]);      // calculate reflection coefficient
-      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && cal_status & CALSTAT_APPLY)
+      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
         apply_CH0_error_term_at(p_sweep);
     }
     // CH1:TRANSMISSION, reset and begin measure
-    if (sweep_mode & SWEEP_CH1_MEASURE){
+    if (ch_mask & SWEEP_CH1_MEASURE){
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
       //================================================
@@ -960,7 +957,7 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
       //================================================
       DSP_WAIT;
       (*sample_func)(measured[1][p_sweep]);      // Measure transmission coefficient
-      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && cal_status & CALSTAT_APPLY)
+      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
         apply_CH1_error_term_at(p_sweep);
     }
     if (operation_requested && break_on_operation) break;
@@ -976,8 +973,8 @@ bool sweep(bool break_on_operation, uint16_t sweep_mode)
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
     for (start_sweep = 0; start_sweep < p_sweep; start_sweep++){
-      if (sweep_mode & SWEEP_CH0_MEASURE) apply_CH0_error_term_at(start_sweep);
-      if (sweep_mode & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
+      if (ch_mask & SWEEP_CH0_MEASURE) apply_CH0_error_term_at(start_sweep);
+      if (ch_mask & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
     }
   }
 //  STOP_PROFILE;
@@ -1021,11 +1018,11 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
 
 VNA_SHELL_FUNCTION(cmd_bandwidth)
 {
-  int user_bw;
+  uint16_t user_bw;
   if (argc == 1)
     user_bw = my_atoui(argv[0]);
   else if (argc == 2){
-    int f = my_atoui(argv[0]);
+    uint16_t f = my_atoui(argv[0]);
          if (f > MAX_BANDWIDTH) user_bw = 0;
     else if (f < MIN_BANDWIDTH) user_bw = 511;
     else user_bw = ((AUDIO_ADC_FREQ+AUDIO_SAMPLES_COUNT/2)/AUDIO_SAMPLES_COUNT)/f - 1;
@@ -1052,10 +1049,6 @@ void set_sweep_points(uint16_t points){
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
 #define SCAN_MASK_BINARY         0b10000000
 
-#ifdef ENABLE_SCANBIN_COMMAND
-static uint8_t scan_bin_mode = 0;
-#endif
-
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   uint32_t start, stop;
@@ -1081,19 +1074,19 @@ VNA_SHELL_FUNCTION(cmd_scan)
     sweep_points = points;
   }
   uint16_t mask = 0;
-  uint16_t sweep_mode = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
+  uint16_t sweep_ch = SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
 
 #ifdef ENABLE_SCANBIN_COMMAND
   if (argc == 4) {
     mask = my_atoui(argv[3]);
-    if (scan_bin_mode) mask|=SCAN_MASK_BINARY;
-    sweep_mode = (mask>>1)&3;
+    if (sweep_mode&SWEEP_BINARY) mask|=SCAN_MASK_BINARY;
+    sweep_ch = (mask>>1)&3;
   }
-  scan_bin_mode = 0;
+  sweep_mode&=~(SWEEP_BINARY);
 #else
   if (argc == 4) {
     mask = my_atoui(argv[3]);
-    sweep_mode = (mask>>1)&3;
+    sweep_ch = (mask>>1)&3;
   }
 #endif
 
@@ -1106,8 +1099,8 @@ VNA_SHELL_FUNCTION(cmd_scan)
       cal_interpolate();
   }
 
-  if (sweep_mode & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
-    sweep(false, sweep_mode);
+  if (sweep_ch & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
+    sweep(false, sweep_ch);
 
   cal_status = old_cal_status; // restore
 
@@ -1137,9 +1130,9 @@ VNA_SHELL_FUNCTION(cmd_scan)
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
 {
-  scan_bin_mode = 1;
+  sweep_mode|= SWEEP_BINARY;
   cmd_scan(argc, argv);
-  scan_bin_mode = 0;
+  sweep_mode&=~(SWEEP_BINARY);
 }
 #endif
 
@@ -1561,16 +1554,16 @@ static void apply_edelay(void)
   int i;
   float real, imag;
   float s, c;
-  uint16_t sweep_mode = get_sweep_mode();
+  uint16_t ch_mask = get_sweep_mask();
   for (i=0;i<sweep_points;i++){
     vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
-    if (sweep_mode & SWEEP_CH0_MEASURE){
+    if (ch_mask & SWEEP_CH0_MEASURE){
       real = measured[0][i][0];
       imag = measured[0][i][1];
       measured[0][i][0] = real * c - imag * s;
       measured[0][i][1] = imag * c + real * s;
     }
-    if (sweep_mode & SWEEP_CH1_MEASURE){
+    if (ch_mask & SWEEP_CH1_MEASURE){
       real = measured[1][i][0];
       imag = measured[1][i][1];
       measured[1][i][0] = real * c - imag * s;
@@ -1580,31 +1573,53 @@ static void apply_edelay(void)
 }
 
 void
-cal_collect(int type)
+cal_collect(uint16_t type)
 {
   //ensure_edit_config();
   active_props = &current_props;
-  int dst, src;
+  uint16_t dst, src;
+#if 1
+  static const struct {
+    uint16_t set_flag;
+    uint16_t clr_flag;
+    uint8_t dst;
+    uint8_t src;
+ } calibration_set[]={
+//    type       set data flag       reset flag              destination source
+    [CAL_LOAD] = {CALSTAT_LOAD,  ~(           CALSTAT_APPLY), CAL_LOAD,  0},
+    [CAL_OPEN] = {CALSTAT_OPEN,  ~(CALSTAT_ES|CALSTAT_APPLY), CAL_OPEN,  0},
+    [CAL_SHORT]= {CALSTAT_SHORT, ~(CALSTAT_ER|CALSTAT_APPLY), CAL_SHORT, 0},
+    [CAL_THRU] = {CALSTAT_THRU,  ~(CALSTAT_ET|CALSTAT_APPLY), CAL_THRU,  1},
+    [CAL_ISOLN]= {CALSTAT_ISOLN, ~(           CALSTAT_APPLY), CAL_ISOLN, 1},
+  };
+  if (type >= ARRAY_COUNT(calibration_set)) return;
+  cal_status|=calibration_set[type].set_flag;
+  cal_status&=calibration_set[type].clr_flag;
+  dst = calibration_set[type].dst;
+  src = calibration_set[type].src;
+#else
   switch (type) {
+//       type            set data flag            destination    source     reset flag
     case CAL_LOAD:  cal_status|= CALSTAT_LOAD;  dst = CAL_LOAD;  src = 0; break;
     case CAL_OPEN:  cal_status|= CALSTAT_OPEN;  dst = CAL_OPEN;  src = 0; cal_status&= ~(CALSTAT_ES); break;
     case CAL_SHORT: cal_status|= CALSTAT_SHORT; dst = CAL_SHORT; src = 0; cal_status&= ~(CALSTAT_ER); break;
-    case CAL_THRU:  cal_status|= CALSTAT_THRU;  dst = CAL_THRU;  src = 1; break;
+    case CAL_THRU:  cal_status|= CALSTAT_THRU;  dst = CAL_THRU;  src = 1; cal_status&= ~(CALSTAT_ET); break;
     case CAL_ISOLN: cal_status|= CALSTAT_ISOLN; dst = CAL_ISOLN; src = 1; break;
     default:
       return;
   }
   // Disable calibration apply
   cal_status&= ~(CALSTAT_APPLY);
+#endif
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config.bandwidth;  // store current setting
-  if (bw < BANDWIDTH_30)
-    config.bandwidth = BANDWIDTH_30;
+  if (bw < BANDWIDTH_100)
+    config.bandwidth = BANDWIDTH_100;
 
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
-  sweep(false, src == 0 ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
+  sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
   config.bandwidth = bw;          // restore
 
   // Copy calibration data
@@ -1858,7 +1873,7 @@ void set_trace_type(int t, int type)
     trace[t].enabled = enabled;
     force = TRUE;
   }
-  if (trace[t].type != type) {
+  if (trace[t].type != type && enabled) {
     trace[t].type = type;
     // Set default trace refpos
     trace[t].refpos = trace_info[type].refpos;
@@ -1868,7 +1883,7 @@ void set_trace_type(int t, int type)
   }
   if (force) {
     plot_into_index(measured);
-    force_set_markmap();
+    request_to_redraw_grid();
   }
 }
 
@@ -1876,7 +1891,8 @@ void set_trace_channel(int t, int channel)
 {
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
-    force_set_markmap();
+    plot_into_index(measured);
+    request_to_redraw_grid();
   }
 }
 
@@ -1884,7 +1900,7 @@ void set_trace_scale(int t, float scale)
 {
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
-    force_set_markmap();
+    request_to_redraw_grid();
   }
 }
 
@@ -1897,7 +1913,7 @@ void set_trace_refpos(int t, float refpos)
 {
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
-    force_set_markmap();
+    request_to_redraw_grid();
   }
 }
 

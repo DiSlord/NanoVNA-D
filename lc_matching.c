@@ -61,7 +61,7 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
   const float XL1 =  RL * xp[0];
   const float RL2 =  RL + 0.0f;
   const float XL2 =  XL + xp[0];
-  matches[0].xs  = -((RL2 * XL1) - (RL1 * XL2)) / ((RL2 * RL2) + (XL2 * XL2));
+  matches[0].xs  = ((RL1 * XL2) - (RL2 * XL1)) / ((RL2 * RL2) + (XL2 * XL2));
   matches[0].xps = 0.0f;
   matches[0].xpl = xp[0];
 
@@ -69,7 +69,7 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
   const float XL3 =  RL * xp[1];
   const float RL4 =  RL + 0.0f;
   const float XL4 =  XL + xp[1];
-  matches[1].xs  =-((RL4 * XL3) - (RL3 * XL4)) / ((RL4 * RL4) + (XL4 * XL4));
+  matches[1].xs  = ((RL3 * XL4) - (RL4 * XL3)) / ((RL4 * RL4) + (XL4 * XL4));
   matches[1].xps = 0.0f;
   matches[1].xpl = xp[1];
 }
