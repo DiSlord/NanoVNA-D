@@ -166,9 +166,7 @@ caldata_reference(void)
 {
   if (lastsaveid >= SAVEAREA_MAX)
     return NULL;
-  const properties_t *src;
-
-  src = (const properties_t*)(SAVE_PROP_CONFIG_ADDR + lastsaveid * SAVE_PROP_CONFIG_SIZE);
+  const properties_t *src = (const properties_t*)(SAVE_PROP_CONFIG_ADDR + lastsaveid * SAVE_PROP_CONFIG_SIZE);
   // Check crc cache mask (made it only 1 time)
   if (checksum_ok&(1<<lastsaveid))
     return src;

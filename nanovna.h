@@ -539,8 +539,6 @@ void set_trace_type(int t, int type);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
-float get_trace_scale(int t);
-float get_trace_refpos(int t);
 const char *get_trace_typename(int t);
 
 //
@@ -549,7 +547,6 @@ void shell_update_speed(void);
 void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
-float get_electrical_delay(void);
 float groupdelay_from_array(int i, float array[POINTS_COUNT][2]);
 
 void plot_init(void);
@@ -560,7 +557,7 @@ void redraw_frame(void);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
 void redraw_marker(int8_t marker);
-void plot_into_index(float measured[2][POINTS_COUNT][2]);
+void plot_into_index(float array[2][POINTS_COUNT][2]);
 void force_set_markmap(void);
 void draw_frequencies(void);
 void draw_all(bool flush);
@@ -800,6 +797,9 @@ extern uint16_t lastsaveid;
 #define domain_mode current_props._domain_mode
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
+
+#define get_trace_scale(t)      current_props._trace[t].scale
+#define get_trace_refpos(t)     current_props._trace[t].refpos
 
 #define previous_marker uistat._previous_marker
 #define current_trace   uistat._current_trace

@@ -470,26 +470,36 @@ swr(const float *v)
 static float
 resistance(const float *v)
 {
-  float z0 = 50;
+  const float z0 = 50;
   float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
-  float zr = ((1+v[0])*(1-v[0]) - v[1]*v[1]) * d;
-  return zr;
+  return (1 - v[0]*v[0] - v[1]*v[1]) * d;
 }
 
 static float
 reactance(const float *v)
 {
+  const float z0 = 50;
+  const float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
+  return 2*v[1] * d;
+}
+
+#if 0
+static float
+mod_z(const float *v){
   float z0 = 50;
   float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
-  float zi = 2*v[1] * d;
-  return zi;
+  float zr = (1 - v[0]*v[0] - v[1]*v[1])*d;
+  float zi = 2*v[1]*d;
+
+  return sqrtf(zr*zr + zi*zi);
 }
+#endif
 
 static float
 qualityfactor(const float *v)
 {
   float i = 2*v[1];
-  float r = (1+v[0])*(1-v[0]) - v[1]*v[1];
+  float r = 1 - v[0]*v[0] - v[1]*v[1];
   return fabsf(i / r);
 }
 
@@ -528,61 +538,65 @@ groupdelay_from_array(int i, float array[POINTS_COUNT][2])
   return groupdelay(array[bottom], array[top], deltaf);
 }
 
-static index_t
-trace_into_index(int t, int i, float array[POINTS_COUNT][2])
+// Calculate and cache point coordinates for trace
+static void
+trace_into_index(int t, float array[POINTS_COUNT][2])
 {
-  int y, x;
-
-  float *coeff = array[i];
-  float refpos = NGRIDY - get_trace_refpos(t);
-  float v = 0.0f;
-  float scale = 1 / get_trace_scale(t);
-  switch (trace[t].type) {
-  case TRC_LOGMAG:
-    v = logmag(coeff);
-    break;
-  case TRC_PHASE:
-    v = phase(coeff);
-    break;
-  case TRC_DELAY:
-    v = groupdelay_from_array(i, array);
-    break;
-  case TRC_LINEAR:
-    v = linear(coeff);
-    break;
-  case TRC_SWR:
-    v = (swr(coeff) - 1);
-    break;
-  case TRC_REAL:
-    v = real(coeff);
-    break;
-  case TRC_IMAG:
-    v = imag(coeff);
-    break;
-  case TRC_R:
-    v = resistance(coeff);
-    break;
-  case TRC_X:
-    v = reactance(coeff);
-    break;
-  case TRC_Q:
-    v = qualityfactor(coeff);
-    break;
-  case TRC_SMITH:
-  //case TRC_ADMIT:
-  case TRC_POLAR:
-    cartesian_scale(coeff, &x, &y, scale);
-    goto set_index;
+  const float refpos = NGRIDY - get_trace_refpos(t);
+  const float scale = 1 / get_trace_scale(t);
+  const uint32_t point_count = sweep_points-1;
+  index_t *index = trace_index[t];
+  for (uint32_t i = 0; i <= point_count; i++){
+    int y, x;
+    float v = 0.0f;
+    float *coeff = array[i];
+    switch (trace[t].type) {
+    case TRC_LOGMAG:
+      v = logmag(coeff);
+      break;
+    case TRC_PHASE:
+      v = phase(coeff);
+      break;
+    case TRC_DELAY:
+      v = groupdelay_from_array(i, array);
+      break;
+    case TRC_LINEAR:
+      v = linear(coeff);
+      break;
+    case TRC_SWR:
+      v = (swr(coeff) - 1);
+      break;
+    case TRC_REAL:
+      v = real(coeff);
+      break;
+    case TRC_IMAG:
+      v = imag(coeff);
+      break;
+    case TRC_R:
+      v = resistance(coeff);
+      break;
+    case TRC_X:
+      v = reactance(coeff);
+      break;
+    case TRC_Q:
+      v = qualityfactor(coeff);
+      break;
+    case TRC_SMITH:
+    //case TRC_ADMIT:
+    case TRC_POLAR:
+      cartesian_scale(coeff, &x, &y, scale);
+      goto set_index;
 //  default:
-//    return 0;
-  }
-  v = refpos - v * scale;
-  if (v <  0) v = 0;
-  if (v > NGRIDY) v = NGRIDY;
-  x = (i * (WIDTH) + (sweep_points-1)/2) / (sweep_points-1) + CELLOFFSETX;
-  y = float2int(v * GRIDY);
+//    continue;
+    }
+    v = refpos - v * scale;
+    if (v <  0) v = 0;
+    if (v > NGRIDY) v = NGRIDY;
+    x = (i * (WIDTH) + (point_count>>1)) / point_count + CELLOFFSETX;
+    y = float2int(v * GRIDY);
 set_index:
-  return INDEX(x, y);
+    index[i] = INDEX(x, y);
+  }
 }
 
 static void
@@ -720,8 +734,7 @@ static float time_of_index(int idx)
 
 static float distance_of_index(int idx)
 {
-  float distance = ((float)(SPEED_OF_LIGHT / (2 * FFT_SIZE))) * idx / (frequencies[1] - frequencies[0]);
-  return distance * velocity_factor;
+  return velocity_factor * (SPEED_OF_LIGHT / 2) * time_of_index(idx);
 }
 
 static void
@@ -1180,28 +1193,24 @@ search_nearest_index(int x, int y, int t)
 }
 
 //
-// Graph data cache for output
+// Build graph data and cache it for output
 //
 void
-plot_into_index(float measured[2][POINTS_COUNT][2])
+plot_into_index(float array[2][POINTS_COUNT][2])
 {
-  int t, i;
+  int t;
   for (t = 0; t < TRACES_MAX; t++) {
-    if (!trace[t].enabled)
-      continue;
-    int ch = trace[t].channel;
-    index_t *index = trace_index[t];
-    for (i = 0; i < sweep_points; i++)
-      index[i] = trace_into_index(t, i, measured[ch]);
+    if (trace[t].enabled)
+      trace_into_index(t, array[trace[t].channel]);
   }
-
   // Marker track on data update
   if (uistat.marker_tracking && active_marker != MARKER_INVALID)
     set_marker_index(active_marker, marker_search());
-
+  // Current scan count
   sweep_count++;
-  mark_cells_from_index();
-  markmap_all_markers();
+  // Build cell list for update
+  mark_cells_from_index(); // Trace graph update
+  markmap_all_markers();   // Marker update
 }
 
 static void
@@ -1359,7 +1368,7 @@ draw_cell(int m, int n)
       // Check marker icon on cell
       if (x + MARKER_WIDTH >= 0 && x - MARKER_WIDTH < CELLWIDTH &&
           y + MARKER_HEIGHT >= 0 && y - MARKER_HEIGHT < CELLHEIGHT){
-//        draw_marker(x, y, config.trace_color[t], i);
+//        draw_marker(x, y, LCD_TRACE_1_COLOR + t, i);
           // Draw marker plate
           ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
@@ -1391,7 +1400,7 @@ draw_cell(int m, int n)
 
     int x = 0 - x0 + CELLOFFSETX - REFERENCE_X_OFFSET;
     if (x + REFERENCE_WIDTH >= 0 && x - REFERENCE_WIDTH < CELLWIDTH) {
-      int y = HEIGHT - float2int((get_trace_refpos(t) * GRIDY)) - y0 - REFERENCE_Y_OFFSET;
+      int y = HEIGHT - float2int(get_trace_refpos(t) * GRIDY) - y0 - REFERENCE_Y_OFFSET;
       if (y + REFERENCE_HEIGHT >= 0 && y - REFERENCE_HEIGHT < CELLHEIGHT){
         ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
         cell_blit_bitmap(x , y, REFERENCE_WIDTH, REFERENCE_HEIGHT, reference_bitmap);
@@ -1616,9 +1625,8 @@ cell_draw_marker_info(int x0, int y0)
       cell_drawstring(S_SARROW, xpos, ypos);
     xpos += 5;
 
-    float light_speed_ps = SPEED_OF_LIGHT*1e-12; //(m/ps)
-    plot_printf(buf, sizeof buf, "Edelay %Fs %Fm", electrical_delay * 1e-12,
-                                                   electrical_delay * light_speed_ps * velocity_factor);
+    float edelay = electrical_delay * 1e-12; // to seconds
+    plot_printf(buf, sizeof buf, "Edelay %Fs %Fm", edelay, edelay * SPEED_OF_LIGHT * velocity_factor);
     cell_drawstring(buf, xpos, ypos);
   }
 }
