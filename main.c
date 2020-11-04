@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.41"
+#define VERSION "1.0.42"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1575,7 +1575,6 @@ static void apply_edelay(void)
 void
 cal_collect(uint16_t type)
 {
-  //ensure_edit_config();
   active_props = &current_props;
   uint16_t dst, src;
 #if 1
@@ -1904,11 +1903,6 @@ void set_trace_scale(int t, float scale)
   }
 }
 
-float get_trace_scale(int t)
-{
-  return trace[t].scale;
-}
-
 void set_trace_refpos(int t, float refpos)
 {
   if (trace[t].refpos != refpos) {
@@ -1917,9 +1911,12 @@ void set_trace_refpos(int t, float refpos)
   }
 }
 
-float get_trace_refpos(int t)
+void set_electrical_delay(float picoseconds)
 {
-  return trace[t].refpos;
+  if (electrical_delay != picoseconds) {
+    electrical_delay = picoseconds;
+    request_to_redraw_grid();
+  }
 }
 
 VNA_SHELL_FUNCTION(cmd_trace)
@@ -1986,19 +1983,6 @@ usage:
                "trace {0|1|2|3} {%s} {value}\r\n", cmd_type_list, cmd_scale_ref_list);
 }
 
-void set_electrical_delay(float picoseconds)
-{
-  if (electrical_delay != picoseconds) {
-    electrical_delay = picoseconds;
-    force_set_markmap();
-  }
-}
-
-float get_electrical_delay(void)
-{
-  return electrical_delay;
-}
-
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
   if (argc != 1) {
@@ -2012,6 +1996,7 @@ VNA_SHELL_FUNCTION(cmd_edelay)
 VNA_SHELL_FUNCTION(cmd_marker)
 {
   static const char cmd_marker_list[] = "on|off";
+  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc";
   int t;
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
@@ -2028,6 +2013,12 @@ VNA_SHELL_FUNCTION(cmd_marker)
     active_marker = enable == 1 ? MARKER_INVALID : 0;
     for (t = 0; t < MARKERS_MAX; t++)
       markers[t].enabled = enable == 0;
+    return;
+  }
+  // Set marker smith format
+  int format = get_str_index(argv[0], cmd_marker_smith);
+  if (format >=0){
+    marker_smith_format = format;
     return;
   }
   t = my_atoi(argv[0])-1;
@@ -2053,7 +2044,8 @@ VNA_SHELL_FUNCTION(cmd_marker)
       return;
   }
  usage:
-  shell_printf("marker [n] [%s|{index}]\r\n", cmd_marker_list);
+  shell_printf("marker [n] [%s|{index}]\r\n"
+               "marker [%s]\r\n", cmd_marker_list, cmd_marker_smith);
 }
 
 VNA_SHELL_FUNCTION(cmd_touchcal)
@@ -3036,12 +3028,16 @@ int main(void)
 /*
  * I2S Initialize
  */
-  chThdSleepMilliseconds(100);
-  tlv320aic3204_init();
   i2sInit();
   i2sObjectInit(&I2SD2);
   i2sStart(&I2SD2, &i2sconfig);
   i2sStartExchange(&I2SD2);
+
+/*
+ * tlv320aic Initialize (audio codec)
+ */
+  chThdSleepMilliseconds(400);
+  tlv320aic3204_init();
 
 /*
  * UI (menu, touch, buttons) and plot initialize

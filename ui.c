@@ -459,8 +459,6 @@ touch_cal_exec(void)
   config.touch_cal[1] = y1;
   config.touch_cal[2] = (x2 - x1) * 16 / LCD_WIDTH;
   config.touch_cal[3] = (y2 - y1) * 16 / LCD_HEIGHT;
-
-  //redraw_all();
 }
 
 void
@@ -486,7 +484,6 @@ touch_draw_test(void)
     }
   }while (!(btn_check() & EVT_BUTTON_SINGLE_CLICK));
 }
-
 
 static void
 touch_position(int *x, int *y)
@@ -641,7 +638,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
     return;
   }
   load_properties(data);
-//  menu_move_back(true);
   draw_cal_status();
 }
 
@@ -746,9 +742,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     return;
   }
   set_trace_type(current_trace, data);
-  request_to_redraw_grid();
   ui_mode_normal();
-  //redraw_all();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
@@ -2343,7 +2337,7 @@ lever_move(int status, int mode)
 static void
 lever_edelay(int status)
 {
-  float value = get_electrical_delay();
+  float value = electrical_delay;
   float ratio = STEPRATIO;
   if (value < 0)
     ratio = -ratio;
@@ -2722,11 +2716,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
     return TRUE;
   }
   if (touch_y < 25) {
-    if (touch_x < FREQUENCIES_XPOS2 && get_electrical_delay() != 0.0) {
-      select_lever_mode(LM_EDELAY);
-    } else {
-      select_lever_mode(LM_MARKER);
-    }
+    select_lever_mode((touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER);
     return TRUE;
   }
   return FALSE;

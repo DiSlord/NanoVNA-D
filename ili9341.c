@@ -647,8 +647,8 @@ void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
 {
   pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
-  for (uint16_t c = 0; c < height; c++) {
-    for (uint16_t r = 0; r < width; r++) {
+  for (uint32_t c = 0; c < height; c++) {
+    for (uint32_t r = 0; r < width; r++) {
       if ((r&7) == 0) bits = *b++;
       *buf++ = (0x80 & bits) ? foreground_color : background_color;
       bits <<= 1;
@@ -662,9 +662,9 @@ void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
 void blit16BitWidthBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint16_t *bitmap)
 {
   pixel_t *buf = (pixel_t *)spi_buffer;
-  for (uint16_t c = 0; c < height; c++) {
+  for (uint32_t c = 0; c < height; c++) {
     uint16_t bits = *bitmap++;
-    for (uint16_t r = 0; r < width; r++) {
+    for (uint32_t r = 0; r < width; r++) {
       *buf++ = (0x8000 & bits) ? foreground_color : background_color;
       bits <<= 1;
     }
@@ -703,11 +703,11 @@ int ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
   pixel_t *buf = spi_buffer;
   const uint8_t *char_buf = FONT_GET_DATA(ch);
   uint16_t w = FONT_GET_WIDTH(ch);
-  for (int c = 0; c < FONT_GET_HEIGHT; c++, char_buf++) {
-    for (int i = 0; i < size; i++) {
+  for (uint32_t c = 0; c < FONT_GET_HEIGHT; c++, char_buf++) {
+    for (uint32_t i = 0; i < size; i++) {
       uint8_t bits = *char_buf;
-      for (int r = 0; r < w; r++, bits <<= 1)
-        for (int j = 0; j < size; j++)
+      for (uint32_t r = 0; r < w; r++, bits <<= 1)
+        for (uint32_t j = 0; j < size; j++)
           *buf++ = (0x80 & bits) ? foreground_color : background_color;
     }
   }
