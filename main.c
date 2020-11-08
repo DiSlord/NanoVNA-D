@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.42"
+#define VERSION "1.0.43"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1672,7 +1672,13 @@ cal_interpolate(void)
     return;
 
   ensure_edit_config();
-
+  // Upload not interpolated if some
+  if (frequency0 == src->_frequency0 && frequency1 == src->_frequency1 && sweep_points == src->_sweep_points){
+    memcpy(current_props._cal_data, src->_cal_data, sizeof(src->_cal_data));
+    cal_status = src->_cal_status;
+    redraw_request |= REDRAW_CAL_STATUS;
+    return;
+  }
   uint32_t src_f = src->_frequency0;
   // lower than start freq of src range
   for (i = 0; i < sweep_points; i++) {
@@ -1743,7 +1749,7 @@ cal_interpolate(void)
     }
   }
 interpolate_finish:
-  cal_status |= src->_cal_status | CALSTAT_APPLY | CALSTAT_INTERPOLATED;
+  cal_status = src->_cal_status | CALSTAT_INTERPOLATED;
   redraw_request |= REDRAW_CAL_STATUS;
 }
 

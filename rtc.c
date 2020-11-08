@@ -64,14 +64,12 @@ static void rtc_exit_init(void) {
 // Beginning of configuration procedure.
 static bool rtc_enter_init(void){
   RTC->ISR |= RTC_ISR_INIT;
-  uint32_t count = 65536;
+  uint32_t count = 4*65536;
   while (--count)
     if (RTC->ISR & RTC_ISR_INITF)
       return true;
   return false;
 }
-
-
 
 void rtc_set_time(uint32_t dr, uint32_t tr) {
   if (rtc_enter_init()){
