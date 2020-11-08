@@ -635,9 +635,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
   if (b){
     b->p1.i = data;
+    if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
     return;
   }
   load_properties(data);
+  draw_menu();
   draw_cal_status();
 }
 

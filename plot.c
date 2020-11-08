@@ -1581,14 +1581,14 @@ cell_draw_marker_info(int x0, int y0)
       ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
       if (t == current_trace)
         cell_drawstring(S_SARROW, xpos, ypos);
-      xpos += 5;
+      xpos += FONT_WIDTH;
       plot_printf(buf, sizeof buf, "CH%d", trace[t].channel);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 19;
+      xpos += 3*FONT_WIDTH + 4;
 
       int n = trace_get_info(t, buf, sizeof buf);
       cell_drawstring(buf, xpos, ypos);
-      xpos += n * 5 + 2;
+      xpos += n * FONT_WIDTH + 2;
       //xpos += 60;
       trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], idx, -1);
       ili9341_set_foreground(LCD_FG_COLOR);
@@ -1603,10 +1603,10 @@ cell_draw_marker_info(int x0, int y0)
     ili9341_set_foreground(LCD_FG_COLOR);
     if (uistat.lever_mode == LM_MARKER)
       cell_drawstring(S_SARROW, xpos, ypos);
-    xpos += 5;
+    xpos += FONT_WIDTH;
     plot_printf(buf, sizeof buf, "M%d:", active_marker+1);
     cell_drawstring(buf, xpos, ypos);
-    xpos += 19;
+    xpos += 3*FONT_WIDTH + 4;
 
     if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
       plot_printf(buf, sizeof buf, "%qHz", frequencies[idx]);
@@ -1667,20 +1667,21 @@ draw_frequencies(void)
 void
 draw_cal_status(void)
 {
+  uint32_t i;
   int x = 0;
   int y = 100;
-  char c[3];
-  ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_set_background(LCD_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT));
-  c[2] = 0;
+  // Set 'C' string for slot status
+  char c[4] = {'C', 0, 0, 0};
   if (cal_status & CALSTAT_APPLY) {
-    c[0] = cal_status & CALSTAT_INTERPOLATED ? 'c' : 'C';
-    c[1] = active_props == &current_props ? '*' : '0' + lastsaveid;
+    if (cal_status & CALSTAT_INTERPOLATED){ili9341_set_foreground(LCD_NORMAL_BAT_COLOR); c[0] = 'c';}
+    c[1] = '0' + lastsaveid;
     ili9341_drawstring(c, x, y);
   }
-  uint16_t i;
-  static const struct {char text, zero, mask;} calibration_text[]={
+  ili9341_set_foreground(LCD_FG_COLOR);
+  static const struct {char text, zero; uint16_t mask;} calibration_text[]={
     {'D', 0, CALSTAT_ED},
     {'R', 0, CALSTAT_ER},
     {'S', 0, CALSTAT_ES},
@@ -1698,7 +1699,7 @@ draw_cal_status(void)
   }
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
-  ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
+  ili9341_drawstring(c, x, y);
 }
 
 // Draw battery level
