@@ -1673,7 +1673,7 @@ cal_interpolate(void)
 
   ensure_edit_config();
   // Upload not interpolated if some
-  if (frequency0 == src->_frequency0 && frequency1 == src->_frequency1 && sweep_points == src->_sweep_points){
+  if (sweep_points == src->_sweep_points && frequencies[0] == src->_frequency0 && frequencies[sweep_points-1] == src->_frequency1){
     memcpy(current_props._cal_data, src->_cal_data, sizeof(src->_cal_data));
     cal_status = src->_cal_status;
     redraw_request |= REDRAW_CAL_STATUS;
