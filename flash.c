@@ -130,10 +130,7 @@ caldata_save(uint32_t id)
   uint16_t *dst = (uint16_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
   flash_program_half_word_buffer(dst, (uint16_t*)&current_props, sizeof(properties_t));
 
-  // after saving data, make active configuration points to flash
-  active_props = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
   lastsaveid = id;
-
   return 0;
 }
 
@@ -149,7 +146,6 @@ caldata_recall(uint32_t id)
     goto load_default;
 
   // active configuration points to save data on flash memory
-  active_props = src;
   lastsaveid = id;
 
   // duplicated saved data onto sram to be able to modify marker/trace

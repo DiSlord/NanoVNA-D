@@ -600,6 +600,11 @@ extern  uint8_t redraw_request;
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
 
+// LCD touch settings
+//#define DEFAULT_TOUCH_CONFIG { 693, 605, 124, 171 }  // 2.4 inch LCD panel
+#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
+//#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
+
 // Default LCD brightness if display support it
 #define DEFAULT_BRIGHTNESS  70
 
@@ -787,7 +792,7 @@ extern uint16_t lastsaveid;
 #define frequency1 current_props._frequency1
 #define sweep_points current_props._sweep_points
 #define cal_status current_props._cal_status
-#define cal_data active_props->_cal_data
+#define cal_data current_props._cal_data
 #define electrical_delay current_props._electrical_delay
 
 #define trace current_props._trace
