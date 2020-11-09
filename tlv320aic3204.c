@@ -362,7 +362,7 @@ tlv320aic3204_config(const uint8_t *data, int len)
 void tlv320aic3204_init(void)
 {
   tlv320aic3204_config(conf_data, sizeof(conf_data)/2);
-  wait_ms(40);
+//  wait_ms(40);
   tlv320aic3204_config(conf_data_unmute, sizeof(conf_data_unmute)/2);
 }
 
