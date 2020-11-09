@@ -603,8 +603,8 @@ extern  uint8_t redraw_request;
 
 // LCD touch settings
 //#define DEFAULT_TOUCH_CONFIG { 693, 605, 124, 171 }  // 2.4 inch LCD panel
-#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
-//#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
+//#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
+#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
 
 // Default LCD brightness if display support it
 #define DEFAULT_BRIGHTNESS  70
