@@ -34,12 +34,14 @@ void generate_DSP_Table(int offset){
   // N = offset * AUDIO_SAMPLES_COUNT / audio_freq; should be integer
   // AUDIO_SAMPLES_COUNT = N * audio_freq / offset; N - minimum integer value for get integer AUDIO_SAMPLES_COUNT
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
-  float step = 2 * VNA_PI * offset / audio_freq;
-  float v = step/2;
+  float step = offset / audio_freq;
+  float w = step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
-    sincos_tbl[i][0] = sin(v)*32768.0 + 0.5;
-    sincos_tbl[i][1] = cos(v)*32768.0 + 0.5;
-    v+=step;
+    float s, c;
+    vna_sin_cos(w, &s, &c);
+    sincos_tbl[i][0] = s*32768.0;
+    sincos_tbl[i][1] = c*32768.0;
+    w+=step;
   }
 }
 #elif FREQUENCY_OFFSET==7000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
@@ -177,10 +179,10 @@ dsp_process(int16_t *capture, size_t length)
 // Define DSP accumulator value type
 typedef int64_t acc_t;
 typedef float measure_t;
-acc_t acc_samp_s;
-acc_t acc_samp_c;
-acc_t acc_ref_s;
-acc_t acc_ref_c;
+static acc_t acc_samp_s;
+static acc_t acc_samp_c;
+static acc_t acc_ref_s;
+static acc_t acc_ref_c;
 // Cortex M4 DSP instruction use
 #include "dsp.h"
 void

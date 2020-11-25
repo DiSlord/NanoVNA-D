@@ -66,9 +66,9 @@ static uint8_t current_mappage = 0;
 typedef uint32_t index_t;
 static index_t trace_index[TRACES_MAX][POINTS_COUNT];
 
-#define INDEX(x, y) ((((index_t)x)<<16)|(((index_t)y)))
-#define CELL_X(i)  (int)(((i)>>16))
-#define CELL_Y(i)  (int)(((i)&0xFFFF))
+#define INDEX(x, y) ((((index_t)(x))<<16)|(((index_t)(y))))
+#define CELL_X(i)  ((int)(((i)>>16)))
+#define CELL_Y(i)  ((int)(((i)&0xFFFF)))
 
 //#define float2int(v) ((int)(v))
 static int 
@@ -102,8 +102,7 @@ void update_grid(void)
   grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
   grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
 
-  force_set_markmap();
-  redraw_request |= REDRAW_FREQUENCY;
+  redraw_request |= REDRAW_FREQUENCY|REDRAW_AREA;
 }
 
 static inline int
@@ -120,37 +119,33 @@ circle_inout(int x, int y, int r)
 static int
 polar_grid(int x, int y)
 {
-  int d;
-
   // offset to center
   x -= P_CENTER_X;
   y -= P_CENTER_Y;
 
-  // outer circle
-  d = circle_inout(x, y, P_RADIUS);
-  if (d < 0) return 0;
-  if (d == 0) return 1;
+  uint32_t d = x*x + y*y;
+
+  if (d > P_RADIUS*P_RADIUS + P_RADIUS) return 0;
+  if (d > P_RADIUS*P_RADIUS - P_RADIUS) return 1;
 
   // vertical and horizontal axis
   if (x == 0 || y == 0) return 1;
 
-  d = circle_inout(x, y, P_RADIUS / 5);
-  if (d == 0) return 1;
-  if (d > 0) return 0;
+  if (d < P_RADIUS*P_RADIUS/25 - P_RADIUS/5) return 0;
+  if (d < P_RADIUS*P_RADIUS/25 + P_RADIUS/5) return 1;
 
-  d = circle_inout(x, y, P_RADIUS * 2 / 5);
-  if (d == 0) return 1;
-  if (d > 0) return 0;
+  if (d < P_RADIUS*P_RADIUS*4/25 - P_RADIUS*2/5) return 0;
+  if (d < P_RADIUS*P_RADIUS*4/25 + P_RADIUS*2/5) return 1;
 
   // cross sloping lines
   if (x == y || x == -y) return 1;
 
-  d = circle_inout(x, y, P_RADIUS * 3 / 5);
-  if (d == 0) return 1;
-  if (d > 0) return 0;
+  if (d < P_RADIUS*P_RADIUS*9/25 - P_RADIUS*3/5) return 0;
+  if (d < P_RADIUS*P_RADIUS*9/25 + P_RADIUS*3/5) return 1;
 
-  d = circle_inout(x, y, P_RADIUS * 4 / 5);
-  if (d == 0) return 1;
+  if (d < P_RADIUS*P_RADIUS*16/25 - P_RADIUS*4/5) return 0;
+  if (d < P_RADIUS*P_RADIUS*16/25 + P_RADIUS*4/5) return 1;
+
   return 0;
 }
 
@@ -432,7 +427,7 @@ logmag(const float *v)
 static float
 phase(const float *v)
 {
-  return 2 * atan2f(v[1], v[0]) / VNA_PI * 90;
+  return (180.0f / VNA_PI) * atan2f(v[1], v[0]);
 }
 
 /*
@@ -457,7 +452,7 @@ groupdelay(const float *v, const float *w, float deltaf)
 static float
 linear(const float *v)
 {
-  return - sqrtf(v[0]*v[0] + v[1]*v[1]);
+  return sqrtf(v[0]*v[0] + v[1]*v[1]);
 }
 
 /*
@@ -466,7 +461,7 @@ linear(const float *v)
 static float
 swr(const float *v)
 {
-  float x = sqrtf(v[0]*v[0] + v[1]*v[1]);
+  float x = linear(v);
   if (x >= 1)
     return INFINITY;
   return (1 + x)/(1 - x);
@@ -475,35 +470,57 @@ swr(const float *v)
 static float
 resistance(const float *v)
 {
-  float z0 = 50;
+  const float z0 = 50;
   float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
-  float zr = ((1+v[0])*(1-v[0]) - v[1]*v[1]) * d;
-  return zr;
+  return (1 - v[0]*v[0] - v[1]*v[1]) * d;
 }
 
 static float
 reactance(const float *v)
 {
+  const float z0 = 50;
+  const float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
+  return 2*v[1] * d;
+}
+
+#if 0
+static float
+mod_z(const float *v){
   float z0 = 50;
   float d = z0 / ((1-v[0])*(1-v[0])+v[1]*v[1]);
-  float zi = 2*v[1] * d;
-  return zi;
+  float zr = (1 - v[0]*v[0] - v[1]*v[1])*d;
+  float zi = 2*v[1]*d;
+
+  return sqrtf(zr*zr + zi*zi);
 }
+#endif
 
 static float
 qualityfactor(const float *v)
 {
   float i = 2*v[1];
-  float r = (1+v[0])*(1-v[0]) - v[1]*v[1];
-  return fabs(i / r);
+  float r = 1 - v[0]*v[0] - v[1]*v[1];
+  return fabsf(i / r);
+}
+
+static float
+real(const float *v)
+{
+  return v[0];
+}
+
+static float
+imag(const float *v)
+{
+  return v[1];
 }
 
 static void
-cartesian_scale(float re, float im, int *xp, int *yp, float scale)
+cartesian_scale(const float *v, int *xp, int *yp, float scale)
 {
   //float scale = 4e-3;
-  int x = float2int(re * P_RADIUS * scale);
-  int y = float2int(im * P_RADIUS * scale);
+  int x = float2int(v[0] * P_RADIUS * scale);
+  int y = float2int(v[1] * P_RADIUS * scale);
   if      (x < -P_RADIUS) x = -P_RADIUS;
   else if (x >  P_RADIUS) x =  P_RADIUS;
   if      (y < -P_RADIUS) y = -P_RADIUS;
@@ -521,222 +538,175 @@ groupdelay_from_array(int i, float array[POINTS_COUNT][2])
   return groupdelay(array[bottom], array[top], deltaf);
 }
 
-static index_t
-trace_into_index(int t, int i, float array[POINTS_COUNT][2])
+// Calculate and cache point coordinates for trace
+static void
+trace_into_index(int t, float array[POINTS_COUNT][2])
 {
-  int y, x;
-
-  float *coeff = array[i];
-  float refpos = NGRIDY - get_trace_refpos(t);
-  float v = refpos;
-  float scale = 1 / get_trace_scale(t);
-  switch (trace[t].type) {
-  case TRC_LOGMAG:
-    v-= logmag(coeff) * scale;
-    break;
-  case TRC_PHASE:
-    v-= phase(coeff) * scale;
-    break;
-  case TRC_DELAY:
-    v-= groupdelay_from_array(i, array) * scale;
-    break;
-  case TRC_LINEAR:
-    v+= linear(coeff) * scale;
-    break;
-  case TRC_SWR:
-    v+= (1 - swr(coeff)) * scale;
-    break;
-  case TRC_REAL:
-    v-= coeff[0] * scale;
-    break;
-  case TRC_IMAG:
-    v-= coeff[1] * scale;
-    break;
-  case TRC_R:
-    v-= resistance(coeff) * scale;
-    break;
-  case TRC_X:
-    v-= reactance(coeff) * scale;
-    break;
-  case TRC_Q:
-    v-= qualityfactor(coeff) * scale;
-    break;
-  case TRC_SMITH:
-  //case TRC_ADMIT:
-  case TRC_POLAR:
-    cartesian_scale(coeff[0], coeff[1], &x, &y, scale);
-    goto set_index;
-  }
-  if (v <  0) v = 0;
-  if (v > NGRIDY) v = NGRIDY;
-  x = (i * (WIDTH) + (sweep_points-1)/2) / (sweep_points-1) + CELLOFFSETX;
-  y = float2int(v * GRIDY);
+  const float refpos = NGRIDY - get_trace_refpos(t);
+  const float scale = 1 / get_trace_scale(t);
+  const uint32_t point_count = sweep_points-1;
+  index_t *index = trace_index[t];
+  for (uint32_t i = 0; i <= point_count; i++){
+    int y, x;
+    float v = 0.0f;
+    float *coeff = array[i];
+    switch (trace[t].type) {
+    case TRC_LOGMAG:
+      v = logmag(coeff);
+      break;
+    case TRC_PHASE:
+      v = phase(coeff);
+      break;
+    case TRC_DELAY:
+      v = groupdelay_from_array(i, array);
+      break;
+    case TRC_LINEAR:
+      v = linear(coeff);
+      break;
+    case TRC_SWR:
+      v = (swr(coeff) - 1);
+      break;
+    case TRC_REAL:
+      v = real(coeff);
+      break;
+    case TRC_IMAG:
+      v = imag(coeff);
+      break;
+    case TRC_R:
+      v = resistance(coeff);
+      break;
+    case TRC_X:
+      v = reactance(coeff);
+      break;
+    case TRC_Q:
+      v = qualityfactor(coeff);
+      break;
+    case TRC_SMITH:
+    //case TRC_ADMIT:
+    case TRC_POLAR:
+      cartesian_scale(coeff, &x, &y, scale);
+      goto set_index;
+//  default:
+//    continue;
+    }
+    v = refpos - v * scale;
+    if (v <  0) v = 0;
+    if (v > NGRIDY) v = NGRIDY;
+    x = (i * (WIDTH) + (point_count>>1)) / point_count + CELLOFFSETX;
+    y = float2int(v * GRIDY);
 set_index:
-  return INDEX(x, y);
+    index[i] = INDEX(x, y);
+  }
 }
 
 static void
 format_smith_value(char *buf, int len, const float coeff[2], uint32_t frequency)
 {
-  // z = (gamma+1)/(gamma-1) * z0
-  float z0 = 50;
-  float d = z0 / ((1-coeff[0])*(1-coeff[0])+coeff[1]*coeff[1]);
-  float zr = ((1+coeff[0])*(1-coeff[0]) - coeff[1]*coeff[1]) * d;
-  float zi = 2*coeff[1] * d;
-  char prefix;
-  float value;
+  char *format;
+  float zr, zi;
   switch (marker_smith_format) {
   case MS_LIN:
-    plot_printf(buf, len, "%.2f %.1f" S_DEGREE, linear(coeff), phase(coeff));
+    zr = linear(coeff);
+    zi = phase(coeff);
+    format = "%.2f %.1f" S_DEGREE;
     break;
-
-  case MS_LOG: {
-      float v = logmag(coeff);
-      if (v == -INFINITY)
-        plot_printf(buf, len, "-"S_INFINITY" dB");
-      else
-        plot_printf(buf, len, "%.1fdB %.1f" S_DEGREE, v, phase(coeff));
-    }
+  case MS_LOG:
+    zr = logmag(coeff);
+    zi = phase(coeff);
+    format = (zr == -INFINITY) ? "-"S_INFINITY" dB" : "%.1fdB %.1f" S_DEGREE;
     break;
-
   case MS_REIM:
-    plot_printf(buf, len, "%F%+Fj", coeff[0], coeff[1]);
+    zr = real(coeff);
+    zi = imag(coeff);
+    format = "%F%+Fj";
     break;
-
   case MS_RX:
-    plot_printf(buf, len, "%F%+Fj"S_OHM, zr, zi);
+    zr = resistance(coeff);
+    zi = reactance(coeff);
+    format = "%F%+Fj"S_OHM;
     break;
-
   case MS_RLC:
+    zr = resistance(coeff);
+    zi = reactance(coeff);
     if (zi < 0) {// Capacity
-      prefix = 'F';
-      value = -1 / (2 * VNA_PI * frequency * zi);
-    } else {
-      prefix = 'H';
-      value = zi / (2 * VNA_PI * frequency);
+      format = "%F"S_OHM" %FF";
+      zi = -1 / (2 * VNA_PI * frequency * zi);
+    } else {     // Inductive
+      format = "%F"S_OHM" %FH";
+      zi = zi / (2 * VNA_PI * frequency);
     }
-    plot_printf(buf, len, "%F"S_OHM" %F%c", zr, value, prefix);
     break;
-  }
-}
-
-static void
-trace_get_value_string(int t, char *buf, int len, float array[POINTS_COUNT][2], int i)
-{
-  float *coeff = array[i];
-  float v;
-  char *format;
-  switch (trace[t].type) {
-  case TRC_LOGMAG:
-    format = "%.2fdB";
-    v = logmag(coeff);
-    break;
-  case TRC_PHASE:
-    format = "%.1f"S_DEGREE;
-    v = phase(coeff);
-    break;
-  case TRC_DELAY:
-    format = "%.2Fs";
-    v = groupdelay_from_array(i, array);
-    break;
-  case TRC_LINEAR:
-    format = "%.4f";
-    v = linear(coeff);
-    break;
-  case TRC_SWR:
-    format = "%.4f";
-    v = swr(coeff);
-    break;
-  case TRC_REAL:
-    format = "%.4f";
-    v = coeff[0];
-    break;
-  case TRC_IMAG:
-    format = "%.4fj";
-    v = coeff[1];
-    break;
-  case TRC_R:
-    format = "%.2F"S_OHM;
-    v = resistance(coeff);
-    break;
-  case TRC_X:
-    format = "%.2F"S_OHM;
-    v = reactance(coeff);
-    break;
-  case TRC_Q:
-    format = "%.3f";
-    v = qualityfactor(coeff);
-    break;
-  case TRC_SMITH:
-    format_smith_value(buf, len, coeff, frequencies[i]);
-    return;
-    //case TRC_ADMIT:
-  case TRC_POLAR:
-    plot_printf(buf, len, "%.2f%+.2fj", coeff[0], coeff[1]);
   default:
     return;
   }
-  plot_printf(buf, len, format, v);
+  plot_printf(buf, len, format, zr, zi);
 }
 
+#if MAX_TRACE_TYPE != 13
+#error "Redefined trace_type list, need check format_list"
+#endif
+
+typedef float (*get_value_cb_t)(const float *v);
+static const struct {
+  const char *name;
+  const char *dname;
+  get_value_cb_t get_value_cb;
+} format_list[]={
+// Type        format           delta format           get value
+[TRC_LOGMAG] = {"%.2fdB",       S_DELTA"%.2fdB",       logmag       },
+[TRC_PHASE]  = {"%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, phase        },
+[TRC_DELAY]  = {"%.2Fs",        "%.2Fs",               NULL         }, // Custom
+[TRC_LINEAR] = {"%.4f",         S_DELTA"%.3f",         linear       },
+[TRC_SWR]    = {"%.4f",         S_DELTA"%.3f",         swr          },
+[TRC_REAL]   = {"%.4f",         S_DELTA"%.3f",         real         },
+[TRC_IMAG]   = {"%.4fj",        S_DELTA"%.3fj",        imag         },
+[TRC_R]      = {"%.2F"S_OHM,    S_DELTA"%.2F"S_OHM,    resistance   },
+[TRC_X]      = {"%.2F"S_OHM,    S_DELTA"%.2F"S_OHM,    reactance    },
+[TRC_Q]      = {"%.3f",         S_DELTA"%.3f",         qualityfactor},
+[TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
+[TRC_POLAR]  = {"%.2f%+.2fj",   "%.2f%+.2fj",          NULL         }  // Custom
+};
+
 static void
-trace_get_value_string_delta(int t, char *buf, int len, float array[POINTS_COUNT][2], int index, int index_ref)
+trace_get_value_string(int t, char *buf, int len, float array[POINTS_COUNT][2], int index, int index_ref)
 {
+  // Check correct input
+  if (trace[t].type >= MAX_TRACE_TYPE) return;
+  float v = 0.0f;
   float *coeff = array[index];
-  float *coeff_ref = array[index_ref];
-  float v;
-  char *format;
-  switch (trace[t].type) {
-  case TRC_LOGMAG:
-    format = S_DELTA"%.2fdB";
-    v = logmag(coeff) - logmag(coeff_ref);
-    break;
-  case TRC_PHASE:
-    format = S_DELTA"%.2f"S_DEGREE;
-    v = phase(coeff) - phase(coeff_ref);
-    break;
-  case TRC_DELAY:
-    format = "%.2Fs";
-    v = groupdelay_from_array(index, array) - groupdelay_from_array(index_ref, array);
-    break;
-  case TRC_LINEAR:
-    format = S_DELTA"%.3f";
-    v = linear(coeff) - linear(coeff_ref);
-    break;
-  case TRC_SWR:
-    format = S_DELTA"%.3f";
-    v = swr(coeff);
-    if (v != INFINITY) v -= swr(coeff_ref);
-    break;
-  case TRC_SMITH:
-    format_smith_value(buf, len, coeff, frequencies[index]);
-    return;
-  case TRC_REAL:
-    format = S_DELTA"%.3f";
-    v = coeff[0] - coeff_ref[0];
-    break;
-  case TRC_IMAG:
-    format = S_DELTA"%.3fj";
-    v = coeff[1] - coeff_ref[1];
-    break;
-  case TRC_R:
-    format = "%.2F"S_OHM;
-    v = resistance(coeff);
-    break;
-  case TRC_X:
-    format = "%.2F"S_OHM;
-    v = reactance(coeff);
-    break;
-  case TRC_Q:
-    format = "%.3f";
-    v = qualityfactor(coeff);
-    break;
-  //case TRC_ADMIT:
-  case TRC_POLAR:
-    plot_printf(buf, len, "%.2f%+.2fj", coeff[0], coeff[1]);
-    return;
-  default:
-    return;
+  float *coeff_ref;
+  const char *format;
+  // Get format data
+  if (index_ref >=0){                           // Delta value
+    coeff_ref = array[index_ref];
+    format = format_list[trace[t].type].dname;
+  }
+  else{                                         // No delta
+    coeff_ref = NULL;
+    format = format_list[trace[t].type].name;
+  }
+
+  get_value_cb_t c = format_list[trace[t].type].get_value_cb;
+  if (c){                                            // Run standard get value function from table
+    v = c(coeff);                                    // Get value
+    if (coeff_ref && v != INFINITY) v-=c(coeff_ref); // Calculate delta value
+  }
+  else { // Need custom calculations
+    switch (trace[t].type) {
+    case TRC_DELAY:
+      v = groupdelay_from_array(index, array);
+      if (coeff_ref) v-= groupdelay_from_array(index_ref, array);
+      break;
+    case TRC_SMITH:
+      format_smith_value(buf, len, coeff, frequencies[index]);
+      return;
+    //case TRC_ADMIT:
+    case TRC_POLAR:
+      plot_printf(buf, len, format, coeff[0], coeff[1]);
+      return;
+    default:
+      return;
+    }
   }
   plot_printf(buf, len, format, v);
 }
@@ -744,39 +714,30 @@ trace_get_value_string_delta(int t, char *buf, int len, float array[POINTS_COUNT
 static int
 trace_get_info(int t, char *buf, int len)
 {
-  const char *name = get_trace_typename(t);
   float scale = get_trace_scale(t);
+  char *format;
   switch (trace[t].type) {
-  case TRC_LOGMAG:
-      return plot_printf(buf, len, "%s %ddB/", name, (int)scale);
-  case TRC_PHASE:
-      return plot_printf(buf, len, "%s %d" S_DEGREE "/", name, (int)scale);
-  case TRC_SMITH:
-  //case TRC_ADMIT:
-  case TRC_POLAR:
-    if (scale != 1.0)
-      return plot_printf(buf, len, "%s %.1fFS", name, scale);
-    else
-      return plot_printf(buf, len, "%s ", name);
-  default:
-      return plot_printf(buf, len, "%s %F/", name, scale);
+    case TRC_LOGMAG: format = "%s %.0fdB/"; break;
+    case TRC_PHASE:  format = "%s %.0f" S_DEGREE "/"; break;
+    case TRC_SMITH:
+    //case TRC_ADMIT:
+    case TRC_POLAR:  format = (scale != 1.0) ? "%s %.1fFS" : "%s "; break;
+    default:         format = "%s %F/"; break;
   }
-  return 0;
+  return plot_printf(buf, len, format, get_trace_typename(t), scale);
 }
 
 static float time_of_index(int idx)
 {
-  return 1.0 / (float)(frequencies[1] - frequencies[0]) / (float)FFT_SIZE * idx;
+  return (idx / (float)FFT_SIZE) / (frequencies[1] - frequencies[0]);
 }
 
 static float distance_of_index(int idx)
 {
-  float distance = ((float)idx * (float)SPEED_OF_LIGHT) /
-                   ((float)(frequencies[1] - frequencies[0]) * (float)FFT_SIZE * 2.0);
-  return distance * velocity_factor;
+  return velocity_factor * (SPEED_OF_LIGHT / 2) * time_of_index(idx);
 }
 
-static inline void
+static void
 mark_map(int x, int y)
 {
   if (y >= 0 && y < MAX_MARKMAP_Y && x >= 0 && x < MAX_MARKMAP_X)
@@ -820,7 +781,7 @@ static void
 mark_cells_from_index(void)
 {
   int t, i, j;
-  /* mark cells between each neighber points */
+  /* mark cells between each neighbor points */
   map_t *map = &markmap[current_mappage][0];
   for (t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
@@ -863,23 +824,22 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 
   // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
   if (x1 < x0) { SWAP(x0, x1); SWAP(y0, y1); }
-  int dx = x1 - x0;
-  int dy = y1 - y0, sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
-  int err = (dx > dy ? dx : -dy) / 2;
-
+  int dx =-(x1 - x0);
+  int dy = (y1 - y0), sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
+  int err = ((dy + dx) < 0 ? -dx : -dy) / 2;
   while (1) {
     if (y0 >= 0 && y0 < CELLHEIGHT && x0 >= 0 && x0 < CELLWIDTH)
       cell_buffer[y0 * CELLWIDTH + x0] |= c;
     if (x0 == x1 && y0 == y1)
       return;
     int e2 = err;
-    if (e2 > -dx) { err -= dy; x0++;  }
-    if (e2 <  dy) { err += dx; y0+=sy;}
+    if (e2 > dx) { err-= dy; x0++;  }
+    if (e2 < dy) { err-= dx; y0+=sy;}
   }
 }
 
 // Give a little speedup then draw rectangular plot (50 systick on all calls, all render req 700 systick)
-// Write more difficult algoritm for seach indexes not give speedup
+// Write more difficult algorithm for search indexes not give speedup
 static int
 search_index_range_x(int x1, int x2, index_t index[POINTS_COUNT], int *i0, int *i1)
 {
@@ -1131,11 +1091,6 @@ markmap_marker(int marker)
     int y = CELL_Y(index) - Y_MARKER_OFFSET;
     invalidate_rect(x, y, x+MARKER_WIDTH-1, y+MARKER_HEIGHT-1);
   }
-// Update L/C match area for redraw
-#ifdef __USE_LC_MATCHING__
-  if ((domain_mode & TD_LC_MATH) && marker == active_marker)
-    lc_match_mark_area();
-#endif
 }
 
 static void
@@ -1150,18 +1105,19 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
-void
-marker_position(int m, int t, int *x, int *y)
-{
-  index_t index = trace_index[t][markers[m].index];
-  *x = CELL_X(index);
-  *y = CELL_Y(index);
-}
-
+//
+// Marker search functions
+//
 static int greater(int x, int y) { return x > y; }
 static int lesser(int x, int y) { return x < y; }
 
 static int (*compare)(int x, int y) = lesser;
+
+void
+set_marker_search(int16_t mode)
+{
+  compare = (mode == MK_SEARCH_MIN) ? greater : lesser;
+}
 
 int
 marker_search(void)
@@ -1169,12 +1125,12 @@ marker_search(void)
   int i;
   int found = 0;
 
-  if (uistat.current_trace == -1)
+  if (current_trace == TRACE_INVALID)
     return -1;
 
-  int value = CELL_Y(trace_index[uistat.current_trace][0]);
-  for (i = 0; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
+  int value = CELL_Y(trace_index[current_trace][0]);
+  for (i = 1; i < sweep_points; i++) {
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index))) {
       value = CELL_Y(index);
       found = i;
@@ -1184,34 +1140,27 @@ marker_search(void)
   return found;
 }
 
-void
-set_marker_search(int mode)
-{
-  compare = (mode == 0) ? greater : lesser;
-}
-
 int
-marker_search_left(int from)
+marker_search_dir(int16_t from, int16_t dir)
 {
   int i;
   int found = -1;
 
-  if (uistat.current_trace == -1)
+  if (current_trace == TRACE_INVALID)
     return -1;
 
-  int value = CELL_Y(trace_index[uistat.current_trace][from]);
-  for (i = from - 1; i >= 0; i--) {
-    index_t index = trace_index[uistat.current_trace][i];
+  int value = CELL_Y(trace_index[current_trace][from]);
+  for (i = from + dir; i >= 0 && i < sweep_points; i+=dir) {
+    index_t index = trace_index[current_trace][i];
     if ((*compare)(value, CELL_Y(index)))
       break;
     value = CELL_Y(index);
   }
 
-  for (; i >= 0; i--) {
-    index_t index = trace_index[uistat.current_trace][i];
-    if ((*compare)(CELL_Y(index), value)) {
+  for (; i >= 0 && i < sweep_points; i+=dir) {
+    index_t index = trace_index[current_trace][i];
+    if ((*compare)(CELL_Y(index), value))
       break;
-    }
     found = i;
     value = CELL_Y(index);
   }
@@ -1219,48 +1168,22 @@ marker_search_left(int from)
 }
 
 int
-marker_search_right(int from)
+distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y)
 {
-  int i;
-  int found = -1;
-
-  if (uistat.current_trace == -1)
-    return -1;
-
-  int value = CELL_Y(trace_index[uistat.current_trace][from]);
-  for (i = from + 1; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
-    if ((*compare)(value, CELL_Y(index)))
-      break;
-    value = CELL_Y(index);
-  }
-
-  for (; i < sweep_points; i++) {
-    index_t index = trace_index[uistat.current_trace][i];
-    if ((*compare)(CELL_Y(index), value)) {
-      break;
-    }
-    found = i;
-    value = CELL_Y(index);
-  }
-  return found;
+  index_t index = trace_index[t][idx];
+  x-= CELL_X(index);
+  y-= CELL_Y(index);
+  return x*x + y*y;
 }
 
 int
 search_nearest_index(int x, int y, int t)
 {
-  index_t *index = trace_index[t];
   int min_i = -1;
-  int min_d = 30000;
+  int min_d = MARKER_PICKUP_DISTANCE * MARKER_PICKUP_DISTANCE;
   int i;
   for (i = 0; i < sweep_points; i++) {
-    int16_t dx = x - CELL_X(index[i]);
-    int16_t dy = y - CELL_Y(index[i]);
-    if (dx < 0) dx = -dx;
-    if (dy < 0) dy = -dy;
-    if (dx > MARKER_PICKUP_DISTANCE || dy > MARKER_PICKUP_DISTANCE)
-      continue;
-    int d = dx*dx + dy*dy;
+    int d = distance_to_index(t, i, x , y);
     if (d < min_d) {
       min_d = d;
       min_i = i;
@@ -1269,26 +1192,25 @@ search_nearest_index(int x, int y, int t)
   return min_i;
 }
 
+//
+// Build graph data and cache it for output
+//
 void
-plot_into_index(float measured[2][POINTS_COUNT][2])
+plot_into_index(float array[2][POINTS_COUNT][2])
 {
-  int t, i;
+  int t;
   for (t = 0; t < TRACES_MAX; t++) {
-    if (!trace[t].enabled)
-      continue;
-    int ch = trace[t].channel;
-    index_t *index = trace_index[t];
-    for (i = 0; i < sweep_points; i++)
-      index[i] = trace_into_index(t, i, measured[ch]);
+    if (trace[t].enabled)
+      trace_into_index(t, array[trace[t].channel]);
   }
-#if 0
-  for (t = 0; t < TRACES_MAX; t++)
-    if (trace[t].enabled && trace[t].polar)
-      quicksort(trace_index[t], 0, sweep_points);
-#endif
+  // Marker track on data update
+  if (uistat.marker_tracking && active_marker != MARKER_INVALID)
+    set_marker_index(active_marker, marker_search());
+  // Current scan count
   sweep_count++;
-  mark_cells_from_index();
-  markmap_all_markers();
+  // Build cell list for update
+  mark_cells_from_index(); // Trace graph update
+  markmap_all_markers();   // Marker update
 }
 
 static void
@@ -1303,9 +1225,9 @@ draw_cell(int m, int n)
   int t;
   pixel_t c;
   // Clip cell by area
-  if (x0 + w > area_width)
+  if (w > area_width - x0)
     w = area_width - x0;
-  if (y0 + h > area_height)
+  if (h > area_height - y0)
     h = area_height - y0;
   if (w <= 0 || h <= 0)
     return;
@@ -1446,7 +1368,7 @@ draw_cell(int m, int n)
       // Check marker icon on cell
       if (x + MARKER_WIDTH >= 0 && x - MARKER_WIDTH < CELLWIDTH &&
           y + MARKER_HEIGHT >= 0 && y - MARKER_HEIGHT < CELLHEIGHT){
-//        draw_marker(x, y, config.trace_color[t], i);
+//        draw_marker(x, y, LCD_TRACE_1_COLOR + t, i);
           // Draw marker plate
           ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
@@ -1478,7 +1400,7 @@ draw_cell(int m, int n)
 
     int x = 0 - x0 + CELLOFFSETX - REFERENCE_X_OFFSET;
     if (x + REFERENCE_WIDTH >= 0 && x - REFERENCE_WIDTH < CELLWIDTH) {
-      int y = HEIGHT - float2int((get_trace_refpos(t) * GRIDY)) - y0 - REFERENCE_Y_OFFSET;
+      int y = HEIGHT - float2int(get_trace_refpos(t) * GRIDY) - y0 - REFERENCE_Y_OFFSET;
       if (y + REFERENCE_HEIGHT >= 0 && y - REFERENCE_HEIGHT < CELLHEIGHT){
         ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
         cell_blit_bitmap(x , y, REFERENCE_WIDTH, REFERENCE_HEIGHT, reference_bitmap);
@@ -1505,14 +1427,20 @@ draw_all_cells(bool flush_markmap)
   int m, n;
 //  START_PROFILE
   for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
-    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
-      if ((markmap[0][n] | markmap[1][n]) & (1 << m)) {
+    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++)
+      if ((markmap[0][n] | markmap[1][n]) & (1 << m))
         draw_cell(m, n);
-        //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(255,0,0));
-      }
-//      else
-        //ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2, RGB565(0,255,0));
+#if 0
+  ili9341_bulk_finish();
+  for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
+    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
+      if ((markmap[0][n] | markmap[1][n]) & (1 << m))
+        ili9341_set_background(LCD_LOW_BAT_COLOR);
+      else
+        ili9341_set_background(LCD_NORMAL_BAT_COLOR);
+      ili9341_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2);
     }
+#endif
   if (flush_markmap) {
     // keep current map for update
     swap_markmap();
@@ -1546,9 +1474,9 @@ draw_all(bool flush)
 // Call this function then need fast draw marker and marker info
 // Used in ui.c for leveler move marker, drag marker and etc.
 void
-redraw_marker(int marker)
+redraw_marker(int8_t marker)
 {
-  if (marker < 0)
+  if (marker == MARKER_INVALID)
     return;
   // mark map on new position of marker
   markmap_marker(marker);
@@ -1582,12 +1510,13 @@ cell_draw_marker_info(int x0, int y0)
 {
   char buf[24];
   int t;
-  if (active_marker < 0)
+  if (active_marker == MARKER_INVALID)
     return;
   int idx = markers[active_marker].index;
   int j = 0;
-  if (previous_marker != -1 && uistat.current_trace != -1) {
-    int t = uistat.current_trace;
+
+  if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
+    int t = current_trace;
     int mk;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
       if (!markers[mk].enabled)
@@ -1613,17 +1542,17 @@ cell_draw_marker_info(int x0, int y0)
       }
       cell_drawstring(buf, xpos, ypos);
       xpos += 116;
+      int didx = -1; // delta value index
       if (uistat.marker_delta && mk != active_marker)
-        trace_get_value_string_delta(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index, markers[active_marker].index);
-      else
-        trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index);
+        didx = markers[active_marker].index;
+      trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], markers[mk].index, didx);
       ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
       j++;
     }
 
     // draw marker delta
-    if (!uistat.marker_delta && previous_marker >= 0 && active_marker != previous_marker && markers[previous_marker].enabled) {
+    if (!uistat.marker_delta && active_marker != previous_marker) {
       int idx0 = markers[previous_marker].index;
       int xpos = (WIDTH/2+30) + CELLOFFSETX - x0;
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
@@ -1635,7 +1564,7 @@ cell_draw_marker_info(int x0, int y0)
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         uint32_t freq  = frequencies[idx];
         uint32_t freq1 = frequencies[idx0];
-        uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
+        uint32_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
         plot_printf(buf, sizeof buf, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
         plot_printf(buf, sizeof buf, "%Fs (%Fm)", time_of_index(idx) - time_of_index(idx0), distance_of_index(idx) - distance_of_index(idx0));
@@ -1650,18 +1579,18 @@ cell_draw_marker_info(int x0, int y0)
       int ypos = 1 + (j/2)*(FONT_STR_HEIGHT) - y0;
 
       ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
-      if (t == uistat.current_trace)
+      if (t == current_trace)
         cell_drawstring(S_SARROW, xpos, ypos);
       xpos += FONT_WIDTH;
       plot_printf(buf, sizeof buf, "CH%d", trace[t].channel);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 24;
+      xpos += 3*FONT_WIDTH + 4;
 
       int n = trace_get_info(t, buf, sizeof buf);
       cell_drawstring(buf, xpos, ypos);
       xpos += n * FONT_WIDTH + 2;
       //xpos += 60;
-      trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], idx);
+      trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], idx, -1);
       ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
       j++;
@@ -1677,7 +1606,7 @@ cell_draw_marker_info(int x0, int y0)
     xpos += FONT_WIDTH;
     plot_printf(buf, sizeof buf, "M%d:", active_marker+1);
     cell_drawstring(buf, xpos, ypos);
-    xpos += 24;
+    xpos += 3*FONT_WIDTH + 4;
 
     if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
       plot_printf(buf, sizeof buf, "%qHz", frequencies[idx]);
@@ -1696,9 +1625,8 @@ cell_draw_marker_info(int x0, int y0)
       cell_drawstring(S_SARROW, xpos, ypos);
     xpos += 5;
 
-    float light_speed_ps = SPEED_OF_LIGHT*1e-12; //(m/ps)
-    plot_printf(buf, sizeof buf, "Edelay %Fs %Fm", electrical_delay * 1e-12,
-                                                   electrical_delay * light_speed_ps * velocity_factor);
+    float edelay = electrical_delay * 1e-12; // to seconds
+    plot_printf(buf, sizeof buf, "Edelay %Fs %Fm", edelay, edelay * SPEED_OF_LIGHT * velocity_factor);
     cell_drawstring(buf, xpos, ypos);
   }
 }
@@ -1739,32 +1667,39 @@ draw_frequencies(void)
 void
 draw_cal_status(void)
 {
+  uint32_t i;
   int x = 0;
   int y = 100;
-  char c[3];
-  ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_set_background(LCD_BG_COLOR);
+  ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT));
-  c[2] = 0;
+  // Set 'C' string for slot status
+  char c[4] = {'C', 0, 0, 0};
   if (cal_status & CALSTAT_APPLY) {
-    c[0] = cal_status & CALSTAT_INTERPOLATED ? 'c' : 'C';
-    c[1] = active_props == &current_props ? '*' : '0' + lastsaveid;
+    if (cal_status & CALSTAT_INTERPOLATED){ili9341_set_foreground(LCD_NORMAL_BAT_COLOR); c[0] = 'c';}
+    c[1] = '0' + lastsaveid;
     ili9341_drawstring(c, x, y);
   }
-  int i;
-  static const struct {char text, zero, mask;} calibration_text[]={
+  ili9341_set_foreground(LCD_FG_COLOR);
+  static const struct {char text, zero; uint16_t mask;} calibration_text[]={
     {'D', 0, CALSTAT_ED},
     {'R', 0, CALSTAT_ER},
     {'S', 0, CALSTAT_ES},
     {'T', 0, CALSTAT_ET},
     {'X', 0, CALSTAT_EX}
   };
-  for (i = 0; i < 5; i++)
+  for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
     if (cal_status & calibration_text[i].mask)
       ili9341_drawstring(&calibration_text[i].text, x, y+=FONT_STR_HEIGHT);
+
+  if (cal_status & CALSTAT_APPLY){
+    const properties_t *src = caldata_reference();
+    if (src && src->_power != current_props._power)
+      ili9341_set_foreground(LCD_LOW_BAT_COLOR);
+  }
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
-  ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
+  ili9341_drawstring(c, x, y);
 }
 
 // Draw battery level

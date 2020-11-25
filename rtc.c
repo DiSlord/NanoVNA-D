@@ -64,14 +64,12 @@ static void rtc_exit_init(void) {
 // Beginning of configuration procedure.
 static bool rtc_enter_init(void){
   RTC->ISR |= RTC_ISR_INIT;
-  uint32_t count = 65536;
+  uint32_t count = 4*65536;
   while (--count)
     if (RTC->ISR & RTC_ISR_INITF)
       return true;
   return false;
 }
-
-
 
 void rtc_set_time(uint32_t dr, uint32_t tr) {
   if (rtc_enter_init()){
@@ -95,11 +93,13 @@ static void rtc_start_source(void){
   // LSE already work (enabled and ready)
   if ((RCC->BDCR & (RCC_BDCR_LSEON|RCC_BDCR_LSERDY|STM32_LSE_BYPASS)) == (RCC_BDCR_LSEON|RCC_BDCR_LSERDY|STM32_LSE_BYPASS))
     return;
+
   // If LSE not enabled, try startup
   RCC->BDCR |= STM32_LSEDRV | STM32_LSE_BYPASS | RCC_BDCR_LSEON;
-  // Waits until LSE is stable.
-  chThdSleepMilliseconds(50);
+  // Waits until LSE is stable (need ~150ms for startup).
+  chThdSleepMilliseconds(200);
   if (RCC->BDCR & RCC_BDCR_LSERDY) return;
+
   // Startup LSI if not allow start LSE
   RCC->CSR |= RCC_CSR_LSION;
   while ((RCC->CSR & RCC_CSR_LSIRDY) == 0);
@@ -128,11 +128,13 @@ void auto_backup_domain_init(void){
   // If the backup domain hasn't been initialized yet or work on different source, then proceed with initialization
   if ((RCC->BDCR & (STM32_RTCSEL_MASK|RCC_BDCR_RTCEN)) != rtc_drv)
     resetBCDR(rtc_drv);
+/*
   // Check RTC clock, and reset backup domain to LSI if clock not start
   if (rtc_enter_init())
     rtc_exit_init();
   else
     resetBCDR(STM32_RTCSEL_LSI|RCC_BDCR_RTCEN);
+*/
 }
 #endif
 

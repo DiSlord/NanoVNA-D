@@ -40,7 +40,7 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
 
 Fetch source and submodule.
 
-    $ git clone https://github.com/ttrftech/NanoVNA.git
+    $ git clone https://github.com/DiSlord/NanoVNA-D.git
     $ cd NanoVNA
     $ git submodule update --init --recursive
 
@@ -49,13 +49,6 @@ Fetch source and submodule.
 Just make in the directory.
 
     $ make
-
-### Build firmware using docker
-
-Using [this docker image](https://hub.docker.com/r/edy555/arm-embedded) and without installing arm toolchain, you can build the firmware.
-
-    $ cd NanoVNA
-    $ docker run -it --rm -v $(PWD):/work edy555/arm-embedded:8.2 make
 
 ## Flash firmware
 
@@ -76,6 +69,7 @@ Or simply use make.
 
 There are seveal numbers of great companion PC tools from third-party.
 
+* [NanoVNA-App software](https://github.com/OneOfEleven/NanoVNA-H/blob/master/Release/NanoVNA-App.exe) by OneOfEleven
 * [NanoVNASharp Windows software](https://drive.google.com/drive/folders/1IZEtx2YdqchaTO8Aa9QbhQ8g_Pr5iNhr) by hugen79
 * [NanoVNA WebSerial/WebUSB](https://github.com/cho45/NanoVNA-WebUSB-Client) by cho45
 * [Android NanoVNA app](https://play.google.com/store/apps/details?id=net.lowreal.nanovnawebapp) by cho45
@@ -98,11 +92,6 @@ There are seveal numbers of great companion PC tools from third-party.
 
 Hardware design material is disclosed to prevent bad quality clone. Please let me know if you would have your own unit.
 
-## Authorized Distributor
-
-* [Nooelec](https://www.nooelec.com/store/nanovna-bundle.html)
-* Switch Science(ja) [NanoVNA-H](https://www.switch-science.com/catalog/6405/) [NanoVNA-H4](https://www.switch-science.com/catalog/6406/)
-
 ## Credit
 * [@DiSlord](https://github.com/DiSlord/)
 
@@ -110,6 +99,7 @@ Hardware design material is disclosed to prevent bad quality clone. Please let m
 * [@edy555](https://github.com/edy555)
 
 ### Contributors
+* [@OneOfEleven](https://github.com/OneOfEleven)
 * [@hugen79](https://github.com/hugen79)
 * [@cho45](https://github.com/cho45)
 

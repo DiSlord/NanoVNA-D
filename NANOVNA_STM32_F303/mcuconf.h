@@ -186,8 +186,8 @@
                                              STM32_I2S_MODE_RX)
 #define STM32_I2S_SPI2_MODE                 (STM32_I2S_MODE_SLAVE |        \
                                              STM32_I2S_MODE_RX )
-#define STM32_I2S_SPI1_IRQ_PRIORITY         2
-#define STM32_I2S_SPI2_IRQ_PRIORITY         2
+#define STM32_I2S_SPI1_IRQ_PRIORITY         3
+#define STM32_I2S_SPI2_IRQ_PRIORITY         3
 #define STM32_I2S_SPI1_DMA_PRIORITY         1
 #define STM32_I2S_SPI2_DMA_PRIORITY         1
 #define STM32_I2S_SPI1_RX_DMA_STREAM        STM32_DMA_STREAM_ID(1, 2)
@@ -222,7 +222,7 @@
  */
 #define STM32_SERIAL_USE_USART1             TRUE
 #define STM32_SERIAL_USE_USART2             FALSE
-#define STM32_SERIAL_USART1_PRIORITY        3
+#define STM32_SERIAL_USART1_PRIORITY        2
 #define STM32_SERIAL_USART2_PRIORITY        3
 
 /*
@@ -235,8 +235,8 @@
 #define STM32_SPI_SPI1_TX_DMA_STREAM        STM32_DMA_STREAM_ID(1, 3)
 #define STM32_SPI_SPI1_DMA_PRIORITY         1
 #define STM32_SPI_SPI2_DMA_PRIORITY         1
-#define STM32_SPI_SPI1_IRQ_PRIORITY         2
-#define STM32_SPI_SPI2_IRQ_PRIORITY         2
+#define STM32_SPI_SPI1_IRQ_PRIORITY         3
+#define STM32_SPI_SPI2_IRQ_PRIORITY         3
 #define STM32_SPI_DMA_ERROR_HOOK(spip)      osalSysHalt("DMA failure")
 
 /*

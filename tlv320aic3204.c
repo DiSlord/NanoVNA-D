@@ -362,7 +362,7 @@ tlv320aic3204_config(const uint8_t *data, int len)
 void tlv320aic3204_init(void)
 {
   tlv320aic3204_config(conf_data, sizeof(conf_data)/2);
-  wait_ms(40);
+//  wait_ms(40);
   tlv320aic3204_config(conf_data_unmute, sizeof(conf_data_unmute)/2);
 }
 
@@ -379,11 +379,13 @@ tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data)
 
 void tlv320aic3204_select(uint8_t channel)
 {
+#if 0
   // Cache current selected channel
   static uint8_t current_channel = -1;
   if (current_channel == channel)
     return;
   current_channel = channel;
+#endif
   tlv320aic3204_bulk_write(channel ? conf_data_ch1_select : conf_data_ch3_select, sizeof(conf_data_ch1_select));
 //  tlv320aic3204_config(channel ? conf_data_ch1_select : conf_data_ch3_select, sizeof(conf_data_ch3_select)/2);
 }
