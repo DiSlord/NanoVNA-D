@@ -82,6 +82,11 @@ void si5351_set_frequency_offset(int32_t offset)
   current_offset = offset;
 }
 
+void si5351_set_power(uint8_t drive_strength){
+  if (drive_strength == current_power) return;
+  si5351_set_frequency(current_freq, drive_strength);
+}
+
 void si5351_bulk_write(const uint8_t *buf, int len)
 {
 //  i2cAcquireBus(&I2CD1);

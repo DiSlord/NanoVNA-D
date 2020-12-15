@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.43"
+#define VERSION "1.0.44"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -559,6 +559,8 @@ void set_power(uint8_t value){
   if (value > SI5351_CLK_DRIVE_STRENGTH_8MA) value = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   if (current_props._power == value) return;
   current_props._power = value;
+  // Update power if pause
+  if (!(sweep_mode&SWEEP_ENABLE)) si5351_set_power(value);
   redraw_request|=REDRAW_CAL_STATUS;
 }
 
