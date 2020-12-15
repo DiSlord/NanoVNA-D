@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.44"
+#define VERSION "1.0.45"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
