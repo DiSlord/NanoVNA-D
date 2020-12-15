@@ -30,12 +30,12 @@ uint16_t lastsaveid = 0;
 // properties CRC check cache (max 8 slots)
 static uint8_t checksum_ok = 0;
 
-static int flash_wait_for_last_operation(void)
+static inline void flash_wait_for_last_operation(void)
 {
   while (FLASH->SR == FLASH_SR_BSY) {
     //WWDG->CR = WWDG_CR_T;
   }
-  return FLASH->SR;
+//  return FLASH->SR;
 }
 
 static void flash_erase_page0(uint32_t page_address)
@@ -48,13 +48,6 @@ static void flash_erase_page0(uint32_t page_address)
   FLASH->CR &= ~FLASH_CR_PER;
 }
 
-static void flash_erase_page(uint32_t page_address)
-{
-  chSysLock();
-  flash_erase_page0(page_address);
-  chSysUnlock();
-}
-
 static inline void flash_unlock(void)
 {
   // unlock sequence
@@ -62,13 +55,24 @@ static inline void flash_unlock(void)
   FLASH->KEYR = 0xCDEF89AB;
 }
 
+static void flash_erase_pages(uint32_t page_address, uint32_t size)
+{
+  // Unlock for erase
+  flash_unlock();
+
+  chSysLock();
+  // erase flash pages
+  size+=page_address;
+  for (; page_address < size; page_address+=FLASH_PAGESIZE)
+    flash_erase_page0(page_address);
+  chSysUnlock();
+}
+
 static void flash_program_half_word_buffer(uint16_t* dst, uint16_t *data, uint16_t size)
 {
   uint32_t i;
-  flash_unlock();
-  // erase flash pages for buffer (aligned to FLASH_PAGESIZE)
-  for (i = 0; i < size; i+=FLASH_PAGESIZE)
-    flash_erase_page((uint32_t)dst + i);
+  // unlock, and erase flash pages for buffer (aligned to FLASH_PAGESIZE)
+  flash_erase_pages((uint32_t)dst, size);
   // Save buffer
   __IO uint16_t* p = dst;
   for (i = 0; i < size/sizeof(uint16_t); i++){
@@ -134,35 +138,11 @@ caldata_save(uint32_t id)
   return 0;
 }
 
-int
-caldata_recall(uint32_t id)
-{
+static properties_t *get_properties(uint32_t id){
   if (id >= SAVEAREA_MAX)
-    goto load_default;
+    return NULL;
   // point to saved area on the flash memory
   properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
-
-  if (src->magic != CONFIG_MAGIC || checksum(src, sizeof *src - sizeof src->checksum) != src->checksum)
-    goto load_default;
-
-  // active configuration points to save data on flash memory
-  lastsaveid = id;
-
-  // duplicated saved data onto sram to be able to modify marker/trace
-  memcpy(&current_props, src, sizeof(properties_t));
-  return 0;
-load_default:
-  load_default_properties();
-  return 1;
-}
-
-// Used in interpolate
-const properties_t *
-caldata_reference(void)
-{
-  if (lastsaveid >= SAVEAREA_MAX)
-    return NULL;
-  const properties_t *src = (const properties_t*)(SAVE_PROP_CONFIG_ADDR + lastsaveid * SAVE_PROP_CONFIG_SIZE);
   // Check crc cache mask (made it only 1 time)
   if (checksum_ok&(1<<lastsaveid))
     return src;
@@ -172,14 +152,35 @@ caldata_reference(void)
   return src;
 }
 
+int
+caldata_recall(uint32_t id)
+{
+  // point to saved area on the flash memory
+  properties_t *src = get_properties(id);
+  if (src == NULL){
+    load_default_properties();
+    return 1;
+  }
+  // active configuration points to save data on flash memory
+  lastsaveid = id;
+  // duplicated saved data onto sram to be able to modify marker/trace
+  memcpy(&current_props, src, sizeof(properties_t));
+  return 0;
+}
+
+// Used in interpolate, get current calibration slot data
+const properties_t *
+caldata_reference(void)
+{
+  return get_properties(lastsaveid);
+}
+
 void
 clear_all_config_prop_data(void)
 {
-  uint32_t i;
-  flash_unlock();
-
-  // erase flash pages
-  for (i = 0; i < SAVE_FULL_AREA_SIZE; i+=FLASH_PAGESIZE)
-    flash_erase_page(SAVE_CONFIG_ADDR + i);
+  lastsaveid = 0;
+  checksum_ok = 0;
+  // unlock and erase flash pages
+  flash_erase_pages(SAVE_CONFIG_ADDR, SAVE_FULL_AREA_SIZE);
 }
 
