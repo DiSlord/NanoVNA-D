@@ -77,6 +77,7 @@ void si5351_enable_output(void);
 
 void si5351_set_frequency_offset(int32_t offset);
 int  si5351_set_frequency(uint32_t freq, uint8_t drive_strength);
+void si5351_set_power(uint8_t drive_strength);
 
 // Defug use functions
 void si5351_bulk_write(const uint8_t *buf, int len);
