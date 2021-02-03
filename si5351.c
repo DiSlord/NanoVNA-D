@@ -83,6 +83,11 @@ void si5351_set_frequency_offset(int32_t offset)
   current_offset = offset;
 }
 
+void si5351_set_power(uint8_t drive_strength){
+  if (drive_strength == current_power) return;
+  si5351_set_frequency(current_freq, drive_strength);
+}
+
 void si5351_bulk_write(const uint8_t *buf, int len)
 {
 //  i2cAcquireBus(&I2CD1);
@@ -394,7 +399,7 @@ band_strategy_t band_s[] = {
   {   180000000U, SI5351_FIXED_MULT,{ 6}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 4
   {            1, SI5351_FIXED_MULT,{ 4}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 5
 
-  {   450000000U, SI5351_FIXED_MULT,{ 6}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*6}, // 6
+  {   460000000U, SI5351_FIXED_MULT,{ 6}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*6}, // 6
   {   600000000U, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*4}, // 7
   {            3, SI5351_FIXED_MULT,{ 4}, 3, 5, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_4MA, 50, 50,   3*5*4}, // 8
 
@@ -459,7 +464,7 @@ void si5351_update_band_config(int idx, uint32_t pidx, uint32_t v){
 uint32_t
 si5351_get_harmonic_lvl(uint32_t freq){
   uint16_t i;
-  for (i=0;i<sizeof(band_s)/sizeof(*band_s);i++){
+  for (i = 0; i < ARRAY_COUNT(band_s); i++){
     uint32_t f = band_s[i].freq; if (f < 20) f*=config.harmonic_freq_threshold;
     if (freq <= f)
       return i;
@@ -479,7 +484,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
 {
   uint8_t band;
   int delay = 0;
-
+  if (freq == 0) return 0;
   uint32_t rdiv = SI5351_R_DIV_1;
   uint32_t fdiv, pll_n;
   uint32_t ofreq = freq + current_offset;

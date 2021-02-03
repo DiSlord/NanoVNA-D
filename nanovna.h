@@ -194,7 +194,7 @@ extern uint32_t frequencies[POINTS_COUNT];
 // Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
 void vna_sin_cos(float angle, float * pSinVal, float * pCosVal);
 
-void cal_collect(int type);
+void cal_collect(uint16_t type);
 void cal_done(void);
 
 #define MAX_FREQ_TYPE 5
@@ -202,14 +202,16 @@ enum stimulus_type {
   ST_START=0, ST_STOP, ST_CENTER, ST_SPAN, ST_CW
 };
 
-
+void set_marker_index(int m, int idx);
 void set_sweep_frequency(int type, uint32_t frequency);
 uint32_t get_sweep_frequency(int type);
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
 void set_power(uint8_t value);
 
-double my_atof(const char *p);
+int32_t  my_atoi(const char *p);
+uint32_t my_atoui(const char *p);
+double   my_atof(const char *p);
 
 void toggle_sweep(void);
 void load_default_properties(void);
@@ -218,6 +220,8 @@ void set_sweep_points(uint16_t points);
 
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
+#define SWEEP_BINARY  0x08
+
 extern  uint8_t sweep_mode;
 extern const char *info_about[];
 
@@ -527,7 +531,6 @@ typedef struct properties {
 } properties_t;
 //on POINTS_COUNT = 201, sizeof(properties_t) == 0x2000
 
-extern int8_t previous_marker;
 extern config_t config;
 extern properties_t *active_props;
 extern properties_t current_props;
@@ -536,8 +539,6 @@ void set_trace_type(int t, int type);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
-float get_trace_scale(int t);
-float get_trace_refpos(int t);
 const char *get_trace_typename(int t);
 
 //
@@ -546,7 +547,6 @@ void shell_update_speed(void);
 void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
-float get_electrical_delay(void);
 float groupdelay_from_array(int i, float array[POINTS_COUNT][2]);
 
 void plot_init(void);
@@ -556,8 +556,8 @@ void redraw_frame(void);
 //void redraw_all(void);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
-void redraw_marker(int marker);
-void plot_into_index(float measured[2][POINTS_COUNT][2]);
+void redraw_marker(int8_t marker);
+void plot_into_index(float array[2][POINTS_COUNT][2]);
 void force_set_markmap(void);
 void draw_frequencies(void);
 void draw_all(bool flush);
@@ -566,12 +566,17 @@ void draw_cal_status(void);
 
 //void markmap_all_markers(void);
 
-void marker_position(int m, int t, int *x, int *y);
+int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
-void set_marker_search(int mode);
+
+// Marker search functions
+#define MK_SEARCH_LEFT    -1
+#define MK_SEARCH_RIGHT    1
+#define MK_SEARCH_MIN      0
+#define MK_SEARCH_MAX      1
+void set_marker_search(int16_t mode);
 int marker_search(void);
-int marker_search_left(int from);
-int marker_search_right(int from);
+int marker_search_dir(int16_t from, int16_t dir);
 
 // _request flag for update screen
 #define REDRAW_CELLS      (1<<0)
@@ -595,6 +600,11 @@ extern  uint8_t redraw_request;
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
+
+// LCD touch settings
+//#define DEFAULT_TOUCH_CONFIG { 693, 605, 124, 171 }  // 2.4 inch LCD panel
+//#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
+#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
 
 // Default LCD brightness if display support it
 #define DEFAULT_BRIGHTNESS  70
@@ -783,7 +793,7 @@ extern uint16_t lastsaveid;
 #define frequency1 current_props._frequency1
 #define sweep_points current_props._sweep_points
 #define cal_status current_props._cal_status
-#define cal_data active_props->_cal_data
+#define cal_data current_props._cal_data
 #define electrical_delay current_props._electrical_delay
 
 #define trace current_props._trace
@@ -793,6 +803,11 @@ extern uint16_t lastsaveid;
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
 
+#define get_trace_scale(t)      current_props._trace[t].scale
+#define get_trace_refpos(t)     current_props._trace[t].refpos
+
+#define previous_marker uistat._previous_marker
+#define current_trace   uistat._current_trace
 #define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
 #define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
 #define FREQ_IS_CW() (frequency0 == frequency1)
@@ -836,12 +851,14 @@ enum lever_mode {
   LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY
 };
 
+#define MARKER_INVALID       -1
+#define TRACE_INVALID        -1
 typedef struct uistat {
-  uint32_t value;       // for editing at numeric input area
-//  int8_t digit;       // 0~5 used in numeric input (disabled)
-//  int8_t digit_mode;  // used in numeric input (disabled)
-  int8_t current_trace; // 0..3 (-1 for disabled)
-
+//  uint32_t value;         // for editing at numeric input area
+//  int8_t digit;           // 0~5 used in numeric input (disabled)
+//  int8_t digit_mode;      // used in numeric input (disabled)
+  int8_t  _current_trace;   // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
+  int8_t  _previous_marker; // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   uint8_t lever_mode;
   uint8_t marker_delta:1;
   uint8_t marker_tracking:1;
@@ -870,6 +887,7 @@ int16_t adc_vbat_read(void);
 int plot_printf(char *str, int, const char *fmt, ...);
 #define PULSE do { palClearPad(GPIOC, GPIOC_LED); palSetPad(GPIOC, GPIOC_LED);} while(0)
 
+#define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
 #define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%06d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}

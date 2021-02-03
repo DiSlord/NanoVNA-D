@@ -40,7 +40,7 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
 
 Fetch source and submodule.
 
-    $ git clone https://github.com/ttrftech/NanoVNA.git
+    $ git clone https://github.com/DiSlord/NanoVNA-D.git
     $ cd NanoVNA
     $ git submodule update --init --recursive
 
@@ -49,13 +49,6 @@ Fetch source and submodule.
 Just make in the directory.
 
     $ make
-
-### Build firmware using docker
-
-Using [this docker image](https://hub.docker.com/r/edy555/arm-embedded) and without installing arm toolchain, you can build the firmware.
-
-    $ cd NanoVNA
-    $ docker run -it --rm -v $(PWD):/work edy555/arm-embedded:8.2 make
 
 ## Flash firmware
 
