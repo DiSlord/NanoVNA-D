@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.45"
+#define VERSION "1.0.46"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -332,25 +332,25 @@ transform_domain(void)
     }
 
     fft_inverse((float(*)[2])tmp);
-    memcpy(measured[ch], tmp, sizeof(measured[0]));
     for (int i = 0; i < sweep_points; i++) {
-      measured[ch][i][0] /= (float)FFT_SIZE;
-      if (is_lowpass) {
-        measured[ch][i][1] = 0.0;
-      } else {
-        measured[ch][i][1] /= (float)FFT_SIZE;
-      }
+      tmp[i*2+0]/= (float)FFT_SIZE;
+      if (is_lowpass)
+        tmp[i*2+1] = 0.0f;
+      else
+        tmp[i*2+1]/= (float)FFT_SIZE;
     }
     if ((domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP) {
       for (int i = 1; i < sweep_points; i++) {
-        measured[ch][i][0] += measured[ch][i - 1][0];
+        tmp[i*2+0]+= tmp[i*2+0-2];
+        tmp[i*2+1]+= tmp[i*2+1-2];
       }
     }
+    memcpy(measured[ch], tmp, sizeof(measured[0]));
   }
 }
 
 // Shell commands output
-static int shell_printf(const char *fmt, ...)
+int shell_printf(const char *fmt, ...)
 {
   va_list ap;
   int formatted_bytes;
