@@ -913,32 +913,15 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
 }
 
 #define MENU_MARKER_S_MAX    0
-#define MENU_MARKER_S_MIN    1
-#define MENU_MARKER_S_LEFT   2
-#define MENU_MARKER_S_RIGHT  3
-static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
+#define MENU_MARKER_S_MIN    VNA_MODE_SEARCH_MIN
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
 {
-  int i = -1;
-  if (active_marker == MARKER_INVALID)
+  if (b){
+    b->icon = ((config._mode&VNA_MODE_SEARCH_MASK) == data) ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
-
-  switch (data) {
-  case MENU_MARKER_S_MAX: /* maximum */
-  case MENU_MARKER_S_MIN: /* minimum */
-    set_marker_search(data);
-    i = marker_search();
-    break;
-  case MENU_MARKER_S_LEFT: /* search Left */
-    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_LEFT);
-    break;
-  case MENU_MARKER_S_RIGHT: /* search right */
-    i = marker_search_dir(markers[active_marker].index, MK_SEARCH_RIGHT);
-    break;
   }
-  if (i >= 0){
-    set_marker_index(active_marker, i);
-    redraw_marker(active_marker);
-  }
+  config._mode = (config._mode & ~VNA_MODE_SEARCH_MASK) | data;
+  marker_search(true);
   uistat.marker_tracking = false;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
@@ -946,6 +929,15 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_cb)
   draw_menu();
 }
 
+static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
+{
+  marker_search_dir(markers[active_marker].index, data == MK_SEARCH_RIGHT ? MK_SEARCH_RIGHT : MK_SEARCH_LEFT);
+  uistat.marker_tracking = false;
+#ifdef UI_USE_LEVELER_SEARCH_MODE
+  select_lever_mode(LM_SEARCH);
+#endif
+  draw_menu();
+}
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 {
   (void)data;
@@ -1410,10 +1402,10 @@ const menuitem_t menu_marker_ops[] = {
 
 const menuitem_t menu_marker_search[] = {
   //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
-  { MT_CALLBACK, MENU_MARKER_S_MAX,  "MAXIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, MENU_MARKER_S_MIN,  "MINIMUM", menu_marker_search_cb },
-  { MT_CALLBACK, MENU_MARKER_S_LEFT,  "SEARCH\n" S_LARROW" LEFT", menu_marker_search_cb },
-  { MT_CALLBACK, MENU_MARKER_S_RIGHT, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_cb },
+  { MT_ADV_CALLBACK, MENU_MARKER_S_MAX,  "MAXIMUM", menu_marker_search_mode_acb },
+  { MT_ADV_CALLBACK, MENU_MARKER_S_MIN,  "MINIMUM", menu_marker_search_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n" S_LARROW" LEFT",  menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_dir_cb },
   { MT_ADV_CALLBACK, 0, "TRACKING", menu_marker_tracking_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel

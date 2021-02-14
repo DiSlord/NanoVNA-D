@@ -472,6 +472,10 @@ enum marker_smithvalue {
 #define VNA_MODE_CONNECTION_MASK  0x04
 #define VNA_MODE_SERIAL           0x04
 #define VNA_MODE_USB              0x00
+// Marker search mode
+#define VNA_MODE_SEARCH_MASK      0x08
+#define VNA_MODE_SEARCH_MIN       0x08
+#define VNA_MODE_SEARCH_MAX       0x00
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -571,11 +575,9 @@ int search_nearest_index(int x, int y, int t);
 // Marker search functions
 #define MK_SEARCH_LEFT    -1
 #define MK_SEARCH_RIGHT    1
-#define MK_SEARCH_MIN      0
-#define MK_SEARCH_MAX      1
 void set_marker_search(int16_t mode);
-int marker_search(void);
-int marker_search_dir(int16_t from, int16_t dir);
+void marker_search(bool update);
+void marker_search_dir(int16_t from, int16_t dir);
 
 // _request flag for update screen
 #define REDRAW_CELLS      (1<<0)
