@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.46"
+#define VERSION "1.0.47"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1880,7 +1880,7 @@ void set_trace_channel(int t, int channel)
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
     plot_into_index(measured);
-    request_to_redraw_grid();
+//    request_to_redraw_grid();
   }
 }
 
@@ -1888,7 +1888,8 @@ void set_trace_scale(int t, float scale)
 {
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
-    request_to_redraw_grid();
+    plot_into_index(measured);
+//    request_to_redraw_grid();
   }
 }
 
@@ -1896,7 +1897,8 @@ void set_trace_refpos(int t, float refpos)
 {
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
-    request_to_redraw_grid();
+    plot_into_index(measured);
+//    request_to_redraw_grid();
   }
 }
 
