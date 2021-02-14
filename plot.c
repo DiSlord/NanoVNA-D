@@ -1572,7 +1572,7 @@ cell_draw_marker_info(int x0, int y0)
 
   ili9341_set_foreground(LCD_FG_COLOR);
   // Marker frequency data print
-  xpos = 31 + (WIDTH/2) + CELLOFFSETX   - x0;
+  xpos = 21 + (WIDTH/2) + CELLOFFSETX   - x0;
   ypos =  1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
   if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
     // draw marker delta
@@ -1610,7 +1610,7 @@ cell_draw_marker_info(int x0, int y0)
 
   if (electrical_delay != 0) {
     // draw electrical delay
-    xpos = 1 + 6 - x0;
+    xpos = 1 + 18 + CELLOFFSETX          - x0;
     ypos = 1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
 
     if (uistat.lever_mode == LM_EDELAY)
