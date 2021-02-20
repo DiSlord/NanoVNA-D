@@ -101,7 +101,6 @@ typedef struct {
 static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
-static uint8_t keypads_last_index;
 static char    kp_buf[NUMINPUT_LEN+1];
 static int8_t  kp_index = 0;
 static uint8_t menu_current_level = 0;
@@ -188,13 +187,11 @@ static void ui_mode_normal(void);
 static void ui_mode_menu(void);
 static void ui_mode_keypad(int _keypad_mode);
 static void draw_menu(void);
-static void leave_ui_mode(void);
-static void erase_menu_buttons(void);
 static void ui_process_keypad(void);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
-void drawMessageBox(char *header, char *text, uint32_t delay);
+static void drawMessageBox(char *header, char *text, uint32_t delay);
 
 #ifdef UI_USE_NUMERIC_INPUT
 static void ui_mode_numeric(int _keypad_mode);
@@ -264,7 +261,6 @@ static int btn_wait_release(void)
   }
 }
 #if 0
-#define SWAP_16(x,y) {uint16_t t = x;x=y;y=t;}
 static void bubbleSort(uint16_t *v, int n) {
   bool swapped = true;
   int i = 0, j;
@@ -272,7 +268,7 @@ static void bubbleSort(uint16_t *v, int n) {
     swapped = false;
     for (j = n - 1; j > i; j--) { // unordered part
       if (v[j] < v[j - 1]) {
-        SWAP_16(v[j], v[j - 1]);
+        SWAP(uint16_t, v[j], v[j - 1]);
         swapped = true;
       }
     }
@@ -348,7 +344,7 @@ touch_prepare_sense(void)
 //  chThdSleepMilliseconds(10); // Wait 10ms for denounce touch
 }
 
-void
+static void
 touch_start_watchdog(void)
 {
   if (touch_status_flag&TOUCH_INTERRUPT_ENABLED) return;
@@ -356,7 +352,7 @@ touch_start_watchdog(void)
   adc_start_analog_watchdog();
 }
 
-void
+static void
 touch_stop_watchdog(void)
 {
   if (!(touch_status_flag&TOUCH_INTERRUPT_ENABLED)) return;
@@ -414,7 +410,6 @@ touch_check(void)
 // End Software Touch module
 //*******************************************************************************
 #endif // end SOFTWARE_TOUCH
-
 
 static inline void
 touch_wait_release(void)
@@ -574,29 +569,21 @@ select_lever_mode(int mode)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
 {
+  static const struct {uint8_t mask, next;} c_list[5]={
+     [CAL_LOAD] = {CALSTAT_LOAD,  3},
+     [CAL_OPEN] = {CALSTAT_OPEN,  1},
+     [CAL_SHORT]= {CALSTAT_SHORT, 2},
+     [CAL_THRU] = {CALSTAT_THRU,  5},
+     [CAL_ISOLN]= {CALSTAT_ISOLN, 4},
+  };
   if (b){
-    static const uint8_t c_mask_list[5]={
-     [CAL_LOAD] = CALSTAT_LOAD,
-     [CAL_OPEN] = CALSTAT_OPEN,
-     [CAL_SHORT]= CALSTAT_SHORT,
-     [CAL_THRU] = CALSTAT_THRU,
-     [CAL_ISOLN]= CALSTAT_ISOLN,
-    };
-    if (cal_status & c_mask_list[data]) b->icon = BUTTON_ICON_CHECK;
+    if (cal_status & c_list[data].mask) b->icon = BUTTON_ICON_CHECK;
     return;
   }
   // TODO: Hack! reset button state
   last_button = 0;
   cal_collect(data);
-  static const uint8_t c_next_sel[5]={
-   [CAL_LOAD] = 3,
-   [CAL_OPEN] = 1,
-   [CAL_SHORT]= 2,
-   [CAL_THRU] = 5,
-   [CAL_ISOLN]= 4,
-  };
-  selection = c_next_sel[data];
-  draw_menu();
+  selection = c_list[data].next;
 }
 
 static UI_FUNCTION_CALLBACK(menu_caldone_cb)
@@ -614,8 +601,6 @@ static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
   // RESET
   cal_status = 0;
   set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
-  draw_menu();
-  draw_cal_status();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
@@ -627,7 +612,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
   }
   // toggle applying correction
   cal_status ^= CALSTAT_APPLY;
-  draw_menu();
   draw_cal_status();
 }
 
@@ -639,8 +623,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
     return;
   }
   load_properties(data);
-  draw_menu();
-  draw_cal_status();
 }
 
 #define MENU_CONFIG_TOUCH_CAL   0
@@ -660,8 +642,6 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       break;
   }
   redraw_frame();
-  request_to_redraw_grid();
-  draw_menu();
 }
 
 static UI_FUNCTION_CALLBACK(menu_config_save_cb)
@@ -691,20 +671,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   }
 }
 
-static void 
-choose_active_trace(void)
-{
-  int i;
-  if (trace[current_trace].enabled)
-    // do nothing
-    return;
-  for (i = 0; i < TRACES_MAX; i++)
-    if (trace[i].enabled) {
-      current_trace = i;
-      return;
-    }
-}
-
 static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 {
   if (b){
@@ -720,9 +686,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 
   if (trace[data].enabled) {
     if (data == current_trace) {
-      // disable if active trace is selected
-      trace[data].enabled = FALSE;
-      choose_active_trace();
+      trace[data].enabled = FALSE;          // disable if active trace is selected
+      current_trace = TRACE_INVALID;        // invalidate current
+      for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
+        if (trace[i].enabled) {current_trace = i; break;}
     } else {
       // make active selected trace
       current_trace = data;
@@ -732,7 +699,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     current_trace = data;
   }
   request_to_redraw_grid();
-  draw_menu();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
@@ -799,7 +765,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
     return;
   }
   set_bandwidth(data);
-  draw_menu();
 }
 
 static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
@@ -812,7 +777,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
     return;
   }
   set_sweep_points(p_count);
-  draw_menu();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
@@ -823,7 +787,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
     return;
   }
   set_power(data);
-  draw_menu();
 }
 
 static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
@@ -852,8 +815,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
     return;
   }
   toggle_sweep();
-  //menu_move_back(true);
-  draw_menu();
 }
 
 static uint32_t
@@ -908,8 +869,6 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
   }
   ui_mode_normal();
-  draw_cal_status();
-  //redraw_all();
 }
 
 #define MENU_MARKER_S_MAX    0
@@ -922,11 +881,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
   }
   config._mode = (config._mode & ~VNA_MODE_SEARCH_MASK) | data;
   marker_search(true);
-  uistat.marker_tracking = false;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
-  draw_menu();
 }
 
 static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
@@ -936,8 +893,8 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
-  draw_menu();
 }
+
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 {
   (void)data;
@@ -946,7 +903,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
     return;
   }
   uistat.marker_tracking = !uistat.marker_tracking;
-  draw_menu();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
@@ -957,7 +913,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
   }
   marker_smith_format = data;
   redraw_marker(active_marker);
-  draw_menu();
 }
 
 #ifdef __USE_LC_MATCHING__
@@ -1024,7 +979,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
     uistat.marker_delta = !uistat.marker_delta;
   }
   redraw_marker(active_marker);
-  draw_menu();
 }
 
 #ifdef __USE_SERIAL_CONSOLE__
@@ -1039,7 +993,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
   }
   config._serial_speed = speed;
   shell_update_speed();
-  draw_menu();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
@@ -1048,10 +1001,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
     b->icon = (config._mode&VNA_MODE_CONNECTION_MASK) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  config._mode&=~VNA_MODE_CONNECTION_MASK;
-  config._mode|=data;
+  config._mode = (config._mode & ~VNA_MODE_CONNECTION_MASK) | data;
   shell_reset_console();
-  draw_menu();
 }
 #endif
 
@@ -1230,7 +1181,7 @@ const menuitem_t menu_power[] = {
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u mA", menu_power_acb },
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u mA", menu_power_acb },
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u mA", menu_power_acb },
-  { MT_CANCEL, 255, S_LARROW" BACK", NULL },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
@@ -1533,11 +1484,8 @@ menu_move_back(bool leave_ui)
     return;
   menu_current_level--;
   ensure_selection();
-  erase_menu_buttons();
   if (leave_ui)
     ui_mode_normal();
-  else
-    draw_menu();
 }
 
 static void
@@ -1547,8 +1495,6 @@ menu_push_submenu(const menuitem_t *submenu)
     menu_current_level++;
   menu_stack[menu_current_level] = submenu;
   ensure_selection();
-  erase_menu_buttons();
-  draw_menu();
 }
 
 /*
@@ -1559,8 +1505,6 @@ menu_move_top(void)
     return;
   menu_current_level = 0;
   ensure_selection();
-  erase_menu_buttons();
-  draw_menu();
 }
 */
 
@@ -1595,6 +1539,9 @@ menu_invoke(int item)
     menu_push_submenu((const menuitem_t*)menu->reference);
     break;
   }
+  // Redraw menu after if UI in menu mode
+  if (ui_mode == UI_MENU)
+    draw_menu();
 }
 
 // Key names
@@ -1708,7 +1655,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
   ili9341_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);ili9341_fill(x,          y + h - bw,  w, bw); // bottom
 }
 
-void drawMessageBox(char *header, char *text, uint32_t delay){
+static void drawMessageBox(char *header, char *text, uint32_t delay){
   button_t b;
   b.bg = LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
@@ -1730,7 +1677,7 @@ draw_keypad(void)
   int i = 0;
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
-  while (keypads[i].c != KP_NONE) {
+  do {
     button.bg = LCD_MENU_COLOR;
     if (i == selection){
       button.bg = LCD_MENU_ACTIVE_COLOR;
@@ -1746,8 +1693,7 @@ draw_keypad(void)
     ili9341_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
-    i++;
-  }
+  }while (keypads[++i].c != KP_NONE);
 }
 
 static void
@@ -1950,12 +1896,14 @@ draw_menu(void)
   draw_menu_buttons(menu_stack[menu_current_level]);
 }
 
+#if 0
 static void
 erase_menu_buttons(void)
 {
-//  ili9341_set_background(LCD_BG_COLOR);
-//  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
+  ili9341_set_background(LCD_BG_COLOR);
+  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
 }
+#endif
 
 static void
 ui_mode_menu(void)
@@ -2194,18 +2142,11 @@ ui_mode_keypad(int _keypad_mode)
   // keypads array
   keypad_mode = _keypad_mode;
   keypads = keypads_mode_tbl[keypad_mode].keypad_type;
-  int i;
-  for (i = 0; keypads[i+1].c != KP_NONE; i++)
-    ;
-  keypads_last_index = i;
 
   ui_mode = UI_KEYPAD;
-  area_width = AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH;
-  area_height = LCD_HEIGHT-NUM_INPUT_HEIGHT;
   draw_menu();
   draw_keypad();
   draw_numeric_area_frame();
-  draw_numeric_input("");
 }
 
 static void
@@ -2216,13 +2157,6 @@ ui_mode_normal(void)
 
   area_width  = AREA_WIDTH_NORMAL;
   area_height = AREA_HEIGHT_NORMAL;
-  leave_ui_mode();
-  ui_mode = UI_NORMAL;
-}
-
-static void
-leave_ui_mode()
-{
 #ifdef UI_USE_NUMERIC_INPUT
   if (ui_mode == UI_NUMERIC) {
     request_to_draw_cells_behind_numeric_input();
@@ -2232,9 +2166,9 @@ leave_ui_mode()
 #endif
   {
     request_to_draw_cells_behind_menu();
-    erase_menu_buttons();
   }
   draw_frequencies();
+  ui_mode = UI_NORMAL;
 }
 
 #define MARKER_SPEEDUP  (808 / POINTS_COUNT)
@@ -2266,17 +2200,11 @@ lever_move_marker(int status)
 static void
 lever_search_marker(int status)
 {
-  int i = -1;
-  if (active_marker >= 0) {
-    if (status & EVT_DOWN)
-      i = marker_search_left(markers[active_marker].index);
-    else if (status & EVT_UP)
-      i = marker_search_right(markers[active_marker].index);
-    if (i != -1){
-      markers[active_marker].index = i;
-      redraw_marker(active_marker);
-    }
-  }
+  if (active_marker == active_marker) return;
+  if (status & EVT_DOWN)
+    marker_search_dir(markers[active_marker].index, MK_SEARCH_LEFT);
+  else if (status & EVT_UP)
+    marker_search_dir(markers[active_marker].index, MK_SEARCH_RIGHT);
 }
 #endif
 
@@ -2388,16 +2316,15 @@ ui_process_menu(void)
       if (status & EVT_DOWN)
         selection--;
       // close menu if next item is sentinel or less
-      if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE)
-        goto menuclose;
+      if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE){
+        ui_mode_normal();
+        return;
+      }
       draw_menu();
       chThdSleepMilliseconds(200);
     } while ((status = btn_wait_release()) != 0);
   }
   return;
-
-menuclose:
-  ui_mode_normal();
 }
 
 static int
@@ -2479,10 +2406,8 @@ keypad_apply_touch(void)
 {
   int touch_x, touch_y;
   int i = 0;
-
   touch_position(&touch_x, &touch_y);
-
-  while (keypads[i].c != KP_NONE) {
+  do {
     int x = KP_GET_X(keypads[i].x);
     int y = KP_GET_Y(keypads[i].y);
     if (x < touch_x && touch_x < x+KP_WIDTH && y < touch_y && touch_y < y+KP_HEIGHT) {
@@ -2495,8 +2420,7 @@ keypad_apply_touch(void)
       draw_keypad();
       return i;
     }
-    i++;
-  }
+  }while (keypads[++i].c != KP_NONE);
   return -1;
 }
 
@@ -2504,6 +2428,9 @@ static void
 ui_process_keypad(void)
 {
   int status;
+  int keypads_last_index;
+  for (keypads_last_index = 0; keypads[keypads_last_index+1].c != KP_NONE; keypads_last_index++)
+    ;
   kp_index = 0; // Hide input index in keyboard mode
   while (TRUE) {
     status = btn_check();
@@ -2516,6 +2443,7 @@ ui_process_keypad(void)
           if (++selection > keypads_last_index)
             selection = 0;
         draw_keypad();
+        chThdSleepMilliseconds(200);
         status = btn_wait_release();
       } while (status != 0);
     }
@@ -2533,11 +2461,8 @@ ui_process_keypad(void)
         break;
     }
   }
-
   redraw_frame();
-  request_to_redraw_grid();
   ui_mode_normal();
-  //redraw_all();
 }
 
 static void
@@ -2579,7 +2504,7 @@ drag_marker(int t, int8_t m)
   } while (touch_check()!= EVT_TOUCH_RELEASED);
 }
 
-static int
+static bool
 touch_pickup_marker(int touch_x, int touch_y)
 {
   touch_x -= OFFSETX;
@@ -2657,7 +2582,7 @@ static const uint8_t bmp_header_v4[14+56] = {
   0x00, 0x00, 0x00, 0x00     // A mask = 0b00000000 00000000
 };
 
-static int
+static bool
 made_screenshot(int touch_x, int touch_y)
 {
   int y, i;
@@ -2702,7 +2627,7 @@ made_screenshot(int touch_x, int touch_y)
 }
 #endif
 
-static int
+static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
   if (touch_y > HEIGHT) {

@@ -21,6 +21,10 @@
 #include "ch.h"
 
 // Need enable HAL_USE_SPI in halconf.h
+// Define LCD display driver
+//#define LCD_DRIVER_ILI9341
+#define LCD_DRIVER_ST7796S
+
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
 #define __LCD_BRIGHTNESS__
@@ -896,4 +900,5 @@ int plot_printf(char *str, int, const char *fmt, ...);
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)
+#define SWAP(type, x, y) {type t = x; x=y; y=t;}
 /*EOF*/

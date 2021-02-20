@@ -129,7 +129,7 @@ float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
 #undef VERSION
-#define VERSION "1.0.47"
+#define VERSION "1.0.48"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -556,12 +556,12 @@ usage:
 }
 
 void set_power(uint8_t value){
+  redraw_request|=REDRAW_CAL_STATUS;
   if (value > SI5351_CLK_DRIVE_STRENGTH_8MA) value = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   if (current_props._power == value) return;
   current_props._power = value;
-  // Update power if pause
+  // Update power if pause, need for generation in CW mode
   if (!(sweep_mode&SWEEP_ENABLE)) si5351_set_power(value);
-  redraw_request|=REDRAW_CAL_STATUS;
 }
 
 VNA_SHELL_FUNCTION(cmd_power)
@@ -829,6 +829,7 @@ void load_default_properties(void)
 int load_properties(uint32_t id){
   int r = caldata_recall(id);
   update_frequencies(false);
+  redraw_request |= REDRAW_CAL_STATUS;
   return r;
 }
 
@@ -1027,7 +1028,6 @@ void set_sweep_points(uint16_t points){
 
   sweep_points = points;
   update_frequencies(cal_status & CALSTAT_APPLY);
-
 }
 
 #define SCAN_MASK_OUT_FREQ       0b00000001
@@ -1813,7 +1813,6 @@ VNA_SHELL_FUNCTION(cmd_recall)
   // Check for success
   if (load_properties(id))
     shell_printf("Err, default load\r\n");
-  redraw_request |= REDRAW_CAL_STATUS;
   return;
  usage:
   shell_printf("recall {id}\r\n");
