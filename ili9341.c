@@ -24,7 +24,6 @@
 
 #include "spi.h"
 // Allow enable DMA for read display data
-//#define __USE_DISPLAY_DMA_RX__
 //#undef __USE_DISPLAY_DMA__
 
 // Pin macros for LCD
@@ -41,13 +40,17 @@
 #ifdef LCD_DRIVER_ILI9341
 // Set SPI bus speed for LCD
 #define LCD_SPI_SPEED    SPI_BR_DIV2
+// Read speed, need more slow, not define if need use some as Tx speed
+//#define LCD_SPI_RX_SPEED SPI_BR_DIV4
+//#define __USE_DISPLAY_DMA_RX__
 #endif
+
 #ifdef LCD_DRIVER_ST7796S
 // Set SPI bus speed for LCD
 #define LCD_SPI_SPEED    SPI_BR_DIV2
-// Read speed, need more slow
-// Not define if need use some as Tx speed
+// Read speed, need more slow, not define if need use some as Tx speed
 #define LCD_SPI_RX_SPEED SPI_BR_DIV4
+#define __USE_DISPLAY_DMA_RX__
 #endif
 
 pixel_t spi_buffer[SPI_BUFFER_SIZE];
