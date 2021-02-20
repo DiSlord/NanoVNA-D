@@ -21,6 +21,10 @@
 #include "ch.h"
 
 // Need enable HAL_USE_SPI in halconf.h
+// Define LCD display driver
+#define LCD_DRIVER_ILI9341
+//#define LCD_DRIVER_ST7796S
+
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
 //#define __LCD_BRIGHTNESS__
@@ -594,9 +598,9 @@ extern  uint8_t redraw_request;
 // Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
 #ifdef __USE_DISPLAY_DMA__
 // Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
-#define DISPLAY_CELL_BUFFER_COUNT     1
+//#define DISPLAY_CELL_BUFFER_COUNT     1
 // Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
-//#define DISPLAY_CELL_BUFFER_COUNT     2
+#define DISPLAY_CELL_BUFFER_COUNT     2
 #else
 // Always one if no DMA mode
 #define DISPLAY_CELL_BUFFER_COUNT     1
@@ -894,4 +898,5 @@ int plot_printf(char *str, int, const char *fmt, ...);
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)
+#define SWAP(type, x, y) {type t = x; x=y; y=t;}
 /*EOF*/

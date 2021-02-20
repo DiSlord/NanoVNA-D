@@ -773,8 +773,6 @@ invalidate_rect(int x0, int y0, int x1, int y1)
       mark_map(x, y);
 }
 
-#define SWAP(x,y) {int t=x;x=y;y=t;}
-
 static void
 mark_cells_from_index(void)
 {
@@ -793,8 +791,8 @@ mark_cells_from_index(void)
       int n1 = index[i].y / CELLHEIGHT;
       if (m0 == m1 && n0 == n1)
         continue;
-      int x0 = m0; int x1 = m1; if (x0>x1) SWAP(x0, x1); m0 = m1;
-      int y0 = n0; int y1 = n1; if (y0>y1) SWAP(y0, y1); n0 = n1;
+      int x0 = m0; int x1 = m1; if (x0>x1) SWAP(int, x0, x1); m0 = m1;
+      int y0 = n0; int y1 = n1; if (y0>y1) SWAP(int, y0, y1); n0 = n1;
       for (; y0 <= y1; y0++)
         for (j = x0; j <= x1; j++)
           map[y0] |= 1 << j;
@@ -821,7 +819,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
   if (y0 >= CELLHEIGHT && y1 >= CELLHEIGHT) return;
 
   // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-  if (x1 < x0) { SWAP(x0, x1); SWAP(y0, y1); }
+  if (x1 < x0) { SWAP(int, x0, x1); SWAP(int, y0, y1); }
   int dx =-(x1 - x0);
   int dy = (y1 - y0), sy = 1; if (dy < 0) { dy = -dy; sy = -1; }
   int err = ((dy + dx) < 0 ? -dx : -dy) / 2;
@@ -888,11 +886,12 @@ cell_blit_bitmap(int x, int y, uint16_t w, uint16_t h, const uint8_t *bmp)
   uint8_t bits = 0;
   int c = h+y, r;
   for (; y < c; y++) {
-    for (r = 0; r < w; r++) {
+    for (r = 0; r < w; r++, bits<<=1) {
       if ((r&7)==0) bits = *bmp++;
-      if (y >= 0 && x+r >= 0 && y < CELLHEIGHT && x+r < CELLWIDTH && (0x80 & bits))
-        cell_buffer[y*CELLWIDTH + x + r] = foreground_color;
-      bits <<= 1;
+      if ((0x80 & bits) == 0) continue;    // no pixel
+      if ((y+0)&~(CELLHEIGHT-1)) continue; // y < 0 || y >= CELLHEIGHT
+      if ((x+r)&~(CELLWIDTH -1)) continue; // x < 0 || x >= CELLWIDTH
+      cell_buffer[y*CELLWIDTH + x + r] = foreground_color;
     }
   }
 }
@@ -1744,6 +1743,7 @@ redraw_frame(void)
   ili9341_clear_screen();
   draw_frequencies();
   draw_cal_status();
+  request_to_redraw_grid();
 }
 
 void

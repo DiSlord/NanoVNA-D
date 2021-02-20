@@ -36,19 +36,24 @@
 #define LCD_DC_DATA       palSetPad(GPIOB, GPIOB_LCD_CD)
 
 #define LCD_SPI           SPI1
+
+// Custom display definition
+#ifdef LCD_DRIVER_ILI9341
 // Set SPI bus speed for LCD
 #define LCD_SPI_SPEED    SPI_BR_DIV2
-//Not define if need use some as Tx speed
-//#define LCD_SPI_RX_SPEED SPI_BR_DIV4
+#endif
+#ifdef LCD_DRIVER_ST7796S
+// Set SPI bus speed for LCD
+#define LCD_SPI_SPEED    SPI_BR_DIV2
+// Read speed, need more slow
+// Not define if need use some as Tx speed
+#define LCD_SPI_RX_SPEED SPI_BR_DIV4
+#endif
 
 pixel_t spi_buffer[SPI_BUFFER_SIZE];
 // Default foreground & background colors
 pixel_t foreground_color = 0;
 pixel_t background_color = 0;
-
-// Display width and height definition
-#define ILI9341_WIDTH     320
-#define ILI9341_HEIGHT    240
 
 // Display commands list
 #define ILI9341_NOP                        0x00
@@ -356,6 +361,7 @@ uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
   return ret;
 }
 
+#ifdef LCD_DRIVER_ILI9341
 static const uint8_t ili9341_init_seq[] = {
   // cmd, len, data...,
   // SW reset
@@ -413,6 +419,55 @@ static const uint8_t ili9341_init_seq[] = {
   ILI9341_DISPLAY_ON, 0,
   0 // sentinel
 };
+#define LCD_INIT ili9341_init_seq
+#endif
+
+#ifdef LCD_DRIVER_ST7796S
+static const uint8_t ST7796S_init_seq[] = {
+  // SW reset
+  ILI9341_SOFTWARE_RESET, 0,
+  // display off
+  ILI9341_DISPLAY_OFF, 0,
+  // Interface Mode Control
+  ILI9341_RGB_INTERFACE_CONTROL, 1, 0x00,
+  // Frame Rate
+  ILI9341_FRAME_RATE_CONTROL_1, 1, 0xA,
+  // Display Inversion Control , 2 Dot
+  ILI9341_DISPLAY_INVERSION_CONTROL, 1, 0x02,
+  // RGB/MCU Interface Control
+  ILI9341_DISPLAY_FUNCTION_CONTROL, 3, 0x02, 0x02, 0x3B,
+  // EntryMode
+  ILI9341_ENTRY_MODE_SET, 1, 0xC6,
+  // Power Control 1
+  ILI9341_POWER_CONTROL_1, 2, 0x17, 0x15,
+  // Power Control 2
+  ILI9341_POWER_CONTROL_2, 1, 0x41,
+  // VCOM Control
+//ILI9341_VCOM_CONTROL_1, 3, 0x00, 0x4D, 0x90,
+  ILI9341_VCOM_CONTROL_1, 3, 0x00, 0x12, 0x80,
+  // Memory Access
+  ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x28,  // landscape, BGR
+//  ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x20,  // landscape, RGB
+  // Interface Pixel Format,	16bpp DPI and DBI and
+  ILI9341_PIXEL_FORMAT_SET, 1, 0x55,
+  // P-Gamma
+//  ILI9341_POSITIVE_GAMMA_CORRECTION, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
+  // N-Gamma
+//  ILI9341_NEGATIVE_GAMMA_CORRECTION, 15, 0x00, 0X16, 0X19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
+  //Set Image Func
+//  0xE9, 1, 0x00,
+  // Set Brightness to Max
+  ILI9341_WRITE_BRIGHTNESS, 1, 0xFF,
+  // Adjust Control
+  ILI9341_PUMP_RATIO_CONTROL, 4, 0xA9, 0x51, 0x2C, 0x82,
+  //Exit Sleep
+  ILI9341_SLEEP_OUT, 0x00,
+  // display on
+  ILI9341_DISPLAY_ON, 0,
+  0 // sentinel
+};
+#define LCD_INIT ST7796S_init_seq
+#endif
 
 #ifdef __LCD_BRIGHTNESS__
 #if HAL_USE_DAC == FALSE
@@ -448,7 +503,7 @@ void ili9341_init(void)
   chThdSleepMilliseconds(10);
   LCD_RESET_NEGATE;
   const uint8_t *p;
-  for (p = ili9341_init_seq; *p; ) {
+  for (p = LCD_INIT; *p; ) {
     ili9341_send_command(p[0], p[1], &p[2]);
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
@@ -582,7 +637,9 @@ void ili9341_bulk_continue(int x, int y, int w, int h)
 }
 #endif
 
-// Copy screen data to buffer
+#ifdef LCD_DRIVER_ILI9341
+// ILI9341 send data in RGB888 format, need parse it
+// Copy ILI9341 screen data to buffer
 void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
@@ -619,10 +676,41 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
     rgbbuf += 3;
   }
 }
+#endif
+
+#ifdef LCD_DRIVER_ST7796S
+// ST7796S send data in RGB565 format, not need parse it
+// Copy ST7796S screen data to buffer
+void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
+{
+  uint16_t len = w * h;
+  ili9341_setWindow(x, y, w, h);
+  ili9341_send_command(ILI9341_MEMORY_READ, 0, NULL);
+  // Skip data from rx buffer
+  spi_DropRx();
+  // Set read speed (if need different)
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI, LCD_SPI_RX_SPEED);
+#endif
+  // require 8bit dummy clock
+  spi_RxByte();
+  // receive pixel data to buffer
+#ifndef __USE_DISPLAY_DMA_RX__
+  spi_RxBuffer((uint8_t *)out, len * 2);
+#else
+  spi_DMARxBuffer((uint8_t *)out, len * 2);
+#endif
+  // restore speed if need
+#ifdef LCD_SPI_RX_SPEED
+  SPI_BR_SET(LCD_SPI, LCD_SPI_SPEED);
+#endif
+  LCD_CS_HIGH;
+}
+#endif
 
 void ili9341_clear_screen(void)
 {
-  ili9341_fill(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT);
+  ili9341_fill(0, 0, LCD_WIDTH, LCD_HEIGHT);
 }
 
 void ili9341_set_foreground(uint16_t fg_idx)
@@ -694,7 +782,7 @@ void ili9341_drawstring(const char *str, int x, int y)
 void ili9341_drawstringV(const char *str, int x, int y)
 {
   ili9341_set_rotation(DISPLAY_ROTATION_270);
-  ili9341_drawstring(str, ILI9341_HEIGHT-y, x);
+  ili9341_drawstring(str, LCD_HEIGHT-y, x);
   ili9341_set_rotation(DISPLAY_ROTATION_0);
 }
 
@@ -736,8 +824,6 @@ static void ili9341_pixel(int x, int y, uint16_t color)
 }
 #endif
 
-#define SWAP(x, y) { int z = x; x = y; y = z; }
-
 void ili9341_line(int x0, int y0, int x1, int y1)
 {
 #if 0
@@ -754,10 +840,10 @@ void ili9341_line(int x0, int y0, int x1, int y1)
     if (e2 <  dy) { err += dx; y0 += sy; }
   }
 #endif
-  SWAP(foreground_color, background_color);
+  SWAP(uint16_t, foreground_color, background_color);
   if (x0 > x1) {
-    SWAP(x0, x1);
-    SWAP(y0, y1);
+    SWAP(int, x0, x1);
+    SWAP(int, y0, y1);
   }
 
   while (x0 <= x1) {
@@ -785,7 +871,7 @@ void ili9341_line(int x0, int y0, int x1, int y1)
     x0 += dx;
     y0 += dy;
   }
-  SWAP(foreground_color, background_color);
+  SWAP(uint16_t, foreground_color, background_color);
 }
 
 #if 0
