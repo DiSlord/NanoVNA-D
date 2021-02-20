@@ -368,40 +368,53 @@ static const uint8_t ili9341_init_seq[] = {
   ILI9341_SOFTWARE_RESET, 0,
   // display off
   ILI9341_DISPLAY_OFF, 0,
-  // Interface Mode Control
-  ILI9341_RGB_INTERFACE_CONTROL, 1, 0x00,
-  // Frame Rate
-  ILI9341_FRAME_RATE_CONTROL_1, 1, 0xA,
-  // Display Inversion Control , 2 Dot
-  ILI9341_DISPLAY_INVERSION_CONTROL, 1, 0x02,
-  // RGB/MCU Interface Control
-  ILI9341_DISPLAY_FUNCTION_CONTROL, 3, 0x02, 0x02, 0x3B,
-  // EntryMode
-  ILI9341_ENTRY_MODE_SET, 1, 0xC6,
-  // Power Control 1
-  ILI9341_POWER_CONTROL_1, 2, 0x17, 0x15,
-  // Power Control 2
-  ILI9341_POWER_CONTROL_2, 1, 0x41,
-  // VCOM Control
-//ILI9341_VCOM_CONTROL_1, 3, 0x00, 0x4D, 0x90,
-  ILI9341_VCOM_CONTROL_1, 3, 0x00, 0x12, 0x80,
-  // Memory Access
-  ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x28,  // landscape, BGR
-//  ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x20,  // landscape, RGB
-  // Interface Pixel Format,	16bpp DPI and DBI and
+  // Power control B
+  ILI9341_POWERB, 3, 0x00, 0xC1, 0x30,
+  // Power on sequence control
+  ILI9341_POWER_SEQ, 4, 0x64, 0x03, 0x12, 0x81,
+  // Driver timing control A
+  ILI9341_DTCA, 3, 0x85, 0x00, 0x78,
+  // Power control A
+  ILI9341_POWERA, 5, 0x39, 0x2C, 0x00, 0x34, 0x02,
+  // Pump ratio control
+  ILI9341_PUMP_RATIO_CONTROL, 1, 0x20,
+  // Driver timing control B
+  ILI9341_DTCB, 2, 0x00, 0x00,
+  // POWER_CONTROL_1
+  ILI9341_POWER_CONTROL_1, 1, 0x23,
+  // POWER_CONTROL_2
+  ILI9341_POWER_CONTROL_2, 1, 0x10,
+  // VCOM_CONTROL_1
+  ILI9341_VCOM_CONTROL_1, 2, 0x3e, 0x28,
+  // VCOM_CONTROL_2
+  ILI9341_VCOM_CONTROL_2, 1, 0xBE,
+  // MEMORY_ACCESS_CONTROL
+  //ILI9341_MEMORY_ACCESS_CONTROL, 1, 0x48, // portlait
+  ILI9341_MEMORY_ACCESS_CONTROL, 1, DISPLAY_ROTATION_0, // landscape
+  // COLMOD_PIXEL_FORMAT_SET : 16 bit pixel
   ILI9341_PIXEL_FORMAT_SET, 1, 0x55,
-  // P-Gamma
-//  ILI9341_POSITIVE_GAMMA_CORRECTION, 15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
-  // N-Gamma
-//  ILI9341_NEGATIVE_GAMMA_CORRECTION, 15, 0x00, 0X16, 0X19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
-  //Set Image Func
-//  0xE9, 1, 0x00,
-  // Set Brightness to Max
-  ILI9341_WRITE_BRIGHTNESS, 1, 0xFF,
-  // Adjust Control
-  ILI9341_PUMP_RATIO_CONTROL, 4, 0xA9, 0x51, 0x2C, 0x82,
-  //Exit Sleep
-  ILI9341_SLEEP_OUT, 0x00,
+  // Frame Rate
+  ILI9341_FRAME_RATE_CONTROL_1, 2, 0x00, 0x18,
+  // Gamma Function Disable
+  ILI9341_3GAMMA_EN, 1, 0x00,
+  // gamma set for curve 01/2/04/08
+  ILI9341_GAMMA_SET, 1, 0x01,
+  // positive gamma correction
+  ILI9341_POSITIVE_GAMMA_CORRECTION, 15, 0x0F,  0x31,  0x2B,  0x0C,  0x0E,  0x08,  0x4E,  0xF1,  0x37,  0x07,  0x10,  0x03,  0x0E, 0x09,  0x00,
+  // negativ gamma correction
+  ILI9341_NEGATIVE_GAMMA_CORRECTION, 15, 0x00,  0x0E,  0x14,  0x03,  0x11,  0x07,  0x31,  0xC1,  0x48,  0x08,  0x0F,  0x0C,  0x31, 0x36,  0x0F,
+  // Column Address Set
+//  ILI9341_COLUMN_ADDRESS_SET, 4, 0x00, 0x00, 0x01, 0x3f, // width 320
+  // Page Address Set
+//  ILI9341_PAGE_ADDRESS_SET, 4, 0x00, 0x00, 0x00, 0xef,   // height 240
+  // entry mode
+  ILI9341_ENTRY_MODE_SET, 1, 0x06,
+  // display function control
+  ILI9341_DISPLAY_FUNCTION_CONTROL, 3, 0x08, 0x82, 0x27,
+  // Interface Control (set WEMODE=0)
+  ILI9341_INTERFACE_CONTROL, 3, 0x00, 0x00, 0x00,
+  // sleep out
+  ILI9341_SLEEP_OUT, 0,
   // display on
   ILI9341_DISPLAY_ON, 0,
   0 // sentinel
@@ -651,6 +664,17 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
   SPI_BR_SET(LCD_SPI, LCD_SPI_SPEED);
 #endif
   LCD_CS_HIGH;
+  // Parse received data to RGB565 format
+  uint8_t *rgbbuf = (uint8_t *)out;
+  while (len-- > 0) {
+    uint8_t r, g, b;
+    // read data is always 18bit
+    r = rgbbuf[0];
+    g = rgbbuf[1];
+    b = rgbbuf[2];
+    *out++ = RGB565(r, g, b);
+    rgbbuf += 3;
+  }
 }
 #endif
 
