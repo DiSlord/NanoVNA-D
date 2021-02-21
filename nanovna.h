@@ -373,6 +373,14 @@ extern int16_t area_height;
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT   32
 
+// Battery icon position
+#define BATTERY_ICON_POSX   1
+#define BATTERY_ICON_POSY   1
+
+// Calibration text coordinates
+#define CALIBRATION_INFO_POSX     0
+#define CALIBRATION_INFO_POSY   100
+
 // On screen keyboard button size
 // Use full screen keyboard
 #if 1
@@ -447,6 +455,14 @@ extern int16_t area_height;
 
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT   32
+
+// Battery icon position
+#define BATTERY_ICON_POSX   3
+#define BATTERY_ICON_POSY   2
+
+// Calibration text coordinates
+#define CALIBRATION_INFO_POSX     0
+#define CALIBRATION_INFO_POSY   100
 
 // On screen keyboard button size
 // Use full screen keyboard
