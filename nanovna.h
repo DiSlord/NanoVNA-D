@@ -21,9 +21,12 @@
 #include "ch.h"
 
 // Need enable HAL_USE_SPI in halconf.h
-// Define LCD display driver
+// Define LCD display driver and size
 //#define LCD_DRIVER_ILI9341
+//#define LCD_320x240
+
 #define LCD_DRIVER_ST7796S
+#define LCD_480x320
 
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
@@ -310,6 +313,86 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  * plot.c
  */
 // LCD display size settings
+
+extern int16_t area_width;
+extern int16_t area_height;
+
+#ifdef LCD_320x240 // 320x240 display plot definitions
+#define LCD_WIDTH                   320
+#define LCD_HEIGHT                  240
+
+// Define maximum distance in pixel for pickup marker (can be bigger for big displays)
+#define MARKER_PICKUP_DISTANCE    20
+// Used marker size settings
+#define _USE_BIG_MARKER_     0
+// Used font settings
+#define _USE_FONT_           0
+
+// Offset of plot area (size of additional info at left side)
+#define OFFSETX 10
+#define OFFSETY  0
+
+// WIDTH better be n*(POINTS_COUNT-1)
+#define WIDTH  300
+// HEIGHT = 8*GRIDY
+#define HEIGHT 232
+
+//#define NGRIDY 10
+#define NGRIDY 8
+
+#define FREQUENCIES_XPOS1 OFFSETX
+#define FREQUENCIES_XPOS2 206
+#define FREQUENCIES_XPOS3 135
+#define FREQUENCIES_YPOS  (LCD_HEIGHT-FONT_GET_HEIGHT)
+
+// GRIDX calculated depends from frequency span
+//#define GRIDY 29
+#define GRIDY (HEIGHT / NGRIDY)
+
+// Need for reference marker draw
+#define CELLOFFSETX 5
+#define AREA_WIDTH_NORMAL  (CELLOFFSETX + WIDTH  + 1 + 4)
+#define AREA_HEIGHT_NORMAL (              HEIGHT + 1)
+
+// Smith/polar chart
+#define P_CENTER_X (CELLOFFSETX + WIDTH/2)
+#define P_CENTER_Y (HEIGHT/2)
+#define P_RADIUS   (HEIGHT/2)
+
+// Maximum menu buttons count
+#define MENU_BUTTON_MAX         8
+// Menu buttons size
+#define MENU_BUTTON_WIDTH      66
+#define MENU_BUTTON_HEIGHT     29
+#define MENU_BUTTON_BORDER      1
+#define KEYBOARD_BUTTON_BORDER  2
+
+// Define message box width
+#define MESSAGE_BOX_WIDTH     180
+
+// Height of numerical input field (at bottom)
+#define NUM_INPUT_HEIGHT   32
+
+// On screen keyboard button size
+// Use full screen keyboard
+#if 1
+#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
+#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
+#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
+#else
+// Use less size keyboard
+#define KP_WIDTH     48
+#define KP_HEIGHT    48
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-64-KP_WIDTH*4))
+#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 12 )
+#endif
+
+#endif // end 320x240 display plot definitions
+
+#ifdef LCD_480x320 // 480x320 display definitions
 #define LCD_WIDTH                   480
 #define LCD_HEIGHT                  320
 
@@ -320,6 +403,73 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Used font settings
 #define _USE_FONT_           1
 
+// Offset of plot area (size of additional info at left side)
+#define OFFSETX 15
+#define OFFSETY  0
+
+// WIDTH better be n*(POINTS_COUNT-1)
+#define WIDTH  455
+// HEIGHT = 8*GRIDY
+#define HEIGHT 304
+
+//#define NGRIDY 10
+#define NGRIDY 8
+
+#define FREQUENCIES_XPOS1 OFFSETX
+#define FREQUENCIES_XPOS2 320
+#define FREQUENCIES_XPOS3 200
+#define FREQUENCIES_YPOS  (LCD_HEIGHT-FONT_GET_HEIGHT)
+
+// GRIDX calculated depends from frequency span
+//#define GRIDY 29
+#define GRIDY (HEIGHT / NGRIDY)
+
+// Need for reference marker draw
+#define CELLOFFSETX 5
+#define AREA_WIDTH_NORMAL  (CELLOFFSETX + WIDTH  + 1 + 4)
+#define AREA_HEIGHT_NORMAL (              HEIGHT + 1)
+
+// Smith/polar chart
+#define P_CENTER_X (CELLOFFSETX + WIDTH/2)
+#define P_CENTER_Y (HEIGHT/2)
+#define P_RADIUS   (HEIGHT/2)
+
+// Maximum menu buttons count
+#define MENU_BUTTON_MAX         8
+// Menu buttons size
+#define MENU_BUTTON_WIDTH      84
+#define MENU_BUTTON_HEIGHT     38
+#define MENU_BUTTON_BORDER      1
+#define KEYBOARD_BUTTON_BORDER  2
+
+// Define message box width
+#define MESSAGE_BOX_WIDTH     180
+
+// Height of numerical input field (at bottom)
+#define NUM_INPUT_HEIGHT   32
+
+// On screen keyboard button size
+// Use full screen keyboard
+#if 1
+#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
+#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
+#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
+#else
+// Use less size keyboard
+#define KP_WIDTH     64
+#define KP_HEIGHT    64
+// Key x, y position (0 - 15) on screen
+#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
+#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
+#endif
+
+#endif // end 480x320 display plot definitions
+
+/*
+ * Font size defines
+ */
 #if _USE_FONT_ == 0
 extern const uint8_t x5x7_bits[];
 #define FONT_START_CHAR   0x17
@@ -356,76 +506,14 @@ extern const uint8_t numfont16x22[];
 #define NUM_FONT_GET_HEIGHT     22
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*2*NUM_FONT_GET_HEIGHT])
 
-// Offset of plot area (size of additional info at left side)
-#define OFFSETX 15
-#define OFFSETY  0
-
-// WIDTH better be n*(POINTS_COUNT-1)
-#define WIDTH  455
-// HEIGHT = 8*GRIDY
-#define HEIGHT 304
-
-//#define NGRIDY 10
-#define NGRIDY 8
-
-#define FREQUENCIES_XPOS1 OFFSETX
-#define FREQUENCIES_XPOS2 320
-#define FREQUENCIES_XPOS3 200
-#define FREQUENCIES_YPOS  (LCD_HEIGHT-FONT_GET_HEIGHT)
-
-// GRIDX calculated depends from frequency span
-//#define GRIDY 29
-#define GRIDY (HEIGHT / NGRIDY)
-
-// Need for reference marker draw
-#define CELLOFFSETX 5
-#define AREA_WIDTH_NORMAL  (CELLOFFSETX + WIDTH  + 1 + 4)
-#define AREA_HEIGHT_NORMAL (              HEIGHT + 1)
-
-// Smith/polar chart
-#define P_CENTER_X (CELLOFFSETX + WIDTH/2)
-#define P_CENTER_Y (HEIGHT/2)
-#define P_RADIUS   (HEIGHT/2)
-
-extern int16_t area_width;
-extern int16_t area_height;
-
-// Maximum menu buttons count
-#define MENU_BUTTON_MAX         8
-// Menu buttons size
-#define MENU_BUTTON_WIDTH      84
-#define MENU_BUTTON_HEIGHT     38
-#define MENU_BUTTON_BORDER      1
-#define KEYBOARD_BUTTON_BORDER  2
-
-// Define message box width
-#define MESSAGE_BOX_WIDTH     180
-
-// Height of numerical input field (at bottom)
-#define NUM_INPUT_HEIGHT   32
-
-// On screen keyboard button size
-// Use full screen keyboard
-#if 1
-#define KP_WIDTH                  ((LCD_WIDTH) / 4)                     // numeric keypad button width
-#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx)            ((posx) * KP_WIDTH)                   // numeric keypad left
-#define KP_GET_Y(posy)            ((posy) * KP_HEIGHT)                  // numeric keypad top
-#else
-// Use less size keyboard
-#define KP_WIDTH     64
-#define KP_HEIGHT    64
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx) ((posx)*KP_WIDTH + (LCD_WIDTH-128-KP_WIDTH*4))
-#define KP_GET_Y(posy) ((posy)*KP_HEIGHT + 20 )
-#endif
-
+/*
+ * LC match text output settings
+ */
 #ifdef __USE_LC_MATCHING__
 // X and Y offset to L/C match text
  #define STR_LC_MATH_X      (OFFSETX +  0)
 // Better be aligned by cell
- #define STR_LC_MATH_Y      (OFFSETY + 32)
+ #define STR_LC_MATH_Y      (OFFSETY + 3*FONT_STR_HEIGHT + 1)
 // 1/3 Width of text (need 3 column for data)
  #define STR_LC_MATH_WIDTH  (FONT_WIDTH * 10)
 // String Height (need 2 + 0..4 string)
