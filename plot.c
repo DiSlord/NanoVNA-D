@@ -1579,7 +1579,7 @@ cell_draw_marker_info(int x0, int y0)
       int previous_marker_idx = markers[previous_marker].index;
       plot_printf(buf, sizeof buf, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 35;
+      xpos += 27;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         uint32_t freq  = frequencies[active_marker_idx];
         uint32_t freq1 = frequencies[previous_marker_idx];
@@ -1650,7 +1650,7 @@ draw_frequencies(void)
     buf2[0] = S_SARROW[0];
   ili9341_drawstring(buf1, FREQUENCIES_XPOS1, FREQUENCIES_YPOS);
   ili9341_drawstring(buf2, FREQUENCIES_XPOS2, FREQUENCIES_YPOS);
-  plot_printf(buf1, sizeof(buf1), "bw:%uHz  %up", get_bandwidth_frequency(config.bandwidth), sweep_points);
+  plot_printf(buf1, sizeof(buf1), "bw:%uHz %up", get_bandwidth_frequency(config.bandwidth), sweep_points);
   ili9341_set_foreground(LCD_BW_TEXT_COLOR);
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }
