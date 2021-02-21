@@ -23,7 +23,7 @@
 #include "nanovna.h"
 
 #include "spi.h"
-// Allow enable DMA for read display data
+// For test, disabled DMA
 //#undef __USE_DISPLAY_DMA__
 
 // Pin macros for LCD
@@ -42,6 +42,7 @@
 #define LCD_SPI_SPEED    SPI_BR_DIV2
 // Read speed, need more slow, not define if need use some as Tx speed
 //#define LCD_SPI_RX_SPEED SPI_BR_DIV4
+// Allow enable DMA for read display data (can not stable on full speed, on less speed slower)
 //#define __USE_DISPLAY_DMA_RX__
 #endif
 
@@ -50,6 +51,7 @@
 #define LCD_SPI_SPEED    SPI_BR_DIV2
 // Read speed, need more slow, not define if need use some as Tx speed
 #define LCD_SPI_RX_SPEED SPI_BR_DIV4
+// Allow enable DMA for read display data
 #define __USE_DISPLAY_DMA_RX__
 #endif
 
@@ -57,108 +59,6 @@ pixel_t spi_buffer[SPI_BUFFER_SIZE];
 // Default foreground & background colors
 pixel_t foreground_color = 0;
 pixel_t background_color = 0;
-
-// Display commands list
-#define ILI9341_NOP                        0x00
-#define ILI9341_SOFTWARE_RESET             0x01
-#define ILI9341_READ_IDENTIFICATION        0x04
-#define ILI9341_READ_STATUS                0x09
-#define ILI9341_READ_POWER_MODE            0x0A
-#define ILI9341_READ_MADCTL                0x0B
-#define ILI9341_READ_PIXEL_FORMAT          0x0C
-#define ILI9341_READ_IMAGE_FORMAT          0x0D
-#define ILI9341_READ_SIGNAL_MODE           0x0E
-#define ILI9341_READ_SELF_DIAGNOSTIC       0x0F
-#define ILI9341_SLEEP_IN                   0x10
-#define ILI9341_SLEEP_OUT                  0x11
-#define ILI9341_PARTIAL_MODE_ON            0x12
-#define ILI9341_NORMAL_DISPLAY_MODE_ON     0x13
-#define ILI9341_INVERSION_OFF              0x20
-#define ILI9341_INVERSION_ON               0x21
-#define ILI9341_GAMMA_SET                  0x26
-#define ILI9341_DISPLAY_OFF                0x28
-#define ILI9341_DISPLAY_ON                 0x29
-#define ILI9341_COLUMN_ADDRESS_SET         0x2A
-#define ILI9341_PAGE_ADDRESS_SET           0x2B
-#define ILI9341_MEMORY_WRITE               0x2C
-#define ILI9341_COLOR_SET                  0x2D
-#define ILI9341_MEMORY_READ                0x2E
-#define ILI9341_PARTIAL_AREA               0x30
-#define ILI9341_VERTICAL_SCROLLING_DEF     0x33
-#define ILI9341_TEARING_LINE_OFF           0x34
-#define ILI9341_TEARING_LINE_ON            0x35
-#define ILI9341_MEMORY_ACCESS_CONTROL      0x36
-#define ILI9341_VERTICAL_SCROLLING         0x37
-#define ILI9341_IDLE_MODE_OFF              0x38
-#define ILI9341_IDLE_MODE_ON               0x39
-#define ILI9341_PIXEL_FORMAT_SET           0x3A
-#define ILI9341_WRITE_MEMORY_CONTINUE      0x3C
-#define ILI9341_READ_MEMORY_CONTINUE       0x3E
-#define ILI9341_SET_TEAR_SCANLINE          0x44
-#define ILI9341_GET_SCANLINE               0x45
-#define ILI9341_WRITE_BRIGHTNESS           0x51
-#define ILI9341_READ_BRIGHTNESS            0x52
-#define ILI9341_WRITE_CTRL_DISPLAY         0x53
-#define ILI9341_READ_CTRL_DISPLAY          0x54
-#define ILI9341_WRITE_CA_BRIGHTNESS        0x55
-#define ILI9341_READ_CA_BRIGHTNESS         0x56
-#define ILI9341_WRITE_CA_MIN_BRIGHTNESS    0x5E
-#define ILI9341_READ_CA_MIN_BRIGHTNESS     0x5F
-#define ILI9341_READ_ID1                   0xDA
-#define ILI9341_READ_ID2                   0xDB
-#define ILI9341_READ_ID3                   0xDC
-#define ILI9341_RGB_INTERFACE_CONTROL      0xB0
-#define ILI9341_FRAME_RATE_CONTROL_1       0xB1
-#define ILI9341_FRAME_RATE_CONTROL_2       0xB2
-#define ILI9341_FRAME_RATE_CONTROL_3       0xB3
-#define ILI9341_DISPLAY_INVERSION_CONTROL  0xB4
-#define ILI9341_BLANKING_PORCH_CONTROL     0xB5
-#define ILI9341_DISPLAY_FUNCTION_CONTROL   0xB6
-#define ILI9341_ENTRY_MODE_SET             0xB7
-#define ILI9341_BACKLIGHT_CONTROL_1        0xB8
-#define ILI9341_BACKLIGHT_CONTROL_2        0xB9
-#define ILI9341_BACKLIGHT_CONTROL_3        0xBA
-#define ILI9341_BACKLIGHT_CONTROL_4        0xBB
-#define ILI9341_BACKLIGHT_CONTROL_5        0xBC
-#define ILI9341_BACKLIGHT_CONTROL_7        0xBE
-#define ILI9341_BACKLIGHT_CONTROL_8        0xBF
-#define ILI9341_POWER_CONTROL_1            0xC0
-#define ILI9341_POWER_CONTROL_2            0xC1
-#define ILI9341_VCOM_CONTROL_1             0xC5
-#define ILI9341_VCOM_CONTROL_2             0xC7
-#define ILI9341_POWERA                     0xCB
-#define ILI9341_POWERB                     0xCF
-#define ILI9341_NV_MEMORY_WRITE            0xD0
-#define ILI9341_NV_PROTECTION_KEY          0xD1
-#define ILI9341_NV_STATUS_READ             0xD2
-#define ILI9341_READ_ID4                   0xD3
-#define ILI9341_POSITIVE_GAMMA_CORRECTION  0xE0
-#define ILI9341_NEGATIVE_GAMMA_CORRECTION  0xE1
-#define ILI9341_DIGITAL_GAMMA_CONTROL_1    0xE2
-#define ILI9341_DIGITAL_GAMMA_CONTROL_2    0xE3
-#define ILI9341_DTCA                       0xE8
-#define ILI9341_DTCB                       0xEA
-#define ILI9341_POWER_SEQ                  0xED
-#define ILI9341_3GAMMA_EN                  0xF2
-#define ILI9341_INTERFACE_CONTROL          0xF6
-#define ILI9341_PUMP_RATIO_CONTROL         0xF7
-
-//
-// ILI9341_MEMORY_ACCESS_CONTROL registers
-//
-#define ILI9341_MADCTL_MY  0x80
-#define ILI9341_MADCTL_MX  0x40
-#define ILI9341_MADCTL_MV  0x20
-#define ILI9341_MADCTL_ML  0x10
-#define ILI9341_MADCTL_BGR 0x08
-#define ILI9341_MADCTL_MH  0x04
-#define ILI9341_MADCTL_RGB 0x00
-
-#define DISPLAY_ROTATION_270   (ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR)
-#define DISPLAY_ROTATION_90    (ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR)
-#define DISPLAY_ROTATION_0     (ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
-#define DISPLAY_ROTATION_180   (ILI9341_MADCTL_MX | ILI9341_MADCTL_MY  \
-                              | ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
 
 //*****************************************************
 // SPI DMA settings and data
@@ -316,6 +216,111 @@ static void spi_init(void)
 #endif
   LCD_SPI->CR1|= SPI_CR1_SPE;       //SPI enable
 }
+
+//*****************************************************
+// Display driver functions
+//*****************************************************
+// Display commands list
+#define ILI9341_NOP                        0x00
+#define ILI9341_SOFTWARE_RESET             0x01
+#define ILI9341_READ_IDENTIFICATION        0x04
+#define ILI9341_READ_STATUS                0x09
+#define ILI9341_READ_POWER_MODE            0x0A
+#define ILI9341_READ_MADCTL                0x0B
+#define ILI9341_READ_PIXEL_FORMAT          0x0C
+#define ILI9341_READ_IMAGE_FORMAT          0x0D
+#define ILI9341_READ_SIGNAL_MODE           0x0E
+#define ILI9341_READ_SELF_DIAGNOSTIC       0x0F
+#define ILI9341_SLEEP_IN                   0x10
+#define ILI9341_SLEEP_OUT                  0x11
+#define ILI9341_PARTIAL_MODE_ON            0x12
+#define ILI9341_NORMAL_DISPLAY_MODE_ON     0x13
+#define ILI9341_INVERSION_OFF              0x20
+#define ILI9341_INVERSION_ON               0x21
+#define ILI9341_GAMMA_SET                  0x26
+#define ILI9341_DISPLAY_OFF                0x28
+#define ILI9341_DISPLAY_ON                 0x29
+#define ILI9341_COLUMN_ADDRESS_SET         0x2A
+#define ILI9341_PAGE_ADDRESS_SET           0x2B
+#define ILI9341_MEMORY_WRITE               0x2C
+#define ILI9341_COLOR_SET                  0x2D
+#define ILI9341_MEMORY_READ                0x2E
+#define ILI9341_PARTIAL_AREA               0x30
+#define ILI9341_VERTICAL_SCROLLING_DEF     0x33
+#define ILI9341_TEARING_LINE_OFF           0x34
+#define ILI9341_TEARING_LINE_ON            0x35
+#define ILI9341_MEMORY_ACCESS_CONTROL      0x36
+#define ILI9341_VERTICAL_SCROLLING         0x37
+#define ILI9341_IDLE_MODE_OFF              0x38
+#define ILI9341_IDLE_MODE_ON               0x39
+#define ILI9341_PIXEL_FORMAT_SET           0x3A
+#define ILI9341_WRITE_MEMORY_CONTINUE      0x3C
+#define ILI9341_READ_MEMORY_CONTINUE       0x3E
+#define ILI9341_SET_TEAR_SCANLINE          0x44
+#define ILI9341_GET_SCANLINE               0x45
+#define ILI9341_WRITE_BRIGHTNESS           0x51
+#define ILI9341_READ_BRIGHTNESS            0x52
+#define ILI9341_WRITE_CTRL_DISPLAY         0x53
+#define ILI9341_READ_CTRL_DISPLAY          0x54
+#define ILI9341_WRITE_CA_BRIGHTNESS        0x55
+#define ILI9341_READ_CA_BRIGHTNESS         0x56
+#define ILI9341_WRITE_CA_MIN_BRIGHTNESS    0x5E
+#define ILI9341_READ_CA_MIN_BRIGHTNESS     0x5F
+#define ILI9341_READ_ID1                   0xDA
+#define ILI9341_READ_ID2                   0xDB
+#define ILI9341_READ_ID3                   0xDC
+#define ILI9341_RGB_INTERFACE_CONTROL      0xB0
+#define ILI9341_FRAME_RATE_CONTROL_1       0xB1
+#define ILI9341_FRAME_RATE_CONTROL_2       0xB2
+#define ILI9341_FRAME_RATE_CONTROL_3       0xB3
+#define ILI9341_DISPLAY_INVERSION_CONTROL  0xB4
+#define ILI9341_BLANKING_PORCH_CONTROL     0xB5
+#define ILI9341_DISPLAY_FUNCTION_CONTROL   0xB6
+#define ILI9341_ENTRY_MODE_SET             0xB7
+#define ILI9341_BACKLIGHT_CONTROL_1        0xB8
+#define ILI9341_BACKLIGHT_CONTROL_2        0xB9
+#define ILI9341_BACKLIGHT_CONTROL_3        0xBA
+#define ILI9341_BACKLIGHT_CONTROL_4        0xBB
+#define ILI9341_BACKLIGHT_CONTROL_5        0xBC
+#define ILI9341_BACKLIGHT_CONTROL_7        0xBE
+#define ILI9341_BACKLIGHT_CONTROL_8        0xBF
+#define ILI9341_POWER_CONTROL_1            0xC0
+#define ILI9341_POWER_CONTROL_2            0xC1
+#define ILI9341_VCOM_CONTROL_1             0xC5
+#define ILI9341_VCOM_CONTROL_2             0xC7
+#define ILI9341_POWERA                     0xCB
+#define ILI9341_POWERB                     0xCF
+#define ILI9341_NV_MEMORY_WRITE            0xD0
+#define ILI9341_NV_PROTECTION_KEY          0xD1
+#define ILI9341_NV_STATUS_READ             0xD2
+#define ILI9341_READ_ID4                   0xD3
+#define ILI9341_POSITIVE_GAMMA_CORRECTION  0xE0
+#define ILI9341_NEGATIVE_GAMMA_CORRECTION  0xE1
+#define ILI9341_DIGITAL_GAMMA_CONTROL_1    0xE2
+#define ILI9341_DIGITAL_GAMMA_CONTROL_2    0xE3
+#define ILI9341_DTCA                       0xE8
+#define ILI9341_DTCB                       0xEA
+#define ILI9341_POWER_SEQ                  0xED
+#define ILI9341_3GAMMA_EN                  0xF2
+#define ILI9341_INTERFACE_CONTROL          0xF6
+#define ILI9341_PUMP_RATIO_CONTROL         0xF7
+
+//
+// ILI9341_MEMORY_ACCESS_CONTROL registers
+//
+#define ILI9341_MADCTL_MY  0x80
+#define ILI9341_MADCTL_MX  0x40
+#define ILI9341_MADCTL_MV  0x20
+#define ILI9341_MADCTL_ML  0x10
+#define ILI9341_MADCTL_BGR 0x08
+#define ILI9341_MADCTL_MH  0x04
+#define ILI9341_MADCTL_RGB 0x00
+
+#define DISPLAY_ROTATION_270   (ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR)
+#define DISPLAY_ROTATION_90    (ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR)
+#define DISPLAY_ROTATION_0     (ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
+#define DISPLAY_ROTATION_180   (ILI9341_MADCTL_MX | ILI9341_MADCTL_MY  \
+                              | ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR)
 
 // Disable inline for this function
 static void ili9341_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)

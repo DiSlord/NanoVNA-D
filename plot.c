@@ -1659,8 +1659,8 @@ void
 draw_cal_status(void)
 {
   uint32_t i;
-  int x = 0;
-  int y = 100;
+  int x = CALIBRATION_INFO_POSX;
+  int y = CALIBRATION_INFO_POSY;
   ili9341_set_background(LCD_BG_COLOR);
   ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT));
@@ -1727,7 +1727,7 @@ static void draw_battery_status(void)
   string_buf[x++] = 0b10000001;
   string_buf[x++] = 0b11111111;
   // Draw battery
-  ili9341_blitBitmap(3, 2, 8, x, string_buf);
+  ili9341_blitBitmap(BATTERY_ICON_POSX, BATTERY_ICON_POSY, 8, x, string_buf);
 }
 
 void
