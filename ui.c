@@ -563,7 +563,7 @@ select_lever_mode(int mode)
 {
   if (uistat.lever_mode != mode) {
     uistat.lever_mode = mode;
-    redraw_request |= REDRAW_FREQUENCY | REDRAW_MARKER;
+    request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
   }
 }
 
@@ -612,7 +612,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
   }
   // toggle applying correction
   cal_status ^= CALSTAT_APPLY;
-  draw_cal_status();
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
@@ -641,7 +641,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       show_version();
       break;
   }
-  redraw_frame();
+  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 }
 
 static UI_FUNCTION_CALLBACK(menu_config_save_cb)
@@ -667,7 +667,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   }
   if (caldata_save(data) == 0) {
     menu_move_back(true);
-    draw_cal_status();
+    request_to_redraw(REDRAW_CAL_STATUS);
   }
 }
 
@@ -698,7 +698,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     trace[data].enabled = TRUE;
     current_trace = data;
   }
-  request_to_redraw_grid();
+  request_to_redraw(REDRAW_AREA);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
@@ -1112,7 +1112,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   }
 
   drawMessageBox("SAVE TRACE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
-  request_to_redraw_grid();
+  request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
 
@@ -2167,7 +2167,7 @@ ui_mode_normal(void)
   {
     request_to_draw_cells_behind_menu();
   }
-  draw_frequencies();
+  request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
 }
 
@@ -2461,7 +2461,7 @@ ui_process_keypad(void)
         break;
     }
   }
-  redraw_frame();
+  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   ui_mode_normal();
 }
 
@@ -2622,7 +2622,7 @@ made_screenshot(int touch_x, int touch_y)
 //  time = chVTGetSystemTimeX() - time;
 //  shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, (LCD_WIDTH*LCD_HEIGHT*sizeof(uint16_t)+sizeof(bmp_header_v4))*10000/time);
   drawMessageBox("SCREENSHOT", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
-  request_to_redraw_grid();
+  request_to_redraw(REDRAW_AREA);
   return TRUE;
 }
 #endif

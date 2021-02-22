@@ -116,7 +116,6 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask);
 static void transform_domain(void);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
-uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 // sweep operation variables
 volatile uint16_t wait_count = 0;
@@ -196,7 +195,7 @@ static THD_FUNCTION(Thread1, arg)
 
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
-      redraw_request |= REDRAW_CELLS | REDRAW_BATTERY;
+      request_to_redraw(REDRAW_CELLS | REDRAW_BATTERY);
     }
 #ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
@@ -556,7 +555,7 @@ usage:
 }
 
 void set_power(uint8_t value){
-  redraw_request|=REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
   if (value > SI5351_CLK_DRIVE_STRENGTH_8MA) value = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   if (current_props._power == value) return;
   current_props._power = value;
@@ -829,7 +828,7 @@ void load_default_properties(void)
 int load_properties(uint32_t id){
   int r = caldata_recall(id);
   update_frequencies(false);
-  redraw_request |= REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
   return r;
 }
 
@@ -994,7 +993,7 @@ static int set_frequency(uint32_t freq)
 
 void set_bandwidth(uint16_t bw_count){
   config.bandwidth = bw_count&0x1FF;
-  redraw_request|=REDRAW_FREQUENCY;
+  request_to_redraw(REDRAW_FREQUENCY);
 }
 
 uint32_t get_bandwidth_frequency(uint16_t bw_freq){
@@ -1189,7 +1188,6 @@ update_frequencies(bool interpolate)
   stop  = get_sweep_frequency(ST_STOP);
 
   set_frequencies(start, stop, sweep_points);
-  // operation_requested|= OP_FREQCHANGE;
   update_marker_index();
   // set grid layout
   update_grid();
@@ -1608,7 +1606,7 @@ cal_collect(uint16_t type)
 
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
-  redraw_request |= REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 void
@@ -1643,7 +1641,7 @@ cal_done(void)
   }
 
   cal_status |= CALSTAT_APPLY;
-  redraw_request |= REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 static void
@@ -1659,7 +1657,7 @@ cal_interpolate(void)
   if (frequencies[0] == src->_frequency0 && frequencies[src->_sweep_points-1] == src->_frequency1){
     memcpy(current_props._cal_data, src->_cal_data, sizeof(src->_cal_data));
     cal_status = src->_cal_status;
-    redraw_request |= REDRAW_CAL_STATUS;
+    request_to_redraw(REDRAW_CAL_STATUS);
     return;
   }
   uint32_t src_f = src->_frequency0;
@@ -1733,7 +1731,7 @@ cal_interpolate(void)
   }
 interpolate_finish:
   cal_status = src->_cal_status | CALSTAT_INTERPOLATED;
-  redraw_request |= REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 VNA_SHELL_FUNCTION(cmd_cal)
@@ -1749,7 +1747,7 @@ VNA_SHELL_FUNCTION(cmd_cal)
     shell_printf("\r\n");
     return;
   }
-  redraw_request|=REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
   //                                     0    1     2    3     4    5  6   7     8
   static const char cmd_cal_list[] = "load|open|short|thru|isoln|done|on|off|reset";
   switch (get_str_index(argv[0], cmd_cal_list)) {
@@ -1795,7 +1793,7 @@ VNA_SHELL_FUNCTION(cmd_save)
   if (id < 0 || id >= SAVEAREA_MAX)
     goto usage;
   caldata_save(id);
-  redraw_request |= REDRAW_CAL_STATUS;
+  request_to_redraw(REDRAW_CAL_STATUS);
   return;
 
  usage:
@@ -1870,7 +1868,7 @@ void set_trace_type(int t, int type)
   }
   if (force) {
     plot_into_index(measured);
-    request_to_redraw_grid();
+    request_to_redraw(REDRAW_AREA);
   }
 }
 
@@ -1905,7 +1903,7 @@ void set_electrical_delay(float picoseconds)
 {
   if (electrical_delay != picoseconds) {
     electrical_delay = picoseconds;
-    request_to_redraw_grid();
+    request_to_redraw(REDRAW_AREA);
   }
 }
 
@@ -1996,7 +1994,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
     }
     return;
   }
-  redraw_request |= REDRAW_MARKER;
+  request_to_redraw(REDRAW_MARKER);
   // Marker on|off command
   int enable = get_str_index(argv[0], cmd_marker_list);
   if (enable >= 0) { // string found: 0 - on, 1 - off
@@ -2080,7 +2078,7 @@ set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 {
   if (mode != (domain_mode & DOMAIN_MODE)) {
     domain_mode = (domain_mode & ~DOMAIN_MODE) | (mode & DOMAIN_MODE);
-    redraw_request |= REDRAW_FREQUENCY | REDRAW_MARKER;
+    request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
     uistat.lever_mode = LM_MARKER;
   }
 }
@@ -2381,7 +2379,7 @@ VNA_SHELL_FUNCTION(cmd_color)
   color = RGBHEX(my_atoui(argv[1]));
   config.lcd_palette[i] = color;
   // Redraw all
-  redraw_request|= REDRAW_AREA|REDRAW_CAL_STATUS|REDRAW_FREQUENCY;
+  request_to_redraw(REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY);
 }
 #endif
 
@@ -3035,7 +3033,6 @@ int main(void)
   ui_init();
   //Initialize graph plotting
   plot_init();
-  redraw_frame();
 
 /*
  * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.

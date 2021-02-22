@@ -662,20 +662,12 @@ float groupdelay_from_array(int i, float array[POINTS_COUNT][2]);
 
 void plot_init(void);
 void update_grid(void);
-void request_to_redraw_grid(void);
-void redraw_frame(void);
-//void redraw_all(void);
+void request_to_redraw(uint8_t mask);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
 void redraw_marker(int8_t marker);
 void plot_into_index(float array[2][POINTS_COUNT][2]);
-void force_set_markmap(void);
-void draw_frequencies(void);
 void draw_all(bool flush);
-
-void draw_cal_status(void);
-
-//void markmap_all_markers(void);
 
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
@@ -694,7 +686,7 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_MARKER     (1<<3)
 #define REDRAW_BATTERY    (1<<4)
 #define REDRAW_AREA       (1<<5)
-extern  uint8_t redraw_request;
+#define REDRAW_CLRSCR     (1<<6)
 
 /*
  * ili9341.c
