@@ -28,9 +28,13 @@
 
 static void cell_draw_marker_info(int x0, int y0);
 static void draw_battery_status(void);
+static void draw_cal_status(void);
+static void draw_frequencies(void);
 
 static int16_t grid_offset;
 static int16_t grid_width;
+
+static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 int16_t area_width  = AREA_WIDTH_NORMAL;
 int16_t area_height = AREA_HEIGHT_NORMAL;
@@ -98,8 +102,6 @@ void update_grid(void)
 
   grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
   grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
-
-  redraw_request |= REDRAW_FREQUENCY|REDRAW_AREA;
 }
 
 static inline int
@@ -754,7 +756,7 @@ clear_markmap(void)
   memset(markmap[current_mappage], 0, sizeof markmap[current_mappage]);
 }
 
-void
+static void
 force_set_markmap(void)
 {
   memset(markmap[current_mappage], 0xff, sizeof markmap[current_mappage]);
@@ -1445,6 +1447,10 @@ draw_all_cells(bool flush_markmap)
 void
 draw_all(bool flush)
 {
+  if (redraw_request & REDRAW_CLRSCR){
+    ili9341_set_background(LCD_BG_COLOR);
+    ili9341_clear_screen();
+  }
   if (redraw_request & REDRAW_AREA)
     force_set_markmap();
   if (redraw_request & REDRAW_MARKER)
@@ -1476,23 +1482,7 @@ redraw_marker(int8_t marker)
 
   draw_all_cells(TRUE);
   // Force redraw all area after (disable artifacts after fast marker update area)
-  redraw_request|=REDRAW_AREA;
-}
-
-void
-request_to_draw_cells_behind_menu(void)
-{
-  // Values Hardcoded from ui.c
-  invalidate_rect(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
-  redraw_request |= REDRAW_CELLS;
-}
-
-void
-request_to_draw_cells_behind_numeric_input(void)
-{
-  // Values Hardcoded from ui.c
-  invalidate_rect(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, LCD_HEIGHT-1);
-  redraw_request |= REDRAW_CELLS;
+  redraw_request |= REDRAW_AREA;
 }
 
 // Marker and trace data position
@@ -1527,7 +1517,7 @@ cell_draw_marker_info(int x0, int y0)
       xpos += 6;
       plot_printf(buf, sizeof buf, "M%d", mk+1);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 19;
+      xpos += 3*FONT_WIDTH - 2;
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
       uint32_t freq = frequencies[mk_index];
@@ -1579,7 +1569,7 @@ cell_draw_marker_info(int x0, int y0)
       int previous_marker_idx = markers[previous_marker].index;
       plot_printf(buf, sizeof buf, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       cell_drawstring(buf, xpos, ypos);
-      xpos += 27;
+      xpos += 5*FONT_WIDTH + 2;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         uint32_t freq  = frequencies[active_marker_idx];
         uint32_t freq1 = frequencies[previous_marker_idx];
@@ -1622,7 +1612,7 @@ cell_draw_marker_info(int x0, int y0)
   }
 }
 
-void
+static void
 draw_frequencies(void)
 {
   char buf1[32];
@@ -1655,7 +1645,10 @@ draw_frequencies(void)
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }
 
-void
+/*
+ * Draw/update calibration status panel
+ */
+static void
 draw_cal_status(void)
 {
   uint32_t i;
@@ -1663,7 +1656,7 @@ draw_cal_status(void)
   int y = CALIBRATION_INFO_POSY;
   ili9341_set_background(LCD_BG_COLOR);
   ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_fill(0, y, OFFSETX, 7*(FONT_STR_HEIGHT));
+  ili9341_fill(x, y, OFFSETX - x, 7*(FONT_STR_HEIGHT));
   // Set 'C' string for slot status
   char c[4] = {'C', 0, 0, 0};
   if (cal_status & CALSTAT_APPLY) {
@@ -1693,11 +1686,12 @@ draw_cal_status(void)
   ili9341_drawstring(c, x, y);
 }
 
-// Draw battery level
+/*
+ * Draw battery level
+ */
 #define BATTERY_TOP_LEVEL       4100
 #define BATTERY_BOTTOM_LEVEL    3200
 #define BATTERY_WARNING_LEVEL   3300
-
 static void draw_battery_status(void)
 {
   int16_t vbat = adc_vbat_read();
@@ -1730,24 +1724,39 @@ static void draw_battery_status(void)
   ili9341_blitBitmap(BATTERY_ICON_POSX, BATTERY_ICON_POSY, 8, x, string_buf);
 }
 
+/*
+ * Update cells behind menu
+ */
 void
-request_to_redraw_grid(void)
+request_to_draw_cells_behind_menu(void)
 {
-  redraw_request |= REDRAW_AREA;
+  // Values Hardcoded from ui.c
+  invalidate_rect(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
+  redraw_request |= REDRAW_CELLS;
 }
 
+/*
+ * Update cells behind numeric input
+ */
 void
-redraw_frame(void)
+request_to_draw_cells_behind_numeric_input(void)
 {
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_clear_screen();
-  draw_frequencies();
-  draw_cal_status();
-  request_to_redraw_grid();
+  // Values Hardcoded from ui.c
+  invalidate_rect(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, LCD_HEIGHT-1);
+  redraw_request |= REDRAW_CELLS;
+}
+
+/*
+ * Set update mask for next screen update
+ */
+void
+request_to_redraw(uint8_t mask)
+{
+  redraw_request|= mask;
 }
 
 void
 plot_init(void)
 {
-  force_set_markmap();
+  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 }
