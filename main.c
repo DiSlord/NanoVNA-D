@@ -195,8 +195,8 @@ static THD_FUNCTION(Thread1, arg)
 
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
-      request_to_redraw(REDRAW_CELLS | REDRAW_BATTERY);
     }
+    request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
     draw_all(completed);  // flush markmap only if scan completed to prevent remaining traces
@@ -779,9 +779,10 @@ config_t config = {
   .dac_value   = 1922,
   .lcd_palette = LCD_DEFAULT_PALETTE,
   .touch_cal   = DEFAULT_TOUCH_CONFIG,
-  ._mode       = VNA_MODE_START_STOP,
+  ._mode       = VNA_MODE_START_STOP | VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
   .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
+  ._serial_config = 0,
   .vbat_offset = 320,
   ._brightness = DEFAULT_BRIGHTNESS,
   .bandwidth = BANDWIDTH_1000
@@ -1124,7 +1125,7 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
 
 void set_marker_index(int m, int idx)
 {
-  if (m == MARKER_INVALID || idx < 0 || idx >= sweep_points) return;
+  if (m == MARKER_INVALID || (uint32_t)idx >= sweep_points) return;
   markers[m].index = idx;
   markers[m].frequency = frequencies[idx];
 }
@@ -1193,6 +1194,7 @@ update_frequencies(bool interpolate)
   update_grid();
   if (interpolate)
     cal_interpolate();
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
   RESET_SWEEP;
 }
 
@@ -1255,11 +1257,7 @@ uint32_t
 get_sweep_frequency(int type)
 {
   // Obsolete, ensure correct start/stop, start always must be < stop
-  if (frequency0 > frequency1) {
-    uint32_t t = frequency0;
-    frequency0 = frequency1;
-    frequency1 = t;
-  }
+  if (frequency0 > frequency1) SWAP(uint32_t, frequency0, frequency1);
   switch (type) {
     case ST_START:  return frequency0;
     case ST_STOP:   return frequency1;
@@ -1816,6 +1814,9 @@ VNA_SHELL_FUNCTION(cmd_recall)
   shell_printf("recall {id}\r\n");
 }
 
+#if MAX_TRACE_TYPE != 14
+#error "Trace type enum possibly changed, check trace_info"
+#endif
 static const struct {
   const char *name;
   uint16_t refpos;
@@ -1832,6 +1833,7 @@ static const struct {
   { "IMAG",   NGRIDY/2,  0.25 },
   { "R",      NGRIDY/2, 100.0 },
   { "X",      NGRIDY/2, 100.0 },
+  { "|Z|",           0,  50.0 },
   { "Q",             0,  10.0 }
 };
 
@@ -1866,10 +1868,9 @@ void set_trace_type(int t, int type)
     trace[t].scale  = trace_info[type].scale_unit;
     force = TRUE;
   }
-  if (force) {
+  if (force)
     plot_into_index(measured);
-    request_to_redraw(REDRAW_AREA);
-  }
+  request_to_redraw(REDRAW_AREA);
 }
 
 void set_trace_channel(int t, int channel)
@@ -1877,7 +1878,6 @@ void set_trace_channel(int t, int channel)
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
     plot_into_index(measured);
-//    request_to_redraw_grid();
   }
 }
 
@@ -1886,7 +1886,6 @@ void set_trace_scale(int t, float scale)
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
     plot_into_index(measured);
-//    request_to_redraw_grid();
   }
 }
 
@@ -1895,7 +1894,6 @@ void set_trace_refpos(int t, float refpos)
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
     plot_into_index(measured);
-//    request_to_redraw_grid();
   }
 }
 
@@ -1939,11 +1937,11 @@ VNA_SHELL_FUNCTION(cmd_trace)
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
-#if MAX_TRACE_TYPE != 13
+#if MAX_TRACE_TYPE != 14
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
   // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|q|off";
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|q|off";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     if (argc > 2) {
@@ -2083,16 +2081,16 @@ set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
   }
 }
 
-static void
-set_timedomain_func(int func) // accept TD_FUNC_LOWPASS_IMPULSE, TD_FUNC_LOWPASS_STEP or TD_FUNC_BANDPASS
+static inline void
+set_timedomain_func(uint32_t func) // accept TD_FUNC_LOWPASS_IMPULSE, TD_FUNC_LOWPASS_STEP or TD_FUNC_BANDPASS
 {
-  domain_mode = (domain_mode & ~TD_FUNC) | (func & TD_FUNC);
+  domain_mode = (domain_mode & ~TD_FUNC) | func;
 }
 
-static void
-set_timedomain_window(int func) // accept TD_WINDOW_MINIMUM/TD_WINDOW_NORMAL/TD_WINDOW_MAXIMUM
+static inline void
+set_timedomain_window(uint32_t func) // accept TD_WINDOW_MINIMUM/TD_WINDOW_NORMAL/TD_WINDOW_MAXIMUM
 {
-  domain_mode = (domain_mode & ~TD_WINDOW) | (func & TD_WINDOW);
+  domain_mode = (domain_mode & ~TD_WINDOW) | func;
 }
 
 VNA_SHELL_FUNCTION(cmd_transform)

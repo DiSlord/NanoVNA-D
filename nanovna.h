@@ -551,9 +551,9 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     24
 
 // trace 
-#define MAX_TRACE_TYPE 13
+#define MAX_TRACE_TYPE 14
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_Q, TRC_OFF
 };
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Q))
@@ -651,6 +651,7 @@ void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
 const char *get_trace_typename(int t);
+const char *get_trace_chname(int t);
 
 //
 // Shell config functions and macros for Serial connect, not used if Serial mode disabled
