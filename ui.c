@@ -122,6 +122,8 @@ static int8_t  selection = 0;
 #define BUTTON_ICON_CHECK            1
 #define BUTTON_ICON_GROUP            2
 #define BUTTON_ICON_GROUP_CHECKED    3
+#define BUTTON_ICON_CHECK_AUTO       4
+#define BUTTON_ICON_CHECK_MANUAL     5
 
 #define BUTTON_BORDER_NONE           0x00
 #define BUTTON_BORDER_WIDTH_MASK     0x0F
@@ -641,6 +643,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       show_version();
       break;
   }
+  ui_mode_normal();
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 }
 
@@ -820,7 +823,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 static uint32_t
 get_marker_frequency(int marker)
 {
-  if (marker < 0 || marker >= MARKERS_MAX)
+  if ((uint32_t)marker >= MARKERS_MAX)
     return 0;
   if (!markers[marker].enabled)
     return 0;
@@ -912,7 +915,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
     return;
   }
   marker_smith_format = data;
-  redraw_marker(active_marker);
+  request_to_redraw(REDRAW_MARKER);
 }
 
 #ifdef __USE_LC_MATCHING__
@@ -945,14 +948,15 @@ active_marker_check(void)
 }
 
 #define UI_MARKER_OFF   (MARKERS_MAX  )
-#define UI_MARKER_DELTA (MARKERS_MAX+1)
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
 {
   int i;
   if (b){
-    if (data < MARKERS_MAX && markers[data].enabled) b->icon = BUTTON_ICON_CHECK;
-    else if (data == UI_MARKER_DELTA) b->icon = uistat.marker_delta ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    b->p1.u = data + 1;
+    if (data < MARKERS_MAX){
+           if (data == active_marker) b->icon = BUTTON_ICON_CHECK_AUTO;
+      else if (markers[data].enabled) b->icon = BUTTON_ICON_CHECK;
+      b->p1.u = data + 1;
+    }
     return;
   }
   // Marker select click
@@ -975,10 +979,19 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
         markers[i].enabled = FALSE;
       previous_marker = MARKER_INVALID;
       active_marker = MARKER_INVALID;
-  } else if (data == UI_MARKER_DELTA) { // marker delta
-    uistat.marker_delta = !uistat.marker_delta;
   }
-  redraw_marker(active_marker);
+  request_to_redraw(REDRAW_MARKER);
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = uistat.marker_delta ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  uistat.marker_delta = !uistat.marker_delta;
+  request_to_redraw(REDRAW_MARKER);
 }
 
 #ifdef __USE_SERIAL_CONSOLE__
@@ -1033,7 +1046,7 @@ static UI_FUNCTION_CALLBACK(menu_brightness_cb)
   }
   config._brightness = (uint8_t)value;
   lcd_setBrightness(value);
-  request_to_redraw_grid();
+  request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
 #endif
@@ -1222,6 +1235,7 @@ const menuitem_t menu_format[] = {
   { MT_ADV_CALLBACK, TRC_DELAY, "DELAY", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SMITH, "SMITH", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SWR, "SWR", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Z,   "|Z|", menu_format_acb },
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_format2 },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1336,7 +1350,7 @@ const menuitem_t menu_marker_sel[] = {
   { MT_ADV_CALLBACK, 2, "MARKER %d", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, 3, "MARKER %d", menu_marker_sel_acb },
   { MT_ADV_CALLBACK, UI_MARKER_OFF,  "ALL OFF", menu_marker_sel_acb },
-  { MT_ADV_CALLBACK, UI_MARKER_DELTA,"DELTA",   menu_marker_sel_acb },
+  { MT_ADV_CALLBACK, 0,     "DELTA", menu_marker_delta_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1544,7 +1558,7 @@ menu_invoke(int item)
     draw_menu();
 }
 
-// Key names
+// Key names (use numfont16x22.c glyph)
 #define KP_0          0
 #define KP_1          1
 #define KP_2          2
@@ -1644,6 +1658,7 @@ static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
   uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
+  ili9341_set_foreground(b->fg);
   ili9341_set_background(b->bg);ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
   if (bw==0) return;
   uint16_t br = LCD_RISE_EDGE_COLOR;
@@ -1653,6 +1668,8 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
   ili9341_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);ili9341_fill(x + w - bw, y,          bw,  h); // right
   ili9341_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);ili9341_fill(x,          y,          bw,  h); // left
   ili9341_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);ili9341_fill(x,          y + h - bw,  w, bw); // bottom
+  // Set colors for button text after
+  ili9341_set_background(b->bg);
 }
 
 static void drawMessageBox(char *header, char *text, uint32_t delay){
@@ -1660,13 +1677,12 @@ static void drawMessageBox(char *header, char *text, uint32_t delay){
   b.bg = LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
   b.border = BUTTON_BORDER_FLAT|1;
+  // Draw header
   draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+  ili9341_drawstring(header, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10, LCD_HEIGHT/2-40 + 5);
+  // Draw window
   ili9341_set_background(LCD_FG_COLOR);
   ili9341_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-  ili9341_set_foreground(b.fg);
-  ili9341_set_background(b.bg);
-  ili9341_drawstring(header, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10, LCD_HEIGHT/2-40 + 5);
-  ili9341_set_background(LCD_FG_COLOR);
   ili9341_drawstring(text, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20, LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14);
   chThdSleepMilliseconds(delay);
 }
@@ -1678,18 +1694,17 @@ draw_keypad(void)
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
   do {
-    button.bg = LCD_MENU_COLOR;
     if (i == selection){
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
     }
-    else
+    else{
+      button.bg = LCD_MENU_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
+    }
     int x = KP_GET_X(keypads[i].x);
     int y = KP_GET_Y(keypads[i].y);
     draw_button(x, y, KP_WIDTH, KP_HEIGHT, &button);
-    ili9341_set_foreground(button.fg);
-    ili9341_set_background(button.bg);
     ili9341_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
@@ -1740,7 +1755,7 @@ draw_numeric_input(const char *buf)
     if (c >= 0) // c is number
       ili9341_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
     else        // erase
-      ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_WIDTH+2+8);
+      break;
 
     x += xsim&0x8000 ? NUM_FONT_GET_WIDTH+2+8 : NUM_FONT_GET_WIDTH+2;
   }
@@ -1759,9 +1774,13 @@ menu_is_multiline(const char *label)
   return n;
 }
 
+/*
+ * Button icons bitmaps
+ */
 #define ICON_WIDTH        16
 #define ICON_HEIGHT       11
-static const uint8_t check_box[] = {
+#define ICON_GET_DATA(i) (&button_icons[2*ICON_HEIGHT*(i)])
+static const uint8_t button_icons[] = {
   _BMP16(0b0011111111110000),
   _BMP16(0b0010000000010000),
   _BMP16(0b0010000000010000),
@@ -1809,13 +1828,37 @@ static const uint8_t check_box[] = {
   _BMP16(0b0001001100100000),
   _BMP16(0b0000100001000000),
   _BMP16(0b0000011110000000),
+
+  _BMP16(0b0011111111111000),
+  _BMP16(0b0010000000001000),
+  _BMP16(0b0010001111101000),
+  _BMP16(0b0010011001101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010111111101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010000000001000),
+  _BMP16(0b0011111111111000),
+
+  _BMP16(0b0011111111111000),
+  _BMP16(0b0010000000001000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010111011101000),
+  _BMP16(0b0010111111101000),
+  _BMP16(0b0010110101101000),
+  _BMP16(0b0010110101101000),
+  _BMP16(0b0010110001101000),
+  _BMP16(0b0010000000001000),
+  _BMP16(0b0011111111111000),
 };
 
 static void
 draw_menu_buttons(const menuitem_t *menu)
 {
-  int i = 0, y = 1;
-  for (i = 0; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
+  int i, y;
+  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
@@ -1833,25 +1876,25 @@ draw_menu_buttons(const menuitem_t *menu)
       button.bg = LCD_MENU_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
+    // Custom button, apply custom settings from callback
     if (menu[i].type == MT_ADV_CALLBACK){
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(menu[i].data, &button);
     }
+    // Apply custom text, from button label and
     char button_text[32];
-    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p1.u);
+    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p2.u);
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
-
-    ili9341_set_foreground(button.fg);
-    ili9341_set_background(button.bg);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
     if (button.icon >=0){
-      ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, &check_box[button.icon*2*ICON_HEIGHT]);
+      ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
     int lines = menu_is_multiline(button_text);
     ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
+  // Erase empty buttons
   ili9341_set_background(LCD_BG_COLOR);
   for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT);
@@ -1872,14 +1915,12 @@ static void
 menu_apply_touch(int touch_x, int touch_y)
 {
   const menuitem_t *menu = menu_stack[menu_current_level];
-  int i;
-
-  for (i = 0; i < MENU_BUTTON_MAX; i++) {
+  int i, y;
+  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
       continue;
-    int y = MENU_BUTTON_HEIGHT*i;
     if (y < touch_y && touch_y < y+MENU_BUTTON_HEIGHT && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
       menu_select_touch(i);
       return;
