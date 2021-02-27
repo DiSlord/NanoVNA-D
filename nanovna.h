@@ -314,8 +314,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  */
 // LCD display size settings
 
-extern int16_t area_width;
-extern int16_t area_height;
+extern uint16_t area_width;
+extern uint16_t area_height;
 
 #ifdef LCD_320x240 // 320x240 display plot definitions
 #define LCD_WIDTH                   320

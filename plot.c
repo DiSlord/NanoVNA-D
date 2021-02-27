@@ -36,8 +36,8 @@ static int16_t grid_width;
 
 static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
-int16_t area_width  = AREA_WIDTH_NORMAL;
-int16_t area_height = AREA_HEIGHT_NORMAL;
+uint16_t area_width  = AREA_WIDTH_NORMAL;
+uint16_t area_height = AREA_HEIGHT_NORMAL;
 
 // Counter for sweep
 static uint16_t sweep_count = 0;
