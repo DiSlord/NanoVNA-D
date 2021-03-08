@@ -240,7 +240,7 @@ static int btn_wait_release(void)
     uint16_t changed = last_button ^ cur_button;
     if (dt >= BUTTON_DOWN_LONG_TICKS && (cur_button & (1<<BIT_PUSH)))
       return EVT_BUTTON_DOWN_LONG;
-    else if (changed & (1<<BIT_PUSH)) // release
+    if (changed & (1<<BIT_PUSH)) // release
       return EVT_BUTTON_SINGLE_CLICK;
 
     if (changed) {
@@ -2550,7 +2550,7 @@ touch_pickup_marker(int touch_x, int touch_y)
 {
   touch_x -= OFFSETX;
   touch_y -= OFFSETY;
-  int8_t i = MARKER_INVALID, mt, m, t;
+  int i = MARKER_INVALID, mt, m, t;
   int min_dist = MARKER_PICKUP_DISTANCE * MARKER_PICKUP_DISTANCE;
   // Search closest marker to touch position
   for (t = 0; t < TRACES_MAX; t++) {
