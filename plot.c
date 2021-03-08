@@ -36,18 +36,14 @@ static int16_t grid_width;
 
 static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
-int16_t area_width  = AREA_WIDTH_NORMAL;
-int16_t area_height = AREA_HEIGHT_NORMAL;
+uint16_t area_width  = AREA_WIDTH_NORMAL;
+uint16_t area_height = AREA_HEIGHT_NORMAL;
 
 // Counter for sweep
 static uint16_t sweep_count = 0;
 
 // Cell render use spi buffer
 static pixel_t *cell_buffer;
-// Check buffer size
-#if CELLWIDTH*CELLHEIGHT > SPI_BUFFER_SIZE
-#error "Too small spi_buffer size SPI_BUFFER_SIZE < CELLWIDTH*CELLHEIGH"
-#endif
 
 // indicate dirty cells (not redraw if cell data not changed)
 #define MAX_MARKMAP_X    ((LCD_WIDTH+CELLWIDTH-1)/CELLWIDTH)
@@ -481,7 +477,7 @@ mod_z(const float *v)
 {
   const float z0 = 50;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
-  return z0 * sqrt(4 * v[0] / d + 1);
+  return z0 * sqrtf(4 * v[0] / d + 1);
 }
 
 static float
@@ -903,12 +899,12 @@ cell_drawstring(char *str, int x, int y)
   #include "lc_matching.c"
 #endif
 
+
+// Reference bitmap (size and offset)
 #define REFERENCE_WIDTH    6
 #define REFERENCE_HEIGHT   5
 #define REFERENCE_X_OFFSET 5
 #define REFERENCE_Y_OFFSET 2
-
-// Reference bitmap
 static const uint8_t reference_bitmap[]={
   _BMP8(0b11000000),
   _BMP8(0b11110000),
@@ -917,6 +913,7 @@ static const uint8_t reference_bitmap[]={
   _BMP8(0b11000000),
 };
 
+// Marker bitmaps (size and offsets)
 #if _USE_BIG_MARKER_ == 0
 #define MARKER_WIDTH       7
 #define MARKER_HEIGHT     10

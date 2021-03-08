@@ -20,7 +20,6 @@
  */
 #include "ch.h"
 
-// Need enable HAL_USE_SPI in halconf.h
 // Define LCD display driver and size
 #define LCD_DRIVER_ILI9341
 #define LCD_320x240
@@ -28,6 +27,7 @@
 //#define LCD_DRIVER_ST7796S
 //#define LCD_480x320
 
+// Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
 //#define __LCD_BRIGHTNESS__
@@ -314,8 +314,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  */
 // LCD display size settings
 
-extern int16_t area_width;
-extern int16_t area_height;
+extern uint16_t area_width;
+extern uint16_t area_height;
 
 #ifdef LCD_320x240 // 320x240 display plot definitions
 #define LCD_WIDTH                   320
@@ -643,7 +643,6 @@ typedef struct properties {
 //on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
 
 extern config_t config;
-extern properties_t *active_props;
 extern properties_t current_props;
 
 void set_trace_type(int t, int type);
@@ -676,7 +675,6 @@ int search_nearest_index(int x, int y, int t);
 // Marker search functions
 #define MK_SEARCH_LEFT    -1
 #define MK_SEARCH_RIGHT    1
-void set_marker_search(int16_t mode);
 void marker_search(bool update);
 void marker_search_dir(int16_t from, int16_t dir);
 
@@ -694,7 +692,7 @@ void marker_search_dir(int16_t from, int16_t dir);
  */
 // Set display buffers count for cell render (if use 2 and DMA, possible send data and prepare new in some time)
 #ifdef __USE_DISPLAY_DMA__
-// Cell size = sizeof(spi_buffer), but need wait while cell cata send to LCD
+// Cell size = sizeof(spi_buffer), but need wait while cell data send to LCD
 //#define DISPLAY_CELL_BUFFER_COUNT     1
 // Cell size = sizeof(spi_buffer)/2, while one cell send to LCD by DMA, CPU render to next cell
 #define DISPLAY_CELL_BUFFER_COUNT     2
@@ -741,8 +739,8 @@ typedef uint16_t pixel_t;
 // Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
 #define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
 #define CELLHEIGHT (32)
-// Define size of screen buffer in pixel_t
-#define SPI_BUFFER_SIZE             2048
+// Define size of screen buffer in pixel_t (need for cell w * h * count)
+#define SPI_BUFFER_SIZE             (CELLWIDTH * CELLHEIGHT * DISPLAY_CELL_BUFFER_COUNT)
 #endif
 
 #ifndef SPI_BUFFER_SIZE
@@ -807,12 +805,18 @@ extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 #define _BMP32(d)  (((d)>>24)&0xFF), (((d)>>16)&0xFF), (((d)>>8)&0xFF), ((d)&0xFF)
 
 void ili9341_init(void);
-void ili9341_test(int mode);
 void ili9341_bulk(int x, int y, int w, int h);
-void ili9341_bulk_continue(int x, int y, int w, int h);
-void ili9341_bulk_finish(void);
 void ili9341_fill(int x, int y, int w, int h);
-pixel_t *ili9341_get_cell_buffer(void);
+
+#if DISPLAY_CELL_BUFFER_COUNT == 1
+#define ili9341_get_cell_buffer()             spi_buffer
+#define ili9341_bulk_continue                 ili9341_bulk
+#define ili9341_bulk_finish()                 {}
+#else
+pixel_t *ili9341_get_cell_buffer(void);                     // get buffer for cell render
+void ili9341_bulk_continue(int x, int y, int w, int h);     // send data to display, in DMA mode use it, no wait DMA complete
+void ili9341_bulk_finish(void);                             // wait DMA complete (need call at end)
+#endif
 
 void ili9341_set_foreground(uint16_t fg_idx);
 void ili9341_set_background(uint16_t bg_idx);
