@@ -48,11 +48,11 @@ static const uint32_t pow10[FLOAT_PRECISION+1] = {
     1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000
 };
 // Prefixes for values bigger then 1000.0
-//                            1  1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24
-static char bigPrefix[] = {' ', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y', 0};
+//                                 1  1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24
+static const char bigPrefix[] = {' ', 'k', 'M', 'G',  'T',  'P',  'E',  'Z',  'Y', 0};
 // Prefixes for values less   then 1.0
-//                          1e-3, 1e-6, 1e-9, 1e-12, 1e-15, 1e-18, 1e-21, 1e-24
-static char smallPrefix[] = {'m', 0x1d, 'n', 'p', 'f', 'a', 'z', 'y', 0};
+//                                 1e-3, 1e-6, 1e-9, 1e-12, 1e-15, 1e-18, 1e-21, 1e-24
+static const char smallPrefix[] = { 'm', 0x1d,  'n',   'p',   'f',   'a',   'z',   'y', 0};
 
 #pragma pack(pop)
 
@@ -184,7 +184,7 @@ static char *ftoa(char *p, float num, uint32_t precision) {
 
 static char *ftoaS(char *p, float num, uint32_t precision) {
   char prefix=0;
-  char *ptr;
+  const char *ptr;
   if (num > 1000.0){
     for (ptr = bigPrefix+1; *ptr && num > 1000.0; num/=1000, ptr++)
       ;
