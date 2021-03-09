@@ -67,7 +67,10 @@ typedef struct {
 } index_t;
 static index_t trace_index[TRACES_MAX][POINTS_COUNT];
 
-//#define float2int(v) ((int)(v))
+#if 1
+// All used in plot v > 0
+#define float2int(v) ((int)((v)+0.5))
+#else
 static int 
 float2int(float v) 
 {
@@ -75,6 +78,7 @@ float2int(float v)
   if (v > 0) return v + 0.5;
   return 0;
 }
+#endif
 
 static inline int
 circle_inout(int x, int y, int r)
@@ -407,7 +411,8 @@ draw_on_strut(int v0, int d, int color)
 static float
 logmag(const float *v)
 {
-  return log10f(v[0]*v[0] + v[1]*v[1]) * 10;
+//  return log10f(v[0]*v[0] + v[1]*v[1]) *  10.0;
+  return     logf(v[0]*v[0] + v[1]*v[1]) * (10.0 / logf(10.0));
 }
 
 /*
@@ -423,7 +428,7 @@ phase(const float *v)
  * calculate groupdelay
  */
 static float
-groupdelay(const float *v, const float *w, float deltaf)
+groupdelay(const float *v, const float *w, uint32_t deltaf)
 {
 #if 1
   // atan(w)-atan(v) = atan((w-v)/(1+wv))
@@ -451,9 +456,18 @@ static float
 swr(const float *v)
 {
   float x = linear(v);
-  if (x >= 1)
+  if (x > 0.99)
     return INFINITY;
   return (1 + x)/(1 - x);
+}
+
+static float
+graph_swr(const float *v)
+{
+  float x = linear(v);
+  if (x > 0.99)
+    return INFINITY;
+  return 2*x/(1 - x); // swr - 1
 }
 
 static float
@@ -500,27 +514,26 @@ imag(const float *v)
   return v[1];
 }
 
-static void
-cartesian_scale(const float *v, int *xp, int *yp, float scale)
-{
-  //float scale = 4e-3;
-  int x = float2int(v[0] * P_RADIUS * scale);
-  int y = float2int(v[1] * P_RADIUS * scale);
-  if      (x < -P_RADIUS) x = -P_RADIUS;
-  else if (x >  P_RADIUS) x =  P_RADIUS;
-  if      (y < -P_RADIUS) y = -P_RADIUS;
-  else if (y >  P_RADIUS) y =  P_RADIUS;
-  *xp = P_CENTER_X + x;
-  *yp = P_CENTER_Y - y;
-}
-
 float
 groupdelay_from_array(int i, float array[POINTS_COUNT][2])
 {
   int bottom = (i ==   0) ?   0 : i - 1;
   int top    = (i == sweep_points-1) ? sweep_points-1 : i + 1;
-  float deltaf = frequencies[top] - frequencies[bottom];
+  uint32_t deltaf = frequencies[top] - frequencies[bottom];
   return groupdelay(array[bottom], array[top], deltaf);
+}
+
+static inline void
+cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
+{
+  int16_t x = float2int(v[0] * scale) + P_CENTER_X;
+  int16_t y = float2int(v[1] * scale) + P_CENTER_Y;
+  if      (x <      0) x = 0;
+  else if (x >  WIDTH) x = WIDTH;
+  if      (y <      0) y = 0;
+  else if (y > HEIGHT) y = HEIGHT;
+  *xp = x;
+  *yp = y;
 }
 
 #if MAX_TRACE_TYPE != 14
@@ -553,45 +566,41 @@ static const struct {
 static void
 trace_into_index(int t, float array[POINTS_COUNT][2])
 {
-  const float refpos = NGRIDY - get_trace_refpos(t);
-  const float scale = 1 / get_trace_scale(t);
-  const uint32_t point_count = sweep_points-1;
+  const float refpos = HEIGHT - get_trace_refpos(t)*GRIDY + 0.5; // 0.5 for pixel align
+  const float scale = get_trace_scale(t);
+  uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
-  for (uint32_t i = 0; i <= point_count; i++){
-    int y, x;
-    float v = 0.0f;
-    float *coeff = array[i];
-    /*
-     * Calculate value
-     */
-    int type = trace[t].type;
-    get_value_cb_t c = format_list[type].get_value_cb;
-    if (c){                                            // Run standard get value function from table
-      v = c(coeff);                                    // Get value
-      if (type == TRC_SWR) v-=1.0;                     // SWR need correction
+  uint16_t type    = 1<<trace[t].type;
+  get_value_cb_t c = format_list[trace[t].type].get_value_cb; // Get callback for value calculation
+  if (type & (1<<TRC_SWR)) c = graph_swr;                     // For SWR graph start from 1.0, need redefine
+  if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
+    const float dscale = GRIDY / scale;
+    uint16_t delta = WIDTH / point_count;
+    uint16_t error = WIDTH % point_count;
+    int16_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
+    for (i = 0; i <= point_count; i++, x+=delta) {
+      float v;
+      if (c)  v = c(array[i]);                     // Get value
+      else    v = groupdelay_from_array(i, array); // only TRC_DELAY !! custom on RECTANGULAR_GRID_MASK
+      y = refpos - v * dscale;
+           if (y <      0) y = 0;
+      else if (y > HEIGHT) y = HEIGHT;
+      index[i].x = x;
+      index[i].y = y;
+      dx+=error; if (dx >=point_count) {x++; dx-= point_count;}
     }
-    else { // Need custom calculations
-      switch (type) {
-      case TRC_DELAY:
-      v = groupdelay_from_array(i, array);
-      break;
-      case TRC_SMITH:
-      //case TRC_ADMIT:
-      case TRC_POLAR:
-      cartesian_scale(coeff, &x, &y, scale);
-      goto set_index;
-//    default:
-//    continue;
-      }
+    return;
+  }
+  // Smith/Polar grid
+  if (type & ((1<<TRC_SMITH)|(1<<TRC_POLAR) /*|(1<<TRC_ADMIT)*/)){ // Need custom calculations
+    const float rscale = P_RADIUS / scale;
+    int16_t y, x, i;
+    for (i = 0; i <= point_count; i++){
+      cartesian_scale(array[i], &x, &y, rscale);
+      index[i].x = x;
+      index[i].y = y;
     }
-    v = refpos - v * scale;
-    if (v <  0) v = 0;
-    if (v > NGRIDY) v = NGRIDY;
-    x = (i * (WIDTH) + (point_count>>1)) / point_count + CELLOFFSETX;
-    y = float2int(v * GRIDY);
-set_index:
-    index[i].x = x;
-    index[i].y = y;
+    return;
   }
 }
 
@@ -1175,11 +1184,13 @@ void
 plot_into_index(float array[2][POINTS_COUNT][2])
 {
   int t;
+//  START_PROFILE;
   // Cache trace data indexes
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled)
       trace_into_index(t, array[trace[t].channel]);
   }
+//  STOP_PROFILE;
   // Marker track on data update
   if (uistat.marker_tracking)
     marker_search(false);
