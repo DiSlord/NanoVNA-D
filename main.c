@@ -372,6 +372,38 @@ int serial_shell_printf(const char *fmt, ...)
 }
 #endif
 
+//
+// Function used for search substring v in list
+// Example need search parameter "center" in "start|stop|center|span|cw" getStringIndex return 2
+// If not found return -1
+// Used for easy parse command arguments
+static int get_str_index(const char *v, const char *list)
+{
+  int i = 0;
+  while (1) {
+    const char *p = v;
+    while (1) {
+      char c = *list;
+      if (c == '|') c = 0;
+      if (c == *p++) {
+        // Found, return index
+        if (c == 0) return i;
+        list++;    // Compare next symbol
+        continue;
+      }
+      break;  // Not equal, break
+    }
+    // Set new substring ptr
+    while (1) {
+      // End of string, not found
+      if (*list == 0) return -1;
+      if (*list++ == '|') break;
+    }
+    i++;
+  }
+  return -1;
+}
+
 VNA_SHELL_FUNCTION(cmd_pause)
 {
   (void)argc;
@@ -395,7 +427,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
   (void)argv;
 
   if (argc == 1) {
-    if (strcmp(argv[0], "dfu") == 0) {
+    if (get_str_index(argv[0], "dfu") == 0) {
       shell_printf("Performing reset to DFU mode\r\n");
       enter_dfu();
       return;
@@ -493,38 +525,6 @@ my_atof(const char *p)
   if (neg)
     x = -x;
   return x;
-}
-
-//
-// Function used for search substring v in list
-// Example need search parameter "center" in "start|stop|center|span|cw" getStringIndex return 2
-// If not found return -1
-// Used for easy parse command arguments
-static int get_str_index(char *v, const char *list)
-{
-  int i = 0;
-  while (1) {
-    char *p = v;
-    while (1) {
-      char c = *list;
-      if (c == '|') c = 0;
-      if (c == *p++) {
-        // Found, return index
-        if (c == 0) return i;
-        list++;    // Compare next symbol
-        continue;
-      }
-      break;  // Not equal, break
-    }
-    // Set new substring ptr
-    while (1) {
-      // End of string, not found
-      if (*list == 0) return -1;
-      if (*list++ == '|') break;
-    }
-    i++;
-  }
-  return -1;
 }
 
 #ifdef USE_VARIABLE_OFFSET
@@ -662,7 +662,7 @@ VNA_SHELL_FUNCTION(cmd_clearconfig)
     return;
   }
 
-  if (strcmp(argv[0], "1234") != 0) {
+  if (get_str_index(argv[0], "1234") != 0) {
     shell_printf("Key unmatched.\r\n");
     return;
   }
@@ -1921,8 +1921,8 @@ VNA_SHELL_FUNCTION(cmd_trace)
     return;
   }
 
-  if (strcmp(argv[0], "all") == 0 &&
-      argc > 1 && strcmp(argv[1], "off") == 0) {
+  if (get_str_index(argv[0], "all") == 0 &&
+      argc > 1 && get_str_index(argv[1], "off") == 0) {
     for (t = 0; t < TRACES_MAX; t++)
       set_trace_type(t, TRC_OFF);
     return;
@@ -2871,7 +2871,7 @@ static void VNAShell_executeLine(char *line)
   // Execute line
   const VNAShellCommand *scp;
   for (scp = commands; scp->sc_name != NULL; scp++) {
-    if (strcmp(scp->sc_name, shell_args[0]) == 0) {
+    if (get_str_index(scp->sc_name, shell_args[0]) == 0) {
       if (scp->flags & CMD_WAIT_MUTEX) {
         shell_function = scp->sc_function;
         if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
@@ -3141,6 +3141,6 @@ void hard_fault_handler_c(uint32_t *sp)
   }
 }
 // For new compilers
-//void _exit(int){}
+//void _exit(int x){(void)x;}
 //void _kill(void){}
 //void _getpid(void){}
