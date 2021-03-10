@@ -712,6 +712,8 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define LCD_16BIT_MODE
 // Default LCD brightness if display support it
 #define DEFAULT_BRIGHTNESS  70
+// Data size for one pixel data read from display in bytes
+#define LCD_RX_PIXEL_SIZE  3
 #endif
 
 // Custom display driver panel definitions for ST7796S
@@ -723,6 +725,8 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define LCD_16BIT_MODE
 // Default LCD brightness if display support it
 #define DEFAULT_BRIGHTNESS  70
+// Data size for one pixel data read from display in bytes
+#define LCD_RX_PIXEL_SIZE  2
 #endif
 
 

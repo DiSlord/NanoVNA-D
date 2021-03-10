@@ -666,9 +666,9 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
   uint8_t *rgbbuf = (uint8_t *)out;
   do {
     uint16_t left = dmaStreamGetTransactionSize(dmarx); // Get DMA data left
-    if (left > len) continue; // Next pixel RGB data not ready
-    while (left < len){       // Process completed by DMA data
-      uint8_t r, g, b;        // read data is always 18bit in RGB888 format
+    if (left+3 > len) continue;   // Next pixel RGB data not ready
+    while (left < len){           // Process completed by DMA data
+      uint8_t r, g, b;            // read data is always 18bit in RGB888 format
       r = rgbbuf[0];
       g = rgbbuf[1];
       b = rgbbuf[2];
