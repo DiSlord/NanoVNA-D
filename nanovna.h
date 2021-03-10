@@ -43,7 +43,7 @@
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
 #define __USE_LC_MATCHING__
-// Use buildin table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
+// Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
 
 /*
@@ -76,7 +76,8 @@
 
 #if AUDIO_ADC_FREQ_K == 768
 // For 768k ADC    (16k step for 48 samples)
-#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K          8  // only  96 samples and variable table
+#define FREQUENCY_IF_K         12    // only 192 samples and variable table
 //#define FREQUENCY_IF_K         16
 //#define FREQUENCY_IF_K         32
 //#define FREQUENCY_IF_K         48
@@ -701,17 +702,29 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
 
+// Custom display driver panel definitions for ILI9341
+#ifdef LCD_DRIVER_ILI9341
 // LCD touch settings
 //#define DEFAULT_TOUCH_CONFIG { 693, 605, 124, 171 }  // 2.4 inch LCD panel
-#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
-//#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
-
-// Default LCD brightness if display support it
-#define DEFAULT_BRIGHTNESS  70
-
-// Define LCD pixel format
+#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }    // 2.8 inch LCD panel
+// Define LCD pixel format (8 or 16 bit)
 //#define LCD_8BIT_MODE
 #define LCD_16BIT_MODE
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
+#endif
+
+// Custom display driver panel definitions for ST7796S
+#ifdef LCD_DRIVER_ST7796S
+// LCD touch settings
+#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
+// Define LCD pixel format (8 or 16 bit)
+//#define LCD_8BIT_MODE
+#define LCD_16BIT_MODE
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
+#endif
+
 
 #ifdef LCD_8BIT_MODE
 typedef uint8_t pixel_t;

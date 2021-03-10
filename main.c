@@ -244,7 +244,7 @@ kaiser_window(float k, float n, float beta)
 {
   if (beta == 0.0) return 1.0;
   float r = (2 * k) / (n - 1) - 1;
-  return bessel0(beta * sqrt(1 - r * r)) / bessel0(beta);
+  return bessel0(beta * sqrtf(1 - r * r)) / bessel0(beta);
 }
 
 static void
