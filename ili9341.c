@@ -645,7 +645,7 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
   spi_RxByte();
   // receive pixel data to buffer
 #ifndef __USE_DISPLAY_DMA_RX__
-  spi_RxBuffer((uint8_t *)out, len * 3);
+  spi_RxBuffer((uint8_t *)out, len * LCD_RX_PIXEL_SIZE);
   // Parse received data to RGB565 format
   uint8_t *rgbbuf = (uint8_t *)out;
   do {
@@ -655,27 +655,26 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
     g = rgbbuf[1];
     b = rgbbuf[2];
     *out++ = RGB565(r, g, b);
-    rgbbuf += 3;
+    rgbbuf += LCD_RX_PIXEL_SIZE;
   }while(--len);
 #else
   // Set data size for DMA read
-  len*=3;
+  len*=LCD_RX_PIXEL_SIZE;
   // Start DMA read, and not wait completion
   spi_DMARxBuffer((uint8_t *)out, len, false);
   // Parse received data to RGB565 format while data receive by DMA
   uint8_t *rgbbuf = (uint8_t *)out;
   do {
-    uint16_t left = dmaStreamGetTransactionSize(dmarx); // Get DMA data left
-    if (left+3 > len) continue;   // Next pixel RGB data not ready
-    while (left < len){           // Process completed by DMA data
-      uint8_t r, g, b;            // read data is always 18bit in RGB888 format
-      r = rgbbuf[0];
-      g = rgbbuf[1];
-      b = rgbbuf[2];
+    uint16_t left = dmaStreamGetTransactionSize(dmarx)+LCD_RX_PIXEL_SIZE; // Get DMA data left
+    if (left > len) continue;     // Next pixel RGB data not ready
+    do {                          // Process completed by DMA data
+      uint8_t r = rgbbuf[0];      // read data is always 18bit in RGB888 format
+      uint8_t g = rgbbuf[1];
+      uint8_t b = rgbbuf[2];
       *out++ = RGB565(r, g, b);
-      rgbbuf+= 3;
-      len   -= 3;
-    }
+      rgbbuf+= LCD_RX_PIXEL_SIZE;
+      len   -= LCD_RX_PIXEL_SIZE;
+    } while (left < len);
   } while(len);
   dmaWaitCompletionRxTx(); // Wait DMA completion and stop it
 #endif
