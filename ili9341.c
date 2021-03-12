@@ -594,7 +594,7 @@ static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
 void ili9341_bulk(int x, int y, int w, int h)
 {
   ili9341_DMA_bulk(x, y, w, h, spi_buffer);  // Send data
-  ili9341_bulk_finish();                     // Wait
+  dmaWaitCompletion(dmatx);                  // Wait
 }
 
 // Used only in double buffer mode
