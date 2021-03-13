@@ -43,8 +43,10 @@
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
 #define __USE_LC_MATCHING__
-// Use buildin table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
+// Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
+// Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
+//#define USE_FFT_WINDOW_BUFFER
 
 /*
  * main.c
@@ -76,7 +78,8 @@
 
 #if AUDIO_ADC_FREQ_K == 768
 // For 768k ADC    (16k step for 48 samples)
-#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K          8  // only  96 samples and variable table
+#define FREQUENCY_IF_K         12    // only 192 samples and variable table
 //#define FREQUENCY_IF_K         16
 //#define FREQUENCY_IF_K         32
 //#define FREQUENCY_IF_K         48
@@ -702,17 +705,33 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define DISPLAY_CELL_BUFFER_COUNT     1
 #endif
 
+// Custom display driver panel definitions for ILI9341
+#ifdef LCD_DRIVER_ILI9341
 // LCD touch settings
 //#define DEFAULT_TOUCH_CONFIG { 693, 605, 124, 171 }  // 2.4 inch LCD panel
-//#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }  // 2.8 inch LCD panel
-#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
-
-// Default LCD brightness if display support it
-#define DEFAULT_BRIGHTNESS  70
-
-// Define LCD pixel format
+#define DEFAULT_TOUCH_CONFIG { 358, 544, 162, 198 }    // 2.8 inch LCD panel
+// Define LCD pixel format (8 or 16 bit)
 //#define LCD_8BIT_MODE
 #define LCD_16BIT_MODE
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
+// Data size for one pixel data read from display in bytes
+#define LCD_RX_PIXEL_SIZE  3
+#endif
+
+// Custom display driver panel definitions for ST7796S
+#ifdef LCD_DRIVER_ST7796S
+// LCD touch settings
+#define DEFAULT_TOUCH_CONFIG { 272, 521, 114, 153 }  // 4.0 inch LCD panel
+// Define LCD pixel format (8 or 16 bit)
+//#define LCD_8BIT_MODE
+#define LCD_16BIT_MODE
+// Default LCD brightness if display support it
+#define DEFAULT_BRIGHTNESS  70
+// Data size for one pixel data read from display in bytes
+#define LCD_RX_PIXEL_SIZE  2
+#endif
+
 
 #ifdef LCD_8BIT_MODE
 typedef uint8_t pixel_t;
@@ -725,8 +744,6 @@ typedef uint8_t pixel_t;
 // Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
 #define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
 #define CELLHEIGHT (64)
-// Define size of screen buffer in pixel_t
-#define SPI_BUFFER_SIZE             4096
 #endif
 
 #ifdef LCD_16BIT_MODE
@@ -740,9 +757,10 @@ typedef uint16_t pixel_t;
 // Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
 #define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
 #define CELLHEIGHT (32)
+#endif
+
 // Define size of screen buffer in pixel_t (need for cell w * h * count)
 #define SPI_BUFFER_SIZE             (CELLWIDTH * CELLHEIGHT * DISPLAY_CELL_BUFFER_COUNT)
-#endif
 
 #ifndef SPI_BUFFER_SIZE
 #error "Define LCD pixel format"
@@ -907,6 +925,8 @@ extern uint16_t lastsaveid;
 #define markers current_props._markers
 #define active_marker current_props._active_marker
 #define domain_mode current_props._domain_mode
+#define domain_func (current_props._domain_mode&TD_FUNC)
+
 #define velocity_factor current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
 
