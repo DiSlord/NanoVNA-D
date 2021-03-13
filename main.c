@@ -127,8 +127,13 @@ static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 float measured[2][POINTS_COUNT][2];
 uint32_t frequencies[POINTS_COUNT];
 
+//Buffer for fast apply FFT window function
+#ifdef USE_FFT_WINDOW_BUFFER
+static float kaiser_data[FFT_SIZE];
+#endif
+
 #undef VERSION
-#define VERSION "1.0.48"
+#define VERSION "1.0.49"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -191,8 +196,9 @@ static THD_FUNCTION(Thread1, arg)
     // Process collected data, calculate trace coordinates and plot only if scan completed
     if ((sweep_mode & SWEEP_ENABLE) && completed) {
       if (electrical_delay != 0) apply_edelay();
+//      START_PROFILE
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain();
-
+//      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
     }
@@ -222,6 +228,10 @@ toggle_sweep(void)
   sweep_mode ^= SWEEP_ENABLE;
 }
 
+#if 0
+//
+// Original kaiser_window functions
+//
 static float
 bessel0(float x)
 {
@@ -246,6 +256,53 @@ kaiser_window(float k, float n, float beta)
   float r = (2 * k) / (n - 1) - 1;
   return bessel0(beta * sqrtf(1 - r * r)) / bessel0(beta);
 }
+#else
+//             Zero-order Bessel function
+//     (x/2)^(2n)
+// 1 + ----------
+//       (n!)^2
+// set input as (x/2)^2 (input range 0 .. beta*beta/4)
+//       x^n           x       x^2      x^3      x^4     x^5
+// 1 + ------ = 1 + ------ + ------ + ------ + ------ + ------  ......
+//     (n!)^2          1        4       36       576    14400
+// first 2 (0 and 1) precalculated as simple.
+
+// Precalculated multiplier step for (n!)^2  max SIZE 16 (first 2 use as init)
+static const float div[] = {/*0, 1,*/ 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256};
+float bessel0_ext(float x_pow_2)
+{
+// set calculated count, more SIZE - less error but longer (bigger beta also need more size for less error)
+// For beta =  6 SIZE =  (11-2) no error
+// For beta = 13 SIZE =  (13-2) max error 0.0002 (use as default, use constant size faster then check every time limits in float)
+#define SIZE     (13-2)
+  int i = SIZE;
+  float term = x_pow_2;
+  float ret = 1.0f + term;
+  do {
+    term*= x_pow_2 / div[SIZE - i];
+    ret += term;
+  }while(--i);
+  return ret;
+}
+// Move out constant divider:  bessel0(beta)
+// Made calculation optimization (in integer)
+// x = (2*k)/(n-1) - 1 = (set n=n-1) = 2*k/n - 1 = (2*k-n)/n
+// calculate kaiser window vs bessel0(w) there:
+//                                    n*n - (2*k-n)*(2*k-n)              4*k*(n-k)
+// w = beta*sqrt(1 - x*x) = beta*sqrt(---------------------) = beta*sqrt(---------)
+//                                           n*n                            n*n
+// bessel0(w) = bessel0_ext(z) (there z = (w/2)^2 for speed)
+// return = bessel0_ext(z)
+static float
+kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta)
+{
+  if (beta == 0) return 1.0;
+  n = n - 1;
+  k = k * (n - k) * beta * beta;
+  n = n * n;
+  return bessel0_ext((float)k / n);
+}
+#endif
 
 static void
 transform_domain(void)
@@ -255,95 +312,102 @@ transform_domain(void)
 #if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
 #error "Need increase spi_buffer or use less FFT_SIZE value"
 #endif
-  float* tmp = (float*)spi_buffer;
-
-  uint16_t window_size = sweep_points, offset = 0;
+  int i;
+  uint16_t offset = 0;
   uint8_t is_lowpass = FALSE;
-  uint8_t td_func = domain_mode & TD_FUNC;
-  switch (td_func) {
-    case TD_FUNC_BANDPASS:
-      offset = 0;
-      window_size = sweep_points;
-      break;
+  switch (domain_func) {
+//  case TD_FUNC_BANDPASS:
+//    break;
     case TD_FUNC_LOWPASS_IMPULSE:
     case TD_FUNC_LOWPASS_STEP:
       is_lowpass = TRUE;
       offset = sweep_points;
-      window_size = sweep_points * 2;
       break;
   }
-
-  float beta = 0.0f;
+  uint16_t window_size = sweep_points + offset;
+  uint16_t beta = 0;
   switch (domain_mode & TD_WINDOW) {
-    case TD_WINDOW_MINIMUM:
-//    beta = 0.0f;  // this is rectangular
-      break;
+//    case TD_WINDOW_MINIMUM:
+//    beta = 0;  // this is rectangular
+//      break;
     case TD_WINDOW_NORMAL:
-      beta = 6.0f;
+      beta = 6;
       break;
     case TD_WINDOW_MAXIMUM:
-      beta = 13.0f;
+      beta = 13;
       break;
   }
-
-#if 1
-  // recalculate the scale factor if any window details are changed.
-  // the scale factor is to compensate for windowing.
-  static float window_scale = 1.0f;
+  // Add amplitude correction for not full size FFT data and also add computed default scale
+  // recalculate the scale factor if any window details are changed. The scale factor is to compensate for windowing.
+  // Add constant multiplier for kaiser_window_ext use 1.0f / bessel0_ext(beta*beta/4.0f)
+  // Add constant multiplier  1.0f / FFT_SIZE
+  static float window_scale = 0;
   static uint16_t td_cache = 0;
+  // Check mode cache data
   uint16_t td_check = (domain_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
   if (td_cache!=td_check){
-    td_cache=td_check;
-    if (td_func == TD_FUNC_LOWPASS_STEP)
-      window_scale = 1.0f;
+    td_cache = td_check;
+    if (domain_func == TD_FUNC_LOWPASS_STEP)
+      window_scale = 1.0f / (FFT_SIZE * bessel0_ext(beta*beta/4.0f));
     else {
       window_scale = 0.0f;
       for (int i = 0; i < sweep_points; i++)
-        window_scale += kaiser_window(i + offset, window_size, beta);
-      window_scale = (FFT_SIZE/2) / window_scale;
-      if (td_func == TD_FUNC_BANDPASS)
-        window_scale *= 2;
+        window_scale += kaiser_window_ext(i + offset, window_size, beta);
+      if (domain_func == TD_FUNC_BANDPASS) window_scale = 1.0f / (  window_scale);
+      else                                 window_scale = 1.0f / (2*window_scale);
+//    window_scale*= FFT_SIZE               // add correction from kaiser_window
+//    window_scale/= FFT_SIZE               // add defaut from FFT_SIZE
+//    window_scale*= bessel0_ext(beta*beta/4.0f) // for get result as kaiser_window
+//    window_scale/= bessel0_ext(beta*beta/4.0f) // for set correction on calculated kaiser_window for value
     }
-  }
-#else
-  // Disable compensation
-  #define window_scale 1
+#ifdef USE_FFT_WINDOW_BUFFER
+    // Cache window function data to buffer
+    for (i = 0; i < sweep_points; i++)
+      kaiser_data[i] = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
 #endif
-
+  }
+  // Made Time Domain Calculations
   uint16_t ch_mask = get_sweep_mask();
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
-    memcpy(tmp, measured[ch], sizeof(measured[0]));
-    for (int i = 0; i < sweep_points; i++) {
-      float w = kaiser_window(i + offset, window_size, beta) * window_scale;
-      tmp[i * 2 + 0] *= w;
-      tmp[i * 2 + 1] *= w;
+    // Prepare data in tmp buffer (use spi_buffer), apply window function and constant correction factor
+    float* tmp  = (float*)spi_buffer;
+    float *data = measured[ch][0];
+    for (i = 0; i < sweep_points; i++) {
+#ifdef USE_FFT_WINDOW_BUFFER
+      float w = kaiser_data[i];
+#else
+      float w = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
+#endif
+      tmp[i * 2 + 0] = data[i * 2 + 0] * w;
+      tmp[i * 2 + 1] = data[i * 2 + 1] * w;
     }
-    for (int i = sweep_points; i < FFT_SIZE; i++) {
+    // Fill zeroes last
+    for (; i < FFT_SIZE; i++) {
       tmp[i * 2 + 0] = 0.0;
       tmp[i * 2 + 1] = 0.0;
     }
+    // For lowpass mode swap
     if (is_lowpass) {
-      for (int i = 1; i < sweep_points; i++) {
-        tmp[(FFT_SIZE - i) * 2 + 0] = tmp[i * 2 + 0];
+      for (i = 1; i < sweep_points; i++) {
+        tmp[(FFT_SIZE - i) * 2 + 0] =  tmp[i * 2 + 0];
         tmp[(FFT_SIZE - i) * 2 + 1] = -tmp[i * 2 + 1];
       }
     }
-
+    // Made iFFT in temp buffer
     fft_inverse((float(*)[2])tmp);
-    for (int i = 0; i < sweep_points; i++) {
-      tmp[i*2+0]/= (float)FFT_SIZE;
-      if (is_lowpass)
+    // set img part as zero
+    if (is_lowpass){
+      for (i = 0; i < sweep_points; i++)
         tmp[i*2+1] = 0.0f;
-      else
-        tmp[i*2+1]/= (float)FFT_SIZE;
     }
-    if ((domain_mode & TD_FUNC) == TD_FUNC_LOWPASS_STEP) {
-      for (int i = 1; i < sweep_points; i++) {
+    if (domain_func == TD_FUNC_LOWPASS_STEP) {
+      for (i = 1; i < sweep_points; i++) {
         tmp[i*2+0]+= tmp[i*2+0-2];
-        tmp[i*2+1]+= tmp[i*2+1-2];
+//      tmp[i*2+1]+= tmp[i*2+1-2];  // already zero as is_lowpass
       }
     }
+    // Copy data back
     memcpy(measured[ch], tmp, sizeof(measured[0]));
   }
 }
@@ -721,14 +785,16 @@ VNA_SHELL_FUNCTION(cmd_capture)
   (void)argc;
   (void)argv;
   int y;
-#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (3*LCD_WIDTH*2)
+// Check buffer limits, if less possible reduce rows count
+#define READ_ROWS 2
+#if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (LCD_RX_PIXEL_SIZE*LCD_WIDTH*READ_ROWS)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
-  // read 2 row pixel time (read buffer limit by 2/3 + 1 from spi_buffer size)
-  for (y = 0; y < LCD_HEIGHT; y += 2) {
+  // read 2 row pixel time
+  for (y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, 2, (uint16_t *)spi_buffer);
-    streamWrite(shell_stream, (void*)spi_buffer, 2 * LCD_WIDTH * sizeof(uint16_t));
+    ili9341_read_memory(0, y, LCD_WIDTH, READ_ROWS, (uint16_t *)spi_buffer);
+    streamWrite(shell_stream, (void*)spi_buffer, READ_ROWS * LCD_WIDTH * sizeof(uint16_t));
   }
 }
 
