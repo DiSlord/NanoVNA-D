@@ -526,8 +526,8 @@ groupdelay_from_array(int i, float array[POINTS_COUNT][2])
 static inline void
 cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
 {
-  int16_t x = float2int(v[0] * scale) + P_CENTER_X;
-  int16_t y = float2int(v[1] * scale) + P_CENTER_Y;
+  int16_t x = P_CENTER_X + float2int(v[0] * scale);
+  int16_t y = P_CENTER_Y - float2int(v[1] * scale);
   if      (x <      0) x = 0;
   else if (x >  WIDTH) x = WIDTH;
   if      (y <      0) y = 0;
@@ -952,6 +952,7 @@ static const uint8_t marker_bitmap[]={
   _BMP8(0b00000000),
   _BMP8(0b00000000),
   _BMP8(0b00000000),
+#if MARKERS_MAX >=2
   // Marker 2
   _BMP8(0b00000000),
   _BMP8(0b00111000),
@@ -963,6 +964,8 @@ static const uint8_t marker_bitmap[]={
   _BMP8(0b00000000),
   _BMP8(0b00000000),
   _BMP8(0b00000000),
+#endif
+#if MARKERS_MAX >=3
   // Marker 3
   _BMP8(0b00000000),
   _BMP8(0b00111000),
@@ -974,6 +977,8 @@ static const uint8_t marker_bitmap[]={
   _BMP8(0b00000000),
   _BMP8(0b00000000),
   _BMP8(0b00000000),
+#endif
+#if MARKERS_MAX >=4
   // Marker 4
   _BMP8(0b00000000),
   _BMP8(0b00001000),
@@ -985,6 +990,33 @@ static const uint8_t marker_bitmap[]={
   _BMP8(0b00001000),
   _BMP8(0b00000000),
   _BMP8(0b00000000),
+#endif
+#if MARKERS_MAX >=5
+  // Marker 5
+  _BMP8(0b00000000),
+  _BMP8(0b01111100),
+  _BMP8(0b01000000),
+  _BMP8(0b01111000),
+  _BMP8(0b00000100),
+  _BMP8(0b01000100),
+  _BMP8(0b00111000),
+  _BMP8(0b00000000),
+  _BMP8(0b00000000),
+  _BMP8(0b00000000),
+#endif
+#if MARKERS_MAX >=6
+  // Marker 6
+  _BMP8(0b00000000),
+  _BMP8(0b00111100),
+  _BMP8(0b01000000),
+  _BMP8(0b01111000),
+  _BMP8(0b01000100),
+  _BMP8(0b01000100),
+  _BMP8(0b00111000),
+  _BMP8(0b00000000),
+  _BMP8(0b00000000),
+  _BMP8(0b00000000),
+#endif
 };
 
 #elif _USE_BIG_MARKER_ == 1
@@ -1022,6 +1054,7 @@ static const uint8_t marker_bitmap[]={
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
+#if MARKERS_MAX >=2
   // Marker 2
   _BMP16(0b0000000000000000),
   _BMP16(0b0001111000000000),
@@ -1036,6 +1069,8 @@ static const uint8_t marker_bitmap[]={
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
+#endif
+#if MARKERS_MAX >=3
   // Marker 3
   _BMP16(0b0000000000000000),
   _BMP16(0b0011111000000000),
@@ -1050,6 +1085,8 @@ static const uint8_t marker_bitmap[]={
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
+#endif
+#if MARKERS_MAX >=4
   // Marker 4
   _BMP16(0b0000000000000000),
   _BMP16(0b0000011000000000),
@@ -1064,6 +1101,39 @@ static const uint8_t marker_bitmap[]={
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
+#endif
+#if MARKERS_MAX >=5
+  // Marker 5
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0111111100000000),
+  _BMP16(0b0110000000000000),
+  _BMP16(0b0110000000000000),
+  _BMP16(0b0111111000000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0000001100000000),
+  _BMP16(0b0000001100000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0011111000000000),
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0000000000000000),
+#endif
+#if MARKERS_MAX >=6
+  // Marker 6
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0011111000000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0110000000000000),
+  _BMP16(0b0110111000000000),
+  _BMP16(0b0111001100000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0110001100000000),
+  _BMP16(0b0011111000000000),
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0000000000000000),
+  _BMP16(0b0000000000000000),
+#endif
 };
 #endif
 
@@ -1663,10 +1733,13 @@ draw_cal_status(void)
   }
   ili9341_set_foreground(LCD_FG_COLOR);
   static const struct {char text, zero; uint16_t mask;} calibration_text[]={
+    {'O', 0, CALSTAT_OPEN},
+	{'S', 0, CALSTAT_SHORT},
     {'D', 0, CALSTAT_ED},
     {'R', 0, CALSTAT_ER},
     {'S', 0, CALSTAT_ES},
     {'T', 0, CALSTAT_ET},
+	{'t', 0, CALSTAT_THRU},
     {'X', 0, CALSTAT_EX}
   };
   for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
@@ -1680,7 +1753,7 @@ draw_cal_status(void)
   }
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
-  ili9341_drawstring(c, x, y);
+  ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
 }
 
 /*
