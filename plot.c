@@ -1414,11 +1414,13 @@ draw_cell(int m, int n)
 #endif
 //  PULSE;
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
+  int m_count = 0;
 #if 1
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
     int mk_idx = markers[i].index;
+    m_count++;
     for (t = 0; t < TRACES_MAX; t++) {
       if (!trace[t].enabled)
         continue;
@@ -1440,7 +1442,8 @@ draw_cell(int m, int n)
 #endif
 // Draw trace and marker info on the top (50 system ticks for all screen calls)
 #if 1
-  if (n <= (3*FONT_STR_HEIGHT)/CELLHEIGHT)
+  // Get marker string count add one string for edelay/marker freq
+  if (n <= (((m_count+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
 // L/C match data output
@@ -1555,6 +1558,8 @@ static const struct {uint16_t x, y;} marker_pos[]={
   {1 + (WIDTH/2) + CELLOFFSETX, 1                    },
   {1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
   {1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
+  {1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
+  {1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
 };
 
 static void
