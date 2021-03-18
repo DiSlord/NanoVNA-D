@@ -1134,7 +1134,6 @@ static const uint8_t marker_bitmap[]={
   _BMP16(0b0000000000000000),
   _BMP16(0b0000000000000000),
 #endif
-#endif
 };
 #endif
 

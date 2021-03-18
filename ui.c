@@ -1299,7 +1299,7 @@ const menuitem_t menu_bandwidth[] = {
 #ifdef BANDWIDTH_10
   { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u Hz", menu_bandwidth_acb },
 #endif
-  { MT_CANCEL, 255, S_LARROW" BACK", NULL },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
