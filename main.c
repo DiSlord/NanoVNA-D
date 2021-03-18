@@ -1632,7 +1632,7 @@ cal_collect(uint16_t type)
     uint8_t dst;
     uint8_t src;
  } calibration_set[]={
-//    type       set data flag       reset flag              destination source
+//    type       set data flag                              reset flag  destination source
     [CAL_LOAD] = {CALSTAT_LOAD,  ~(                      CALSTAT_APPLY), CAL_LOAD,  0},
     [CAL_OPEN] = {CALSTAT_OPEN,  ~(CALSTAT_ES|CALSTAT_ER|CALSTAT_APPLY), CAL_OPEN,  0}, // Reset Es and Er state
     [CAL_SHORT]= {CALSTAT_SHORT, ~(CALSTAT_ES|CALSTAT_ER|CALSTAT_APPLY), CAL_SHORT, 0}, // Reset Es and Er state
@@ -1640,8 +1640,8 @@ cal_collect(uint16_t type)
     [CAL_ISOLN]= {CALSTAT_ISOLN, ~(                      CALSTAT_APPLY), CAL_ISOLN, 1},
   };
   if (type >= ARRAY_COUNT(calibration_set)) return;
-  cal_status|=calibration_set[type].set_flag;
   cal_status&=calibration_set[type].clr_flag;
+  cal_status|=calibration_set[type].set_flag;
   dst = calibration_set[type].dst;
   src = calibration_set[type].src;
 #else
