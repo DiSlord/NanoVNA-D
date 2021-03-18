@@ -639,7 +639,6 @@ typedef struct properties {
   uint8_t _power;
   uint8_t _dummy;
   float _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
-//  uint8_t _reserved[38];
   uint32_t checksum;
 } properties_t;
 

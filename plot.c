@@ -1734,12 +1734,12 @@ draw_cal_status(void)
   ili9341_set_foreground(LCD_FG_COLOR);
   static const struct {char text, zero; uint16_t mask;} calibration_text[]={
     {'O', 0, CALSTAT_OPEN},
-	{'S', 0, CALSTAT_SHORT},
+    {'S', 0, CALSTAT_SHORT},
     {'D', 0, CALSTAT_ED},
     {'R', 0, CALSTAT_ER},
     {'S', 0, CALSTAT_ES},
     {'T', 0, CALSTAT_ET},
-	{'t', 0, CALSTAT_THRU},
+    {'t', 0, CALSTAT_THRU},
     {'X', 0, CALSTAT_EX}
   };
   for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
