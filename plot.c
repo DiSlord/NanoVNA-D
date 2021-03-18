@@ -1414,11 +1414,13 @@ draw_cell(int m, int n)
 #endif
 //  PULSE;
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
+  int m_count = 0;
 #if 1
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
     int mk_idx = markers[i].index;
+    m_count++;
     for (t = 0; t < TRACES_MAX; t++) {
       if (!trace[t].enabled)
         continue;
@@ -1440,7 +1442,8 @@ draw_cell(int m, int n)
 #endif
 // Draw trace and marker info on the top (50 system ticks for all screen calls)
 #if 1
-  if (n <= (3*FONT_STR_HEIGHT)/CELLHEIGHT)
+  // Get marker string count add one string for edelay/marker freq
+  if (n <= (((m_count+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
 // L/C match data output
@@ -1555,6 +1558,8 @@ static const struct {uint16_t x, y;} marker_pos[]={
   {1 + (WIDTH/2) + CELLOFFSETX, 1                    },
   {1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
   {1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
+  {1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
+  {1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
 };
 
 static void
@@ -1578,7 +1583,7 @@ cell_draw_marker_info(int x0, int y0)
       ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
       if (mk == active_marker)
         cell_drawstring(S_SARROW, xpos, ypos);
-      xpos += 5;
+      xpos += 6;
       plot_printf(buf, sizeof buf, "M%d", mk+1);
       cell_drawstring(buf, xpos, ypos);
       xpos += 3*FONT_WIDTH - 2;
@@ -1588,13 +1593,13 @@ cell_draw_marker_info(int x0, int y0)
       if (uistat.marker_delta && mk != active_marker) {
         uint32_t freq1 = frequencies[active_marker_idx];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
-        plot_printf(buf, sizeof buf, S_DELTA"%.9qHz", delta);
+        plot_printf(buf, sizeof buf, S_DELTA"%qHz", delta);
         delta_index = active_marker_idx;
       } else {
-        plot_printf(buf, sizeof buf, "%.10qHz", freq);
+        plot_printf(buf, sizeof buf, "%qHz", freq);
       }
       cell_drawstring(buf, xpos, ypos);
-      xpos += 67;
+      xpos += 116;
       trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], mk_index, delta_index);
       ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);

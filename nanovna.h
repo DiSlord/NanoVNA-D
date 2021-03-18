@@ -531,7 +531,7 @@ extern const uint8_t numfont16x22[];
 // X and Y offset to L/C match text
  #define STR_LC_MATH_X      (OFFSETX +  0)
 // Better be aligned by cell
- #define STR_LC_MATH_Y      (OFFSETY + 3*FONT_STR_HEIGHT + 1)
+ #define STR_LC_MATH_Y      (OFFSETY + ((MARKERS_MAX+1)/2+1)*FONT_STR_HEIGHT + 1)
 // 1/3 Width of text (need 3 column for data)
  #define STR_LC_MATH_WIDTH  (FONT_WIDTH * 10)
 // String Height (need 2 + 0..4 string)
@@ -597,8 +597,8 @@ typedef struct trace {
   float refpos;
 } trace_t;
 
-// marker
-#define MARKERS_MAX 4
+// marker 1 to 6
+#define MARKERS_MAX 6
 typedef struct marker {
   uint8_t  enabled;
   uint8_t  reserved;

@@ -865,7 +865,22 @@ static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, reserved,
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
-  { 1, 0, 30, 0 }, { 0, 0, 40, 0 }, { 0, 0, 60, 0 }, { 0, 0, 80, 0 }
+  { 1, 0, 30*POINTS_COUNT/100, 0 },
+#if MARKERS_MAX >=1
+  { 0, 0, 40*POINTS_COUNT/100, 0 },
+#endif
+#if MARKERS_MAX >=2
+  { 0, 0, 50*POINTS_COUNT/100, 0 },
+#endif
+#if MARKERS_MAX >=3
+  { 0, 0, 60*POINTS_COUNT/100, 0 },
+#endif
+#if MARKERS_MAX >=4
+  { 0, 0, 70*POINTS_COUNT/100, 0 },
+#endif
+#if MARKERS_MAX >=5
+  { 0, 0, 80*POINTS_COUNT/100, 0 },
+#endif
 };
 
 // Load propeties default settings
@@ -1427,6 +1442,7 @@ eterm_calc_es(void)
     // z=1/(jwc*z0) = 1/(2*pi*f*c*z0)  Note: normalized with Z0
     // s11ao = (z-1)/(z+1) = (1-1/z)/(1+1/z) = (1-jwcz0)/(1+jwcz0)
     // prepare 1/s11ao for effeiciency
+#if 0
     float c = 50e-15;
     //float c = 1.707e-12;
     float z0 = 50;
@@ -1434,7 +1450,10 @@ eterm_calc_es(void)
     float sq = 1 + z*z;
     float s11aor = (1 - z*z) / sq;
     float s11aoi = 2*z / sq;
-
+#else
+    float s11aor = 1;
+    float s11aoi = 0;
+#endif
     // S11mo’= S11mo - Ed
     // S11ms’= S11ms - Ed
     float s11or = cal_data[CAL_OPEN][i][0] - cal_data[ETERM_ED][i][0];
@@ -1446,9 +1465,9 @@ eterm_calc_es(void)
     float numi = s11si + s11oi * s11aor + s11or * s11aoi;
     float denomr = s11or - s11sr;
     float denomi = s11oi - s11si;
-    sq = denomr*denomr+denomi*denomi;
-    cal_data[ETERM_ES][i][0] = (numr*denomr + numi*denomi)/sq;
-    cal_data[ETERM_ES][i][1] = (numi*denomr - numr*denomi)/sq;
+    float d = denomr*denomr+denomi*denomi;
+    cal_data[ETERM_ES][i][0] = (numr*denomr + numi*denomi)/d;
+    cal_data[ETERM_ES][i][1] = (numi*denomr - numr*denomi)/d;
   }
   cal_status &= ~CALSTAT_OPEN;
   cal_status |= CALSTAT_ES;
