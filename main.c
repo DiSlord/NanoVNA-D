@@ -37,7 +37,7 @@
 // enable this need reduce spi_buffer size, by default shell run in main thread
 // #define VNA_SHELL_THREAD
 
-static BaseSequentialStream *shell_stream;
+static BaseSequentialStream *shell_stream = 0;
 
 // Shell new line
 #define VNA_SHELL_NEWLINE_STR    "\r\n"

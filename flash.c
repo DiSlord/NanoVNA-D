@@ -144,11 +144,11 @@ static properties_t *get_properties(uint32_t id){
   // point to saved area on the flash memory
   properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
   // Check crc cache mask (made it only 1 time)
-  if (checksum_ok&(1<<lastsaveid))
+  if (checksum_ok&(1<<id))
     return src;
   if (src->magic != CONFIG_MAGIC || checksum(src, sizeof *src - sizeof src->checksum) != src->checksum)
     return NULL;
-  checksum_ok|=1<<lastsaveid;
+  checksum_ok|=1<<id;
   return src;
 }
 
