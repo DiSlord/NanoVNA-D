@@ -1384,9 +1384,11 @@ draw_cell(int m, int n)
 // Draw traces (50-600 system ticks for all screen calls, depend from lines
 // count and size)
 #if 1
+  int t_count = 0;
   for (t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
       continue;
+    t_count++;
     c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     // draw polar plot (check all points)
     i0 = 0;
@@ -1442,8 +1444,9 @@ draw_cell(int m, int n)
 #endif
 // Draw trace and marker info on the top (50 system ticks for all screen calls)
 #if 1
-  // Get marker string count add one string for edelay/marker freq
-  if (n <= (((m_count+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
+  int cnt = t_count > m_count ? t_count : m_count;
+  // Get max marker/trace string count add one string for edelay/marker freq
+  if (n <= (((cnt+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
 // L/C match data output
