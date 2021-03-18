@@ -1633,11 +1633,11 @@ cal_collect(uint16_t type)
     uint8_t src;
  } calibration_set[]={
 //    type       set data flag       reset flag              destination source
-    [CAL_LOAD] = {CALSTAT_LOAD,  ~(           CALSTAT_APPLY), CAL_LOAD,  0},
-    [CAL_OPEN] = {CALSTAT_OPEN,  ~(CALSTAT_ES|CALSTAT_APPLY), CAL_OPEN,  0},
-    [CAL_SHORT]= {CALSTAT_SHORT, ~(CALSTAT_ER|CALSTAT_APPLY), CAL_SHORT, 0},
-    [CAL_THRU] = {CALSTAT_THRU,  ~(CALSTAT_ET|CALSTAT_APPLY), CAL_THRU,  1},
-    [CAL_ISOLN]= {CALSTAT_ISOLN, ~(           CALSTAT_APPLY), CAL_ISOLN, 1},
+    [CAL_LOAD] = {CALSTAT_LOAD,  ~(                      CALSTAT_APPLY), CAL_LOAD,  0},
+    [CAL_OPEN] = {CALSTAT_OPEN,  ~(CALSTAT_ES|CALSTAT_ER|CALSTAT_APPLY), CAL_OPEN,  0}, // Reset Es and Er state
+    [CAL_SHORT]= {CALSTAT_SHORT, ~(CALSTAT_ES|CALSTAT_ER|CALSTAT_APPLY), CAL_SHORT, 0}, // Reset Es and Er state
+    [CAL_THRU] = {CALSTAT_THRU,  ~(           CALSTAT_ET|CALSTAT_APPLY), CAL_THRU,  1}, // Reset Et state
+    [CAL_ISOLN]= {CALSTAT_ISOLN, ~(                      CALSTAT_APPLY), CAL_ISOLN, 1},
   };
   if (type >= ARRAY_COUNT(calibration_set)) return;
   cal_status|=calibration_set[type].set_flag;
@@ -1677,33 +1677,39 @@ cal_collect(uint16_t type)
 void
 cal_done(void)
 {
+  // Set Load/Ed to default if not calculated
   if (!(cal_status & CALSTAT_LOAD))
     eterm_set(ETERM_ED, 0.0, 0.0);
+  // Set Isoln/Ex to default if not measured
+  if (!(cal_status & CALSTAT_ISOLN))
+    eterm_set(ETERM_EX, 0.0, 0.0);
+
   //adjust_ed();
+  // Precalculate Es and Er from Short and Open (and use Load/Ed data)
   if ((cal_status & CALSTAT_SHORT) && (cal_status & CALSTAT_OPEN)) {
     eterm_calc_es();
     eterm_calc_er(-1);
   } else if (cal_status & CALSTAT_OPEN) {
     eterm_copy(CAL_SHORT, CAL_OPEN);
+    cal_status &=~ CALSTAT_OPEN;
     eterm_set(ETERM_ES, 0.0, 0.0);
     eterm_calc_er(1);
   } else if (cal_status & CALSTAT_SHORT) {
     eterm_set(ETERM_ES, 0.0, 0.0);
-    cal_status &= ~CALSTAT_SHORT;
     eterm_calc_er(-1);
-  } else if (!(cal_status & CALSTAT_ER)){
-    eterm_set(ETERM_ER, 1.0, 0.0);
-  } else if (!(cal_status & CALSTAT_ES)) {
-    eterm_set(ETERM_ES, 0.0, 0.0);
   }
-    
-  if (!(cal_status & CALSTAT_ISOLN))
-    eterm_set(ETERM_EX, 0.0, 0.0);
-  if (cal_status & CALSTAT_THRU) {
+
+  // Apply Et
+  if (cal_status & CALSTAT_THRU)
     eterm_calc_et();
-  } else if (!(cal_status & CALSTAT_ET)) {
+
+  // Set other fields to default if not set
+  if (!(cal_status & CALSTAT_ET))
     eterm_set(ETERM_ET, 1.0, 0.0);
-  }
+  if (!(cal_status & CALSTAT_ER))
+    eterm_set(ETERM_ER, 1.0, 0.0);
+  if (!(cal_status & CALSTAT_ES))
+    eterm_set(ETERM_ES, 0.0, 0.0);
 
   cal_status |= CALSTAT_APPLY;
   request_to_redraw(REDRAW_CAL_STATUS);
