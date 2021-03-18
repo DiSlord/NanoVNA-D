@@ -885,6 +885,7 @@ void load_default_properties(void)
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
   current_props._velocity_factor = 0.7;
   current_props._active_marker   = 0;
+  current_props._previous_marker = MARKER_INVALID;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
   current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;

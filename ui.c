@@ -29,7 +29,6 @@
 uistat_t uistat = {
 // digit: 6,
  _current_trace: 0,
- _previous_marker: MARKER_INVALID,
  lever_mode: LM_MARKER,
  marker_delta: FALSE,
  marker_tracking : FALSE,
@@ -1346,10 +1345,24 @@ const menuitem_t menu_stimulus[] = {
 
 const menuitem_t menu_marker_sel[] = {
   { MT_ADV_CALLBACK, 0, "MARKER %d", menu_marker_sel_acb },
+#if MARKERS_MAX >=2
   { MT_ADV_CALLBACK, 1, "MARKER %d", menu_marker_sel_acb },
+#endif
+#if MARKERS_MAX >=3
   { MT_ADV_CALLBACK, 2, "MARKER %d", menu_marker_sel_acb },
+#endif
+#if MARKERS_MAX >=4
   { MT_ADV_CALLBACK, 3, "MARKER %d", menu_marker_sel_acb },
+#endif
+#if MARKERS_MAX >=5
+  { MT_ADV_CALLBACK, 4, "MARKER %d", menu_marker_sel_acb },
+#endif
+#if MARKERS_MAX >=6
+  { MT_ADV_CALLBACK, 5, "MARKER %d", menu_marker_sel_acb },
+#endif
+#if MARKERS_MAX < 6
   { MT_ADV_CALLBACK, UI_MARKER_OFF,  "ALL OFF", menu_marker_sel_acb },
+#endif
   { MT_ADV_CALLBACK, 0,     "DELTA", menu_marker_delta_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel

@@ -129,7 +129,7 @@
 #define SPEED_OF_LIGHT           299792458
 
 // pi const
-#define VNA_PI                   3.14159265358979323846
+#define VNA_PI                   3.14159265358979323846f
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             101
@@ -316,7 +316,6 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  * plot.c
  */
 // LCD display size settings
-
 extern uint16_t area_width;
 extern uint16_t area_height;
 
@@ -610,15 +609,15 @@ typedef struct marker {
 typedef struct config {
   uint32_t magic;
   uint32_t harmonic_freq_threshold;
-  uint16_t dac_value;
   int16_t  touch_cal[4];
+  uint8_t  _mode;
+  uint8_t  _brightness;
+  uint16_t dac_value;
   uint16_t vbat_offset;
   uint16_t bandwidth;
   uint16_t lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _serial_config;
-  uint8_t  _mode;
-  uint8_t _brightness;
   uint8_t _reserved[24];
   uint32_t checksum;
 } config_t; // sizeof = 108
@@ -629,18 +628,17 @@ typedef struct properties {
   uint32_t _frequency1;
   uint16_t _sweep_points;
   uint16_t _cal_status;
-
-  float _cal_data[5][POINTS_COUNT][2];
-  float _electrical_delay; // picoseconds
-
-  trace_t _trace[TRACES_MAX];
+  trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
-
+  float _electrical_delay; // picoseconds
   float _velocity_factor; // %
-  int8_t _active_marker;
-  uint8_t _domain_mode; /* 0bxxxxxffm : where ff: TD_FUNC m: DOMAIN_MODE */
+  int8_t  _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
+  int8_t  _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
+  uint8_t _domain_mode;         // timed domain option flag and some others flags
   uint8_t _marker_smith_format;
   uint8_t _power;
+  uint8_t _dummy;
+  float _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
 //on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
@@ -731,7 +729,7 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define LCD_RX_PIXEL_SIZE  2
 #endif
 
-
+// For 8 bit color displays pixel data definitions
 #ifdef LCD_8BIT_MODE
 typedef uint8_t pixel_t;
 //  8-bit RRRGGGBB
@@ -745,6 +743,7 @@ typedef uint8_t pixel_t;
 #define CELLHEIGHT (64)
 #endif
 
+// For 16 bit color displays pixel data definitions
 #ifdef LCD_16BIT_MODE
 typedef uint16_t pixel_t;
 // SPI bus revert byte order
@@ -909,7 +908,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e45 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e46 /* 'CONF' */
 
 extern uint16_t lastsaveid;
 
@@ -923,6 +922,7 @@ extern uint16_t lastsaveid;
 #define trace current_props._trace
 #define markers current_props._markers
 #define active_marker current_props._active_marker
+#define previous_marker current_props._previous_marker
 #define domain_mode current_props._domain_mode
 #define domain_func (current_props._domain_mode&TD_FUNC)
 
@@ -932,7 +932,6 @@ extern uint16_t lastsaveid;
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
 
-#define previous_marker uistat._previous_marker
 #define current_trace   uistat._current_trace
 #define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
 #define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
@@ -984,7 +983,6 @@ typedef struct uistat {
 //  int8_t digit;           // 0~5 used in numeric input (disabled)
 //  int8_t digit_mode;      // used in numeric input (disabled)
   int8_t  _current_trace;   // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
-  int8_t  _previous_marker; // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   uint8_t lever_mode;
   uint8_t marker_delta:1;
   uint8_t marker_tracking:1;
