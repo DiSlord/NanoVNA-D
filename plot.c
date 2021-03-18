@@ -784,7 +784,7 @@ static inline void
 markmap_upperarea(void)
 {
   // Hardcoded, Text info from upper area
-  invalidate_rect(0, 0, AREA_WIDTH_NORMAL, 3*FONT_STR_HEIGHT);
+  invalidate_rect(0, 0, AREA_WIDTH_NORMAL, ((MARKERS_MAX+1)/2 + 1)*FONT_STR_HEIGHT);
 }
 
 //
