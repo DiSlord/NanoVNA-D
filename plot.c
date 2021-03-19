@@ -1625,11 +1625,10 @@ cell_draw_marker_info(int x0, int y0)
         uint32_t freq1 = frequencies[active_marker_idx];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
-        cell_printf(xpos, ypos, S_DELTA"%.qHz", delta);
+        cell_printf(xpos, ypos, S_DELTA"%qHz", delta);
       } else {
         cell_printf(xpos, ypos, "%qHz", freq);
       }
-      cell_drawstring(buf, xpos, ypos);
       xpos += 116;
       ili9341_set_foreground(LCD_FG_COLOR);
       trace_print_value_string(xpos, ypos, t, measured[trace[t].channel], mk_index, delta_index);
