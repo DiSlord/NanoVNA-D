@@ -606,7 +606,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
 }
 
 static void
-format_smith_value(int xpos, int ypos, const float coeff[2], uint32_t frequency)
+format_smith_value(int xpos, int ypos, const float *coeff, uint32_t frequency)
 {
   char *format;
   float zr, zi;
@@ -649,11 +649,12 @@ format_smith_value(int xpos, int ypos, const float coeff[2], uint32_t frequency)
 }
 
 static void
-trace_print_value_string(int xpos, int ypos, int t, float array[POINTS_COUNT][2], int index, int index_ref)
+trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 {
   // Check correct input
   int type = trace[t].type;
   if (type >= MAX_TRACE_TYPE) return;
+  float (*array)[2] = measured[trace[t].channel];
   float v = 0.0f;
   float *coeff = array[index];
   float *coeff_ref = NULL;
@@ -1631,7 +1632,7 @@ cell_draw_marker_info(int x0, int y0)
       }
       xpos += 116;
       ili9341_set_foreground(LCD_FG_COLOR);
-      trace_print_value_string(xpos, ypos, t, measured[trace[t].channel], mk_index, delta_index);
+      trace_print_value_string(xpos, ypos, t, mk_index, delta_index);
     }
   } else /*if (active_marker != MARKER_INVALID)*/{ // Trace display mode
     for (t = 0; t < TRACES_MAX; t++) {
@@ -1650,7 +1651,7 @@ cell_draw_marker_info(int x0, int y0)
       int n = trace_print_info(xpos, ypos, t);
       xpos += n * FONT_WIDTH + 2;
       ili9341_set_foreground(LCD_FG_COLOR);
-      trace_print_value_string(xpos, ypos, t, measured[trace[t].channel], active_marker_idx, -1);
+      trace_print_value_string(xpos, ypos, t, active_marker_idx, -1);
     }
   }
 
