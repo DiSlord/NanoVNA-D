@@ -577,11 +577,6 @@ static msg_t put(void *ip, uint8_t b) {
 }
 
 static const struct printStreamVMT vmt = {NULL, NULL, put, NULL};
-void printObjectInit(printStream *ps, int size, uint8_t *buffer){
-  ps->vmt    = &vmt;
-  ps->buffer = buffer;
-  ps->size   = size;
-}
 // Simple print in buffer function
 int plot_printf(char *str, int size, const char *fmt, ...) {
   va_list ap;
@@ -589,7 +584,9 @@ int plot_printf(char *str, int size, const char *fmt, ...) {
   int retval;
   if (size <= 0) return 0;
   // Init small memory stream for print
-  printObjectInit(&ps, size, (uint8_t *)str);
+  ps.vmt    = &vmt;
+  ps.buffer = (uint8_t *)str;
+  ps.size   = size;
   // Performing the print operation using the common code.
   va_start(ap, fmt);
   retval = chvprintf((BaseSequentialStream *)(void *)&ps, fmt, ap);

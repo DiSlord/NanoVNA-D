@@ -161,12 +161,12 @@ dsp_process(int16_t *capture, size_t length)
     ref_buf[i] = ref;
     samp_buf[i] = smp;
 #endif
-    int16_t sin = ((int16_t *)sincos_tbl)[i+0];
-    int16_t cos = ((int16_t *)sincos_tbl)[i+1];
-    samp_s+= ((int32_t)(smp * sin))>>4;
-    samp_c+= ((int32_t)(smp * cos))>>4;
-    ref_s += ((int32_t)(ref * sin))>>4;
-    ref_c += ((int32_t)(ref * cos))>>4;
+    int32_t sin = ((int16_t *)sincos_tbl)[i+0];
+    int32_t cos = ((int16_t *)sincos_tbl)[i+1];
+    samp_s+= (smp * sin)/16;
+    samp_c+= (smp * cos)/16;
+    ref_s += (ref * sin)/16;
+    ref_c += (ref * cos)/16;
     i+=2;
   }while (i < length);
   acc_samp_s += samp_s;
