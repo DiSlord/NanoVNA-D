@@ -1586,7 +1586,7 @@ cell_draw_marker_info(int x0, int y0)
       ili9341_set_foreground(LCD_TRACE_1_COLOR + t);
       if (mk == active_marker)
         cell_drawstring(S_SARROW, xpos, ypos);
-      xpos += 6;
+      xpos += 5;
       plot_printf(buf, sizeof buf, "M%d", mk+1);
       cell_drawstring(buf, xpos, ypos);
       xpos += 3*FONT_WIDTH - 2;
@@ -1596,13 +1596,13 @@ cell_draw_marker_info(int x0, int y0)
       if (uistat.marker_delta && mk != active_marker) {
         uint32_t freq1 = frequencies[active_marker_idx];
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
-        plot_printf(buf, sizeof buf, S_DELTA"%qHz", delta);
+        plot_printf(buf, sizeof buf, S_DELTA"%.9qHz", delta);
         delta_index = active_marker_idx;
       } else {
-        plot_printf(buf, sizeof buf, "%qHz", freq);
+        plot_printf(buf, sizeof buf, "%.10qHz", freq);
       }
       cell_drawstring(buf, xpos, ypos);
-      xpos += 116;
+      xpos += 67;
       trace_get_value_string(t, buf, sizeof buf, measured[trace[t].channel], mk_index, delta_index);
       ili9341_set_foreground(LCD_FG_COLOR);
       cell_drawstring(buf, xpos, ypos);
