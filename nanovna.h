@@ -892,6 +892,9 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 /*
  * flash.c
  */
+// For STM32F072xB CPU setting
+#define FLASH_START_ADDRESS   0x08000000
+#define FLASH_TOTAL_SIZE     (128*1024)
 
 #define FLASH_PAGESIZE 0x800
 
@@ -901,12 +904,13 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 #define SAVE_CONFIG_SIZE        0x00000800
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_PROP_CONFIG_SIZE   0x00001800
-// Save config_t and properties_t flash area (see flash7  : org = 0x08018000, len = 32k from *.ld settings)
-// Properties save area follow after config
-// len = SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE   0x00008000  32k
-#define SAVE_CONFIG_ADDR        0x08018000
-#define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
+// Save config_t and properties_t flash area (see flash7 from *.ld settings)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
+// Save setting at end of CPU flash area
+// Config at end minus full size
+#define SAVE_CONFIG_ADDR        (FLASH_START_ADDRESS + FLASH_TOTAL_SIZE - SAVE_FULL_AREA_SIZE)
+// Properties save area follow after config
+#define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
 #define CONFIG_MAGIC 0x434f4e46 /* 'CONF' */
 
