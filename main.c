@@ -1730,7 +1730,9 @@ cal_done(void)
   if (!(cal_status & CALSTAT_ES))
     eterm_set(ETERM_ES, 0.0, 0.0);
 
-  cal_status |= CALSTAT_APPLY;
+  // Reset interpolation flag
+  cal_status&=~CALSTAT_INTERPOLATED;
+  cal_status|= CALSTAT_APPLY;
   request_to_redraw(REDRAW_CAL_STATUS);
 }
 

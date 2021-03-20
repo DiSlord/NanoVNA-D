@@ -51,7 +51,7 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
 
   const float a = R0 - RL;
   const float b = 2.0f * XL * R0;
-  const float c = R0 * ((XL * XL) + (RL * RL));
+  const float c = R0 * (XL * XL + RL * RL);
   lc_match_quadratic_equation(a, b, c, xp);
 
   // found two impedances parallel to load
@@ -59,17 +59,17 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
   // now calculate serial impedances
   const float RL1 = -XL * xp[0];
   const float XL1 =  RL * xp[0];
-  const float RL2 =  RL + 0.0f;
+  const float RL2 =  RL;// + 0.0f;
   const float XL2 =  XL + xp[0];
-  matches[0].xs  = ((RL1 * XL2) - (RL2 * XL1)) / ((RL2 * RL2) + (XL2 * XL2));
+  matches[0].xs  = (RL1 * XL2 - RL2 * XL1) / (RL2 * RL2 + XL2 * XL2);
   matches[0].xps = 0.0f;
   matches[0].xpl = xp[0];
 
   const float RL3 = -XL * xp[1];
   const float XL3 =  RL * xp[1];
-  const float RL4 =  RL + 0.0f;
+  const float RL4 =  RL;// + 0.0f;
   const float XL4 =  XL + xp[1];
-  matches[1].xs  = ((RL3 * XL4) - (RL4 * XL3)) / ((RL4 * RL4) + (XL4 * XL4));
+  matches[1].xs  = (RL3 * XL4 - RL4 * XL3) / (RL4 * RL4 + XL4 * XL4);
   matches[1].xps = 0.0f;
   matches[1].xpl = xp[1];
 }
@@ -81,30 +81,30 @@ static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
   // Calculate Xs
   const float a = 1.0f;
   const float b = 2.0f * XL;
-  const float c = (RL * RL) + (XL * XL) - (R0 * RL);
+  const float c = RL * RL + XL * XL - R0 * RL;
   lc_match_quadratic_equation(a, b, c, xs);
 
   // got two serial impedances that change ZL to the Y.real = 1/R0
   //
   // now calculate impedances parallel to source
-  const float RL1 = RL  + 0.0f;
+  const float RL1 = RL;//  + 0.0f;
   const float XL1 = XL  + xs[0];
   const float RL3 = RL1 * R0;
   const float XL3 = XL1 * R0;
   const float RL5 = RL1 - R0;
-  const float XL5 = XL1 - 0.0f;
+  const float XL5 = XL1;// - 0.0f;
   matches[0].xs  = xs[0];
-  matches[0].xps = ((RL5 * XL3) - (RL3 * XL5)) / ((RL5 * RL5) + (XL5 * XL5));
+  matches[0].xps = (RL5 * XL3 - RL3 * XL5) / (RL5 * RL5 + XL5 * XL5);
   matches[0].xpl = 0.0f;
 
-  const float RL2 = RL  + 0.0f;
+  const float RL2 = RL;//  + 0.0f;
   const float XL2 = XL  + xs[1];
   const float RL4 = RL2 * R0;
   const float XL4 = XL2 * R0;
   const float RL6 = RL2 - R0;
-  const float XL6 = XL2 - 0.0f;
+  const float XL6 = XL2;// - 0.0f;
   matches[1].xs  = xs[1];
-  matches[1].xps = ((RL6 * XL4) - (RL4 * XL6)) / ((RL6 * RL6) + (XL6 * XL6));
+  matches[1].xps = (RL6 * XL4 - RL4 * XL6) / (RL6 * RL6 + XL6 * XL6);
   matches[1].xpl = 0.0f;
 }
 
@@ -196,7 +196,7 @@ static void lc_match_x_str(uint32_t FHz, float X, int xp, int yp)
 #else
   if (X < 0.0f) {X = -1.0 / X; type = 'F';}
   else          {              type = 'H';}
-  float val = X / (2.0f * VNA_PI * FHz);
+  float val = X / ((2.0f * VNA_PI) * FHz);
 #endif
   cell_printf(xp, yp, "%4.2F%c", val, type);
 }
@@ -212,18 +212,11 @@ static void cell_draw_lc_match(int x0, int y0)
   ili9341_set_background(LCD_BG_COLOR);
   ili9341_set_foreground(LCD_LC_MATCH_COLOR);
 
-  if (yp > -FONT_GET_HEIGHT && yp < CELLHEIGHT)
-  {
-     cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array.R0);
-  }
+  cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array.R0);
 #if 0
   yp += STR_LC_MATH_HEIGHT;
-  if (yp > -FONT_GET_HEIGHT && yp < CELLHEIGHT)
-  {
-     cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', fabsf(match_array->XL));
-  }
+  cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', fabsf(match_array->XL));
 #endif
-
   yp += STR_LC_MATH_HEIGHT;
   if (yp >= CELLHEIGHT) return;
   if (lc_match_array.num_matches < 0)
@@ -237,11 +230,9 @@ static void cell_draw_lc_match(int x0, int y0)
     for (int i = 0; i < lc_match_array.num_matches; i++){
       yp += STR_LC_MATH_HEIGHT;
       if (yp >= CELLHEIGHT) return;
-      if (yp > -FONT_GET_HEIGHT){
-        lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xps, xp                      , yp);
-        lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xs , xp +   STR_LC_MATH_WIDTH, yp);
-        lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xpl, xp + 2*STR_LC_MATH_WIDTH, yp);
-      }
+      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xps, xp                      , yp);
+      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xs , xp +   STR_LC_MATH_WIDTH, yp);
+      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xpl, xp + 2*STR_LC_MATH_WIDTH, yp);
     }
   }
 }
