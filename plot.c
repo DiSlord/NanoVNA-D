@@ -184,8 +184,8 @@ smith_grid(int x, int y)
   if (y < 0) y = -y; // mirror by y axis
 
   // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
-  d = _r - 2*r*x - 2*r*y + r/2 + r*r;
-  if ((uint32_t)d<=r) return 1;
+  d = _r - 2*r*x - r*y + r*r + r/2;
+  if ((uint32_t)d <= r) return 1;
 
   // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
   d = _r - (3*r/2)*x + r*r/2 + r/4;
@@ -202,7 +202,7 @@ smith_grid(int x, int y)
   if (d <= r) return 1;
 
   // Constant Reactance Circle: 1/2j : R*2  (mirror by y)
-  d = _r - 2*r*x - 4*r*y + r*2 + r*r;
+  d = _r - 2*r*x - 4*r*y + r*r + r*2;
   if ((uint32_t) d<= r*4) return 1;
 
   // Constant Resistance Circle: 1/3 : R*3/4
