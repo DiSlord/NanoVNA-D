@@ -891,7 +891,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 /*
  * flash.c
  */
-// For STM32F303x— CPU setting
+// For STM32F303xC CPU setting
 #define FLASH_START_ADDRESS   0x08000000
 #define FLASH_TOTAL_SIZE     (256*1024)
 
