@@ -90,13 +90,9 @@ circle_inout(int x, int y, int r)
   return 0;                   // on  circle
 }
 
-static int
+static bool
 polar_grid(int x, int y)
 {
-  // offset to center
-  x -= P_CENTER_X;
-  y -= P_CENTER_Y;
-
   uint32_t d = x*x + y*y;
 
   if (d > P_RADIUS*P_RADIUS + P_RADIUS) return 0;
@@ -123,19 +119,27 @@ polar_grid(int x, int y)
   return 0;
 }
 
+static void
+cell_polar_grid(int x0, int y0, int w, int h, pixel_t color)
+{
+  int x, y;
+  // offset to center
+  x0 -= P_CENTER_X;
+  y0 -= P_CENTER_Y;
+  for (y = 0; y < h; y++)
+    for (x = 0; x < w; x++)
+      if (polar_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
+}
+
 /*
  * Constant Resistance circle: (u - r/(r+1))^2 + v^2 = 1/(r+1)^2
  * Constant Reactance circle:  (u - 1)^2 + (v-1/x)^2 = 1/x^2
  */
-static int
+static bool
 smith_grid(int x, int y)
 {
+#if 0
   int d;
-
-  // offset to center
-  x -= P_CENTER_X;
-  y -= P_CENTER_Y;
-
   // outer circle
   d = circle_inout(x, y, P_RADIUS);
   if (d < 0) return 0;
@@ -144,34 +148,80 @@ smith_grid(int x, int y)
   // horizontal axis
   if (y == 0) return 1;
 
-  // shift circle center to right origin
-  x -= P_RADIUS;
-
-  // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2
-  if (circle_inout(x, y + P_RADIUS / 2, P_RADIUS / 2) == 0) return 1;
-  if (circle_inout(x, y - P_RADIUS / 2, P_RADIUS / 2) == 0) return 1;
+  if (y < 0) y = -y; // mirror by y axis
+  // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
+  if (circle_inout(x - P_RADIUS, y - P_RADIUS/2, P_RADIUS/2) == 0) return 1;
 
   // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
-  d = circle_inout(x + P_RADIUS / 4, y, P_RADIUS / 4);
+  d = circle_inout(x - 3*P_RADIUS/4, y, P_RADIUS/4);
   if (d > 0) return 0;
   if (d == 0) return 1;
 
-  // Constant Reactance Circle: 1j : R = P_RADIUS
-  if (circle_inout(x, y + P_RADIUS, P_RADIUS) == 0) return 1;
-  if (circle_inout(x, y - P_RADIUS, P_RADIUS) == 0) return 1;
+  // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
+  d = circle_inout(x - P_RADIUS, y - P_RADIUS, P_RADIUS);
+  if (d == 0) return 1;
 
   // Constant Resistance Circle: 1 : R/2
-  d = circle_inout(x + P_RADIUS / 2, y, P_RADIUS / 2);
+  d = circle_inout(x - P_RADIUS/2, y, P_RADIUS/2);
   if (d > 0) return 0;
   if (d == 0) return 1;
 
-  // Constant Reactance Circle: 1/2j : R*2
-  if (circle_inout(x, y + P_RADIUS * 2, P_RADIUS * 2) == 0) return 1;
-  if (circle_inout(x, y - P_RADIUS * 2, P_RADIUS * 2) == 0) return 1;
+  // Constant Reactance Circle: 1/2j : R*2  (mirror by y)
+  if (circle_inout(x - P_RADIUS, y - P_RADIUS*2, P_RADIUS*2) == 0) return 1;
 
   // Constant Resistance Circle: 1/3 : R*3/4
-  if (circle_inout(x + P_RADIUS * 3 / 4, y, P_RADIUS * 3 / 4) == 0) return 1;
+  if (circle_inout(x - P_RADIUS/4, y, P_RADIUS*3/4) == 0) return 1;
   return 0;
+#else
+  uint16_t r = P_RADIUS;
+  // outer circle
+  int32_t _r = x*x + y*y;
+  int32_t d = _r;
+  if (d > r*r + r) return 0;
+  if (d > r*r - r) return 1;
+  // horizontal axis
+  if (y == 0) return 1;
+  if (y < 0) y = -y; // mirror by y axis
+
+  // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
+  d = _r - 2*r*x - r*y + r*r + r/2;
+  if ((uint32_t)d <= r) return 1;
+
+  // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
+  d = _r - (3*r/2)*x + r*r/2 + r/4;
+  if (d <    0) return 0;
+  if (d <= r/2) return 1;
+
+  // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
+  d = _r - 2*r*x - 2*r*y + r*r + r;
+  if ((uint32_t)d<=2*r) return 1;
+
+  // Constant Resistance Circle: 1 : R/2
+  d = _r - r*x + r/2;
+  if (d <  0) return 0;
+  if (d <= r) return 1;
+
+  // Constant Reactance Circle: 1/2j : R*2  (mirror by y)
+  d = _r - 2*r*x - 4*r*y + r*r + r*2;
+  if ((uint32_t) d<= r*4) return 1;
+
+  // Constant Resistance Circle: 1/3 : R*3/4
+  d = _r - x*(r/2) - r*r/2 + r*3/4;
+  if ((uint32_t)d<=r*3/2) return 1;
+  return 0;
+#endif
+}
+
+static void
+cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
+{
+  int x, y;
+  // offset to center
+  x0 -= P_CENTER_X;
+  y0 -= P_CENTER_Y;
+  for (y = 0; y < h; y++)
+    for (x = 0; x < w; x++)
+      if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
 #if 0
@@ -1388,17 +1438,11 @@ draw_cell(int m, int n)
     }
   }
   // Smith greed line (1000 system ticks for all screen calls)
-  if (trace_type & (1 << TRC_SMITH)) {
-    for (y = 0; y < h; y++)
-      for (x = 0; x < w; x++)
-        if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = c;
-  }
+  if (trace_type & (1 << TRC_SMITH))
+    cell_smith_grid(x0, y0, w, h, c);
   // Polar greed line (800 system ticks for all screen calls)
-  else if (trace_type & (1 << TRC_POLAR)) {
-    for (y = 0; y < h; y++)
-      for (x = 0; x < w; x++)
-        if (polar_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = c;
-  }
+  else if (trace_type & (1 << TRC_POLAR))
+    cell_polar_grid(x0, y0, w, h, c);
 #if 0
   else if (trace_type & (1 << TRC_ADMIT)) {
     for (y = 0; y < h; y++)
