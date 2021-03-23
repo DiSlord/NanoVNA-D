@@ -63,8 +63,8 @@ static uint8_t current_mappage = 0;
 
 // Trace data cache, for faster redraw cells
 typedef struct {
-  uint16_t x;
   uint16_t y;
+  uint16_t x;
 } index_t;
 static index_t trace_index[TRACES_MAX][POINTS_COUNT];
 
@@ -132,8 +132,7 @@ cell_polar_grid(int x0, int y0, int w, int h, pixel_t color)
 }
 
 /*
- * Constant Resistance circle: (u - r/(r+1))^2 + v^2 = 1/(r+1)^2
- * Constant Reactance circle:  (u - 1)^2 + (v-1/x)^2 = 1/x^2
+ * Render Smith grid (if mirror by x possible get Admittance grid)
  */
 static bool
 smith_grid(int x, int y)
@@ -149,23 +148,25 @@ smith_grid(int x, int y)
   if (y == 0) return 1;
 
   if (y < 0) y = -y; // mirror by y axis
-  // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
-  if (circle_inout(x - P_RADIUS, y - P_RADIUS/2, P_RADIUS/2) == 0) return 1;
+  if (x >= 0) {                       // valid only if x >= 0
+    if (x >= r/2){                    // valid only if x >= P_RADIUS/2
+      // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
+      if (circle_inout(x - P_RADIUS, y - P_RADIUS/2, P_RADIUS/2) == 0) return 1;
 
-  // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
-  d = circle_inout(x - 3*P_RADIUS/4, y, P_RADIUS/4);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
+      // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
+      d = circle_inout(x - 3*P_RADIUS/4, y, P_RADIUS/4);
+      if (d > 0) return 0;
+      if (d == 0) return 1;
+    }
+    // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
+    d = circle_inout(x - P_RADIUS, y - P_RADIUS, P_RADIUS);
+    if (d == 0) return 1;
 
-  // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
-  d = circle_inout(x - P_RADIUS, y - P_RADIUS, P_RADIUS);
-  if (d == 0) return 1;
-
-  // Constant Resistance Circle: 1 : R/2
-  d = circle_inout(x - P_RADIUS/2, y, P_RADIUS/2);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-
+    // Constant Resistance Circle: 1 : R/2
+    d = circle_inout(x - P_RADIUS/2, y, P_RADIUS/2);
+    if (d > 0) return 0;
+    if (d == 0) return 1;
+  }
   // Constant Reactance Circle: 1/2j : R*2  (mirror by y)
   if (circle_inout(x - P_RADIUS, y - P_RADIUS*2, P_RADIUS*2) == 0) return 1;
 
@@ -178,36 +179,38 @@ smith_grid(int x, int y)
   int32_t _r = x*x + y*y;
   int32_t d = _r;
   if (d > r*r + r) return 0;
-  if (d > r*r - r) return 1;
+  if (d > r*r - r) return 1;          // 1
   // horizontal axis
   if (y == 0) return 1;
-  if (y < 0) y = -y; // mirror by y axis
+  if (y <  0) y = -y; // mirror by y axis
+  uint16_t r_y = r*y;                 // Radius limit ~256 pixels!! or need uint32
+  if (x >= 0) {                       // valid only if x >= 0
+    if (x >= r/2){
+      // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
+      d = _r - 2*r*x - r_y + r*r + r/2;
+      if ((uint32_t)d <= r) return 1; // 2
 
-  // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
-  d = _r - 2*r*x - r*y + r*r + r/2;
-  if ((uint32_t)d <= r) return 1;
+      // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
+      d = _r - (3*r/2)*x + r*r/2 + r/4;
+      if (d <    0) return 0;
+      if (d <= r/2) return 1;         // 3
+    }
+    // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
+    d = _r - 2*r*x - 2*r_y + r*r + r;
+    if ((uint32_t)d<=2*r) return 1;   // 4
 
-  // Constant Resistance Circle: 3 : R/4 = P_RADIUS/4
-  d = _r - (3*r/2)*x + r*r/2 + r/4;
-  if (d <    0) return 0;
-  if (d <= r/2) return 1;
-
-  // Constant Reactance Circle: 1j : R = P_RADIUS  (mirror by y)
-  d = _r - 2*r*x - 2*r*y + r*r + r;
-  if ((uint32_t)d<=2*r) return 1;
-
-  // Constant Resistance Circle: 1 : R/2
-  d = _r - r*x + r/2;
-  if (d <  0) return 0;
-  if (d <= r) return 1;
-
+    // Constant Resistance Circle: 1 : R/2
+    d = _r - r*x + r/2;
+    if (d <  0) return 0;
+    if (d <= r) return 1;             // 5
+  }
   // Constant Reactance Circle: 1/2j : R*2  (mirror by y)
-  d = _r - 2*r*x - 4*r*y + r*r + r*2;
-  if ((uint32_t) d<= r*4) return 1;
+  d = _r - 2*r*x - 4*r_y + r*r + r*2;
+  if ((uint32_t) d<= r*4) return 1;   // 6
 
   // Constant Resistance Circle: 1/3 : R*3/4
   d = _r - x*(r/2) - r*r/2 + r*3/4;
-  if ((uint32_t)d<=r*3/2) return 1;
+  if ((uint32_t)d<=r*3/2) return 1;   // 7
   return 0;
 #endif
 }
@@ -223,160 +226,6 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
     for (x = 0; x < w; x++)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
-
-#if 0
-static int
-smith_grid2(int x, int y, float scale)
-{
-  int d;
-
-  // offset to center
-  x -= P_CENTER_X;
-  y -= P_CENTER_Y;
-
-  // outer circle
-  d = circle_inout(x, y, P_RADIUS);
-  if (d < 0)
-    return 0;
-  if (d == 0)
-    return 1;
-
-  // shift circle center to right origin
-  x -= P_RADIUS * scale;
-
-  // Constant Reactance Circle: 2j : R/2 = 58
-  if (circle_inout(x, y+58*scale, 58*scale) == 0)
-    return 1;
-  if (circle_inout(x, y-58*scale, 58*scale) == 0)
-    return 1;
-#if 0
-  // Constant Resistance Circle: 3 : R/4 = 29
-  d = circle_inout(x+29*scale, y, 29*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-  d = circle_inout(x-29*scale, y, 29*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-#endif
-
-  // Constant Reactance Circle: 1j : R = 116
-  if (circle_inout(x, y+116*scale, 116*scale) == 0)
-    return 1;
-  if (circle_inout(x, y-116*scale, 116*scale) == 0)
-    return 1;
-
-  // Constant Resistance Circle: 1 : R/2 = 58
-  d = circle_inout(x+58*scale, y, 58*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-  d = circle_inout(x-58*scale, y, 58*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-
-  // Constant Reactance Circle: 1/2j : R*2 = 232
-  if (circle_inout(x, y+232*scale, 232*scale) == 0)
-    return 1;
-  if (circle_inout(x, y-232*scale, 232*scale) == 0)
-    return 1;
-
-#if 0
-  // Constant Resistance Circle: 1/3 : R*3/4 = 87
-  d = circle_inout(x+87*scale, y, 87*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-  d = circle_inout(x+87*scale, y, 87*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-#endif
-
-  // Constant Resistance Circle: 0 : R
-  d = circle_inout(x+P_RADIUS*scale, y, P_RADIUS*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-  d = circle_inout(x-P_RADIUS*scale, y, P_RADIUS*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-
-  // Constant Resistance Circle: -1/3 : R*3/2 = 174
-  d = circle_inout(x+174*scale, y, 174*scale);
-  if (d > 0) return 0;
-  if (d == 0) return 1;
-  d = circle_inout(x-174*scale, y, 174*scale);
-  //if (d > 0) return 0;
-  if (d == 0) return 1;
-  return 0;
-}
-#endif
-
-#if 0
-const int cirs[][4] = {
-  { 0, 58/2, 58/2, 0 },    // Constant Reactance Circle: 2j : R/2 = 58
-  { 29/2, 0, 29/2, 1 },    // Constant Resistance Circle: 3 : R/4 = 29
-  { 0, 115/2, 115/2, 0 },  // Constant Reactance Circle: 1j : R = 115
-  { 58/2, 0, 58/2, 1 },    // Constant Resistance Circle: 1 : R/2 = 58
-  { 0, 230/2, 230/2, 0 },  // Constant Reactance Circle: 1/2j : R*2 = 230
-  { 86/2, 0, 86/2, 1 },    // Constant Resistance Circle: 1/3 : R*3/4 = 86
-  { 0, 460/2, 460/2, 0 },  // Constant Reactance Circle: 1/4j : R*4 = 460
-  { 115/2, 0, 115/2, 1 },  // Constant Resistance Circle: 0 : R
-  { 173/2, 0, 173/2, 1 },  // Constant Resistance Circle: -1/3 : R*3/2 = 173
-  { 0, 0, 0, 0 } // sentinel
-};
-
-static int
-smith_grid3(int x, int y)
-{
-  int d;
-
-  // offset to center
-  x -= P_CENTER_X;
-  y -= P_CENTER_Y;
-
-  // outer circle
-  d = circle_inout(x, y, P_RADIUS);
-  if (d < 0)
-    return 0;
-  if (d == 0)
-    return 1;
-
-  // shift circle center to right origin
-  x -= P_RADIUS /2;
-
-  int i;
-  for (i = 0; cirs[i][2]; i++) {
-    d = circle_inout(x+cirs[i][0], y+cirs[i][1], cirs[i][2]);
-    if (d == 0)
-      return 1;
-    if (d > 0 && cirs[i][3])
-      return 0;
-    d = circle_inout(x-cirs[i][0], y-cirs[i][1], cirs[i][2]);
-    if (d == 0)
-      return 1;
-    if (d > 0 && cirs[i][3])
-      return 0;
-  }
-  return 0;
-}
-#endif
-
-#if 0
-static int
-rectangular_grid(int x, int y)
-{
-  //#define FREQ(x) (((x) * (fspan / 1000) / (WIDTH-1)) * 1000 + fstart)
-  //int32_t n = FREQ(x-1) / fgrid;
-  //int32_t m = FREQ(x) / fgrid;
-  //if ((m - n) > 0)
-  //if (((x * 6) % (WIDTH-1)) < 6)
-  //if (((x - grid_offset) % grid_width) == 0)
-  if (x == 0 || x == WIDTH-1)
-    return 1;
-  if ((y % GRIDY) == 0)
-    return 1;
-  if ((((x + grid_offset) * 10) % grid_width) < 10)
-    return 1;
-  return 0;
-}
-#endif
 
 void update_grid(void)
 {
@@ -1665,9 +1514,9 @@ cell_draw_marker_info(int x0, int y0)
       xpos += 3*FONT_WIDTH - 2;
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
-      uint32_t freq = frequencies[mk_index];
+      uint32_t freq = get_marker_frequency(mk);
       if (uistat.marker_delta && mk != active_marker) {
-        uint32_t freq1 = frequencies[active_marker_idx];
+        uint32_t freq1 = get_marker_frequency(active_marker);
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
         cell_printf(xpos, ypos, S_DELTA"%qHz", delta);
@@ -1710,8 +1559,8 @@ cell_draw_marker_info(int x0, int y0)
       cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
-        uint32_t freq  = frequencies[active_marker_idx];
-        uint32_t freq1 = frequencies[previous_marker_idx];
+        uint32_t freq  = get_marker_frequency(active_marker);
+        uint32_t freq1 = get_marker_frequency(previous_marker);
         uint32_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
         cell_printf(xpos, ypos, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
@@ -1729,7 +1578,7 @@ cell_draw_marker_info(int x0, int y0)
     //cell_drawstring(buf, xpos, ypos);
     xpos += 3*FONT_WIDTH + 4;
     if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ)
-      cell_printf(xpos, ypos, "%qHz", frequencies[active_marker_idx]);
+      cell_printf(xpos, ypos, "%qHz", get_marker_frequency(active_marker));
     else
       cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
   }

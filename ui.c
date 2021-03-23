@@ -819,16 +819,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
   toggle_sweep();
 }
 
-static uint32_t
-get_marker_frequency(int marker)
-{
-  if ((uint32_t)marker >= MARKERS_MAX)
-    return 0;
-  if (!markers[marker].enabled)
-    return 0;
-  return frequencies[markers[marker].index];
-}
-
 #define UI_MARKER_EDELAY 4
 static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
 {
@@ -854,7 +844,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
         uint32_t freq2 = get_marker_frequency(previous_marker);
         if (freq2 == 0)
           return;
-        if (freq > freq2) {uint32_t t = freq2; freq2 = freq; freq = t;}
+        if (freq > freq2) SWAP(uint32_t, freq2, freq);
         set_sweep_frequency(ST_START, freq);
         set_sweep_frequency(ST_STOP, freq2);
       }
@@ -946,10 +936,8 @@ active_marker_check(void)
   }
 }
 
-#define UI_MARKER_OFF   (MARKERS_MAX  )
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
 {
-  int i;
   if (b){
     if (data < MARKERS_MAX){
            if (data == active_marker) b->icon = BUTTON_ICON_CHECK_AUTO;
@@ -969,18 +957,27 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
       }
     } else {
       markers[mk].enabled = TRUE;         // Enable marker
+
     }
     previous_marker = active_marker;      // set previous marker as current active
     active_marker = mk;                   // set new active marker
     active_marker_check();
-  } else if (data == UI_MARKER_OFF) {     // all off
-      for (i = 0; i < MARKERS_MAX; i++)
-        markers[i].enabled = FALSE;
-      previous_marker = MARKER_INVALID;
-      active_marker = MARKER_INVALID;
   }
   request_to_redraw(REDRAW_MARKER);
 }
+
+#if MARKERS_MAX < 6
+static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb)
+{
+  (void)data;
+  int i;
+  for (i = 0; i < MARKERS_MAX; i++)
+    markers[i].enabled = FALSE;     // all off
+  previous_marker = MARKER_INVALID;
+  active_marker = MARKER_INVALID;
+  request_to_redraw(REDRAW_MARKER);
+}
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 {
@@ -1361,7 +1358,7 @@ const menuitem_t menu_marker_sel[] = {
   { MT_ADV_CALLBACK, 5, "MARKER %d", menu_marker_sel_acb },
 #endif
 #if MARKERS_MAX < 6
-  { MT_ADV_CALLBACK, UI_MARKER_OFF,  "ALL OFF", menu_marker_sel_acb },
+  { MT_CALLBACK, 0,     "ALL OFF", menu_marker_disable_all_cb },
 #endif
   { MT_ADV_CALLBACK, 0,     "DELTA", menu_marker_delta_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
