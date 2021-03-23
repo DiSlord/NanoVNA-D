@@ -213,6 +213,7 @@ enum stimulus_type {
 };
 
 void set_marker_index(int m, int idx);
+uint32_t get_marker_frequency(int marker);
 void set_sweep_frequency(int type, uint32_t frequency);
 uint32_t get_sweep_frequency(int type);
 void set_bandwidth(uint16_t bw_count);

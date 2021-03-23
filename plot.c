@@ -1514,9 +1514,9 @@ cell_draw_marker_info(int x0, int y0)
       xpos += 3*FONT_WIDTH - 2;
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
-      uint32_t freq = frequencies[mk_index];
+      uint32_t freq = get_marker_frequency(mk);
       if (uistat.marker_delta && mk != active_marker) {
-        uint32_t freq1 = frequencies[active_marker_idx];
+        uint32_t freq1 = get_marker_frequency(active_marker);
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
         cell_printf(xpos, ypos, S_DELTA"%.9qHz", delta);
@@ -1559,8 +1559,8 @@ cell_draw_marker_info(int x0, int y0)
       cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
-        uint32_t freq  = frequencies[active_marker_idx];
-        uint32_t freq1 = frequencies[previous_marker_idx];
+        uint32_t freq  = get_marker_frequency(active_marker);
+        uint32_t freq1 = get_marker_frequency(previous_marker);
         uint32_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
         cell_printf(xpos, ypos, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
@@ -1578,7 +1578,7 @@ cell_draw_marker_info(int x0, int y0)
     //cell_drawstring(buf, xpos, ypos);
     xpos += 3*FONT_WIDTH + 4;
     if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ)
-      cell_printf(xpos, ypos, "%qHz", frequencies[active_marker_idx]);
+      cell_printf(xpos, ypos, "%qHz", get_marker_frequency(active_marker));
     else
       cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
   }

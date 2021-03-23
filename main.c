@@ -1212,6 +1212,15 @@ void set_marker_index(int m, int idx)
   markers[m].frequency = frequencies[idx];
 }
 
+uint32_t get_marker_frequency(int marker)
+{
+  if ((uint32_t)marker >= MARKERS_MAX)
+    return 0;
+//if (!markers[marker].enabled)
+//  return 0;
+  return markers[marker].frequency;
+}
+
 static void
 update_marker_index(void)
 {
@@ -1219,8 +1228,7 @@ update_marker_index(void)
   uint32_t fstart = get_sweep_frequency(ST_START);
   uint32_t fstop  = get_sweep_frequency(ST_STOP);
   for (m = 0; m < MARKERS_MAX; m++) {
-    if (!markers[m].enabled)
-      continue;
+    // Update index for all markers !!
     uint32_t f = markers[m].frequency;
     if (f == 0) idx = markers[m].index; // Not need update index in no freq
     else if (f < fstart) idx = 0;
