@@ -189,6 +189,11 @@ static void spi_DMARxBuffer(uint8_t *buffer, uint16_t len, bool wait) {
   if (wait)
     dmaWaitCompletionRxTx();
 }
+#else
+// Replace DMA function vs no DMA
+#define dmaWaitCompletionRxTx() {}
+#define spi_DMATxBuffer(buffer, len) spi_TxBuffer(buffer, len)
+#define spi_DMARxBuffer(buffer, len, wait) spi_RxBuffer(buffer, len)
 #endif // __USE_DISPLAY_DMA__
 
 static void spi_init(void)
@@ -334,8 +339,6 @@ static void ili9341_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 // Uncomment on low speed SPI (possible get here before previous tx complete)
 //  while (SPI_IN_TX_RX(LCD_SPI))
 //    ;
-// This only test code
-//  ili9341_bulk_finish();
   LCD_CS_LOW;
   LCD_DC_CMD;
   SPI_WRITE_8BIT(LCD_SPI, cmd);
@@ -526,6 +529,8 @@ void ili9341_init(void)
 }
 
 static void ili9341_setWindow(int x, int y, int w, int h){
+// Any LCD exchange start from this
+  dmaWaitCompletionRxTx();
 //uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
 //uint8_t yy[4] = { y >> 8, y, (y+h-1) >> 8, (y+h-1) };
   uint32_t xx = __REV16(x | ((x + w - 1) << 16));

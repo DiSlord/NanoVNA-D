@@ -232,6 +232,7 @@ void set_sweep_points(uint16_t points);
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
 #define SWEEP_BINARY  0x08
+#define SWEEP_UI_MODE 0x80
 
 extern  uint8_t sweep_mode;
 extern const char *info_about[];
@@ -642,7 +643,6 @@ typedef struct properties {
   float _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
-//on POINTS_COUNT = 101, sizeof(properties_t) == 4152 (need reduce size on 56 bytes to 4096 for more compact save slot size)
 
 extern config_t config;
 extern properties_t current_props;
