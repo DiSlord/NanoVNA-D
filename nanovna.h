@@ -232,6 +232,7 @@ void set_sweep_points(uint16_t points);
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
 #define SWEEP_BINARY  0x08
+#define SWEEP_UI_MODE 0x80
 
 extern  uint8_t sweep_mode;
 extern const char *info_about[];

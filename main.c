@@ -28,7 +28,6 @@
 
 #include <chprintf.h>
 #include <string.h>
-#include <math.h>
 
 /*
  *  Shell settings
@@ -133,7 +132,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.50"
+#define VERSION "1.0.51"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -192,7 +191,9 @@ static THD_FUNCTION(Thread1, arg)
       continue;
     }
     // Process UI inputs
+    sweep_mode|= SWEEP_UI_MODE;
     ui_process();
+    sweep_mode&=~SWEEP_UI_MODE;
     // Process collected data, calculate trace coordinates and plot only if scan completed
     if ((sweep_mode & SWEEP_ENABLE) && completed) {
       if (electrical_delay != 0) apply_edelay();
@@ -2463,7 +2464,7 @@ VNA_SHELL_FUNCTION(cmd_info)
 VNA_SHELL_FUNCTION(cmd_color)
 {
   uint32_t color;
-  int i;
+  uint16_t i;
   if (argc != 2) {
     shell_printf("usage: color {id} {rgb24}\r\n");
     for (i=0; i < MAX_PALETTE; i++) {
@@ -2473,7 +2474,7 @@ VNA_SHELL_FUNCTION(cmd_color)
     }
     return;
   }
-  i = my_atoi(argv[0]);
+  i = my_atoui(argv[0]);
   if (i >= MAX_PALETTE)
     return;
   color = RGBHEX(my_atoui(argv[1]));
@@ -2670,6 +2671,8 @@ typedef struct {
 // Some commands can executed only in sweep thread, not in main cycle
 #define CMD_WAIT_MUTEX  1
 #define CMD_BREAK_SWEEP 2
+// Command can run in shell thread if sweep thread process UI
+#define CMD_RUN_IN_UI   4
 
 static const VNAShellCommand commands[] =
 {
@@ -2679,19 +2682,19 @@ static const VNAShellCommand commands[] =
 #endif
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
-    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"power"       , cmd_power       , 0},
 #ifdef USE_VARIABLE_OFFSET
-    {"offset"      , cmd_offset      , CMD_WAIT_MUTEX},
+    {"offset"      , cmd_offset      , CMD_WAIT_MUTEX|CMD_RUN_IN_UI},
 #endif
     {"bandwidth"   , cmd_bandwidth   , 0},
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , 0},
 #endif
 #ifdef ENABLE_SD_CARD_CMD
-    {"sd_list"       , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"sd_readfile"   , cmd_sd_readfile , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"sd_list"       , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"sd_readfile"   , cmd_sd_readfile , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , 0},
@@ -2718,21 +2721,21 @@ static const VNAShellCommand commands[] =
 #endif
     {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , 0},
-    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"trace"       , cmd_trace       , 0},
     {"marker"      , cmd_marker      , 0},
     {"edelay"      , cmd_edelay      , 0},
-    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"vbat"        , cmd_vbat        , 0},
     {"reset"       , cmd_reset       , 0},
 #ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
-    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
@@ -2974,17 +2977,21 @@ static void VNAShell_executeLine(char *line)
   const VNAShellCommand *scp;
   for (scp = commands; scp->sc_name != NULL; scp++) {
     if (get_str_index(scp->sc_name, shell_args[0]) == 0) {
-      if (scp->flags & CMD_WAIT_MUTEX) {
+      uint16_t cmd_flag = scp->flags;
+      // Skip wait mutex if process UI
+      if ((cmd_flag& CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
+      // Wait
+      if (cmd_flag & CMD_WAIT_MUTEX) {
         shell_function = scp->sc_function;
         if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
         // Wait execute command in sweep thread
         do {
           chThdSleepMilliseconds(100);
         } while (shell_function);
-      } else {
-        scp->sc_function(shell_nargs - 1, &shell_args[1]);
+        return;
       }
-//      DEBUG_LOG(10, "ok");
+      scp->sc_function(shell_nargs - 1, &shell_args[1]);
+//    DEBUG_LOG(10, "ok");
       return;
     }
   }
