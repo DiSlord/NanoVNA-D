@@ -59,6 +59,7 @@
 #undef __USE_DISPLAY_DMA_RX__
 #endif
 
+// LCD display buffer
 pixel_t spi_buffer[SPI_BUFFER_SIZE];
 // Default foreground & background colors
 pixel_t foreground_color = 0;
@@ -68,12 +69,12 @@ pixel_t background_color = 0;
 // SPI functions, settings and data
 //*****************************************************
 // SPI transmit byte to SPI (no wait complete transmit)
-void spi_TxByte(uint8_t data) {
+inline void spi_TxByte(uint8_t data) {
   SPI_WRITE_8BIT(LCD_SPI, data);
 }
 
 // Transmit word to SPI bus (if SPI in 8 bit mode LSB send first!!!!!)
-void spi_TxWord(uint16_t data) {
+inline void spi_TxWord(uint16_t data) {
   SPI_WRITE_16BIT(LCD_SPI, data);
 }
 
@@ -567,17 +568,15 @@ void ili9341_bulk(int x, int y, int w, int h)
 //
 // Use DMA for send data
 //
+#define LCD_DMA_MODE (LCD_PIXEL_SIZE == 2 ? (STM32_DMA_CR_PSIZE_HWORD|STM32_DMA_CR_MSIZE_HWORD) : (STM32_DMA_CR_PSIZE_BYTE|STM32_DMA_CR_MSIZE_BYTE))
+
 // Fill region by some color
 void ili9341_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y, w, h);
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   dmaStreamSetMemory0(dmatx, &background_color);
-#if LCD_PIXEL_SIZE == 2
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD);
-#else
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE);
-#endif
+  dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE);
   dmaStreamFlush(w * h);
 }
 
@@ -586,11 +585,7 @@ static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
 
   dmaStreamSetMemory0(dmatx, buffer);
-#if LCD_PIXEL_SIZE == 2
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD | STM32_DMA_CR_MINC);
-#else
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
-#endif
+  dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC);
   dmaStreamSetTransactionSize(dmatx, w * h);
   dmaStreamEnable(dmatx);
 }

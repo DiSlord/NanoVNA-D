@@ -104,7 +104,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
-static void apply_edelay(void);
+static void apply_edelay(uint16_t ch_mask, int i);
 
 static uint16_t get_sweep_mask(void);
 static void cal_interpolate(void);
@@ -132,7 +132,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.51"
+#define VERSION "1.0.52"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -196,7 +196,6 @@ static THD_FUNCTION(Thread1, arg)
     sweep_mode&=~SWEEP_UI_MODE;
     // Process collected data, calculate trace coordinates and plot only if scan completed
     if ((sweep_mode & SWEEP_ENABLE) && completed) {
-      if (electrical_delay != 0) apply_edelay();
 //      START_PROFILE
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain();
 //      STOP_PROFILE;
@@ -1031,6 +1030,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
       if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
         apply_CH1_error_term_at(p_sweep);
     }
+    if (electrical_delay != 0) apply_edelay(ch_mask, p_sweep);
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
@@ -1626,26 +1626,22 @@ static void apply_CH1_error_term_at(int i)
     measured[1][i][1] = s21ai;
 }
 
-static void apply_edelay(void)
+static void apply_edelay(uint16_t ch_mask, int i)
 {
-  int i;
   float real, imag;
   float s, c;
-  uint16_t ch_mask = get_sweep_mask();
-  for (i=0;i<sweep_points;i++){
-    vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
-    if (ch_mask & SWEEP_CH0_MEASURE){
-      real = measured[0][i][0];
-      imag = measured[0][i][1];
-      measured[0][i][0] = real * c - imag * s;
-      measured[0][i][1] = imag * c + real * s;
-    }
-    if (ch_mask & SWEEP_CH1_MEASURE){
-      real = measured[1][i][0];
-      imag = measured[1][i][1];
-      measured[1][i][0] = real * c - imag * s;
-      measured[1][i][1] = imag * c + real * s;
-    }
+  vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
+  if (ch_mask & SWEEP_CH0_MEASURE){
+    real = measured[0][i][0];
+    imag = measured[0][i][1];
+    measured[0][i][0] = real * c - imag * s;
+    measured[0][i][1] = imag * c + real * s;
+  }
+  if (ch_mask & SWEEP_CH1_MEASURE){
+    real = measured[1][i][0];
+    imag = measured[1][i][1];
+    measured[1][i][0] = real * c - imag * s;
+    measured[1][i][1] = imag * c + real * s;
   }
 }
 
