@@ -43,6 +43,8 @@
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
 #define __USE_LC_MATCHING__
+// Add show y grid line values option
+#define __USE_GRID_VALUES__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
 // Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
@@ -540,6 +542,10 @@ extern const uint8_t numfont16x22[];
  #define STR_LC_MATH_HEIGHT (FONT_STR_HEIGHT + 2)
 #endif
 
+#ifdef __USE_GRID_VALUES__
+#define GRID_X_TEXT   (WIDTH - 5*FONT_WIDTH)
+#endif
+
 // Additional chars in fonts
 #define S_DELTA    "\027"  // hex 0x17
 #define S_SARROW   "\030"  // hex 0x18
@@ -588,6 +594,10 @@ enum marker_smithvalue {
 #define VNA_MODE_SEARCH_MASK      0x08
 #define VNA_MODE_SEARCH_MIN       0x08
 #define VNA_MODE_SEARCH_MAX       0x00
+// Show grid values
+#define VNA_MODE_SHOW_GRID        0x10
+// Show grid values
+#define VNA_MODE_DOT_GRID         0x20
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -785,6 +795,7 @@ typedef uint16_t pixel_t;
 #define LCD_INPUT_TEXT_COLOR    17
 #define LCD_INPUT_BG_COLOR      18
 #define LCD_LC_MATCH_COLOR      19
+#define LCD_GRID_VALUE_COLOR    20
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -807,6 +818,7 @@ typedef uint16_t pixel_t;
 [LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
 [LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
 [LCD_LC_MATCH_COLOR   ] = RGB565(255,255,255), \
+[LCD_GRID_VALUE_COLOR ] = RGB565( 96, 96, 96), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]

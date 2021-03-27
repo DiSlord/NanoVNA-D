@@ -132,7 +132,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.52"
+#define VERSION "1.0.53"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2133,6 +2133,20 @@ VNA_SHELL_FUNCTION(cmd_marker)
                "marker [%s]\r\n", cmd_marker_list, cmd_marker_smith);
 }
 
+#if 0
+VNA_SHELL_FUNCTION(cmd_grid)
+{
+  if (argc != 1) {
+    shell_printf("grid %s\r\n", config._mode&VNA_MODE_SHOW_GRID ? "on" : "off");
+    return;
+  }
+  if (my_atoi(argv[0]))
+    config._mode|= VNA_MODE_SHOW_GRID;
+  else
+    config._mode&=~VNA_MODE_SHOW_GRID;
+}
+#endif
+
 VNA_SHELL_FUNCTION(cmd_touchcal)
 {
   (void)argc;
@@ -2724,6 +2738,7 @@ static const VNAShellCommand commands[] =
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"trace"       , cmd_trace       , 0},
     {"marker"      , cmd_marker      , 0},
+//  {"grid"        , cmd_grid        , 0},
     {"edelay"      , cmd_edelay      , 0},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"vbat"        , cmd_vbat        , 0},

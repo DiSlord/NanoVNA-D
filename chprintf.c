@@ -40,7 +40,8 @@
 #define CHPRINTF_FORCE_TRAILING_ZEROS
 
 #define MAX_FILLER 11
-#define FLOAT_PRECISION 9
+#define FLOAT_PRECISION         9
+#define FLOAT_PREFIX_PRECISION  3
 
 #pragma pack(push, 2)
 
@@ -59,7 +60,7 @@ static const char smallPrefix[] = { 'm', 0x1d,  'n',   'p',   'f',   'a',   'z',
 static char *long_to_string_with_divisor(char *p,
                                          uint32_t num,
                                          uint32_t radix,
-                                         uint32_t precision) {
+                                         int      precision) {
   char *q = p + MAX_FILLER;
   char *b = q;
   // convert to string from end buffer to begin
@@ -84,7 +85,7 @@ static char *long_to_string_with_divisor(char *p,
 #define FREQ_PREFIX_SPACE   4
 
 static char *
-ulong_freq(char *p, uint32_t freq, uint32_t precision)
+ulong_freq(char *p, uint32_t freq, int precision)
 {
   uint8_t flag = FREQ_PSET;
   if (precision == 0)
@@ -112,8 +113,8 @@ ulong_freq(char *p, uint32_t freq, uint32_t precision)
     freq += freq >> 8;
     freq += freq >> 16;  // freq = 858993459*freq/1073741824 = freq *
                          // 0,799999999813735485076904296875
-    freq >>= 3;  // freq/=8; freq = freq * 0,09999999997671693563461303710938
-    c -= freq * 10;  // freq*10 = (freq*4+freq)*2 = ((freq<<2)+freq)<<1
+    freq >>= 3;          // freq/=8; freq = freq * 0,09999999997671693563461303710938
+    c -= freq * 10;      // freq*10 = (freq*4+freq)*2 = ((freq<<2)+freq)<<1
     while (c >= 10) {
       freq++;
       c -= 10;
@@ -131,7 +132,7 @@ ulong_freq(char *p, uint32_t freq, uint32_t precision)
   s = bigPrefix[s];
 
   // Get string size
-  uint32_t i = (b - q);
+  int i = (b - q);
   // Limit string size, max size is - precision
   if (precision && i > precision) {
     i = precision;
@@ -159,7 +160,7 @@ ulong_freq(char *p, uint32_t freq, uint32_t precision)
 }
 
 #if CHPRINTF_USE_FLOAT
-static char *ftoa(char *p, float num, uint32_t precision) {
+static char *ftoa(char *p, float num, int precision) {
   // Check precision limit
   if (precision > FLOAT_PRECISION)
     precision = FLOAT_PRECISION;
@@ -182,28 +183,36 @@ static char *ftoa(char *p, float num, uint32_t precision) {
   return p;
 }
 
-static char *ftoaS(char *p, float num, uint32_t precision) {
+static char *ftoaS(char *p, float num, int16_t precision) {
   char prefix=0;
   const char *ptr;
-  if (num > 1000.0){
-    for (ptr = bigPrefix+1; *ptr && num > 1000.0; num/=1000, ptr++)
+  if (num >= 1000.0f){
+    for (ptr = bigPrefix+1; *ptr && num >= 1000.0f; num/=1000.0f, ptr++)
       ;
     prefix = ptr[-1];
   }
   else if (num < 1){
-    for (ptr = smallPrefix; *ptr && num < 1.0; num*=1000, ptr++)
+    for (ptr = smallPrefix; *ptr && num < 1.0f; num*=1000.0f, ptr++)
       ;
     prefix = num > 1e-3 ? ptr[-1] : 0;
   }
-  else
-    precision++;   // Add additional digit in place of prefix
+  if (prefix)
+    precision--;
+
   // Auto set precision in place of value
   uint32_t l = num;
-  if (l < 10)
-    precision+=2;
-  else if (l < 100)
-    precision+=1;
+  if (l >= 100)
+    precision-=2;
+  else if (l >= 10)
+    precision-=1;
+  if (precision < 0)
+    precision=0;
   p=ftoa(p, num, precision);
+  // remove zeros at end
+  if (precision){
+    while (p[-1]=='0') p--;
+    if (p[-1]=='.') p--;
+  }
   if (prefix)
     *p++ = prefix;
   return p;
@@ -399,7 +408,10 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
         *p++ = 0x19;
         break;
       }
-      p = (c=='F') ? ftoaS(p, value.f, precision) : ftoa(p, value.f, state&DEFAULT_PRESCISION ? FLOAT_PRECISION : precision);
+      // Set default precision
+      if (state&DEFAULT_PRESCISION)
+        precision = (c=='F') ? FLOAT_PREFIX_PRECISION : FLOAT_PRECISION;
+      p = (c=='F') ? ftoaS(p, value.f, precision) : ftoa(p, value.f, precision);
       break;
 #endif
     case 'X':

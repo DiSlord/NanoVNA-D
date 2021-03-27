@@ -362,15 +362,6 @@ swr(const float *v)
 }
 
 static float
-graph_swr(const float *v)
-{
-  float x = linear(v);
-  if (x > 0.99)
-    return INFINITY;
-  return 2*x/(1 - x); // swr - 1
-}
-
-static float
 resistance(const float *v)
 {
   const float z0 = 50;
@@ -449,13 +440,13 @@ static const struct {
 // Type        format           delta format           get value
 [TRC_LOGMAG] = {"%.2fdB",       S_DELTA"%.2fdB",       logmag       },
 [TRC_PHASE]  = {"%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, phase        },
-[TRC_DELAY]  = {"%.2Fs",        "%.2Fs",               NULL         }, // Custom
+[TRC_DELAY]  = {"%.4Fs",        "%.4Fs",               NULL         }, // Custom
 [TRC_LINEAR] = {"%.4f",         S_DELTA"%.3f",         linear       },
-[TRC_SWR]    = {"%.4f",         S_DELTA"%.3f",         swr          },
+[TRC_SWR]    = {"%.3f",         S_DELTA"%.3f",         swr          },
 [TRC_REAL]   = {"%.4f",         S_DELTA"%.3f",         real         },
-[TRC_IMAG]   = {"%.4fj",        S_DELTA"%.3fj",        imag         },
-[TRC_R]      = {"%.2F"S_OHM,    S_DELTA"%.2F"S_OHM,    resistance   },
-[TRC_X]      = {"%.2F"S_OHM,    S_DELTA"%.2F"S_OHM,    reactance    },
+[TRC_IMAG]   = {"%.4fj",        S_DELTA"%.4fj",        imag         },
+[TRC_R]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    resistance   },
+[TRC_X]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    reactance    },
 [TRC_Q]      = {"%.3f",         S_DELTA"%.3f",         qualityfactor},
 [TRC_Z]      = {"%.3f",         S_DELTA"%.3f",         mod_z        },
 [TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
@@ -466,15 +457,16 @@ static const struct {
 static void
 trace_into_index(int t, float array[POINTS_COUNT][2])
 {
-  const float refpos = HEIGHT - get_trace_refpos(t)*GRIDY + 0.5; // 0.5 for pixel align
-  const float scale = get_trace_scale(t);
   uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
   uint16_t type    = 1<<trace[t].type;
   get_value_cb_t c = format_list[trace[t].type].get_value_cb; // Get callback for value calculation
-  if (type & (1<<TRC_SWR)) c = graph_swr;                     // For SWR graph start from 1.0, need redefine
+  float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5;  // 0.5 for pixel align
+  float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
+    if (type & TRC_SWR)  // For SWR need shift value by 1.0 down
+      refpos+= dscale;
     uint16_t delta = WIDTH / point_count;
     uint16_t error = WIDTH % point_count;
     int16_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
@@ -1200,6 +1192,32 @@ plot_into_index(float array[2][POINTS_COUNT][2])
   request_to_redraw(REDRAW_MARKER | REDRAW_CELLS);
 }
 
+#ifdef __USE_GRID_VALUES__
+static void cell_grid_line_info(int x0, int y0)
+{
+  // Skip not selected trace
+  if (current_trace == TRACE_INVALID) return;
+  // Skip for SMITH/POLAR and off trace
+  uint32_t trace_type = 1 << trace[current_trace].type;
+  if (trace_type&((1 << TRC_SMITH) | (1 << TRC_POLAR) | (1 << TRC_OFF))) return;
+  // Render at right
+  int xpos = GRID_X_TEXT - x0;
+  int ypos = 0           - y0 + 2;
+
+  float scale = get_trace_scale(current_trace);
+  float   ref = get_trace_refpos(current_trace);
+
+  ili9341_set_foreground(LCD_TRACE_1_COLOR + current_trace);
+  for (int i = 0; i < NGRIDY; i++, ypos+=GRIDY){
+    if ((uint32_t)(ypos+FONT_GET_HEIGHT) >= CELLHEIGHT + FONT_GET_HEIGHT) continue;
+    // Calculate grid value
+    float v = ((NGRIDY - i) - ref) * scale;
+    if (trace_type&(1 << TRC_SWR)) v+=1.0;  // For SWR trace, value shift by 1.0
+    cell_printf(xpos, ypos, "% 6.3F", v);
+  }
+}
+#endif
+
 static void
 draw_cell(int m, int n)
 {
@@ -1271,16 +1289,17 @@ draw_cell(int m, int n)
       trace_type |= (1 << trace[t].type);
     }
   }
+  const int step = (config._mode&VNA_MODE_DOT_GRID) ? 2 : 1;
   // Draw rectangular plot (40 system ticks for all screen calls)
   if (trace_type & RECTANGULAR_GRID_MASK) {
     for (x = 0; x < w; x++) {
       if (rectangular_grid_x(x + x0)) {
-        for (y = 0; y < h; y++) cell_buffer[y * CELLWIDTH + x] = c;
+        for (y = 0; y < h*CELLWIDTH; y+=step*CELLWIDTH) cell_buffer[y + x] = c;
       }
     }
     for (y = 0; y < h; y++) {
       if (rectangular_grid_y(y + y0)) {
-        for (x = 0; x < w; x++)
+        for (x = 0; x < w; x+=step)
           if ((uint32_t)(x + x0 - CELLOFFSETX) <= WIDTH)
             cell_buffer[y * CELLWIDTH + x] = c;
       }
@@ -1302,6 +1321,13 @@ draw_cell(int m, int n)
   }
 #endif
 #endif
+
+#ifdef __USE_GRID_VALUES__
+  // Only right cells
+  if ((config._mode&VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+    cell_grid_line_info(x0, y0);
+#endif
+
 //  PULSE;
 // Draw traces (50-600 system ticks for all screen calls, depend from lines
 // count and size)
