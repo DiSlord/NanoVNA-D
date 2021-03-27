@@ -465,7 +465,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
-    if (type & TRC_SWR)  // For SWR need shift value by 1.0 down
+    if (type & (1<<TRC_SWR))  // For SWR need shift value by 1.0 down
       refpos+= dscale;
     uint16_t delta = WIDTH / point_count;
     uint16_t error = WIDTH % point_count;
