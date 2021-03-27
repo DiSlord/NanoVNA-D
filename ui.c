@@ -809,6 +809,19 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
   }
 }
 
+#ifdef __USE_GRID_VALUES__
+static UI_FUNCTION_ADV_CALLBACK(menu_grid_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = config._mode&data ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  config._mode^=data;
+  request_to_redraw(REDRAW_AREA);
+}
+#endif
+
 static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
   (void)data;
@@ -1241,6 +1254,10 @@ const menuitem_t menu_scale[] = {
   { MT_CALLBACK, KM_SCALE, "SCALE/DIV", menu_keyboard_cb },
   { MT_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_cb },
   { MT_CALLBACK, KM_EDELAY, "ELECTRICAL\nDELAY", menu_keyboard_cb },
+#ifdef __USE_GRID_VALUES__
+  { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
