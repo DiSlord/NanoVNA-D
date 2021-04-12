@@ -582,10 +582,15 @@ enum marker_smithvalue {
   MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
 };
 
+// lever_mode
+enum {LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY};
+
+#define MARKER_INVALID       -1
+#define TRACE_INVALID        -1
+
 // config._mode flags
 #define VNA_MODE_START_STOP       0x00
 #define VNA_MODE_CENTER_SPAN      0x01
-#define VNA_MODE_DOTTED_GRID      0x02
 // Connection flag
 #define VNA_MODE_CONNECTION_MASK  0x04
 #define VNA_MODE_SERIAL           0x04
@@ -598,6 +603,10 @@ enum marker_smithvalue {
 #define VNA_MODE_SHOW_GRID        0x10
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
+// Marker track
+#define VNA_MODE_MARKER_TRACK     0x40
+// Marker delta
+#define VNA_MODE_MARKER_DELTA     0x80
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -620,19 +629,19 @@ typedef struct marker {
 
 typedef struct config {
   uint32_t magic;
-  uint32_t harmonic_freq_threshold;
-  int16_t  touch_cal[4];
-  uint8_t  _mode;
+  uint32_t _harmonic_freq_threshold;
+  int16_t  _touch_cal[4];
+  uint8_t  _vna_mode;
   uint8_t  _brightness;
-  uint16_t dac_value;
-  uint16_t vbat_offset;
-  uint16_t bandwidth;
-  uint16_t lcd_palette[MAX_PALETTE];
+  uint16_t _dac_value;
+  uint16_t _vbat_offset;
+  uint16_t _bandwidth;
+  uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _serial_config;
-  uint8_t _reserved[24];
+  uint8_t  _lever_mode;
   uint32_t checksum;
-} config_t; // sizeof = 108
+} config_t;
 
 typedef struct properties {
   uint32_t magic;
@@ -642,15 +651,15 @@ typedef struct properties {
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
-  float _electrical_delay; // picoseconds
-  float _velocity_factor; // %
-  int8_t  _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
-  int8_t  _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
-  uint8_t _domain_mode;         // timed domain option flag and some others flags
-  uint8_t _marker_smith_format;
-  uint8_t _power;
-  uint8_t _dummy;
-  float _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
+  float    _electrical_delay;    // picoseconds
+  float    _velocity_factor;     // %
+  int8_t   _current_trace;       // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
+  int8_t   _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
+  int8_t   _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
+  uint8_t  _domain_mode;         // timed domain option flag and some others flags
+  uint8_t  _marker_smith_format;
+  uint8_t  _power;
+  float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
 
@@ -821,7 +830,7 @@ typedef uint16_t pixel_t;
 [LCD_GRID_VALUE_COLOR ] = RGB565( 96, 96, 96), \
 }
 
-#define GET_PALTETTE_COLOR(idx)  config.lcd_palette[idx]
+#define GET_PALTETTE_COLOR(idx)  config._lcd_palette[idx]
 
 extern pixel_t foreground_color;
 extern pixel_t background_color;
@@ -929,30 +938,31 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 
 extern uint16_t lastsaveid;
 
-#define frequency0 current_props._frequency0
-#define frequency1 current_props._frequency1
-#define sweep_points current_props._sweep_points
-#define cal_status current_props._cal_status
-#define cal_data current_props._cal_data
-#define electrical_delay current_props._electrical_delay
-
-#define trace current_props._trace
-#define markers current_props._markers
-#define active_marker current_props._active_marker
-#define previous_marker current_props._previous_marker
-#define domain_mode current_props._domain_mode
-#define domain_func (current_props._domain_mode&TD_FUNC)
-
-#define velocity_factor current_props._velocity_factor
+#define frequency0          current_props._frequency0
+#define frequency1          current_props._frequency1
+#define sweep_points        current_props._sweep_points
+#define cal_status          current_props._cal_status
+#define cal_data            current_props._cal_data
+#define electrical_delay    current_props._electrical_delay
+#define velocity_factor     current_props._velocity_factor
 #define marker_smith_format current_props._marker_smith_format
+#define trace               current_props._trace
+#define current_trace       current_props._current_trace
+#define markers             current_props._markers
+#define active_marker       current_props._active_marker
+#define previous_marker     current_props._previous_marker
+#define domain_mode         current_props._domain_mode
+#define domain_func        (current_props._domain_mode&TD_FUNC)
+
 
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
 
-#define current_trace   uistat._current_trace
-#define FREQ_IS_STARTSTOP() (!(config._mode&VNA_MODE_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN() (config._mode&VNA_MODE_CENTER_SPAN)
-#define FREQ_IS_CW() (frequency0 == frequency1)
+#define VNA_mode             config._vna_mode
+#define lever_mode           config._lever_mode
+#define FREQ_IS_STARTSTOP()  (!(VNA_mode & VNA_MODE_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN() (  VNA_mode & VNA_MODE_CENTER_SPAN)
+#define FREQ_IS_CW()         (frequency0 == frequency1)
 
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);
@@ -986,26 +996,7 @@ void enter_dfu(void);
 #define OP_LEVER      0x01
 #define OP_TOUCH      0x02
 #define OP_CONSOLE    0x04
-extern volatile uint8_t operation_requested;
-
-// lever_mode
-enum lever_mode {
-  LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY
-};
-
-#define MARKER_INVALID       -1
-#define TRACE_INVALID        -1
-typedef struct uistat {
-//  uint32_t value;         // for editing at numeric input area
-//  int8_t digit;           // 0~5 used in numeric input (disabled)
-//  int8_t digit_mode;      // used in numeric input (disabled)
-  int8_t  _current_trace;   // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
-  uint8_t lever_mode;
-  uint8_t marker_delta:1;
-  uint8_t marker_tracking:1;
-} uistat_t;
-
-extern uistat_t uistat;
+extern uint8_t operation_requested;
 
 #define TOUCH_THRESHOLD 2000
 

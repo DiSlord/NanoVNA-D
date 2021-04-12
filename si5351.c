@@ -439,7 +439,7 @@ uint32_t
 si5351_get_harmonic_lvl(uint32_t freq){
   uint16_t i;
   for (i = 0; i < ARRAY_COUNT(band_s); i++){
-    uint32_t f = band_s[i].freq; if (f < 20) f*=config.harmonic_freq_threshold;
+    uint32_t f = band_s[i].freq; if (f < 20) f*=config._harmonic_freq_threshold;
     if (freq <= f)
       return i;
   }

@@ -153,7 +153,7 @@ return_cached:
     // maybe D2 is not installed
     return -1;
   }
-  return vbat_raw + config.vbat_offset;
+  return vbat_raw + config._vbat_offset;
 }
 
 void adc_start_analog_watchdog(void)
