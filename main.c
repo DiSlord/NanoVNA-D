@@ -704,11 +704,11 @@ VNA_SHELL_FUNCTION(cmd_threshold)
   uint32_t value;
   if (argc != 1) {
     shell_printf("usage: threshold {frequency in harmonic mode}\r\n"\
-                 "current: %d\r\n", config.harmonic_freq_threshold);
+                 "current: %d\r\n", config._harmonic_freq_threshold);
     return;
   }
   value = my_atoui(argv[0]);
-  config.harmonic_freq_threshold = value;
+  config._harmonic_freq_threshold = value;
 }
 
 VNA_SHELL_FUNCTION(cmd_saveconfig)
@@ -842,16 +842,17 @@ usage:
 
 config_t config = {
   .magic       = CONFIG_MAGIC,
-  .dac_value   = 1922,
-  .lcd_palette = LCD_DEFAULT_PALETTE,
-  .touch_cal   = DEFAULT_TOUCH_CONFIG,
-  ._mode       = VNA_MODE_START_STOP | VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
-  .harmonic_freq_threshold = FREQUENCY_THRESHOLD,
+  ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
+  ._touch_cal   = DEFAULT_TOUCH_CONFIG,
+  ._vna_mode   = VNA_MODE_START_STOP | VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
+  ._brightness = DEFAULT_BRIGHTNESS,
+  ._dac_value   = 1922,
+  ._vbat_offset = 320,
+  ._bandwidth = BANDWIDTH_1000,
+  ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._serial_config = 0,
-  .vbat_offset = 320,
-  ._brightness = DEFAULT_BRIGHTNESS,
-  .bandwidth = BANDWIDTH_1000
+  ._lever_mode = LM_MARKER,
 };
 
 properties_t current_props;
@@ -892,18 +893,21 @@ void load_default_properties(void)
   current_props._frequency1   = 900000000;    // end   = 900MHz
   current_props._sweep_points = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_status   = 0;
-//This data not loaded by default
-//current_props._cal_data[5][POINTS_COUNT][2];
 //=============================================
-  current_props._electrical_delay = 0.0;
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
+//=============================================
+  current_props._electrical_delay = 0.0;
   current_props._velocity_factor = 0.7;
+  current_props._current_trace   = 0;
   current_props._active_marker   = 0;
   current_props._previous_marker = MARKER_INVALID;
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
   current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+
+//This data not loaded by default
+//current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
 //current_props.checksum = 0;
 }
@@ -939,9 +943,9 @@ void i2s_end_callback(I2SDriver *i2sp, size_t offset, size_t n)
   int16_t *p = &rx_buffer[offset];
   (void)i2sp;
   if (wait_count == 0 || chVTGetSystemTimeX() < ready_time) return;
-  if (wait_count == config.bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
+  if (wait_count == config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
     reset_dsp_accumerator();
-  else if (wait_count <= config.bandwidth+1) // Clean data ready, process it
+  else if (wait_count <= config._bandwidth+1) // Clean data ready, process it
     dsp_process(p, n);
 #ifdef ENABLED_DUMP_COMMAND
   duplicate_buffer_to_dump(p);
@@ -971,7 +975,7 @@ extern uint16_t timings[16];
 #define DELAY_SWEEP_START     50    // Sweep start delay, allow remove noise at 1 point
 #endif
 
-#define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config.bandwidth+2;}
+#define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config._bandwidth+2;}
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
@@ -1034,11 +1038,11 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
-    if (config.bandwidth >= BANDWIDTH_100)
+    if (config._bandwidth >= BANDWIDTH_100)
       ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
   }
   ili9341_set_background(LCD_GRID_COLOR);
-  if (config.bandwidth >= BANDWIDTH_100)
+  if (config._bandwidth >= BANDWIDTH_100)
     ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
@@ -1076,7 +1080,7 @@ static int set_frequency(uint32_t freq)
 }
 
 void set_bandwidth(uint16_t bw_count){
-  config.bandwidth = bw_count&0x1FF;
+  config._bandwidth = bw_count&0x1FF;
   request_to_redraw(REDRAW_FREQUENCY);
 }
 
@@ -1102,7 +1106,7 @@ VNA_SHELL_FUNCTION(cmd_bandwidth)
     goto result;
   set_bandwidth(user_bw);
 result:
-  shell_printf("bandwidth %d (%uHz)\r\n", config.bandwidth, get_bandwidth_frequency(config.bandwidth));
+  shell_printf("bandwidth %d (%uHz)\r\n", config._bandwidth, get_bandwidth_frequency(config._bandwidth));
 }
 
 void set_sweep_points(uint16_t points){
@@ -1302,19 +1306,19 @@ set_sweep_frequency(int type, uint32_t freq)
   uint32_t center, span;
   switch (type) {
     case ST_START:
-      config._mode &= ~VNA_MODE_CENTER_SPAN;
+      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
       frequency0 = freq;
       // if start > stop then make start = stop
       if (frequency1 < freq) frequency1 = freq;
       break;
     case ST_STOP:
-      config._mode &= ~VNA_MODE_CENTER_SPAN;
+      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
       frequency1 = freq;
         // if start > stop then make start = stop
       if (frequency0 > freq) frequency0 = freq;
       break;
     case ST_CENTER:
-      config._mode |= VNA_MODE_CENTER_SPAN;
+      VNA_mode |= VNA_MODE_CENTER_SPAN;
       center = freq;
       span   = (frequency1 - frequency0)>>1;
       if (span > center - START_MIN)
@@ -1325,7 +1329,7 @@ set_sweep_frequency(int type, uint32_t freq)
       frequency1 = center + span;
       break;
     case ST_SPAN:
-      config._mode |= VNA_MODE_CENTER_SPAN;
+      VNA_mode |= VNA_MODE_CENTER_SPAN;
       center = (frequency0>>1) + (frequency1>>1);
       span = freq>>1;
       if (center < START_MIN + span)
@@ -1336,7 +1340,7 @@ set_sweep_frequency(int type, uint32_t freq)
       frequency1 = center + span;
       break;
     case ST_CW:
-      config._mode |= VNA_MODE_CENTER_SPAN;
+      VNA_mode |= VNA_MODE_CENTER_SPAN;
       frequency0 = freq;
       frequency1 = freq;
       break;
@@ -1683,15 +1687,15 @@ cal_collect(uint16_t type)
   cal_status&= ~(CALSTAT_APPLY);
 #endif
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
-  uint8_t bw = config.bandwidth;  // store current setting
+  uint8_t bw = config._bandwidth;  // store current setting
   if (bw < BANDWIDTH_100)
-    config.bandwidth = BANDWIDTH_100;
+    config._bandwidth = BANDWIDTH_100;
 
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
   sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
-  config.bandwidth = bw;          // restore
+  config._bandwidth = bw;          // restore
 
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
@@ -2160,7 +2164,7 @@ VNA_SHELL_FUNCTION(cmd_touchcal)
 
   shell_printf("touch cal params: ");
   for (i = 0; i < 4; i++) {
-    shell_printf("%d ", config.touch_cal[i]);
+    shell_printf("%d ", config._touch_cal[i]);
   }
   shell_printf("\r\n");
 }
@@ -2190,7 +2194,7 @@ set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
   if (mode != (domain_mode & DOMAIN_MODE)) {
     domain_mode = (domain_mode & ~DOMAIN_MODE) | (mode & DOMAIN_MODE);
     request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
-    uistat.lever_mode = LM_MARKER;
+    lever_mode = LM_MARKER;
   }
 }
 
@@ -2414,10 +2418,10 @@ VNA_SHELL_FUNCTION(cmd_vbat)
 VNA_SHELL_FUNCTION(cmd_vbat_offset)
 {
   if (argc != 1) {
-    shell_printf("%d\r\n", config.vbat_offset);
+    shell_printf("%d\r\n", config._vbat_offset);
     return;
   }
-  config.vbat_offset = (int16_t)my_atoi(argv[0]);
+  config._vbat_offset = (int16_t)my_atoi(argv[0]);
 }
 #endif
 
@@ -2488,7 +2492,7 @@ VNA_SHELL_FUNCTION(cmd_color)
   if (i >= MAX_PALETTE)
     return;
   color = RGBHEX(my_atoui(argv[1]));
-  config.lcd_palette[i] = color;
+  config._lcd_palette[i] = color;
   // Redraw all
   request_to_redraw(REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY);
 }
@@ -2579,7 +2583,7 @@ result:
 VNA_SHELL_FUNCTION(cmd_usart)
 {
   uint32_t time = 2000; // 200ms wait answer by default
-  if (argc == 0 || argc > 2 || (config._mode & VNA_MODE_SERIAL)) return;
+  if (argc == 0 || argc > 2 || (VNA_mode & VNA_MODE_SERIAL)) return;
   if (argc == 2) time = my_atoui(argv[1])*10;
   sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
   sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
@@ -2813,7 +2817,7 @@ VNA_SHELL_FUNCTION(cmd_help)
 #endif
 
 // Before start process command from shell, need select input stream
-#define PREPARE_STREAM shell_stream = (config._mode&VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+#define PREPARE_STREAM shell_stream = (VNA_mode & VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
 
 // Update Serial connection speed and settings
 void shell_update_speed(void){
@@ -2832,7 +2836,7 @@ static bool usb_IsActive(void){
 void shell_reset_console(void){
   // Reset I/O queue over USB (for USB need also connect/disconnect)
   if (usb_IsActive()){
-    if (config._mode & VNA_MODE_SERIAL)
+    if (VNA_mode & VNA_MODE_SERIAL)
       sduDisconnectI(&SDU1);
     else
       sduConfigureHookI(&SDU1);
@@ -2845,7 +2849,7 @@ void shell_reset_console(void){
 // Check active connection for Shell
 static bool shell_check_connect(void){
   // Serial connection always active
-  if (config._mode & VNA_MODE_SERIAL)
+  if (VNA_mode & VNA_MODE_SERIAL)
     return true;
   // USB connection can be USB_SUSPENDED
   return usb_IsActive();

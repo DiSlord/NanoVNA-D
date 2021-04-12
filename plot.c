@@ -469,14 +469,18 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
       refpos+= dscale;
     uint16_t delta = WIDTH / point_count;
     uint16_t error = WIDTH % point_count;
-    int16_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
+    int32_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
     for (i = 0; i <= point_count; i++, x+=delta) {
       float v;
       if (c)  v = c(array[i]);                     // Get value
       else    v = groupdelay_from_array(i, array); // only TRC_DELAY !! custom on RECTANGULAR_GRID_MASK
-      y = refpos - v * dscale;
-           if (y <      0) y = 0;
-      else if (y > HEIGHT) y = HEIGHT;
+      if (v == INFINITY) {
+        y = 0;
+      } else {
+        y = refpos - v * dscale;
+             if (y <      0) y = 0;
+        else if (y > HEIGHT) y = HEIGHT;
+      }
       index[i].x = x;
       index[i].y = y;
       dx+=error; if (dx >=point_count) {x++; dx-= point_count;}
@@ -1089,8 +1093,8 @@ markmap_all_markers(void)
 //
 // Marker search functions
 //
-static bool greater(int x, int y) { return x > y; }
-static bool lesser(int x, int y) { return x < y; }
+static bool _greater(int x, int y) { return x > y; }
+static bool _lesser(int x, int y) { return x < y; }
 void
 marker_search(bool update)
 {
@@ -1101,7 +1105,7 @@ marker_search(bool update)
   // Select search index table
   index_t *index = trace_index[current_trace];
   // Select compare function (depend from config settings)
-  bool (*compare)(int x, int y) = (config._mode&VNA_MODE_SEARCH_MIN) ? lesser : greater;
+  bool (*compare)(int x, int y) = (VNA_mode & VNA_MODE_SEARCH_MIN) ? _lesser : _greater;
   for (i = 1, value = index[0].y; i < sweep_points; i++) {
     if ((*compare)(value, index[i].y)) {
       value = index[i].y;
@@ -1123,7 +1127,7 @@ marker_search_dir(int16_t from, int16_t dir)
   // Select search index table
   index_t *index = trace_index[current_trace];
   // Select compare function (depend from config settings)
-  bool (*compare)(int x, int y) = (config._mode&VNA_MODE_SEARCH_MIN) ? lesser : greater;
+  bool (*compare)(int x, int y) = (VNA_mode & VNA_MODE_SEARCH_MIN) ? _lesser : _greater;
   // Search next
   for (i = from + dir,  value = index[from].y; i >= 0 && i < sweep_points; i+=dir) {
     if ((*compare)(value, index[i].y))
@@ -1182,7 +1186,7 @@ plot_into_index(float array[2][POINTS_COUNT][2])
   }
 //  STOP_PROFILE;
   // Marker track on data update
-  if (uistat.marker_tracking)
+  if (VNA_mode & VNA_MODE_MARKER_TRACK)
     marker_search(false);
   // Current scan count
   sweep_count++;
@@ -1289,7 +1293,7 @@ draw_cell(int m, int n)
       trace_type |= (1 << trace[t].type);
     }
   }
-  const int step = (config._mode&VNA_MODE_DOT_GRID) ? 2 : 1;
+  const int step = (VNA_mode & VNA_MODE_DOT_GRID) ? 2 : 1;
   // Draw rectangular plot (40 system ticks for all screen calls)
   if (trace_type & RECTANGULAR_GRID_MASK) {
     for (x = 0; x < w; x++) {
@@ -1324,7 +1328,7 @@ draw_cell(int m, int n)
 
 #ifdef __USE_GRID_VALUES__
   // Only right cells
-  if ((config._mode&VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+  if ((VNA_mode & VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
     cell_grid_line_info(x0, y0);
 #endif
 
@@ -1347,6 +1351,8 @@ draw_cell(int m, int n)
       // draw polar plot (check all points)
       i1 = sweep_points - 1;
     }
+#if 1
+    // Line mode
     for (i = i0; i < i1; i++) {
       int x1 = index[i].x - x0;
       int y1 = index[i].y - y0;
@@ -1354,6 +1360,15 @@ draw_cell(int m, int n)
       int y2 = index[i + 1].y - y0;
       cell_drawline(x1, y1, x2, y2, c);
     }
+#else
+    // Dot mode
+    for (i = i0; i < i1; i++) {
+      int x = index[i].x - x0;
+      int y = index[i].y - y0;
+      if ((uint32_t)x < CELLWIDTH && (uint32_t)y < CELLHEIGHT)
+        cell_buffer[y * CELLWIDTH + x] = c;
+    }
+#endif
   }
 #else
   for (x = 0; x < area_width; x += 6)
@@ -1541,7 +1556,7 @@ cell_draw_marker_info(int x0, int y0)
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
       uint32_t freq = get_marker_frequency(mk);
-      if (uistat.marker_delta && mk != active_marker) {
+      if ((VNA_mode & VNA_MODE_MARKER_DELTA) && mk != active_marker) {
         uint32_t freq1 = get_marker_frequency(active_marker);
         uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
@@ -1580,7 +1595,7 @@ cell_draw_marker_info(int x0, int y0)
   ypos =  1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
   if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
     // draw marker delta
-    if (!uistat.marker_delta && active_marker != previous_marker) {
+    if (!(VNA_mode & VNA_MODE_MARKER_DELTA) && active_marker != previous_marker) {
       int previous_marker_idx = markers[previous_marker].index;
       cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
@@ -1597,7 +1612,7 @@ cell_draw_marker_info(int x0, int y0)
   }
   else /*if (active_marker != MARKER_INVALID)*/{
     // draw marker frequency
-    if (uistat.lever_mode == LM_MARKER)
+    if (lever_mode == LM_MARKER)
       cell_printf(xpos, ypos, S_SARROW);
     xpos += FONT_WIDTH;
     cell_printf(xpos, ypos, "M%d:", active_marker+1);
@@ -1614,7 +1629,7 @@ cell_draw_marker_info(int x0, int y0)
     xpos = 1 + 18 + CELLOFFSETX          - x0;
     ypos = 1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
 
-    if (uistat.lever_mode == LM_EDELAY)
+    if (lever_mode == LM_EDELAY)
       cell_printf(xpos, ypos, S_SARROW);
     xpos += 5;
 
@@ -1643,9 +1658,9 @@ draw_frequencies(void)
     plot_printf(buf1, sizeof(buf1), " %s 0s", "START");
     plot_printf(buf2, sizeof(buf2), " %s %Fs (%Fm)", "STOP", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
   }
-  if (uistat.lever_mode == LM_CENTER)
+  if (lever_mode == LM_CENTER)
     buf1[0] = S_SARROW[0];
-  if (uistat.lever_mode == LM_SPAN)
+  if (lever_mode == LM_SPAN)
     buf2[0] = S_SARROW[0];
   // Draw frequency string
   ili9341_set_foreground(LCD_FG_COLOR);
@@ -1655,7 +1670,7 @@ draw_frequencies(void)
   ili9341_drawstring(buf2, FREQUENCIES_XPOS2, FREQUENCIES_YPOS);
   // Draw bandwidth and point count
   ili9341_set_foreground(LCD_BW_TEXT_COLOR);
-  plot_printf(buf1, sizeof(buf1), "bw:%uHz %up", get_bandwidth_frequency(config.bandwidth), sweep_points);
+  plot_printf(buf1, sizeof(buf1), "bw:%uHz %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
   ili9341_drawstring(buf1, FREQUENCIES_XPOS3, FREQUENCIES_YPOS);
 }
 

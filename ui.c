@@ -26,14 +26,6 @@
 #include "si5351.h"
 #include <string.h>
 
-uistat_t uistat = {
-// digit: 6,
- _current_trace: 0,
- lever_mode: LM_MARKER,
- marker_delta: FALSE,
- marker_tracking : FALSE,
-};
-
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
 #define EVT_BUTTON_DOUBLE_CLICK     0x02
@@ -59,7 +51,7 @@ static uint16_t last_button = 0b0000;
 static systime_t last_button_down_ticks;
 static systime_t last_button_repeat_ticks;
 
-volatile uint8_t operation_requested = OP_NONE;
+uint8_t operation_requested = OP_NONE;
 
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
@@ -451,10 +443,10 @@ touch_cal_exec(void)
   x2 = last_touch_x;
   y2 = last_touch_y;
 
-  config.touch_cal[0] = x1;
-  config.touch_cal[1] = y1;
-  config.touch_cal[2] = (x2 - x1) * 16 / LCD_WIDTH;
-  config.touch_cal[3] = (y2 - y1) * 16 / LCD_HEIGHT;
+  config._touch_cal[0] = x1;
+  config._touch_cal[1] = y1;
+  config._touch_cal[2] = (x2 - x1) * 16 / LCD_WIDTH;
+  config._touch_cal[3] = (y2 - y1) * 16 / LCD_HEIGHT;
 }
 
 void
@@ -484,9 +476,9 @@ touch_draw_test(void)
 static void
 touch_position(int *x, int *y)
 {
-  int tx = (last_touch_x - config.touch_cal[0]) * 16 / config.touch_cal[2];
+  int tx = (last_touch_x - config._touch_cal[0]) * 16 / config._touch_cal[2];
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
-  int ty = (last_touch_y - config.touch_cal[1]) * 16 / config.touch_cal[3];
+  int ty = (last_touch_y - config._touch_cal[1]) * 16 / config._touch_cal[3];
   if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
   *x = tx;
   *y = ty;
@@ -562,8 +554,8 @@ enter_dfu(void)
 static void
 select_lever_mode(int mode)
 {
-  if (uistat.lever_mode != mode) {
-    uistat.lever_mode = mode;
+  if (lever_mode != mode) {
+    lever_mode = mode;
     request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
   }
 }
@@ -762,7 +754,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 {
   if (b){
-    b->icon = config.bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = config._bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = get_bandwidth_frequency(data);
     return;
   }
@@ -812,12 +804,11 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
 #ifdef __USE_GRID_VALUES__
 static UI_FUNCTION_ADV_CALLBACK(menu_grid_acb)
 {
-  (void)data;
   if (b){
-    b->icon = config._mode&data ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = VNA_mode & data ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  config._mode^=data;
+  VNA_mode^=data;
   request_to_redraw(REDRAW_AREA);
 }
 #endif
@@ -881,10 +872,10 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
 {
   if (b){
-    b->icon = ((config._mode&VNA_MODE_SEARCH_MASK) == data) ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = ((VNA_mode & VNA_MODE_SEARCH_MASK) == data) ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  config._mode = (config._mode & ~VNA_MODE_SEARCH_MASK) | data;
+  VNA_mode = (VNA_mode & ~VNA_MODE_SEARCH_MASK) | data;
   marker_search(true);
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
@@ -894,7 +885,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
 static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
 {
   marker_search_dir(markers[active_marker].index, data == MK_SEARCH_RIGHT ? MK_SEARCH_RIGHT : MK_SEARCH_LEFT);
-  uistat.marker_tracking = false;
+  VNA_mode&=~VNA_MODE_MARKER_TRACK;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
@@ -904,10 +895,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 {
   (void)data;
   if (b){
-    b->icon = uistat.marker_tracking ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = (VNA_mode & VNA_MODE_MARKER_TRACK) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  uistat.marker_tracking = !uistat.marker_tracking;
+  VNA_mode^= VNA_MODE_MARKER_TRACK;
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
@@ -996,10 +987,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 {
   (void)data;
   if (b){
-    b->icon = uistat.marker_delta ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = VNA_mode & VNA_MODE_MARKER_DELTA ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  uistat.marker_delta = !uistat.marker_delta;
+  VNA_mode^= VNA_MODE_MARKER_DELTA;
   request_to_redraw(REDRAW_MARKER);
 }
 
@@ -1020,10 +1011,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
 {
   if (b){
-    b->icon = (config._mode&VNA_MODE_CONNECTION_MASK) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = (VNA_mode & VNA_MODE_CONNECTION_MASK) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  config._mode = (config._mode & ~VNA_MODE_CONNECTION_MASK) | data;
+  VNA_mode = (VNA_mode & ~VNA_MODE_CONNECTION_MASK) | data;
   shell_reset_console();
 }
 #endif
@@ -1908,9 +1899,6 @@ draw_menu_buttons(const menuitem_t *menu)
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(menu[i].data, &button);
     }
-    // Apply custom text, from button label and
-    char button_text[32];
-    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p2.u);
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
@@ -1918,6 +1906,9 @@ draw_menu_buttons(const menuitem_t *menu)
       ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
+    // Apply custom text, from button label and
+    char button_text[32];
+    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p2.u);
     int lines = menu_is_multiline(button_text);
     ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
   }
@@ -2347,7 +2338,7 @@ ui_process_normal(void)
     if (status & EVT_BUTTON_SINGLE_CLICK) {
       ui_mode_menu();
     } else {
-    switch (uistat.lever_mode) {
+    switch (lever_mode) {
       case LM_MARKER: lever_move_marker(status);   break;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
       case LM_SEARCH: lever_search_marker(status); break;
@@ -2604,7 +2595,7 @@ touch_pickup_marker(int touch_x, int touch_y)
     active_marker = i;
   }
   // Disable tracking
-  uistat.marker_tracking = false;
+  VNA_mode&= ~VNA_MODE_MARKER_DELTA;
   // Leveler mode = marker move
   select_lever_mode(LM_MARKER);
   // select trace
