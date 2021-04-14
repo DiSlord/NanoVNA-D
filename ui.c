@@ -826,35 +826,35 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 #define UI_MARKER_EDELAY 4
 static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
 {
-  uint32_t freq = get_marker_frequency(active_marker);
+  freq_t freq = get_marker_frequency(active_marker);
   if (freq == 0)
     return; // no active marker
 
   switch (data) {
-  case ST_START: /* MARKER->START */
-  case ST_STOP: /* MARKER->STOP */
-  case ST_CENTER: /* MARKER->CENTER */
+  case ST_START:
+  case ST_STOP:
+  case ST_CENTER:
     set_sweep_frequency(data, freq);
     break;
-  case ST_SPAN: /* MARKERS->SPAN */
+  case ST_SPAN:
     {
       if (previous_marker == MARKER_INVALID || active_marker == previous_marker) {
         // if only 1 marker is active, keep center freq and make span the marker comes to the edge
-        uint32_t center = get_sweep_frequency(ST_CENTER);
-        uint32_t span = center > freq ? center - freq : freq - center;
+        freq_t center = get_sweep_frequency(ST_CENTER);
+        freq_t span = center > freq ? center - freq : freq - center;
         set_sweep_frequency(ST_SPAN, span * 2);
       } else {
         // if 2 or more marker active, set start and stop freq to each marker
-        uint32_t freq2 = get_marker_frequency(previous_marker);
+        freq_t freq2 = get_marker_frequency(previous_marker);
         if (freq2 == 0)
           return;
-        if (freq > freq2) SWAP(uint32_t, freq2, freq);
+        if (freq > freq2) SWAP(freq_t, freq2, freq);
         set_sweep_frequency(ST_START, freq);
         set_sweep_frequency(ST_STOP, freq2);
       }
     }
     break;
-  case UI_MARKER_EDELAY: /* MARKERS->EDELAY */
+  case UI_MARKER_EDELAY:
     { 
       if (current_trace == TRACE_INVALID)
         break;
@@ -2290,7 +2290,7 @@ step_round(uint32_t v)
 static void
 lever_zoom_span(int status)
 {
-  uint32_t span = get_sweep_frequency(ST_SPAN);
+  freq_t span = get_sweep_frequency(ST_SPAN);
   if (status & EVT_UP) {
     span = step_round(span - 1);
   } else if (status & EVT_DOWN) {
@@ -2303,8 +2303,8 @@ lever_zoom_span(int status)
 static void
 lever_move(int status, int mode)
 {
-  uint32_t center = get_sweep_frequency(mode);
-  uint32_t span = get_sweep_frequency(ST_SPAN);
+  freq_t center = get_sweep_frequency(mode);
+  freq_t span = get_sweep_frequency(ST_SPAN);
   span = step_round(span / 3);
   if (status & EVT_UP) {
     set_sweep_frequency(mode, center + span);

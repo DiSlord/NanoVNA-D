@@ -136,6 +136,9 @@
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             101
 
+// Define frequency range (can be unsigned)
+typedef uint32_t freq_t;
+
 // Optional sweep point (in UI menu)
 #if POINTS_COUNT >=401
 #define POINTS_SET_COUNT       5
@@ -156,7 +159,7 @@
 #endif
 
 extern float measured[2][POINTS_COUNT][2];
-extern uint32_t frequencies[POINTS_COUNT];
+extern freq_t frequencies[POINTS_COUNT];
 
 #define CAL_LOAD  0
 #define CAL_OPEN  1
@@ -214,12 +217,15 @@ enum stimulus_type {
   ST_START=0, ST_STOP, ST_CENTER, ST_SPAN, ST_CW
 };
 
-void set_marker_index(int m, int idx);
-uint32_t get_marker_frequency(int marker);
-void set_sweep_frequency(int type, uint32_t frequency);
-uint32_t get_sweep_frequency(int type);
+void   set_marker_index(int m, int idx);
+freq_t get_marker_frequency(int marker);
+
+void   set_sweep_frequency(int type, freq_t frequency);
+freq_t get_sweep_frequency(int type);
+
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
+
 void set_power(uint8_t value);
 
 int32_t  my_atoi(const char *p);
@@ -624,7 +630,7 @@ typedef struct marker {
   uint8_t  enabled;
   uint8_t  reserved;
   uint16_t index;
-  uint32_t frequency;
+  freq_t   frequency;
 } marker_t;
 
 typedef struct config {
@@ -645,8 +651,8 @@ typedef struct config {
 
 typedef struct properties {
   uint32_t magic;
-  uint32_t _frequency0;
-  uint32_t _frequency1;
+  freq_t   _frequency0;
+  freq_t   _frequency1;
   uint16_t _sweep_points;
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];

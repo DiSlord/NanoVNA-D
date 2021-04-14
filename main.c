@@ -104,13 +104,13 @@ static volatile vna_shellcmd_t  shell_function = 0;
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
-static void apply_edelay(uint16_t ch_mask, int i);
+static void apply_edelay(uint16_t ch_mask, int i, freq_t freq);
 
 static uint16_t get_sweep_mask(void);
 static void cal_interpolate(void);
 static void update_frequencies(bool interpolate);
-static int  set_frequency(uint32_t freq);
-static void set_frequencies(uint32_t start, uint32_t stop, uint16_t points);
+static int  set_frequency(freq_t freq);
+static void set_frequencies(freq_t start, freq_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t ch_mask);
 static void transform_domain(void);
 
@@ -124,7 +124,7 @@ static uint16_t p_sweep = 0;
 static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 // Sweep measured data
 float measured[2][POINTS_COUNT][2];
-uint32_t frequencies[POINTS_COUNT];
+freq_t frequencies[POINTS_COUNT];
 
 //Buffer for fast apply FFT window function
 #ifdef USE_FFT_WINDOW_BUFFER
@@ -1008,7 +1008,8 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
-    delay = set_frequency(frequencies[p_sweep]);
+    freq_t frequency = frequencies[p_sweep];
+    delay = set_frequency(frequency);
     // CH0:REFLECTION, reset and begin measure
     if (ch_mask & SWEEP_CH0_MEASURE){
       tlv320aic3204_select(0);
@@ -1034,7 +1035,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
       if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
         apply_CH1_error_term_at(p_sweep);
     }
-    if (electrical_delay != 0) apply_edelay(ch_mask, p_sweep);
+    if (electrical_delay != 0) apply_edelay(ch_mask, p_sweep, frequency);
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
@@ -1074,7 +1075,7 @@ VNA_SHELL_FUNCTION(cmd_gain)
 }
 #endif
 
-static int set_frequency(uint32_t freq)
+static int set_frequency(freq_t freq)
 {
   return si5351_set_frequency(freq, current_props._power);
 }
@@ -1125,7 +1126,7 @@ void set_sweep_points(uint16_t points){
 
 VNA_SHELL_FUNCTION(cmd_scan)
 {
-  uint32_t start, stop;
+  freq_t start, stop;
   uint16_t points = sweep_points;
   int i;
   if (argc < 2 || argc > 4) {
@@ -1185,7 +1186,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
       streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
       streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
       for (i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(uint32_t));  // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(freq_t));    // 4 bytes .. frequency
         if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
         if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
       }
@@ -1217,12 +1218,10 @@ void set_marker_index(int m, int idx)
   markers[m].frequency = frequencies[idx];
 }
 
-uint32_t get_marker_frequency(int marker)
+freq_t get_marker_frequency(int marker)
 {
   if ((uint32_t)marker >= MARKERS_MAX)
     return 0;
-//if (!markers[marker].enabled)
-//  return 0;
   return markers[marker].frequency;
 }
 
@@ -1230,8 +1229,8 @@ static void
 update_marker_index(void)
 {
   int m, idx;
-  uint32_t fstart = get_sweep_frequency(ST_START);
-  uint32_t fstop  = get_sweep_frequency(ST_STOP);
+  freq_t fstart = get_sweep_frequency(ST_START);
+  freq_t fstop  = get_sweep_frequency(ST_STOP);
   for (m = 0; m < MARKERS_MAX; m++) {
     // Update index for all markers !!
     uint32_t f = markers[m].frequency;
@@ -1239,7 +1238,7 @@ update_marker_index(void)
     else if (f < fstart) idx = 0;
     else if (f >= fstop) idx = sweep_points-1;
     else { // Search frequency index for marker frequency
-#if 1
+#if 0
       for (idx = 1; idx < sweep_points; idx++) {
         if (frequencies[idx] <= f) continue;
         if (f < (frequencies[idx-1]/2 + frequencies[idx]/2)) idx--; // Correct closest idx
@@ -1255,14 +1254,14 @@ update_marker_index(void)
 }
 
 static void
-set_frequencies(uint32_t start, uint32_t stop, uint16_t points)
+set_frequencies(freq_t start, freq_t stop, uint16_t points)
 {
   uint32_t i;
-  uint32_t step = (points - 1);
-  uint32_t span = stop - start;
-  uint32_t delta = span / step;
-  uint32_t error = span % step;
-  uint32_t f = start, df = step>>1;
+  freq_t step = (points - 1);
+  freq_t span = stop - start;
+  freq_t delta = span / step;
+  freq_t error = span % step;
+  freq_t f = start, df = step>>1;
   for (i = 0; i <= step; i++, f+=delta) {
     frequencies[i] = f;
     df+=error;
@@ -1279,9 +1278,8 @@ set_frequencies(uint32_t start, uint32_t stop, uint16_t points)
 static void
 update_frequencies(bool interpolate)
 {
-  uint32_t start, stop;
-  start = get_sweep_frequency(ST_START);
-  stop  = get_sweep_frequency(ST_STOP);
+  freq_t start = get_sweep_frequency(ST_START);
+  freq_t stop  = get_sweep_frequency(ST_STOP);
 
   set_frequencies(start, stop, sweep_points);
   update_marker_index();
@@ -1294,7 +1292,7 @@ update_frequencies(bool interpolate)
 }
 
 void
-set_sweep_frequency(int type, uint32_t freq)
+set_sweep_frequency(int type, freq_t freq)
 {
   int cal_applied = cal_status & CALSTAT_APPLY;
 
@@ -1348,7 +1346,7 @@ set_sweep_frequency(int type, uint32_t freq)
   update_frequencies(cal_applied);
 }
 
-uint32_t
+freq_t
 get_sweep_frequency(int type)
 {
   // Obsolete, ensure correct start/stop, start always must be < stop
@@ -1371,8 +1369,8 @@ VNA_SHELL_FUNCTION(cmd_sweep)
   } else if (argc > 3) {
     goto usage;
   }
-  uint32_t value0 = 0;
-  uint32_t value1 = 0;
+  freq_t   value0 = 0;
+  freq_t   value1 = 0;
   uint32_t value2 = 0;
   if (argc >= 1) value0 = my_atoui(argv[0]);
   if (argc >= 2) value1 = my_atoui(argv[1]);
@@ -1630,11 +1628,11 @@ static void apply_CH1_error_term_at(int i)
     measured[1][i][1] = s21ai;
 }
 
-static void apply_edelay(uint16_t ch_mask, int i)
+static void apply_edelay(uint16_t ch_mask, int i, freq_t freq)
 {
   float real, imag;
   float s, c;
-  vna_sin_cos(electrical_delay * frequencies[i] * 1E-12, &s, &c);
+  vna_sin_cos(electrical_delay * freq * 1E-12, &s, &c);
   if (ch_mask & SWEEP_CH0_MEASURE){
     real = measured[0][i][0];
     imag = measured[0][i][1];
@@ -1776,13 +1774,13 @@ cal_interpolate(void)
 
   // ReBuild src freq list
   uint32_t src_points = (src->_sweep_points - 1);
-  uint32_t span = src->_frequency1 - src->_frequency0;
-  uint32_t delta = span / src_points;
-  uint32_t error = span % src_points;
-  uint32_t df = src_points>>1;
+  freq_t span = src->_frequency1 - src->_frequency0;
+  freq_t delta = span / src_points;
+  freq_t error = span % src_points;
+  freq_t df = src_points>>1;
   j = 0;
   for (; i < sweep_points; i++) {
-    uint32_t f = frequencies[i];
+    freq_t f = frequencies[i];
     if (f == 0) goto interpolate_finish;
     for (; j < src_points; j++) {
       if (src_f <= f && f < src_f + delta) {
