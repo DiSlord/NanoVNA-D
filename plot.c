@@ -229,10 +229,10 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
 
 void update_grid(void)
 {
-  uint32_t gdigit = 100000000;
-  uint32_t fstart = get_sweep_frequency(ST_START);
-  uint32_t fspan  = get_sweep_frequency(ST_SPAN);
-  uint32_t grid;
+  freq_t gdigit = 100000000;
+  freq_t fstart = get_sweep_frequency(ST_START);
+  freq_t fspan  = get_sweep_frequency(ST_SPAN);
+  freq_t grid;
 
   while (gdigit > 100) {
     grid = 5 * gdigit;
@@ -410,7 +410,11 @@ groupdelay_from_array(int i, float array[POINTS_COUNT][2])
 {
   int bottom = (i ==   0) ?   0 : i - 1;
   int top    = (i == sweep_points-1) ? sweep_points-1 : i + 1;
-  uint32_t deltaf = frequencies[top] - frequencies[bottom];
+#if 0
+  freq_t deltaf = frequencies[top] - frequencies[bottom];
+#else
+  freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((sweep_points - 1) / (top - bottom));
+#endif
   return groupdelay(array[bottom], array[top], deltaf);
 }
 
@@ -441,16 +445,16 @@ static const struct {
 [TRC_LOGMAG] = {"%.2fdB",       S_DELTA"%.2fdB",       logmag       },
 [TRC_PHASE]  = {"%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, phase        },
 [TRC_DELAY]  = {"%.4Fs",        "%.4Fs",               NULL         }, // Custom
+[TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
+[TRC_POLAR]  = {"%.2f%+.2fj",   "%.2f%+.2fj",          NULL         }, // Custom
 [TRC_LINEAR] = {"%.4f",         S_DELTA"%.3f",         linear       },
 [TRC_SWR]    = {"%.3f",         S_DELTA"%.3f",         swr          },
 [TRC_REAL]   = {"%.4f",         S_DELTA"%.3f",         real         },
 [TRC_IMAG]   = {"%.4fj",        S_DELTA"%.4fj",        imag         },
 [TRC_R]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    resistance   },
 [TRC_X]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    reactance    },
-[TRC_Q]      = {"%.3f",         S_DELTA"%.3f",         qualityfactor},
 [TRC_Z]      = {"%.3f",         S_DELTA"%.3f",         mod_z        },
-[TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
-[TRC_POLAR]  = {"%.2f%+.2fj",   "%.2f%+.2fj",          NULL         }  // Custom
+[TRC_Q]      = {"%.3f",         S_DELTA"%.3f",         qualityfactor},
 };
 
 // Calculate and cache point coordinates for trace
@@ -501,10 +505,11 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
 }
 
 static void
-format_smith_value(int xpos, int ypos, const float *coeff, uint32_t frequency)
+format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
 {
   char *format;
   float zr, zi;
+  freq_t frequency;
   switch (marker_smith_format) {
   case MS_LIN:
     zr = linear(coeff);
@@ -529,6 +534,7 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint32_t frequency)
   case MS_RLC:
     zr = resistance(coeff);
     zi = reactance(coeff);
+    frequency = frequencies[idx];
     if (zi < 0) {// Capacity
       format = "%F"S_OHM" %FF";
       zi = -1 / (2 * VNA_PI * frequency * zi);
@@ -575,7 +581,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
       if (coeff_ref) v-= groupdelay_from_array(index_ref, array);
       break;
     case TRC_SMITH:
-      format_smith_value(xpos, ypos, coeff, frequencies[index]);
+      format_smith_value(xpos, ypos, coeff, index);
       return;
     //case TRC_ADMIT:
     case TRC_POLAR:
@@ -606,7 +612,8 @@ trace_print_info(int xpos, int ypos, int t)
 
 static float time_of_index(int idx)
 {
-  return (idx / (float)FFT_SIZE) / (frequencies[1] - frequencies[0]);
+  freq_t span = get_sweep_frequency(ST_SPAN);
+  return (idx * (sweep_points-1)) / ((float)FFT_SIZE * span);
 }
 
 static float distance_of_index(int idx)
@@ -1555,10 +1562,10 @@ cell_draw_marker_info(int x0, int y0)
       xpos += 3*FONT_WIDTH - 2;
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
-      uint32_t freq = get_marker_frequency(mk);
+      freq_t freq = get_marker_frequency(mk);
       if ((VNA_mode & VNA_MODE_MARKER_DELTA) && mk != active_marker) {
-        uint32_t freq1 = get_marker_frequency(active_marker);
-        uint32_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
+        freq_t freq1 = get_marker_frequency(active_marker);
+        freq_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
         cell_printf(xpos, ypos, S_DELTA"%qHz", delta);
       } else {
@@ -1600,9 +1607,9 @@ cell_draw_marker_info(int x0, int y0)
       cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
-        uint32_t freq  = get_marker_frequency(active_marker);
-        uint32_t freq1 = get_marker_frequency(previous_marker);
-        uint32_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
+        freq_t freq  = get_marker_frequency(active_marker);
+        freq_t freq1 = get_marker_frequency(previous_marker);
+        freq_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
         cell_printf(xpos, ypos, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
       } else {
         cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx) - time_of_index(previous_marker_idx),
