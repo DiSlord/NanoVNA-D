@@ -39,8 +39,8 @@ void generate_DSP_Table(int offset){
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sin_cos(w, &s, &c);
-    sincos_tbl[i][0] = s*32768.0;
-    sincos_tbl[i][1] = c*32768.0;
+    sincos_tbl[i][0] = s*32700.0f;
+    sincos_tbl[i][1] = c*32700.0f;
     w+=step;
   }
 }
@@ -138,7 +138,7 @@ static const int16_t sincos_tbl[48][2] = {
 #error "Need check/rebuild sin cos table for DAC"
 #endif
 
-#if 1
+#ifndef __USE_DSP__
 // Define DSP accumulator value type
 typedef float acc_t;
 typedef float measure_t;

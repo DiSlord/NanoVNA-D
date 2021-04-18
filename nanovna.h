@@ -49,6 +49,10 @@
 #define __VNA_USE_MATH_TABLES__
 // Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
 //#define USE_FFT_WINDOW_BUFFER
+// Enable data smooth option
+#define __USE_SMOOTH__
+// Enable DSP instruction (support only by Cortex M4)
+//#define __USE_DSP__
 
 /*
  * main.c
@@ -227,6 +231,8 @@ void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
 
 void set_power(uint8_t value);
+
+void set_smooth_factor(uint8_t factor);
 
 int32_t  my_atoi(const char *p);
 uint32_t my_atoui(const char *p);
@@ -665,6 +671,7 @@ typedef struct properties {
   uint8_t  _domain_mode;         // timed domain option flag and some others flags
   uint8_t  _marker_smith_format;
   uint8_t  _power;
+  uint8_t  _smooth_factor;
   float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
@@ -940,7 +947,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e46 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e47 /* 'CONF' */
 
 extern uint16_t lastsaveid;
 

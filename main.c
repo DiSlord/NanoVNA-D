@@ -132,7 +132,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.53"
+#define VERSION "1.0.54"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -169,6 +169,38 @@ void my_debug_log(int offs, char *log){
 #define DEBUG_LOG(offs, text)
 #endif
 
+#ifdef __USE_SMOOTH__
+// Allow smooth complex data point array (this remove noise, smooth power depend form count)
+static void measurementDataSmooth(void){
+  int j;
+  uint16_t ch_mask = get_sweep_mask();
+  for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
+    if ((ch_mask&1)==0) continue;
+    int count = 1<<(current_props._smooth_factor-1), n;
+    float *data = measured[ch][0];
+    for (n = 0; n < count; n++){
+      float prev_re = data[2*n  ];
+      float prev_im = data[2*n+1];
+// first point smooth (use first and second points), disabled it made phase shift
+//    data[0] = (prev_re + data[2  ])/2;
+//    data[1] = (prev_im + data[2+1])/2;
+// data smooth (use mod triangle boxcar) this give 2x speed and better for big count
+      for (j = n; j < sweep_points - n - 1; j++){
+        float old_re = data[2*j  ]; // save current data point for next point smooth
+        float old_im = data[2*j+1];
+        data[2*j  ] = (prev_re + 2*data[2*j  ] + data[2*j+2])/4;
+        data[2*j+1] = (prev_im + 2*data[2*j+1] + data[2*j+3])/4;
+        prev_re = old_re;
+        prev_im = old_im;
+      }
+// last point smooth, disabled it made phase shift
+//    data[2*j  ] = (data[2*j  ] + prev_re)/2;
+//    data[2*j+1] = (data[2*j+1] + prev_im)/2;
+    }
+  }
+}
+#endif
+
 static THD_WORKING_AREA(waThread1, 768);
 static THD_FUNCTION(Thread1, arg)
 {
@@ -196,6 +228,12 @@ static THD_FUNCTION(Thread1, arg)
     sweep_mode&=~SWEEP_UI_MODE;
     // Process collected data, calculate trace coordinates and plot only if scan completed
     if ((sweep_mode & SWEEP_ENABLE) && completed) {
+#ifdef __USE_SMOOTH__
+//    START_PROFILE;
+      if (current_props._smooth_factor)
+        measurementDataSmooth();
+//    STOP_PROFILE;
+#endif
 //      START_PROFILE
       if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain();
 //      STOP_PROFILE;
@@ -591,6 +629,23 @@ my_atof(const char *p)
   return x;
 }
 
+#ifdef __USE_SMOOTH__
+void set_smooth_factor(uint8_t factor){
+  if (factor > 8) factor = 8;
+  current_props._smooth_factor = factor;
+  request_to_redraw(REDRAW_CAL_STATUS);
+}
+
+VNA_SHELL_FUNCTION(cmd_smooth)
+{
+  if (argc != 1) {
+    shell_printf("smooth = %d\r\n", current_props._smooth_factor);
+    return;
+  }
+  set_smooth_factor(my_atoui(argv[0]));
+}
+#endif
+
 #ifdef USE_VARIABLE_OFFSET
 VNA_SHELL_FUNCTION(cmd_offset)
 {
@@ -905,7 +960,7 @@ void load_default_properties(void)
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
   current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-
+  current_props._smooth_factor = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -2745,6 +2800,9 @@ static const VNAShellCommand commands[] =
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"vbat"        , cmd_vbat        , 0},
     {"reset"       , cmd_reset       , 0},
+#ifdef __USE_SMOOTH__
+    {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+#endif
 #ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
     {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
