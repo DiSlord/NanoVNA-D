@@ -761,6 +761,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   set_bandwidth(data);
 }
 
+#ifdef __USE_SMOOTH__
+static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
+{
+  if (b){
+    b->icon = current_props._smooth_factor == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = data;
+    return;
+  }
+  set_smooth_factor(data);
+}
+#endif
+
 static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
 static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 {
@@ -820,7 +832,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
     b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
   }
-  toggle_sweep();
+  sweep_mode^= SWEEP_ENABLE;
 }
 
 #define UI_MARKER_EDELAY 4
@@ -1308,6 +1320,20 @@ const menuitem_t menu_bandwidth[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+#ifdef __USE_SMOOTH__
+const menuitem_t menu_smooth_count[] = {
+  { MT_ADV_CALLBACK, 0, "SMOOTH\nOFF",menu_smooth_acb },
+  { MT_ADV_CALLBACK, 1, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 2, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 4, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 6, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 7, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 8, "x%d", menu_smooth_acb },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+#endif
+
 const menuitem_t menu_display[] = {
   { MT_SUBMENU, 0, "TRACE", menu_trace },
   { MT_SUBMENU, 0, "FORMAT", menu_format },
@@ -1315,6 +1341,9 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU, 0, "CHANNEL", menu_channel },
   { MT_SUBMENU, 0, "TRANSFORM", menu_transform },
   { MT_SUBMENU, 0, "BANDWIDTH", menu_bandwidth },
+#ifdef __USE_SMOOTH__
+  { MT_SUBMENU, 0, "DATA\nSMOOTH", menu_smooth_count },
+#endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };

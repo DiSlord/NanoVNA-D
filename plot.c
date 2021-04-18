@@ -463,7 +463,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
 {
   uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
-  uint16_t type    = 1<<trace[t].type;
+  uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = format_list[trace[t].type].get_value_cb; // Get callback for value calculation
   float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5;  // 0.5 for pixel align
   float scale = get_trace_scale(t);
@@ -1692,7 +1692,7 @@ draw_cal_status(void)
   int y = CALIBRATION_INFO_POSY;
   ili9341_set_background(LCD_BG_COLOR);
   ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_fill(x, y, OFFSETX - x, 7*(FONT_STR_HEIGHT));
+  ili9341_fill(x, y, OFFSETX - x, 10*(FONT_STR_HEIGHT));
   // Set 'C' string for slot status
   char c[4] = {'C', 0, 0, 0};
   if (cal_status & CALSTAT_APPLY) {
@@ -1723,6 +1723,14 @@ draw_cal_status(void)
   c[0] = 'P';
   c[1] = current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'); // 2,4,6,8 mA power or auto
   ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
+#ifdef __USE_SMOOTH__
+  y+=FONT_STR_HEIGHT;
+  if (current_props._smooth_factor > 0){
+    c[0] = 's';
+    c[1] = current_props._smooth_factor + '0';
+    ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
+  }
+#endif
 }
 
 /*
