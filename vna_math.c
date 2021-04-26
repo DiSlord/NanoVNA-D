@@ -1,29 +1,23 @@
-/* 
- * fft.h is Based on
- * Free FFT and convolution (C)
+/*
+ * Copyright (c) 2019-2021, Dmitry (DiSlord) dislordlive@gmail.com
+ * All rights reserved.
  * 
- * Copyright (c) 2019 Project Nayuki. (MIT License)
- * https://www.nayuki.io/page/free-small-fft-in-multiple-languages
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy of
- * this software and associated documentation files (the "Software"), to deal in
- * the Software without restriction, including without limitation the rights to
- * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
- * the Software, and to permit persons to whom the Software is furnished to do so,
- * subject to the following conditions:
- * - The above copyright notice and this permission notice shall be included in
- *   all copies or substantial portions of the Software.
- * - The Software is provided "as is", without warranty of any kind, express or
- *   implied, including but not limited to the warranties of merchantability,
- *   fitness for a particular purpose and noninfringement. In no event shall the
- *   authors or copyright holders be liable for any claim, damages or other
- *   liability, whether in an action of contract, tort or otherwise, arising from,
- *   out of or in connection with the Software or the use or other dealings in the
- *   Software.
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ *
+ * The software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with GNU Radio; see the file COPYING.  If not, write to
+ * the Free Software Foundation, Inc., 51 Franklin Street,
+ * Boston, MA 02110-1301, USA.
  */
-
-
-#include <math.h>
+#include "nanovna.h"
 #include <stdint.h>
 
 // Use table increase transform speed from 6500 tick to 2025, increase code size on 700 bytes
@@ -114,7 +108,7 @@ static const float sin_table_512[FAST_MATH_TABLE_SIZE/2 + 1] = {
 	-0.09801714f,-0.08579731f,-0.07356456f,-0.06132074f,-0.04906767f,-0.03680722f,-0.02454123f,-0.01227154f,
 	-0.00000000f*/
 };
-// 
+//
 #if FFT_SIZE == 256
 #define FFT_SIN(i) sin_table_512[    2*(i)]
 #define FFT_COS(i) ((i) >  64 ?-sin_table_512[2*(i)-128] : sin_table_512[128-2*(i)])
@@ -249,8 +243,8 @@ static const float sin_table_512[] = {
 
 #else
 // Not use FFT_USE_SIN_COS_TABLE, use direct sin/cos calculations
-#define FFT_SIN(k) sin(2 * VNA_PI * (k) / FFT_SIZE)
-#define FFT_COS(k) cos(2 * VNA_PI * (k) / FFT_SIZE);
+#define FFT_SIN(k) sinf((2 * VNA_PI / FFT_SIZE) * (k))
+#define FFT_COS(k) cosf((2 * VNA_PI / FFT_SIZE) * (k));
 
 #endif // FFT_USE_SIN_COS_TABLE
 
@@ -268,7 +262,7 @@ static uint16_t reverse_bits(uint16_t x, int n) {
  * dir = forward: 0, inverse: 1
  * https://www.nayuki.io/res/free-small-fft-in-multiple-languages/fft.c
  */
-static void fft(float array[][2], const uint8_t dir) {
+void fft(float array[][2], const uint8_t dir) {
 // FFT_SIZE = 2^FFT_N
 #if   FFT_SIZE == 256
  #define FFT_N     8
@@ -317,22 +311,14 @@ static void fft(float array[][2], const uint8_t dir) {
 	}
 }
 
-static inline void fft_forward(float array[][2]) {
-	fft(array, 0);
-}
-
-static inline void fft_inverse(float array[][2]) {
-	fft(array, 1);
-}
-
 // Return sin/cos value angle in range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
-void vna_sin_cos(float angle, float * pSinVal, float * pCosVal)
+void vna_sincosf(float angle, float * pSinVal, float * pCosVal)
 {
 #ifndef __VNA_USE_MATH_TABLES__
   // Use default sin/cos functions
   angle *= 2 * VNA_PI;   // Convert to rad
-  *pSinVal = sin(angle);
-  *pCosVal = cos(angle);
+  *pSinVal = sinf(angle);
+  *pCosVal = cosf(angle);
 #else
   const float Dn = 2 * VNA_PI / FAST_MATH_TABLE_SIZE; // delta between the two points in table (fixed);
   uint16_t indexS, indexC;  // Index variable
@@ -340,7 +326,7 @@ void vna_sin_cos(float angle, float * pSinVal, float * pCosVal)
   float Df, fract, temp;
 
   // Round angle to range 0.0 to 1.0
-  temp = fabsf(angle);
+  temp = vna_fabsf(angle);
   temp-= (uint32_t)temp;//floorf(temp);
   // Scale input from range 0.0 to 1.0 to table size
   temp*= FAST_MATH_TABLE_SIZE;
@@ -382,4 +368,411 @@ void vna_sin_cos(float angle, float * pSinVal, float * pCosVal)
   if (angle < 0)
     *pSinVal = -*pSinVal;
 #endif
+}
+
+//**********************************************************************************
+//      VNA math
+//**********************************************************************************
+// Cleanup declarations if used default math.h functions
+#undef vna_sqrtf
+#undef vna_cbrtf
+#undef vna_logf
+#undef vna_atanf
+#undef vna_atan2f
+
+//**********************************************************************************
+// square root
+//**********************************************************************************
+#if (__FPU_PRESENT == 0) && (__FPU_USED == 0)
+#if 1
+// __ieee754_sqrtf, remove some check (NAN, inf, normalization), small code optimization to arm
+float vna_sqrtf(float x)
+{
+  int32_t ix,s,q,m,t;
+  uint32_t r;
+  union {float f; uint32_t i;} u = {x};
+  ix = u.i;
+#if 0
+  // take care of Inf and NaN
+  if((ix&0x7f800000)==0x7f800000) return x*x+x;	// sqrt(NaN)=NaN, sqrt(+inf)=+inf, sqrt(-inf)=sNaN
+  // take care if x < 0
+  if (ix <  0) return (x-x)/0.0f;
+#endif
+  if (ix == 0) return 0.0f;
+  m = (ix>>23);
+#if 0 //
+  // normalize x
+  if(m==0) {				// subnormal x
+    for(int i=0;(ix&0x00800000)==0;i++) ix<<=1;
+      m -= i-1;
+  }
+#endif
+  m -= 127;	// unbias exponent
+  ix = (ix&0x007fffff)|0x00800000;
+  // generate sqrt(x) bit by bit
+  ix<<= (m&1) ? 2 : 1;	// odd m, double x to make it even, and after multiple by 2
+  m >>= 1;	       		// m = [m/2]
+  q = s = 0;			// q = sqrt(x)
+  r = 0x01000000;		// r = moving bit from right to left
+  while(r!=0) {
+    t = s+r;
+    if(t<=ix) {
+      s    = t+r;
+      ix  -= t;
+      q   += r;
+    }
+    ix += ix;
+    r>>=1;
+  }
+  // use floating add to find out rounding direction
+  if(ix!=0) {
+	if ((1.0f - 1e-30f) >= 1.0f) // trigger inexact flag.
+	  q += ((1.0f + 1e-30f) > 1.0f) ? 2 : (q&1);
+  }
+  ix = (q>>1)+0x3f000000;
+  ix += (m <<23);
+  u.i = ix;
+  return u.f;
+}
+#else
+// Simple implementation, but slow if no FPU used, and not usable if used hardware FPU sqrtf
+float vna_sqrtf(float x)
+{
+  union {float x; uint32_t i;} u = {x};
+  u.i = (1<<29) + (u.i >> 1) - (1<<22);
+  // Two Babylonian Steps (simplified from:)
+  // u.x = 0.5f * (u.x + x/u.x);
+  // u.x = 0.5f * (u.x + x/u.x);
+  u.x =       u.x + x/u.x;
+  u.x = 0.25f*u.x + x/u.x;
+
+  return u.x;
+}
+#endif
+#endif
+
+//**********************************************************************************
+// Cube root
+//**********************************************************************************
+float vna_cbrtf(float x)
+{
+#if 1
+  static const uint32_t
+  B1 = 709958130, // B1 = (127-127.0/3-0.03306235651)*2**23
+  B2 = 642849266; // B2 = (127-127.0/3-24/3-0.03306235651)*2**23
+
+  float r,T;
+  union {float f; uint32_t i;} u = {x};
+  uint32_t hx = u.i & 0x7fffffff;
+
+//	if (hx >= 0x7f800000)  // cbrt(NaN,INF) is itself
+//		return x + x;
+  // rough cbrtf to 5 bits
+  if (hx < 0x00800000) {  // zero or subnormal?
+    if (hx == 0)
+      return x;  // cbrt(+-0) is itself
+    u.f = x*0x1p24f;
+    hx = u.i & 0x7fffffff;
+    hx = hx/3 + B2;
+  } else
+    hx = hx/3 + B1;
+  u.i &= 0x80000000;
+  u.i |= hx;
+
+  // First step Newton iteration (solving t*t-x/t == 0) to 16 bits.
+  T = u.f;
+  r = T*T*T;
+  T*= (x+x+r)/(x+r+r);
+// Second step Newton iteration to 47 bits.
+  r = T*T*T;
+  T*= (x+x+r)/(x+r+r);
+  return T;
+#else
+  if (x == 0) {
+    // would otherwise return something like 4.257959840008151e-109
+    return 0;
+  }
+  float b = 1.0f; // use any value except 0
+  float last_b_1 = 0;
+  float last_b_2 = 0;
+  while (last_b_1 != b && last_b_2 != b) {
+    last_b_1 = b;
+//    b = (b + x / (b * b)) / 2;
+    b = (2 * b + x / b / b) / 3; // for small numbers, as suggested by  willywonka_dailyblah
+    last_b_2 = b;
+//    b = (b + x / (b * b)) / 2;
+    b = (2 * b + x / b / b) / 3; //for small numbers, as suggested by  willywonka_dailyblah
+  }
+  return b;
+#endif
+}
+
+//**********************************************************************************
+// logf
+//**********************************************************************************
+float vna_logf(float x)
+{
+   #define MULTIPLIER 0.69314718f  // logf(2.0f)
+#if 0
+  // Give up to 0.006 error (2.5x faster original code)
+  union {float f; int32_t i;} u = {x};
+  const int      log_2 = ((u.i >> 23) & 255) - 128;
+  if (u.i <=0) return (x-x)/0.0f;             // if <=0 return NAN
+  u.i = (u.i&0x007FFFFF) + 0x3F800000;
+  u.f = ((-1.0f/3) * u.f + 2) * u.f - (2.0f/3); // (1)
+  return (u.f + log_2) * MULTIPLIER;
+#elif 1
+  // Give up to 0.0001 error (2x faster original code)
+  // fast log2f approximation, give 0.0004 error
+  union { float f; uint32_t i; } vx = { x };
+  union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
+  // if <=0 return NAN
+  if (vx.i <=0) return (x-x)/0.0f;
+  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
+#else
+  // use original code (20% faster default)
+  static const float
+  ln2_hi = 6.9313812256e-01, /* 0x3f317180 */
+  ln2_lo = 9.0580006145e-06, /* 0x3717f7d1 */
+  two25  = 3.355443200e+07,  /* 0x4c000000 */
+  /* |(log(1+s)-log(1-s))/s - Lg(s)| < 2**-34.24 (~[-4.95e-11, 4.97e-11]). */
+  Lg1 = 0xaaaaaa.0p-24, /* 0.66666662693 */
+  Lg2 = 0xccce13.0p-25, /* 0.40000972152 */
+  Lg3 = 0x91e9ee.0p-25, /* 0.28498786688 */
+  Lg4 = 0xf89e26.0p-26; /* 0.24279078841 */
+
+  union {float f; uint32_t i;} u = {x};
+  float hfsq,f,s,z,R,w,t1,t2,dk;
+  uint32_t ix;
+  int k;
+
+  ix = u.i;
+  k = 0;
+  if (ix < 0x00800000 || ix>>31) {  /* x < 2**-126  */
+    if (ix<<1 == 0)
+      return -1/(x*x);  /* log(+-0)=-inf */
+    if (ix>>31)
+      return (x-x)/0.0f; /* log(-#) = NaN */
+    /* subnormal number, scale up x */
+    k -= 25;
+    x *= two25;
+    u.f = x;
+    ix = u.i;
+  } else if (ix >= 0x7f800000) {
+    return x;
+  } else if (ix == 0x3f800000)
+    return 0;
+   /* reduce x into [sqrt(2)/2, sqrt(2)] */
+  ix += 0x3f800000 - 0x3f3504f3;
+  k += (int)(ix>>23) - 0x7f;
+  ix = (ix&0x007fffff) + 0x3f3504f3;
+  u.i = ix;
+  x = u.f;
+  f = x - 1.0f;
+  s = f/(2.0f + f);
+  z = s*s;
+  w = z*z;
+  t1= w*(Lg2+w*Lg4);
+  t2= z*(Lg1+w*Lg3);
+  R = t2 + t1;
+  hfsq = 0.5f * f * f;
+  dk = k;
+  return s*(hfsq+R) + dk*ln2_lo - hfsq + f + dk*ln2_hi;
+#endif
+}
+
+//**********************************************************************************
+// atanf
+//**********************************************************************************
+// __ieee754_atanf
+float vna_atanf(float x)
+{
+  static const float atanhi[] = {
+    4.6364760399e-01, // atan(0.5)hi 0x3eed6338
+    7.8539812565e-01, // atan(1.0)hi 0x3f490fda
+    9.8279368877e-01, // atan(1.5)hi 0x3f7b985e
+    1.5707962513e+00, // atan(inf)hi 0x3fc90fda
+  };
+  static const float atanlo[] = {
+    5.0121582440e-09, // atan(0.5)lo 0x31ac3769
+    3.7748947079e-08, // atan(1.0)lo 0x33222168
+    3.4473217170e-08, // atan(1.5)lo 0x33140fb4
+    7.5497894159e-08, // atan(inf)lo 0x33a22168
+  };
+  static const float aT[] = {
+    3.3333328366e-01,
+   -1.9999158382e-01,
+    1.4253635705e-01,
+   -1.0648017377e-01,
+    6.1687607318e-02,
+  };
+  float w,s1,s2,z;
+  uint32_t ix,sign;
+  int id;
+  union {float f; uint32_t i;} u = {x};
+  ix = u.i;
+  sign = ix>>31;
+  ix &= 0x7fffffff;
+  if (ix >= 0x4c800000) {  /* if |x| >= 2**26 */
+    if (ix > 0x7f800000)
+      return x;
+    z = atanhi[3] + 0x1p-120f;
+    return sign ? -z : z;
+  }
+  if (ix < 0x3ee00000) {   /* |x| < 0.4375 */
+    if (ix < 0x39800000) {  /* |x| < 2**-12 */
+      return x;
+    }
+    id = -1;
+  } else {
+    x = vna_fabsf(x);
+    if (ix < 0x3f980000) {  /* |x| < 1.1875 */
+      if (ix < 0x3f300000) {  /*  7/16 <= |x| < 11/16 */
+        id = 0;
+        x = (2.0f*x - 1.0f)/(2.0f + x);
+      } else {                /* 11/16 <= |x| < 19/16 */
+        id = 1;
+        x = (x - 1.0f)/(x + 1.0f);
+      }
+    } else {
+      if (ix < 0x401c0000) {  /* |x| < 2.4375 */
+        id = 2;
+        x = (x - 1.5f)/(1.0f + 1.5f*x);
+      } else {                /* 2.4375 <= |x| < 2**26 */
+        id = 3;
+        x = -1.0f/x;
+      }
+    }
+  }
+  /* end of argument reduction */
+  z = x*x;
+  w = z*z;
+  /* break sum from i=0 to 10 aT[i]z**(i+1) into odd and even poly */
+  s1 = z*(aT[0]+w*(aT[2]+w*aT[4]));
+  s2 = w*(aT[1]+w*aT[3]);
+  if (id < 0)
+    return x - x*(s1+s2);
+  z = atanhi[id] - ((x*(s1+s2) - atanlo[id]) - x);
+  return sign ? -z : z;
+}
+
+//**********************************************************************************
+// atan2f
+//**********************************************************************************
+#if 0
+// __ieee754_atan2f
+float vna_atan2f(float y, float x)
+{
+  static const float pi    = 3.1415927410e+00; // 0x40490fdb
+  static const float pi_lo =-8.7422776573e-08; // 0xb3bbbd2e
+  float z;
+  uint32_t m,ix,iy;
+  union {float f; uint32_t i;} ux = {x};
+  union {float f; uint32_t i;} uy = {y};
+  ix = ux.i;
+  iy = uy.i;
+
+  if (ix == 0x3f800000)  /* x=1.0 */
+    return vna_atanf(y);
+  m = ((iy>>31)&1) | ((ix>>30)&2);  /* 2*sign(x)+sign(y) */
+  ix &= 0x7fffffff;
+  iy &= 0x7fffffff;
+
+  /* when y = 0 */
+  if (iy == 0) {
+	switch (m) {
+      case 0:
+      case 1: return   y; // atan(+-0,+anything)=+-0
+      case 2: return  pi; // atan(+0,-anything) = pi
+      case 3: return -pi; // atan(-0,-anything) =-pi
+    }
+  }
+  /* when x = 0 */
+  if (ix == 0)
+    return m&1 ? -pi/2 : pi/2;
+  /* when x is INF */
+  if (ix == 0x7f800000) {
+    if (iy == 0x7f800000) {
+      switch (m) {
+        case 0: return  pi/4; /* atan(+INF,+INF) */
+        case 1: return -pi/4; /* atan(-INF,+INF) */
+        case 2: return 3*pi/4;  /*atan(+INF,-INF)*/
+        case 3: return -3*pi/4; /*atan(-INF,-INF)*/
+      }
+    } else {
+      switch (m) {
+        case 0: return  0.0f;    /* atan(+...,+INF) */
+        case 1: return -0.0f;    /* atan(-...,+INF) */
+        case 2: return  pi; /* atan(+...,-INF) */
+        case 3: return -pi; /* atan(-...,-INF) */
+      }
+    }
+  }
+  /* |y/x| > 0x1p26 */
+  if (ix+(26<<23) < iy || iy == 0x7f800000)
+    return m&1 ? -pi/2 : pi/2;
+
+  /* z = atan(|y/x|) with correct underflow */
+  if ((m&2) && iy+(26<<23) < ix)  /*|y/x| < 0x1p-26, x < 0 */
+    z = 0.0;
+  else
+    z = vna_atanf(vna_fabsf(y/x));
+  switch (m) {
+    case 0: return z;              /* atan(+,+) */
+    case 1: return -z;             /* atan(-,+) */
+    case 2: return pi - (z-pi_lo); /* atan(+,-) */
+    default: /* case 3 */
+      return (z-pi_lo) - pi; /* atan(-,-) */
+  }
+}
+#else
+// Polynomial approximation to atan2f
+float vna_atan2f (float y, float x)
+{
+  union {float f; int32_t i;} ux = {x};
+  union {float f; int32_t i;} uy = {y};
+  if (ux.i == 0 && uy.i == 0)
+    return 0.0f;
+
+  float ax, ay, r, a, s;
+  ax = vna_fabsf(x);
+  ay = vna_fabsf(y);
+  a = (ay < ax) ? ay / ax : ax / ay;
+  s = a * a;
+  // Polynomial approximation to atan(a) on [0,1]
+#if 0
+  // give 0.31 degree error
+  r = 0.970562748477141f - 0.189514164974601f * s;
+#elif 1
+  // give 0.04 degree error
+  r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
+#else
+  // give 0.005 degree error
+  r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
+#endif
+  // Map to full circle
+  r*=a;
+  if (ay  > ax) r = 1.57079637f - r;
+  if (ux.i < 0) r = 3.14159274f - r;
+  if (uy.i < 0) r = -r;
+  return r;
+}
+#endif
+
+//**********************************************************************************
+// Fast expf approximation
+//**********************************************************************************
+float vna_expf(float x)
+{
+  union { float f; int32_t i; } v;
+  v.i = (int32_t)(12102203.0f*x) + 0x3F800000;
+  int32_t m = (v.i >> 7) & 0xFFFF;  // copy mantissa
+#if 1
+  // cubic spline approximation, empirical values for small maximum relative error (8.34e-5):
+  v.i += ((((((((1277*m) >> 14) + 14825)*m) >> 14) - 79749)*m) >> 11) - 626;
+#else
+  // quartic spline approximation, empirical values for small maximum relative error (1.21e-5):
+  v.i += (((((((((((3537*m) >> 16) + 13668)*m) >> 18) + 15817)*m) >> 14) - 80470)*m) >> 11);
+#endif
+  return v.f;
 }

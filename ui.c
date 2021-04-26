@@ -762,10 +762,21 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 }
 
 #ifdef __USE_SMOOTH__
+
+static UI_FUNCTION_ADV_CALLBACK(menu_smooth_func_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = (config._vna_mode&VNA_SMOOTH_FUNCTION) ? "Arith" : "Geom";
+    return;
+  }
+  config._vna_mode^=VNA_SMOOTH_FUNCTION;
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
 {
   if (b){
-    b->icon = current_props._smooth_factor == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = get_smooth_factor() == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = data;
     return;
   }
@@ -1322,13 +1333,13 @@ const menuitem_t menu_bandwidth[] = {
 
 #ifdef __USE_SMOOTH__
 const menuitem_t menu_smooth_count[] = {
+  { MT_ADV_CALLBACK, 0, "SMOOTH\n%s avg",menu_smooth_func_acb },
   { MT_ADV_CALLBACK, 0, "SMOOTH\nOFF",menu_smooth_acb },
   { MT_ADV_CALLBACK, 1, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 2, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 4, "x%d", menu_smooth_acb },
+  { MT_ADV_CALLBACK, 5, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 6, "x%d", menu_smooth_acb },
-  { MT_ADV_CALLBACK, 7, "x%d", menu_smooth_acb },
-  { MT_ADV_CALLBACK, 8, "x%d", menu_smooth_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };

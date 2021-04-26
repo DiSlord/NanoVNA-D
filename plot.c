@@ -311,8 +311,9 @@ draw_on_strut(int v0, int d, int color)
 static float
 logmag(const float *v)
 {
-//  return log10f(v[0]*v[0] + v[1]*v[1]) *  10.0;
-  return     logf(v[0]*v[0] + v[1]*v[1]) * (10.0 / logf(10.0));
+  float x = v[0]*v[0] + v[1]*v[1];
+//  return log10f(x) *  10.0f;
+  return vna_logf(x) * (10.0f / logf(10.0f));
 }
 
 /*
@@ -321,7 +322,7 @@ logmag(const float *v)
 static float
 phase(const float *v)
 {
-  return (180.0f / VNA_PI) * atan2f(v[1], v[0]);
+  return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
 }
 
 /*
@@ -334,9 +335,9 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
   // atan(w)-atan(v) = atan((w-v)/(1+wv))
   float r = w[0]*v[1] - w[1]*v[0];
   float i = w[0]*v[0] + w[1]*v[1];
-  return atan2f(r, i) / (2 * VNA_PI * deltaf);
+  return vna_atan2f(r, i) / (2 * VNA_PI * deltaf);
 #else
-  return (atan2f(w[0], w[1]) - atan2f(v[0], v[1])) / (2 * VNA_PI * deltaf);
+  return (vna_atan2f(w[0], w[1]) - vna_atan2f(v[0], v[1])) / (2 * VNA_PI * deltaf);
 #endif
 }
 
@@ -346,7 +347,7 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
 static float
 linear(const float *v)
 {
-  return sqrtf(v[0]*v[0] + v[1]*v[1]);
+  return vna_sqrtf(v[0]*v[0] + v[1]*v[1]);
 }
 
 /*
@@ -382,7 +383,7 @@ mod_z(const float *v)
 {
   const float z0 = 50;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
-  return z0 * sqrtf(4 * v[0] / d + 1);
+  return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
 }
 
 static float
@@ -390,7 +391,7 @@ qualityfactor(const float *v)
 {
   const float i = 2 * v[1];
   const float r = 1 - v[0]*v[0] - v[1]*v[1];
-  return fabsf(i / r);
+  return vna_fabsf(i / r);
 }
 
 static float
@@ -1725,9 +1726,10 @@ draw_cal_status(void)
   ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
 #ifdef __USE_SMOOTH__
   y+=FONT_STR_HEIGHT;
-  if (current_props._smooth_factor > 0){
+  uint8_t smooth = get_smooth_factor();
+  if (smooth > 0){
     c[0] = 's';
-    c[1] = current_props._smooth_factor + '0';
+    c[1] = smooth + '0';
     ili9341_drawstring(c, x, y+=FONT_STR_HEIGHT);
   }
 #endif

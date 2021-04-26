@@ -24,7 +24,6 @@
 #include "usbcfg.h"
 #include "si5351.h"
 #include "nanovna.h"
-#include "fft.h"
 
 #include <chprintf.h>
 #include <string.h>
@@ -112,7 +111,7 @@ static void update_frequencies(bool interpolate);
 static int  set_frequency(freq_t freq);
 static void set_frequencies(freq_t start, freq_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t ch_mask);
-static void transform_domain(void);
+static void transform_domain(uint16_t ch_mask);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
 
@@ -132,7 +131,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.54"
+#define VERSION "1.0.56"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -170,32 +169,55 @@ void my_debug_log(int offs, char *log){
 #endif
 
 #ifdef __USE_SMOOTH__
+static float arifmetic_mean(float v0, float v1, float v2){
+  return (v0+2*v1+v2)/4;
+}
+
+static float geometry_mean(float v0, float v1, float v2){
+  float v = vna_cbrtf(vna_fabsf(v0*v1*v2));
+  if (v0+v1+v2 < 0) v = -v;
+  return v;
+}
+
+uint8_t smooth_factor = 0;
+void set_smooth_factor(uint8_t factor){
+  if (factor > 8) factor = 8;
+  smooth_factor = factor;
+  request_to_redraw(REDRAW_CAL_STATUS);
+}
+uint8_t get_smooth_factor(void) {
+  return smooth_factor;
+}
+
 // Allow smooth complex data point array (this remove noise, smooth power depend form count)
-static void measurementDataSmooth(void){
+// see https://terpconnect.umd.edu/~toh/spectrum/Smoothing.html
+static void measurementDataSmooth(uint16_t ch_mask){
   int j;
-  uint16_t ch_mask = get_sweep_mask();
+//  ch_mask = 2;
+//  memcpy(measured[0], measured[1], sizeof(measured[0]));
+  float (*smooth_func)(float v0, float v1, float v2) = (config._vna_mode&VNA_SMOOTH_FUNCTION) ? arifmetic_mean : geometry_mean;
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
-    int count = 1<<(current_props._smooth_factor-1), n;
+    int count = 1<<(smooth_factor-1), n;
     float *data = measured[ch][0];
     for (n = 0; n < count; n++){
-      float prev_re = data[2*n  ];
-      float prev_im = data[2*n+1];
+      float prev_re = data[2*0  ];
+      float prev_im = data[2*0+1];
 // first point smooth (use first and second points), disabled it made phase shift
-//    data[0] = (prev_re + data[2  ])/2;
-//    data[1] = (prev_im + data[2+1])/2;
-// data smooth (use mod triangle boxcar) this give 2x speed and better for big count
-      for (j = n; j < sweep_points - n - 1; j++){
+//      data[0] = smooth_func(prev_re, prev_re, data[2  ]);
+//      data[1] = smooth_func(prev_im, prev_im, data[2+1]);
+// simple data smooth on 3 points
+      for (j = 1; j < sweep_points - 1; j++){
         float old_re = data[2*j  ]; // save current data point for next point smooth
         float old_im = data[2*j+1];
-        data[2*j  ] = (prev_re + 2*data[2*j  ] + data[2*j+2])/4;
-        data[2*j+1] = (prev_im + 2*data[2*j+1] + data[2*j+3])/4;
+        data[2*j  ] = smooth_func(prev_re, data[2*j  ], data[2*j+2]);
+        data[2*j+1] = smooth_func(prev_im, data[2*j+1], data[2*j+3]);
         prev_re = old_re;
         prev_im = old_im;
       }
 // last point smooth, disabled it made phase shift
-//    data[2*j  ] = (data[2*j  ] + prev_re)/2;
-//    data[2*j+1] = (data[2*j+1] + prev_im)/2;
+//      data[2*j  ] = smooth_func(data[2*j  ], data[2*j  ], prev_re);
+//      data[2*j+1] = smooth_func(data[2*j+1], data[2*j+1], prev_im);
     }
   }
 }
@@ -209,8 +231,9 @@ static THD_FUNCTION(Thread1, arg)
 
   while (1) {
     bool completed = false;
+    uint16_t mask = get_sweep_mask();
     if (sweep_mode&(SWEEP_ENABLE|SWEEP_ONCE)) {
-      completed = sweep(true, get_sweep_mask());
+      completed = sweep(true, mask);
       sweep_mode&=~SWEEP_ONCE;
     } else {
       __WFI();
@@ -230,12 +253,12 @@ static THD_FUNCTION(Thread1, arg)
     if ((sweep_mode & SWEEP_ENABLE) && completed) {
 #ifdef __USE_SMOOTH__
 //    START_PROFILE;
-      if (current_props._smooth_factor)
-        measurementDataSmooth();
+      if (smooth_factor)
+        measurementDataSmooth(mask);
 //    STOP_PROFILE;
 #endif
 //      START_PROFILE
-      if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain();
+      if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
@@ -292,7 +315,7 @@ kaiser_window(float k, float n, float beta)
 {
   if (beta == 0.0) return 1.0;
   float r = (2 * k) / (n - 1) - 1;
-  return bessel0(beta * sqrtf(1 - r * r)) / bessel0(beta);
+  return bessel0(beta * vna_sqrtf(1 - r * r)) / bessel0(beta);
 }
 #else
 //             Zero-order Bessel function
@@ -343,7 +366,7 @@ kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta)
 #endif
 
 static void
-transform_domain(void)
+transform_domain(uint16_t ch_mask)
 {
   // use spi_buffer as temporary buffer and calculate ifft for time domain
   // Need 2 * sizeof(float) * FFT_SIZE bytes for work
@@ -405,7 +428,6 @@ transform_domain(void)
 #endif
   }
   // Made Time Domain Calculations
-  uint16_t ch_mask = get_sweep_mask();
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     // Prepare data in tmp buffer (use spi_buffer), apply window function and constant correction factor
@@ -630,19 +652,13 @@ my_atof(const char *p)
 }
 
 #ifdef __USE_SMOOTH__
-void set_smooth_factor(uint8_t factor){
-  if (factor > 8) factor = 8;
-  current_props._smooth_factor = factor;
-  request_to_redraw(REDRAW_CAL_STATUS);
-}
-
 VNA_SHELL_FUNCTION(cmd_smooth)
 {
-  if (argc != 1) {
-    shell_printf("smooth = %d\r\n", current_props._smooth_factor);
+  if (argc == 1) {
+    set_smooth_factor(my_atoui(argv[0]));
     return;
   }
-  set_smooth_factor(my_atoui(argv[0]));
+  shell_printf("smooth = %d\r\n", smooth_factor);
 }
 #endif
 
@@ -960,7 +976,6 @@ void load_default_properties(void)
   current_props._domain_mode     = 0;
   current_props._marker_smith_format = MS_RLC;
   current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-  current_props._smooth_factor = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -1687,7 +1702,7 @@ static void apply_edelay(uint16_t ch_mask, int i, freq_t freq)
 {
   float real, imag;
   float s, c;
-  vna_sin_cos(electrical_delay * freq * 1E-12, &s, &c);
+  vna_sincosf(electrical_delay * freq * 1E-12, &s, &c);
   if (ch_mask & SWEEP_CH0_MEASURE){
     real = measured[0][i][0];
     imag = measured[0][i][1];
@@ -2428,8 +2443,8 @@ VNA_SHELL_FUNCTION(cmd_stat)
 //      if (mins < p[i+1]) mins = p[i+1];
 //      if (maxs > p[i+1]) maxs = p[i+1];
     }
-    stat.rms[0] = sqrtf(acc0 / count);
-    stat.rms[1] = sqrtf(acc1 / count);
+    stat.rms[0] = vna_sqrtf(acc0 / count);
+    stat.rms[1] = vna_sqrtf(acc1 / count);
     stat.ave[0] = ave0;
     stat.ave[1] = ave1;
     shell_printf("Ch: %d\r\n", ch);

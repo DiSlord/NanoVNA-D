@@ -53,6 +53,8 @@
 #define __USE_SMOOTH__
 // Enable DSP instruction (support only by Cortex M4)
 #define __USE_DSP__
+// Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
+#define __USE_VNA_MATH__
 
 /*
  * main.c
@@ -210,9 +212,6 @@ extern freq_t frequencies[POINTS_COUNT];
 #define FFT_SIZE   512
 #endif
 
-// Return sin/cos value, angle have range 0.0 to 1.0 (0 is 0 degree, 1 is 360 degree)
-void vna_sin_cos(float angle, float * pSinVal, float * pCosVal);
-
 void cal_collect(uint16_t type);
 void cal_done(void);
 
@@ -232,7 +231,8 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq);
 
 void set_power(uint8_t value);
 
-void set_smooth_factor(uint8_t factor);
+void    set_smooth_factor(uint8_t factor);
+uint8_t get_smooth_factor(void);
 
 int32_t  my_atoi(const char *p);
 uint32_t my_atoui(const char *p);
@@ -327,6 +327,11 @@ void tlv320aic3204_init(void);
 void tlv320aic3204_set_gain(uint8_t lgain, uint8_t rgain);
 void tlv320aic3204_select(uint8_t channel);
 void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
+
+/*
+ * vna_math.c
+ */
+#include "vna_math.h"
 
 /*
  * plot.c
@@ -603,6 +608,8 @@ enum {LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY};
 // config._mode flags
 #define VNA_MODE_START_STOP       0x00
 #define VNA_MODE_CENTER_SPAN      0x01
+// Smooth function
+#define VNA_SMOOTH_FUNCTION       0x02
 // Connection flag
 #define VNA_MODE_CONNECTION_MASK  0x04
 #define VNA_MODE_SERIAL           0x04
@@ -671,7 +678,7 @@ typedef struct properties {
   uint8_t  _domain_mode;         // timed domain option flag and some others flags
   uint8_t  _marker_smith_format;
   uint8_t  _power;
-  uint8_t  _smooth_factor;
+  uint8_t  _reserved;//_smooth_factor;
   float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
