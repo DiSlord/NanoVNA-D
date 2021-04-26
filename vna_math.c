@@ -383,6 +383,7 @@ void vna_sincosf(float angle, float * pSinVal, float * pCosVal)
 //**********************************************************************************
 // square root
 //**********************************************************************************
+#if (__FPU_PRESENT == 0) && (__FPU_USED == 0)
 #if 1
 // __ieee754_sqrtf, remove some check (NAN, inf, normalization), small code optimization to arm
 float vna_sqrtf(float x)
@@ -447,6 +448,7 @@ float vna_sqrtf(float x)
 
   return u.x;
 }
+#endif
 #endif
 
 //**********************************************************************************
