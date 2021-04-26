@@ -38,7 +38,7 @@ static void lc_match_quadratic_equation(float a, float b, float c, float *x)
     x[0] = x[1] = 0.0f;
     return;
   }
-  const float sd = sqrtf(d);
+  const float sd = vna_sqrtf(d);
   const float a2 = 2.0f * a;
   x[0] = (-b + sd) / a2;
   x[1] = (-b - sd) / a2;

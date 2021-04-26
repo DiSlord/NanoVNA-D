@@ -19,7 +19,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include <arm_math.h>
 #include "nanovna.h"
 
 #ifdef ENABLED_DUMP
@@ -38,7 +37,7 @@ void generate_DSP_Table(int offset){
   float w = step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
-    vna_sin_cos(w, &s, &c);
+    vna_sincosf(w, &s, &c);
     sincos_tbl[i][0] = s*32700.0f;
     sincos_tbl[i][1] = c*32700.0f;
     w+=step;
@@ -227,7 +226,7 @@ calculate_gamma(float gamma[2])
   measure_t rs = acc_ref_s;
   measure_t rc = acc_ref_c;
   measure_t rr = rs * rs + rc * rc;
-  //rr = sqrtf(rr) * 1e8;
+  //rr = vna_sqrtf(rr) * 1e8;
   measure_t ss = acc_samp_s;
   measure_t sc = acc_samp_c;
   gamma[0] =  (sc * rc + ss * rs) / rr;
