@@ -281,12 +281,8 @@ void fft(float array[][2], const uint8_t dir) {
 	for (i = 0; i < n; i++) {
 		uint16_t j = reverse_bits(i, levels);
 		if (j > i) {
-			float temp = array[i][real];
-			array[i][real] = array[j][real];
-			array[j][real] = temp;
-			temp = array[i][imag];
-			array[i][imag] = array[j][imag];
-			array[j][imag] = temp;
+			SWAP(float, array[i][real], array[j][real]);
+			SWAP(float, array[i][imag], array[j][imag]);
 		}
 	}
 	const uint16_t size = 2;
