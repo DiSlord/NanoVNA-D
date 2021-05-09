@@ -525,12 +525,12 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
   case MS_REIM:
     zr = real(coeff);
     zi = imag(coeff);
-    format = "%F%+Fj";
+    format = "%F%+jF";
     break;
   case MS_RX:
     zr = resistance(coeff);
     zi = reactance(coeff);
-    format = "%F%+Fj"S_OHM;
+    format = "%F%+jF"S_OHM;
     break;
   case MS_RLC:
     zr = resistance(coeff);
