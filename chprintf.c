@@ -298,8 +298,8 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
         state|=POSITIVE;
       else if (*fmt == '0')
         state|=PAD_ZERO;
-//      else if (*fmt == 'j')
-//        state|=COMPLEX;
+      else if (*fmt == 'j')
+        state|=COMPLEX;
 #ifdef CHPRINTF_USE_SPACE_FLAG
       else if (*fmt == ' ')
         state|=PLUS_SPACE;
@@ -379,8 +379,8 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       else if (state & PLUS_SPACE)
         *p++ = ' ';
 #endif
-//      if (state & COMPLEX)
-//        *p++ = 'j';
+      if (state & COMPLEX)
+        *p++ = 'j';
       p = long_to_string_with_divisor(p, value.l, 10, 0);
       break;
     case 'q':
@@ -402,8 +402,8 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       else if (state & PLUS_SPACE)
         *p++ = ' ';
 #endif
-//      if (state & COMPLEX)
-//        *p++ = 'j';
+      if (state & COMPLEX)
+        *p++ = 'j';
       if (value.f == INFINITY){
         *p++ = 0x19;
         break;

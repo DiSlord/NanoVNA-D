@@ -1092,53 +1092,54 @@ static const char s2_file_header[] =
 static const char s2_file_param[] =
   "%10u % f % f % f % f 0 0 0 0\r\n";
 
-static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
-{
-  char *buf = (char *)spi_buffer;
+static FRESULT vna_create_file(char *ext){
 //  shell_printf("S file\r\n");
   FRESULT res = f_mount(fs_volume, "", 1);
 //  shell_printf("Mount = %d\r\n", res);
   if (res != FR_OK)
-    return;
-  // Prepare filename = .s1p or .s2p and open for write
+    return res;
+  // Prepare filename and open for write
 #if FF_USE_LFN >= 1
   uint32_t tr = rtc_get_tr_bcd(); // TR read first
   uint32_t dr = rtc_get_dr_bcd(); // DR read second
-  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.s%dp", dr, tr, data);
+  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.%s", dr, tr, ext);
 #else
-  plot_printf(fs_filename, FF_LFN_BUF, "%08X.s%dp", rtc_get_FAT(), data);
+  plot_printf(fs_filename, FF_LFN_BUF, "%08X.%s", rtc_get_FAT(), ext);
 #endif
+  res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+  //  shell_printf("Open %s, = %d\r\n", fs_filename, res);
+  return res;
+}
 
+static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
+{
+  char *buf = (char *)spi_buffer;
   int i;
   UINT size;
 //  UINT total_size = 0;
 //  systime_t time = chVTGetSystemTimeX();
-  res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
-//  shell_printf("Open %s, = %d\r\n", fs_filename, res);
+  // Prepare filename = .s1p or .s2p and open for write
+  FRESULT res = vna_create_file(data == SAVE_S1P_FILE ? "s1p" : "s2p");
   if (res == FR_OK){
-    // Write S1P file
+    const char *s_file_format;
+    // Write SxP file
     if (data == SAVE_S1P_FILE){
-      // write s1p header (not write NULL terminate at end)
+      s_file_format = s1_file_param;
+      // write sxp header (not write NULL terminate at end)
       res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
 //      total_size+=size;
-      // Write all points data
-      for (i = 0; i < sweep_points && res == FR_OK; i++) {
-        size = plot_printf(buf, 128, s1_file_param, frequencies[i], measured[0][i][0], measured[0][i][1]);
-//        total_size+=size;
-        res = f_write(fs_file, buf, size, &size);
-      }
     }
-    // Write S2P file
-    else if (data == SAVE_S2P_FILE){
+    else {
+      s_file_format = s2_file_param;
       // Write s2p header (not write NULL terminate at end)
       res = f_write(fs_file, s2_file_header, sizeof(s2_file_header)-1, &size);
 //      total_size+=size;
-      // Write all points data
-      for (i = 0; i < sweep_points && res == FR_OK; i++) {
-        size = plot_printf(buf, 128, s2_file_param, frequencies[i], measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
-//        total_size+=size;
-        res = f_write(fs_file, buf, size, &size);
-      }
+    }
+    // Write all points data
+    for (i = 0; i < sweep_points && res == FR_OK; i++) {
+      size = plot_printf(buf, 128, s_file_format, frequencies[i], measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+//      total_size+=size;
+      res = f_write(fs_file, buf, size, &size);
     }
     res = f_close(fs_file);
 //    shell_printf("Close = %d\r\n", res);
@@ -2689,22 +2690,12 @@ made_screenshot(int touch_x, int touch_y)
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
   touch_wait_release();
-//  uint32_t time = chVTGetSystemTimeX();
+
 //  shell_printf("Screenshot\r\n");
-  FRESULT res = f_mount(fs_volume, "", 1);
+//  uint32_t time = chVTGetSystemTimeX();
   // fs_volume, fs_file and fs_filename stored at end of spi_buffer!!!!!
   uint16_t *buf = (uint16_t *)spi_buffer;
-//  shell_printf("Mount = %d\r\n", res);
-  if (res != FR_OK)
-    return TRUE;
-#if FF_USE_LFN >= 1
-  uint32_t tr = rtc_get_tr_bcd(); // TR read first
-  uint32_t dr = rtc_get_dr_bcd(); // DR read second
-  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.bmp", dr, tr);
-#else
-  plot_printf(fs_filename, FF_LFN_BUF, "%08X.bmp", rtc_get_FAT());
-#endif
-  res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
+  FRESULT res = vna_create_file("bmp");
 //  shell_printf("Open %s, result = %d\r\n", fs_filename, res);
   if (res == FR_OK){
     res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
