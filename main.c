@@ -100,6 +100,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_USART_COMMAND
 // Enable SD card console command
 //#define ENABLE_SD_CARD_CMD
+// Define i2c bus speed, add predefined for 400k, 600k, 900k
+#define STM32_I2C_SPEED                     900
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -131,7 +133,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.56"
+#define VERSION "1.0.58"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -922,7 +924,7 @@ config_t config = {
   ._bandwidth = BANDWIDTH_1000,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
-  ._serial_config = 0,
+  ._xtail_freq = XTALFREQ,
   ._lever_mode = LM_MARKER,
 };
 
@@ -1280,6 +1282,13 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
   sweep_mode&=~(SWEEP_BINARY);
 }
 #endif
+
+VNA_SHELL_FUNCTION(cmd_xtail)
+{
+  if (argc == 1)
+    si5351_set_xtail(my_atoui(argv[0]));
+  shell_printf("xtail = %u Hz\r\n", config._xtail_freq);
+}
 
 void set_marker_index(int m, int idx)
 {
@@ -2814,6 +2823,7 @@ static const VNAShellCommand commands[] =
     {"edelay"      , cmd_edelay      , 0},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"vbat"        , cmd_vbat        , 0},
+    {"xtail"       , cmd_xtail       , 0},
     {"reset"       , cmd_reset       , 0},
 #ifdef __USE_SMOOTH__
     {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
@@ -3103,9 +3113,6 @@ THD_FUNCTION(myshellThread, p)
 /*
  * I2C bus settings
  */
-// Define i2c bus speed, add predefined for 400k, 600k, 900k
-#define STM32_I2C_SPEED                     600
-
 #if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
 #if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
  #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)  |\

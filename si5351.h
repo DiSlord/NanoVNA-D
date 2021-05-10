@@ -83,6 +83,7 @@ void si5351_set_power(uint8_t drive_strength);
 void si5351_bulk_write(const uint8_t *buf, int len);
 void si5351_set_timing(int i, int v);
 void si5351_update_band_config(int idx, uint32_t pidx, uint32_t v);
+void si5351_set_xtail(uint32_t xtail);
 
 // Get info functions
 uint32_t si5351_get_frequency(void);

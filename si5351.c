@@ -22,8 +22,6 @@
 #include "nanovna.h"
 #include "si5351.h"
 
-// XTAL frequency on si5351
-#define XTALFREQ 26000000U
 // audio codec frequency clock
 #define CLK2_FREQUENCY AUDIO_CLOCK_REF
 
@@ -152,8 +150,8 @@ si5351_init(void)
     si5351_bulk_write(p, len);
     p += len;
   }
-  // Set any (let it be 32MHz) frequency for AIC can run
-  si5351_set_frequency(32000000U, 0);
+  // Set any (let it be XTALFREQ) frequency for AIC can run
+  si5351_set_frequency(XTALFREQ, 0);
 }
 
 static const uint8_t disable_output[] = {
@@ -188,6 +186,13 @@ void si5351_enable_output(void)
 {
   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
 //si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
+  si5351_reset_cache();
+}
+
+void si5351_set_xtail(uint32_t xtail){
+  if (xtail < XTALFREQ - 2000000 ||
+      xtail > XTALFREQ + 2000000) xtail = XTALFREQ;
+  config._xtail_freq = xtail;
   si5351_reset_cache();
 }
 
@@ -327,7 +332,7 @@ si5351_set_frequency_fixedpll(uint8_t channel, uint64_t pllfreq, uint32_t freq, 
 static void
 si5351_setupPLL_freq(uint32_t pllSource, uint32_t freq, uint32_t div, uint32_t mul)
 {
-  uint32_t denom = XTALFREQ * mul;
+  uint32_t denom = config._xtail_freq * mul;
   uint64_t pllfreq = (uint64_t)freq * div;
   uint32_t multi = pllfreq / denom;
   uint32_t num   = pllfreq % denom;
@@ -522,12 +527,12 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       if (current_band != band) {
         si5351_setupPLL(SI5351_REG_PLL_A,   pll_n, 0, 1);
         si5351_setupPLL(SI5351_REG_PLL_B, PLL_N_2, 0, 1);
-        si5351_set_frequency_fixedpll(2, XTALFREQ * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
+        si5351_set_frequency_fixedpll(2, config._xtail_freq * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       }
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
-      si5351_set_frequency_fixedpll(0, (uint64_t)omul * XTALFREQ * pll_n, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
-      si5351_set_frequency_fixedpll(1, (uint64_t) mul * XTALFREQ * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(0, (uint64_t)omul * config._xtail_freq * pll_n, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(1, (uint64_t) mul * config._xtail_freq * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
       break;
 #if 0
     case SI5351_MIXED:
@@ -544,7 +549,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
         si5351_setupMultisynth(1, fdiv, 0, 1, SI5351_R_DIV_1, ds | SI5351_CLK_PLL_SELECT_B);
 
       // Set CH0 divider
-      si5351_set_frequency_fixedpll(0, (uint64_t)omul * XTALFREQ * pll_n, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(0, (uint64_t)omul * config._xtail_freq * pll_n, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
       // Calculate CH2 freq = CLK2_FREQUENCY, depend from calculated before CH1 PLLB = (freq/mul)*fdiv
       si5351_set_frequency_fixedpll(2, (uint64_t)freq * fdiv, CLK2_FREQUENCY * mul, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       delay= DELAY_BAND_3_4;

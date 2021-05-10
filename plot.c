@@ -19,7 +19,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include <math.h>
 #include <string.h>
 #include "ch.h"
 #include "hal.h"
@@ -333,9 +332,9 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
 {
 #if 1
   // atan(w)-atan(v) = atan((w-v)/(1+wv))
-  float r = w[0]*v[1] - w[1]*v[0];
-  float i = w[0]*v[0] + w[1]*v[1];
-  return vna_atan2f(r, i) / (2 * VNA_PI * deltaf);
+  float r = w[0]*v[0] + w[1]*v[1];
+  float i = w[0]*v[1] - w[1]*v[0];
+  return vna_atan2f(i, r) / (2 * VNA_PI * deltaf);
 #else
   return (vna_atan2f(w[0], w[1]) - vna_atan2f(v[0], v[1])) / (2 * VNA_PI * deltaf);
 #endif

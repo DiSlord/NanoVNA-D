@@ -47,14 +47,15 @@
 #define __USE_GRID_VALUES__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
+// Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
+#define __USE_VNA_MATH__
 // Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
 //#define USE_FFT_WINDOW_BUFFER
 // Enable data smooth option
 #define __USE_SMOOTH__
 // Enable DSP instruction (support only by Cortex M4)
 //#define __USE_DSP__
-// Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
-#define __USE_VNA_MATH__
+
 /*
  * main.c
  */
@@ -65,6 +66,8 @@
 #define STOP_MAX                 2700000000U
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
+// XTAL frequency on si5351
+#define XTALFREQ 26000000U
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
@@ -656,7 +659,7 @@ typedef struct config {
   uint16_t _bandwidth;
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
-  uint32_t _serial_config;
+  uint32_t _xtail_freq;
   uint8_t  _lever_mode;
   uint32_t checksum;
 } config_t;
@@ -953,7 +956,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e47 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e48 /* 'CONF' */
 
 extern uint16_t lastsaveid;
 
