@@ -1043,7 +1043,11 @@ extern uint16_t timings[16];
 
 #else
 // Use x 100us settings
+#if STM32_I2C_SPEED > 600
+#define DELAY_CHANNEL_CHANGE   2    // Delay for switch ADC channel
+#else
 #define DELAY_CHANNEL_CHANGE   3    // Delay for switch ADC channel
+#endif
 #define DELAY_SWEEP_START     50    // Sweep start delay, allow remove noise at 1 point
 #endif
 

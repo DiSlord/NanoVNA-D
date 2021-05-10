@@ -47,8 +47,8 @@ static void si5351_reset_cache(void){
 
 // Generator ready delays, values in x100 us
 #if 0
-  uint16_t timings[16]={  4,  3, 20, 1000, 5000,  0,  4, 25}; // For H  device timings
-//uint16_t timings[16]={  2,  2, 20, 1000, 5000,  0,  3, 25}; // For H4 device timings
+  uint16_t timings[16]={  2,  2, 20, 0, 4000,  0,  2, 25}; // For H  device timings
+//uint16_t timings[16]={  1,  2, 20, 0, 4000,  0,  1, 25}; // For H4 device timings
 void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2           timings[0]   // Delay for bands
 #define DELAY_BAND_3_4           timings[1]   // Delay for bands
@@ -60,12 +60,12 @@ void si5351_set_timing(int i, int v) {timings[i]=v;}
 //#define DELAY_SWEEP_START      timings[7]   // defined in main.c delay at sweep start
 
 #else
-#define DELAY_BAND_1_2            4    // Delay for bands 1-2
-#define DELAY_BAND_3_4            3    // Delay for bands 3-4
+#define DELAY_BAND_1_2            2    // Delay for bands 1-2
+#define DELAY_BAND_3_4            2    // Delay for bands 3-4
 #define DELAY_BANDCHANGE         20    // Band changes need set additional delay after reset PLL
 // Delay after set new PLL values, and send reset
-#define DELAY_RESET_PLL_BEFORE 1000    // 1000 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER  5000    // 3500 possibly not need it if align freq
+#define DELAY_RESET_PLL_BEFORE    0    //    0 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER  4000    // 4000 possibly not need it if align freq
 #define DELAY_GAIN_CHANGE         0    // Delay for gain change
 #endif
 
@@ -504,8 +504,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
     return 0;
 
   if (current_band != band) {
-    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
-    si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
+//   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
+//   si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
     if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain){
       tlv320aic3204_set_gain(band_s[band].l_gain, band_s[band].r_gain);
 //    delay = DELAY_GAIN_CHANGE;
@@ -573,7 +573,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       break;
   }
   if (current_band != band) {
-    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
+//    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
     // Possibly not need add delay now
     if (DELAY_RESET_PLL_AFTER)
       chThdSleepMicroseconds(DELAY_RESET_PLL_AFTER);
