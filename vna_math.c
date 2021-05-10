@@ -20,8 +20,8 @@
 #include "nanovna.h"
 #include <stdint.h>
 
-// Use table increase transform speed from 6500 tick to 2025, increase code size on 700 bytes
-// Use compact table, increase code size on 208 bytes, and not decrease speed
+// Use table increase transform speed, but increase code size
+// Use compact table, need 1/4 code size, and not decrease speed
 // Used only if not defined __VNA_USE_MATH_TABLES__ (use self table for TTF or direct sin/cos calculations)
 #define FFT_USE_SIN_COS_TABLE
 

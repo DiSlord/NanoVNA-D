@@ -487,6 +487,7 @@ touch_position(int *x, int *y)
 static void
 show_version(void)
 {
+  char buffer[32];
   int x = 5, y = 5, i = 1;
   ili9341_set_foreground(LCD_FG_COLOR);
   ili9341_set_background(LCD_BG_COLOR);
@@ -499,8 +500,11 @@ show_version(void)
     do {shift>>=1; y+=5;} while (shift&1);
     ili9341_drawstring(info_about[i++], x, y+=FONT_STR_HEIGHT+3-5);
   }
-  // Update battery and time
+  plot_printf(buffer, sizeof(buffer), "XTAIL = %qHz", config._xtail_freq);
+  ili9341_drawstring(buffer, x, y+= FONT_STR_HEIGHT + 3);
+
   y+=3*FONT_STR_HEIGHT;
+  // Update battery and time
   uint16_t cnt = 0;
   while (true) {
     if (touch_check() == EVT_TOUCH_PRESSED)
@@ -510,7 +514,6 @@ show_version(void)
     chThdSleepMilliseconds(40);
     if ((cnt++)&0x07) continue; // Not update time so fast
 
-    char buffer[32];
 #ifdef __USE_RTC__
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second

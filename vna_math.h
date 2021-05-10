@@ -43,7 +43,6 @@ __attribute__((always_inline)) __STATIC_INLINE float vna_fabsf(float x){union {f
 __attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, float z){return z+x*y;}
 // square root
 float vna_sqrtf(float x);
-//#define vna_sqrtf    sqrtf
 #endif
 //================================
 // log
