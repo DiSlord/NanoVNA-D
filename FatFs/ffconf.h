@@ -320,7 +320,7 @@
 /   PIC32       0           H8/300H     0           x86         0/1
 */
 
-#define FF_USE_STRINGLIB   1  /* 0 or 1 */
+#define FF_USE_STRINGLIB   0  /* 0 or 1 */
 /*
  * if 1 Use standard string.h for memcpy, memcmp, memset, strchr
  * if 0 use own
