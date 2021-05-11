@@ -659,7 +659,7 @@ typedef struct config {
   uint16_t _bandwidth;
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
-  uint32_t _xtail_freq;
+  uint32_t _xtal_freq;
   uint8_t  _lever_mode;
   uint32_t checksum;
 } config_t;

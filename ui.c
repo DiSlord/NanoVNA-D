@@ -500,7 +500,7 @@ show_version(void)
     do {shift>>=1; y+=5;} while (shift&1);
     ili9341_drawstring(info_about[i++], x, y+=FONT_STR_HEIGHT+3-5);
   }
-  plot_printf(buffer, sizeof(buffer), "XTAIL = %qHz", config._xtail_freq);
+  plot_printf(buffer, sizeof(buffer), "TCXO = %qHz", config._xtal_freq);
   ili9341_drawstring(buffer, x, y+= FONT_STR_HEIGHT + 3);
 
   y+=3*FONT_STR_HEIGHT;

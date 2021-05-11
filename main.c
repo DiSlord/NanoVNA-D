@@ -924,7 +924,7 @@ config_t config = {
   ._bandwidth = BANDWIDTH_1000,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
-  ._xtail_freq = XTALFREQ,
+  ._xtal_freq = XTALFREQ,
   ._lever_mode = LM_MARKER,
 };
 
@@ -1287,11 +1287,11 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
 }
 #endif
 
-VNA_SHELL_FUNCTION(cmd_xtail)
+VNA_SHELL_FUNCTION(cmd_tcxo)
 {
   if (argc == 1)
-    si5351_set_xtail(my_atoui(argv[0]));
-  shell_printf("xtail = %u Hz\r\n", config._xtail_freq);
+    si5351_set_tcxo(my_atoui(argv[0]));
+  shell_printf("tcxo = %u Hz\r\n", config._xtal_freq);
 }
 
 void set_marker_index(int m, int idx)
@@ -2827,7 +2827,7 @@ static const VNAShellCommand commands[] =
     {"edelay"      , cmd_edelay      , 0},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"vbat"        , cmd_vbat        , 0},
-    {"xtail"       , cmd_xtail       , 0},
+    {"tcxo"        , cmd_tcxo        , 0},
     {"reset"       , cmd_reset       , 0},
 #ifdef __USE_SMOOTH__
     {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
