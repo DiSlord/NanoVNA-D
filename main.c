@@ -389,7 +389,7 @@ transform_domain(uint16_t ch_mask)
   }
   uint16_t window_size = sweep_points + offset;
   uint16_t beta = 0;
-  switch (domain_mode & TD_WINDOW) {
+  switch (domain_window) {
 //    case TD_WINDOW_MINIMUM:
 //    beta = 0;  // this is rectangular
 //      break;
@@ -917,7 +917,7 @@ config_t config = {
   .magic       = CONFIG_MAGIC,
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._touch_cal   = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_START_STOP | VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
+  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 320,
@@ -1387,19 +1387,19 @@ set_sweep_frequency(int type, freq_t freq)
   uint32_t center, span;
   switch (type) {
     case ST_START:
-      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
+      FREQ_STARTSTOP();
       frequency0 = freq;
       // if start > stop then make start = stop
       if (frequency1 < freq) frequency1 = freq;
       break;
     case ST_STOP:
-      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
+      FREQ_STARTSTOP()
       frequency1 = freq;
         // if start > stop then make start = stop
       if (frequency0 > freq) frequency0 = freq;
       break;
     case ST_CENTER:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       center = freq;
       span   = (frequency1 - frequency0)>>1;
       if (span > center - START_MIN)
@@ -1410,7 +1410,7 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = center + span;
       break;
     case ST_SPAN:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       center = (frequency0>>1) + (frequency1>>1);
       span = freq>>1;
       if (center < START_MIN + span)
@@ -1421,7 +1421,7 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = center + span;
       break;
     case ST_CW:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       frequency0 = freq;
       frequency1 = freq;
       break;
