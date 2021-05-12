@@ -34,10 +34,10 @@
 #define EVT_DOWN                0x20
 #define EVT_REPEAT              0x40
 
-#define BUTTON_DOWN_LONG_TICKS      5000   /* 500ms */
-#define BUTTON_DOUBLE_TICKS         2500   /* 250ms */
-#define BUTTON_REPEAT_TICKS          400   /*  10ms */
-#define BUTTON_DEBOUNCE_TICKS        400   /*  40ms */
+#define BUTTON_DOWN_LONG_TICKS      MS2ST(500)   // 500ms
+#define BUTTON_DOUBLE_TICKS         MS2ST(250)   // 250ms
+#define BUTTON_REPEAT_TICKS         MS2ST( 40)   //  40ms
+#define BUTTON_DEBOUNCE_TICKS       MS2ST(  2)   //   2ms
 
 /* lever switch assignment */
 #define BIT_UP1     3
@@ -198,7 +198,7 @@ static int btn_check(void)
     ticks = chVTGetSystemTimeX();
     if(ticks - last_button_down_ticks > BUTTON_DEBOUNCE_TICKS)
       break;
-    chThdSleepMilliseconds(10);
+    chThdSleepMilliseconds(1);
   }
   int status = 0;
   uint16_t cur_button = READ_PORT() & BUTTON_MASK;
@@ -725,10 +725,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
 {
   if(b){
-    b->icon = (domain_mode & TD_WINDOW) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = (props_mode & TD_WINDOW) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  domain_mode = (domain_mode & ~TD_WINDOW) | data;
+  props_mode = (props_mode & ~TD_WINDOW) | data;
   ui_mode_normal();
 }
 
@@ -736,10 +736,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
 {
   (void)data;
   if(b){
-    if (domain_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK;
+    if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  domain_mode ^= DOMAIN_TIME;
+  props_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
   ui_mode_normal();
 }
@@ -747,10 +747,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 {
   if(b){
-    b->icon = (domain_mode & TD_FUNC) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = (props_mode & TD_FUNC) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  domain_mode = (domain_mode & ~TD_FUNC) | data;
+  props_mode = (props_mode & ~TD_FUNC) | data;
   ui_mode_normal();
 }
 
@@ -942,10 +942,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_lc_match_acb)
 {
   (void)data;
   if (b){
-    b->icon = domain_mode & TD_LC_MATH ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = props_mode & TD_LC_MATH ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  domain_mode^=TD_LC_MATH;
+  props_mode^=TD_LC_MATH;
   ui_mode_normal();
 }
 #endif
@@ -2471,7 +2471,7 @@ keypad_click(int key)
       set_electrical_delay(value); // pico seconds
       break;
     case KM_VELOCITY_FACTOR:
-      velocity_factor = value / 100.0;
+      velocity_factor = value;
       break;
     case KM_SCALEDELAY:
       set_trace_scale(current_trace, value * 1e-12); // pico second

@@ -88,7 +88,7 @@ int16_t adc_vbat_read(void)
 // Vbat measure averange count = 2^VBAT_AVERAGE
 #define VBAT_AVERAGE 4
 // Measure vbat every 5 second
-#define VBAT_MEASURE_INTERVAL   50000
+#define VBAT_MEASURE_INTERVAL   S2ST(5)
 
   static int16_t   vbat_raw = 0;
   static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;

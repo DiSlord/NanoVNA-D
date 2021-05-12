@@ -59,7 +59,6 @@
 /*
  * main.c
  */
-
 // Minimum frequency set
 #define START_MIN                800
 // Maximum frequency set
@@ -68,6 +67,8 @@
 #define FREQUENCY_THRESHOLD      300000100U
 // XTAL frequency on si5351
 #define XTALFREQ 26000000U
+// Define i2c bus speed, add predefined for 400k, 600k, 900k
+#define STM32_I2C_SPEED                     900
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
@@ -676,14 +677,14 @@ typedef struct properties {
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
-  uint16_t _domain_mode;         // timed domain option flag and some others flags
+  uint16_t _mode;                // timed domain option flag and some others flags
   int8_t   _current_trace;       // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
   int8_t   _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   int8_t   _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   uint8_t  _marker_smith_format;
   uint8_t  _power;
+  uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
-  float    _velocity_factor;     // %
   float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
@@ -977,15 +978,14 @@ extern uint16_t lastsaveid;
 #define active_marker       current_props._active_marker
 #define previous_marker     current_props._previous_marker
 
-#define domain_mode         current_props._domain_mode
+#define props_mode          current_props._mode
+#define domain_window      (props_mode&TD_WINDOW)
+#define domain_func        (props_mode&TD_FUNC)
 
-#define domain_window      (current_props._domain_mode&TD_WINDOW)
-#define domain_func        (current_props._domain_mode&TD_FUNC)
-
-#define FREQ_STARTSTOP()       {current_props._domain_mode&=~TD_CENTER_SPAN;}
-#define FREQ_CENTERSPAN()      {current_props._domain_mode|= TD_CENTER_SPAN;}
-#define FREQ_IS_STARTSTOP()  (!(current_props._domain_mode&TD_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN()   (current_props._domain_mode&TD_CENTER_SPAN)
+#define FREQ_STARTSTOP()       {props_mode&=~TD_CENTER_SPAN;}
+#define FREQ_CENTERSPAN()      {props_mode|= TD_CENTER_SPAN;}
+#define FREQ_IS_STARTSTOP()  (!(props_mode&TD_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN()   (props_mode&TD_CENTER_SPAN)
 #define FREQ_IS_CW()           (frequency0 == frequency1)
 
 #define get_trace_scale(t)      current_props._trace[t].scale
@@ -993,7 +993,6 @@ extern uint16_t lastsaveid;
 
 #define VNA_mode             config._vna_mode
 #define lever_mode           config._lever_mode
-
 
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);

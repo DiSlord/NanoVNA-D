@@ -1183,7 +1183,7 @@ static inline uint8_t SD_ReadR1(uint32_t cnt) {
   return r1;
 }
 
-// Wait SD ready token answer (wait time in systick, 10 systick = 1ms)
+// Wait SD ready token answer (wait time in systick)
 static inline bool SD_WaitDataToken(uint8_t token, uint32_t wait_time) {
   uint8_t res;
   uint32_t time = chVTGetSystemTimeX();
@@ -1207,7 +1207,7 @@ static inline uint8_t SD_WaitDataAccept(uint32_t cnt) {
   return res&0x1F;
 }
 
-// Wait no Busy answer from SD (wait time in systick, 10 systick = 1ms)
+// Wait no Busy answer from SD (wait time in systick)
 static uint8_t SD_WaitNotBusy(uint32_t wait_time) {
   uint8_t res;
   uint32_t time = chVTGetSystemTimeX();
@@ -1227,7 +1227,7 @@ static uint8_t SD_WaitNotBusy(uint32_t wait_time) {
 // Receive data block from SD
 static bool SD_RxDataBlock(uint8_t *buff, uint16_t len, uint8_t token) {
   // loop until receive read response token or timeout ~50ms
-  if (!SD_WaitDataToken(token, 500)) {
+  if (!SD_WaitDataToken(token, MS2ST(50))) {
     DEBUG_PRINT(" rx SD_WaitDataToken err\r\n");
     return FALSE;
   }
@@ -1279,7 +1279,7 @@ static bool SD_TxDataBlock(const uint8_t *buff, uint8_t token) {
   }
 #if 0
   // Wait busy (recommended timeout is 250ms (500ms for SDXC) set 250ms
-  resp = SD_WaitNotBusy(2500);
+  resp = SD_WaitNotBusy(MS2ST(250));
   if (resp == 0xFF)
     return TRUE;
 #else
@@ -1298,7 +1298,7 @@ static uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg) {
   uint8_t buf[6];
   uint8_t r1;
   // wait SD ready after last Tx (recommended timeout is 250ms (500ms for SDXC) set 250ms
-  if ((r1 = SD_WaitNotBusy(2500)) != 0xFF) {
+  if ((r1 = SD_WaitNotBusy(MS2ST(250))) != 0xFF) {
     DEBUG_PRINT(" SD_WaitNotBusy CMD%d err, %02x\r\n", cmd-0x40, (uint32_t)r1);
     return 0xFF;
   }
@@ -1568,7 +1568,7 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
     // Nothing to do for this command if each write operation to the media is completed
     // within the disk_write function.
     case CTRL_SYNC:
-      if (SD_WaitNotBusy(2000) == 0xFF) res = RES_OK;
+      if (SD_WaitNotBusy(MS2ST(200)) == 0xFF) res = RES_OK;
     break;
 #if FF_USE_TRIM == 1
     // Informs the device the data on the block of sectors is no longer needed and it can be erased.
