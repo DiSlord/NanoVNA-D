@@ -54,7 +54,7 @@ static void si5351_reset_cache(void){
 #define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
 // Delay after set new PLL values in ms, and send reset
 #define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER          2000    // 2000 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
 #else
 #define DELAY_BAND_1_2           US2ST( 100)   // Delay for bands 1-2
 #define DELAY_BAND_3_4           US2ST( 200)   // Delay for bands 3-4
@@ -63,7 +63,7 @@ static void si5351_reset_cache(void){
 #define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
 // Delay after set new PLL values in ms, and send reset
 #define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER          2000    // 2000 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
 #endif
 
 #if 0
