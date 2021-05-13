@@ -45,28 +45,54 @@ static void si5351_reset_cache(void){
   current_freq = 0;
 }
 
-// Generator ready delays, values in x100 us
+// Generator ready delays, values in us
 #if 0
-//uint16_t timings[16]={  2,  2, 20, 0, 4000,  0,  2, 25}; // For H  device timings
-  uint16_t timings[16]={  1,  2, 20, 0, 4000,  0,  1, 25}; // For H4 device timings
-void si5351_set_timing(int i, int v) {timings[i]=v;}
-#define DELAY_BAND_1_2           timings[0]   // Delay for bands
-#define DELAY_BAND_3_4           timings[1]   // Delay for bands
-#define DELAY_BANDCHANGE         timings[2]   // Band changes need set additional delay after reset PLL
-#define DELAY_RESET_PLL_BEFORE   timings[3]   // Delay before set new PLL values
-#define DELAY_RESET_PLL_AFTER    timings[4]   // Delay after set new PLL values
-#define DELAY_GAIN_CHANGE        timings[5]   // Delay for gain change
-//#define DELAY_CHANNEL_CHANGE   timings[6]   // defined in main.c switch channel delay
-//#define DELAY_SWEEP_START      timings[7]   // defined in main.c delay at sweep start
-
+#define DELAY_BAND_1_2           US2ST( 200)   // Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 200)   // Delay for bands 3-4
+#define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
+#define DELAY_CHANNEL_CHANGE     US2ST( 200)   // defined in main.c switch channel delay
+#define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
+// Delay after set new PLL values in ms, and send reset
+#define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
 #else
-#define DELAY_BAND_1_2            1    // Delay for bands 1-2
-#define DELAY_BAND_3_4            2    // Delay for bands 3-4
-#define DELAY_BANDCHANGE         20    // Band changes need set additional delay after reset PLL
-// Delay after set new PLL values, and send reset
-#define DELAY_RESET_PLL_BEFORE    0    //    0 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER  4000    // 4000 possibly not need it if align freq
-#define DELAY_GAIN_CHANGE         0    // Delay for gain change
+#define DELAY_BAND_1_2           US2ST( 100)   // Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 200)   // Delay for bands 3-4
+#define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
+#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // defined in main.c switch channel delay
+#define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
+// Delay after set new PLL values in ms, and send reset
+#define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
+#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
+#endif
+
+#if 0
+// For debug
+uint16_t timings[8]={
+  DELAY_BAND_1_2,          // 0
+  DELAY_BAND_3_4,          // 1
+  DELAY_BANDCHANGE,        // 2
+  DELAY_RESET_PLL_BEFORE,  // 3
+  DELAY_RESET_PLL_AFTER,   // 4
+  DELAY_CHANNEL_CHANGE,    // 5
+  DELAY_SWEEP_START        // 6
+};
+inline void si5351_set_timing(int i, int v) {timings[i]=v;}
+#undef DELAY_BAND_1_2
+#undef DELAY_BAND_3_4
+#undef DELAY_BANDCHANGE
+#undef DELAY_RESET_PLL_BEFORE
+#undef DELAY_RESET_PLL_AFTER
+#undef DELAY_CHANNEL_CHANGE
+#undef DELAY_SWEEP_START
+
+#define DELAY_BAND_1_2            timings[0]
+#define DELAY_BAND_3_4            timings[1]
+#define DELAY_BANDCHANGE          timings[2]
+#define DELAY_RESET_PLL_BEFORE    timings[3]
+#define DELAY_RESET_PLL_AFTER     timings[4]
+#define DELAY_CHANNEL_CHANGE      timings[5]
+#define DELAY_SWEEP_START         timings[6]
 #endif
 
 uint32_t si5351_get_frequency(void)

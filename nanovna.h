@@ -59,7 +59,6 @@
 /*
  * main.c
  */
-
 // Minimum frequency set
 #define START_MIN                800
 // Maximum frequency set
@@ -68,6 +67,8 @@
 #define FREQUENCY_THRESHOLD      300000100U
 // XTAL frequency on si5351
 #define XTALFREQ 26000000U
+// Define i2c bus speed, add predefined for 400k, 600k, 900k
+#define STM32_I2C_SPEED                     900
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
@@ -193,20 +194,6 @@ extern freq_t frequencies[POINTS_COUNT];
 #define ETERM_ER 2 /* error term refrection tracking */
 #define ETERM_ET 3 /* error term transmission tracking */
 #define ETERM_EX 4 /* error term isolation */
-
-#define DOMAIN_MODE (1<<0)
-#define DOMAIN_FREQ (0<<0)
-#define DOMAIN_TIME (1<<0)
-#define TD_FUNC (0b11<<1)
-#define TD_FUNC_BANDPASS (0b00<<1)
-#define TD_FUNC_LOWPASS_IMPULSE (0b01<<1)
-#define TD_FUNC_LOWPASS_STEP    (0b10<<1)
-#define TD_WINDOW (0b11<<3)
-#define TD_WINDOW_NORMAL (0b00<<3)
-#define TD_WINDOW_MINIMUM (0b01<<3)
-#define TD_WINDOW_MAXIMUM (0b10<<3)
-// L/C match enable option
-#define TD_LC_MATH        (1<<5)
 
 #if   POINTS_COUNT <= 256
 #define FFT_SIZE   256
@@ -607,9 +594,27 @@ enum {LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY};
 #define MARKER_INVALID       -1
 #define TRACE_INVALID        -1
 
+// properties flags
+#define DOMAIN_MODE (1<<0)
+#define DOMAIN_FREQ (0<<0)
+#define DOMAIN_TIME (1<<0)
+// Time domain function
+#define TD_FUNC                 (0b11<<1)
+#define TD_FUNC_BANDPASS        (0b00<<1)
+#define TD_FUNC_LOWPASS_IMPULSE (0b01<<1)
+#define TD_FUNC_LOWPASS_STEP    (0b10<<1)
+// Time domain window
+#define TD_WINDOW               (0b11<<3)
+#define TD_WINDOW_NORMAL        (0b00<<3)
+#define TD_WINDOW_MINIMUM       (0b01<<3)
+#define TD_WINDOW_MAXIMUM       (0b10<<3)
+// L/C match enable option
+#define TD_LC_MATH              (1<<5)
+// Sweep mode
+#define TD_START_STOP           (0<<0)
+#define TD_CENTER_SPAN          (1<<6)
+
 // config._mode flags
-#define VNA_MODE_START_STOP       0x00
-#define VNA_MODE_CENTER_SPAN      0x01
 // Smooth function
 #define VNA_SMOOTH_FUNCTION       0x02
 // Connection flag
@@ -672,15 +677,14 @@ typedef struct properties {
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
-  float    _electrical_delay;    // picoseconds
-  float    _velocity_factor;     // %
+  uint16_t _mode;                // timed domain option flag and some others flags
   int8_t   _current_trace;       // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
   int8_t   _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   int8_t   _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
-  uint8_t  _domain_mode;         // timed domain option flag and some others flags
   uint8_t  _marker_smith_format;
   uint8_t  _power;
-  uint8_t  _reserved;//_smooth_factor;
+  uint8_t  _velocity_factor;     // 0 .. 100 %
+  float    _electrical_delay;    // picoseconds
   float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
@@ -956,7 +960,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e48 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e51 /* 'CONF' */
 
 extern uint16_t lastsaveid;
 
@@ -973,18 +977,22 @@ extern uint16_t lastsaveid;
 #define markers             current_props._markers
 #define active_marker       current_props._active_marker
 #define previous_marker     current_props._previous_marker
-#define domain_mode         current_props._domain_mode
-#define domain_func        (current_props._domain_mode&TD_FUNC)
 
+#define props_mode          current_props._mode
+#define domain_window      (props_mode&TD_WINDOW)
+#define domain_func        (props_mode&TD_FUNC)
+
+#define FREQ_STARTSTOP()       {props_mode&=~TD_CENTER_SPAN;}
+#define FREQ_CENTERSPAN()      {props_mode|= TD_CENTER_SPAN;}
+#define FREQ_IS_STARTSTOP()  (!(props_mode&TD_CENTER_SPAN))
+#define FREQ_IS_CENTERSPAN()   (props_mode&TD_CENTER_SPAN)
+#define FREQ_IS_CW()           (frequency0 == frequency1)
 
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
 
 #define VNA_mode             config._vna_mode
 #define lever_mode           config._lever_mode
-#define FREQ_IS_STARTSTOP()  (!(VNA_mode & VNA_MODE_CENTER_SPAN))
-#define FREQ_IS_CENTERSPAN() (  VNA_mode & VNA_MODE_CENTER_SPAN)
-#define FREQ_IS_CW()         (frequency0 == frequency1)
 
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);

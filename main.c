@@ -85,7 +85,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable port command, used for debug
 //#define ENABLE_PORT_COMMAND
 // Enable si5351 timing command, used for debug
-//#define ENABLE_SI5351_TIMINGS
+#define ENABLE_SI5351_TIMINGS
 // Enable si5351 register write, used for debug
 //#define ENABLE_SI5351_REG_WRITE
 // Enable i2c timing command, used for debug
@@ -100,8 +100,6 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_USART_COMMAND
 // Enable SD card console command
 //#define ENABLE_SD_CARD_CMD
-// Define i2c bus speed, add predefined for 400k, 600k, 900k
-#define STM32_I2C_SPEED                     900
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -260,7 +258,7 @@ static THD_FUNCTION(Thread1, arg)
 //    STOP_PROFILE;
 #endif
 //      START_PROFILE
-      if ((domain_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
+      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       plot_into_index(measured);
@@ -389,7 +387,7 @@ transform_domain(uint16_t ch_mask)
   }
   uint16_t window_size = sweep_points + offset;
   uint16_t beta = 0;
-  switch (domain_mode & TD_WINDOW) {
+  switch (domain_window) {
 //    case TD_WINDOW_MINIMUM:
 //    beta = 0;  // this is rectangular
 //      break;
@@ -407,7 +405,7 @@ transform_domain(uint16_t ch_mask)
   static float window_scale = 0;
   static uint16_t td_cache = 0;
   // Check mode cache data
-  uint16_t td_check = (domain_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
+  uint16_t td_check = (props_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
   if (td_cache!=td_check){
     td_cache = td_check;
     if (domain_func == TD_FUNC_LOWPASS_STEP)
@@ -917,7 +915,7 @@ config_t config = {
   .magic       = CONFIG_MAGIC,
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._touch_cal   = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_START_STOP | VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
+  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 320,
@@ -971,11 +969,11 @@ void load_default_properties(void)
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
   current_props._electrical_delay = 0.0;
-  current_props._velocity_factor = 0.7;
+  current_props._velocity_factor = 70;
   current_props._current_trace   = 0;
   current_props._active_marker   = 0;
   current_props._previous_marker = MARKER_INVALID;
-  current_props._domain_mode     = 0;
+  current_props._mode            = 0;
   current_props._marker_smith_format = MS_RLC;
   current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
 //This data not loaded by default
@@ -1038,17 +1036,16 @@ static const I2SConfig i2sconfig = {
 
 #ifdef ENABLE_SI5351_TIMINGS
 extern uint16_t timings[16];
-#define DELAY_CHANNEL_CHANGE  timings[6]
-#define DELAY_SWEEP_START     timings[7]
+#define DELAY_CHANNEL_CHANGE  timings[5]
+#define DELAY_SWEEP_START     timings[6]
 
 #else
-// Use x 100us settings
 #if STM32_I2C_SPEED > 600
-#define DELAY_CHANNEL_CHANGE   1    // Delay for switch ADC channel
+#define DELAY_CHANNEL_CHANGE  US2ST( 100)    // Delay for switch ADC channel
 #else
-#define DELAY_CHANNEL_CHANGE   3    // Delay for switch ADC channel
+#define DELAY_CHANNEL_CHANGE  US2ST( 300)    // Delay for switch ADC channel
 #endif
-#define DELAY_SWEEP_START     50    // Sweep start delay, allow remove noise at 1 point
+#define DELAY_SWEEP_START     US2ST(2000)    // Sweep start delay, allow remove noise at 1 point
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config._bandwidth+2;}
@@ -1079,7 +1076,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
     return false;
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
-//  START_PROFILE;
+  START_PROFILE;
   ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
@@ -1129,7 +1126,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
       if (ch_mask & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
     }
   }
-//  STOP_PROFILE;
+  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
   return p_sweep == sweep_points;
@@ -1387,19 +1384,19 @@ set_sweep_frequency(int type, freq_t freq)
   uint32_t center, span;
   switch (type) {
     case ST_START:
-      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
+      FREQ_STARTSTOP();
       frequency0 = freq;
       // if start > stop then make start = stop
       if (frequency1 < freq) frequency1 = freq;
       break;
     case ST_STOP:
-      VNA_mode &= ~VNA_MODE_CENTER_SPAN;
+      FREQ_STARTSTOP()
       frequency1 = freq;
         // if start > stop then make start = stop
       if (frequency0 > freq) frequency0 = freq;
       break;
     case ST_CENTER:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       center = freq;
       span   = (frequency1 - frequency0)>>1;
       if (span > center - START_MIN)
@@ -1410,7 +1407,7 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = center + span;
       break;
     case ST_SPAN:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       center = (frequency0>>1) + (frequency1>>1);
       span = freq>>1;
       if (center < START_MIN + span)
@@ -1421,7 +1418,7 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = center + span;
       break;
     case ST_CW:
-      VNA_mode |= VNA_MODE_CENTER_SPAN;
+      FREQ_CENTERSPAN();
       frequency0 = freq;
       frequency1 = freq;
       break;
@@ -2272,8 +2269,8 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
 static void
 set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 {
-  if (mode != (domain_mode & DOMAIN_MODE)) {
-    domain_mode = (domain_mode & ~DOMAIN_MODE) | (mode & DOMAIN_MODE);
+  if (mode != (props_mode & DOMAIN_MODE)) {
+    props_mode = (props_mode & ~DOMAIN_MODE) | (mode & DOMAIN_MODE);
     request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
     lever_mode = LM_MARKER;
   }
@@ -2282,13 +2279,13 @@ set_domain_mode(int mode) // accept DOMAIN_FREQ or DOMAIN_TIME
 static inline void
 set_timedomain_func(uint32_t func) // accept TD_FUNC_LOWPASS_IMPULSE, TD_FUNC_LOWPASS_STEP or TD_FUNC_BANDPASS
 {
-  domain_mode = (domain_mode & ~TD_FUNC) | func;
+  props_mode = (props_mode & ~TD_FUNC) | func;
 }
 
 static inline void
 set_timedomain_window(uint32_t func) // accept TD_WINDOW_MINIMUM/TD_WINDOW_NORMAL/TD_WINDOW_MAXIMUM
 {
-  domain_mode = (domain_mode & ~TD_WINDOW) | func;
+  props_mode = (props_mode & ~TD_WINDOW) | func;
 }
 
 VNA_SHELL_FUNCTION(cmd_transform)

@@ -618,7 +618,7 @@ static float time_of_index(int idx)
 
 static float distance_of_index(int idx)
 {
-  return velocity_factor * (SPEED_OF_LIGHT / 2) * time_of_index(idx);
+  return velocity_factor * (SPEED_OF_LIGHT / 200.0f) * time_of_index(idx);
 }
 
 static inline void
@@ -1419,7 +1419,7 @@ draw_cell(int m, int n)
 #endif
 // L/C match data output
 #ifdef __USE_LC_MATCHING__
-  if (domain_mode & TD_LC_MATH)
+  if (props_mode & TD_LC_MATH)
     cell_draw_lc_match(x0, y0);
 #endif
 //  PULSE;
@@ -1606,7 +1606,7 @@ cell_draw_marker_info(int x0, int y0)
       int previous_marker_idx = markers[previous_marker].index;
       cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
-      if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
+      if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         freq_t freq  = get_marker_frequency(active_marker);
         freq_t freq1 = get_marker_frequency(previous_marker);
         freq_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
@@ -1625,7 +1625,7 @@ cell_draw_marker_info(int x0, int y0)
     cell_printf(xpos, ypos, "M%d:", active_marker+1);
     //cell_drawstring(buf, xpos, ypos);
     xpos += 3*FONT_WIDTH + 4;
-    if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ)
+    if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ)
       cell_printf(xpos, ypos, "%qHz", get_marker_frequency(active_marker));
     else
       cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
@@ -1641,7 +1641,7 @@ cell_draw_marker_info(int x0, int y0)
     xpos += 5;
 
     float edelay = electrical_delay * 1e-12; // to seconds
-    cell_printf(xpos, ypos, "Edelay %Fs (%Fm)", edelay, edelay * SPEED_OF_LIGHT * velocity_factor);
+    cell_printf(xpos, ypos, "Edelay %Fs (%Fm)", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
   }
 }
 
@@ -1651,7 +1651,7 @@ draw_frequencies(void)
   char buf1[32];
   char buf2[32]; buf2[0] = 0;
   // Prepare text for frequency string
-  if ((domain_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
+  if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
     if (FREQ_IS_CW()) {
       plot_printf(buf1, sizeof(buf1), " %s %qHz",    "CW", get_sweep_frequency(ST_CW));
     } else if (FREQ_IS_STARTSTOP()) {
