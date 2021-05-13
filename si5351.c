@@ -45,37 +45,16 @@ static void si5351_reset_cache(void){
   current_freq = 0;
 }
 
-// Generator ready delays, values in us
-#if 0
-#define DELAY_BAND_1_2           US2ST( 200)   // Delay for bands 1-2
-#define DELAY_BAND_3_4           US2ST( 200)   // Delay for bands 3-4
-#define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
-#define DELAY_CHANNEL_CHANGE     US2ST( 200)   // defined in main.c switch channel delay
-#define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
-// Delay after set new PLL values in ms, and send reset
-#define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
-#else
-#define DELAY_BAND_1_2           US2ST( 100)   // Delay for bands 1-2
-#define DELAY_BAND_3_4           US2ST( 200)   // Delay for bands 3-4
-#define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
-#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // defined in main.c switch channel delay
-#define DELAY_SWEEP_START        US2ST(2000)   // defined in main.c delay at sweep start
-// Delay after set new PLL values in ms, and send reset
-#define DELAY_RESET_PLL_BEFORE            0    //    0 possibly not need it if align freq
-#define DELAY_RESET_PLL_AFTER          4000    // 4000 possibly not need it if align freq
-#endif
-
-#if 0
+#ifdef ENABLE_SI5351_TIMINGS
 // For debug
 uint16_t timings[8]={
   DELAY_BAND_1_2,          // 0
   DELAY_BAND_3_4,          // 1
   DELAY_BANDCHANGE,        // 2
-  DELAY_RESET_PLL_BEFORE,  // 3
-  DELAY_RESET_PLL_AFTER,   // 4
-  DELAY_CHANNEL_CHANGE,    // 5
-  DELAY_SWEEP_START        // 6
+  DELAY_CHANNEL_CHANGE,    // 3
+  DELAY_SWEEP_START,       // 4
+  DELAY_RESET_PLL_BEFORE,  // 5
+  DELAY_RESET_PLL_AFTER,   // 6
 };
 inline void si5351_set_timing(int i, int v) {timings[i]=v;}
 #undef DELAY_BAND_1_2
@@ -89,10 +68,10 @@ inline void si5351_set_timing(int i, int v) {timings[i]=v;}
 #define DELAY_BAND_1_2            timings[0]
 #define DELAY_BAND_3_4            timings[1]
 #define DELAY_BANDCHANGE          timings[2]
-#define DELAY_RESET_PLL_BEFORE    timings[3]
-#define DELAY_RESET_PLL_AFTER     timings[4]
-#define DELAY_CHANNEL_CHANGE      timings[5]
-#define DELAY_SWEEP_START         timings[6]
+#define DELAY_CHANNEL_CHANGE      timings[3]
+#define DELAY_SWEEP_START         timings[4]
+#define DELAY_RESET_PLL_BEFORE    timings[5]
+#define DELAY_RESET_PLL_AFTER     timings[6]
 #endif
 
 uint32_t si5351_get_frequency(void)
@@ -531,12 +510,12 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
 
   if (current_band != band) {
 //   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
-//   si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
-    if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain){
+    if (DELAY_RESET_PLL_BEFORE)
+      si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
+    // Set new gain values
+    if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain)
       tlv320aic3204_set_gain(band_s[band].l_gain, band_s[band].r_gain);
-//    delay = DELAY_GAIN_CHANGE;
-    }
-    // Possibly not need add delay now
+    // Add delay
     if (DELAY_RESET_PLL_BEFORE)
       chThdSleepMicroseconds(DELAY_RESET_PLL_BEFORE);
   }
@@ -601,9 +580,10 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   if (current_band != band) {
 //    si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
     // Possibly not need add delay now
-    if (DELAY_RESET_PLL_AFTER)
+    if (DELAY_RESET_PLL_AFTER){
       chThdSleepMicroseconds(DELAY_RESET_PLL_AFTER);
-    si5351_reset_pll(SI5351_PLL_RESET_A|SI5351_PLL_RESET_B);
+      si5351_reset_pll(SI5351_PLL_RESET_A|SI5351_PLL_RESET_B);
+    }
     current_band = band;
     delay = DELAY_BANDCHANGE;
   }

@@ -68,7 +68,7 @@
 // XTAL frequency on si5351
 #define XTALFREQ 26000000U
 // Define i2c bus speed, add predefined for 400k, 600k, 900k
-#define STM32_I2C_SPEED                     900
+#define STM32_I2C_SPEED          900
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
@@ -241,6 +241,34 @@ extern  uint8_t sweep_mode;
 extern const char *info_about[];
 
 /*
+ * Measure timings for si5351 generator, after ready
+ */
+// Enable si5351 timing command, used for debug align times
+//#define ENABLE_SI5351_TIMINGS
+
+#if 0
+// Generator ready delays, values in us
+#define DELAY_BAND_1_2           US2ST( 100)   // 0 Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 160)   // 1 Delay for bands 3-4
+#define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
+#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
+#define DELAY_SWEEP_START        US2ST( 500)   // 4 Delay at sweep start
+// Delay after before/after set new PLL values in ms
+#define DELAY_RESET_PLL_BEFORE            0    // 5    0 (0 for disabled)
+#define DELAY_RESET_PLL_AFTER          2000    // 6 4000 (0 for disabled)
+#else
+// Generator ready delays, values in us
+#define DELAY_BAND_1_2           US2ST(  90)   // Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 160)   // Delay for bands 3-4
+#define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
+#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // Switch channel delay
+#define DELAY_SWEEP_START        US2ST(2000)   // Delay at sweep start
+// Delay after set new PLL values in ms, and send reset
+#define DELAY_RESET_PLL_BEFORE            0    //    0 (0 for disabled)
+#define DELAY_RESET_PLL_AFTER          4000    // 4000 (0 for disabled)
+#endif
+
+/*
  * dsp.c
  */
 // Define aic3204 source clock frequency (on 8MHz used fractional multiplier, and possible little phase error)
@@ -372,10 +400,11 @@ extern uint16_t area_height;
 #define P_RADIUS   (HEIGHT/2)
 
 // Maximum menu buttons count
-#define MENU_BUTTON_MAX         8
+#define MENU_BUTTON_MAX        16
+#define MENU_BUTTON_MIN         8
 // Menu buttons size
 #define MENU_BUTTON_WIDTH      66
-#define MENU_BUTTON_HEIGHT     29
+#define MENU_BUTTON_HEIGHT(n)  (AREA_HEIGHT_NORMAL/(n))
 #define MENU_BUTTON_BORDER      1
 #define KEYBOARD_BUTTON_BORDER  2
 
@@ -455,10 +484,11 @@ extern uint16_t area_height;
 #define P_RADIUS   (HEIGHT/2)
 
 // Maximum menu buttons count
-#define MENU_BUTTON_MAX         8
+#define MENU_BUTTON_MAX        16
+#define MENU_BUTTON_MIN         8
 // Menu buttons size
 #define MENU_BUTTON_WIDTH      84
-#define MENU_BUTTON_HEIGHT     38
+#define MENU_BUTTON_HEIGHT(n)  (AREA_HEIGHT_NORMAL/(n))
 #define MENU_BUTTON_BORDER      1
 #define KEYBOARD_BUTTON_BORDER  2
 
@@ -615,6 +645,8 @@ enum {LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY};
 #define TD_CENTER_SPAN          (1<<6)
 
 // config._mode flags
+// Made x4 average on calibration data
+#define VNA_AVG_CALIBRATION       0x01
 // Smooth function
 #define VNA_SMOOTH_FUNCTION       0x02
 // Connection flag
@@ -1052,7 +1084,7 @@ int plot_printf(char *str, int, const char *fmt, ...);
 #define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
-#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%06d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}
+#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%08d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)

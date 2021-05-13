@@ -84,8 +84,6 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define ENABLE_GAIN_COMMAND
 // Enable port command, used for debug
 //#define ENABLE_PORT_COMMAND
-// Enable si5351 timing command, used for debug
-#define ENABLE_SI5351_TIMINGS
 // Enable si5351 register write, used for debug
 //#define ENABLE_SI5351_REG_WRITE
 // Enable i2c timing command, used for debug
@@ -1036,16 +1034,10 @@ static const I2SConfig i2sconfig = {
 
 #ifdef ENABLE_SI5351_TIMINGS
 extern uint16_t timings[16];
-#define DELAY_CHANNEL_CHANGE  timings[5]
-#define DELAY_SWEEP_START     timings[6]
-
-#else
-#if STM32_I2C_SPEED > 600
-#define DELAY_CHANNEL_CHANGE  US2ST( 100)    // Delay for switch ADC channel
-#else
-#define DELAY_CHANNEL_CHANGE  US2ST( 300)    // Delay for switch ADC channel
-#endif
-#define DELAY_SWEEP_START     US2ST(2000)    // Sweep start delay, allow remove noise at 1 point
+#undef DELAY_CHANNEL_CHANGE
+#undef DELAY_SWEEP_START
+#define DELAY_CHANNEL_CHANGE  timings[3]
+#define DELAY_SWEEP_START     timings[4]
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config._bandwidth+2;}
@@ -1772,11 +1764,29 @@ cal_collect(uint16_t type)
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
-  sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
-  config._bandwidth = bw;          // restore
 
+  // Measure calibration data
+  sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
+
+  // Made average if need
+  int count = 1, i, j;
+  for (i = 1; i < count; i ++){
+    sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
+    for (j = 0; j < sweep_points; j++){
+      cal_data[dst][j][0]+=measured[src][j][0];
+      cal_data[dst][j][1]+=measured[src][j][1];
+    }
+  }
+  if (i!=1){
+    for (j = 0; j < sweep_points; j++){
+      cal_data[dst][j][0]/=i;
+      cal_data[dst][j][1]/=i;
+    }
+  }
+
+  config._bandwidth = bw;          // restore
   request_to_redraw(REDRAW_CAL_STATUS);
 }
 

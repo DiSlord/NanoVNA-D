@@ -53,6 +53,8 @@ static systime_t last_button_repeat_ticks;
 
 uint8_t operation_requested = OP_NONE;
 
+static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
+
 #ifdef __USE_SD_CARD__
 #if SPI_BUFFER_SIZE < 2048
 #error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
@@ -1021,9 +1023,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 }
 
 #ifdef __USE_SERIAL_CONSOLE__
-static const uint32_t usart_speed[] = {19200, 38400, 57600, 115200, 230400, 460800, 921600};
 static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
 {
+  static const uint32_t usart_speed[] = {19200, 38400, 57600, 115200, 230400, 460800, 921600, 1843200, 2000000, 3000000};
   uint32_t speed = usart_speed[data];
   if (b){
     b->icon = config._serial_speed == speed ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
@@ -1245,24 +1247,24 @@ const menuitem_t menu_trace[] = {
 };
 
 const menuitem_t menu_format2[] = {
-  { MT_ADV_CALLBACK, TRC_POLAR, "POLAR", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_REAL, "REAL", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_IMAG, "IMAG", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_R, "RESISTANCE", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_X, "REACTANCE", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Q, "Q FACTOR", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_REAL,   "REAL", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Z,      "|Z|", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR", menu_format_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
 const menuitem_t menu_format[] = {
   { MT_ADV_CALLBACK, TRC_LOGMAG, "LOGMAG", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_PHASE, "PHASE", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_DELAY, "DELAY", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_SMITH, "SMITH", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_SWR, "SWR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Z,   "|Z|", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_PHASE,  "PHASE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_DELAY,  "DELAY", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SMITH,  "SMITH", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SWR,    "SWR", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_R,      "RESISTANCE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_X,      "REACTANCE", menu_format_acb },
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_format2 },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1469,18 +1471,6 @@ const menuitem_t menu_dfu[] = {
 #endif
 
 #ifdef __USE_SERIAL_CONSOLE__
-//19200, 38400, 57600, 74800, 115200, 230400, 460800, 921600, 1843200, 3686400
-#if 0
-const menuitem_t menu_serial_speed2[] = {
-  { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, 7, "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, 8, "%u", menu_serial_speed_acb },
-  { MT_ADV_CALLBACK, 9, "%u", menu_serial_speed_acb },
-  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
-  { MT_NONE, 0, NULL, NULL } // sentinel
-};
-#endif
-
 const menuitem_t menu_serial_speed[] = {
   { MT_ADV_CALLBACK, 0, "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, 1, "%u", menu_serial_speed_acb },
@@ -1489,7 +1479,9 @@ const menuitem_t menu_serial_speed[] = {
   { MT_ADV_CALLBACK, 4, "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, 5, "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, 6, "%u", menu_serial_speed_acb },
-//  { MT_SUBMENU, 0, S_RARROW" MORE", menu_serial_speed2 },
+  { MT_ADV_CALLBACK, 7, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 8, "%u", menu_serial_speed_acb },
+  { MT_ADV_CALLBACK, 9, "%u", menu_serial_speed_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1551,6 +1543,9 @@ ensure_selection(void)
     selection = -1;
   else if (selection >= i)
     selection = i-1;
+  if      (i < MENU_BUTTON_MIN) i = MENU_BUTTON_MIN;
+  else if (i >=MENU_BUTTON_MAX) i = MENU_BUTTON_MAX;
+  menu_button_height = MENU_BUTTON_HEIGHT(i);
 }
 
 static void
@@ -1920,7 +1915,7 @@ static void
 draw_menu_buttons(const menuitem_t *menu)
 {
   int i, y;
-  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
+  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
@@ -1943,23 +1938,23 @@ draw_menu_buttons(const menuitem_t *menu)
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(menu[i].data, &button);
     }
-    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT, &button);
+    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
     if (button.icon >=0){
-      ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(MENU_BUTTON_HEIGHT-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
+      ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
     // Apply custom text, from button label and
     char button_text[32];
     plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p2.u);
     int lines = menu_is_multiline(button_text);
-    ili9341_drawstring(button_text, text_offs, y+(MENU_BUTTON_HEIGHT-lines*FONT_GET_HEIGHT)/2);
+    ili9341_drawstring(button_text, text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2);
   }
   // Erase empty buttons
-  ili9341_set_background(LCD_BG_COLOR);
-  for (; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
-    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT);
+  if (AREA_HEIGHT_NORMAL + OFFSETY - y){
+    ili9341_set_background(LCD_BG_COLOR);
+    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
   }
 }
 
@@ -1978,12 +1973,12 @@ menu_apply_touch(int touch_x, int touch_y)
 {
   const menuitem_t *menu = menu_stack[menu_current_level];
   int i, y;
-  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=MENU_BUTTON_HEIGHT) {
+  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
     if (menu[i].type == MT_NONE)
       break;
     if (menu[i].type == MT_BLANK)
       continue;
-    if (y < touch_y && touch_y < y+MENU_BUTTON_HEIGHT && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+    if (y < touch_y && touch_y < y+menu_button_height && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
       menu_select_touch(i);
       return;
     }
