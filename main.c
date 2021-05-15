@@ -1074,7 +1074,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
     return false;
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
-  START_PROFILE;
+//  START_PROFILE;
   ili9341_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
@@ -1124,7 +1124,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
       if (ch_mask & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
     }
   }
-  STOP_PROFILE;
+//  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
   return p_sweep == sweep_points;
