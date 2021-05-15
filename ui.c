@@ -559,13 +559,13 @@ enter_dfu(void)
 #endif
 }
 
-static void
+static bool
 select_lever_mode(int mode)
 {
-  if (lever_mode != mode) {
-    lever_mode = mode;
-    request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
-  }
+  if (lever_mode == mode) return false;
+  lever_mode = mode;
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
+  return true;
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
@@ -2395,10 +2395,10 @@ ui_process_normal(void)
 #ifdef UI_USE_LEVELER_SEARCH_MODE
       case LM_SEARCH: lever_search_marker(status); break;
 #endif
-      case LM_CENTER:
+      case LM_FREQ_0:
         lever_move(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER);
         break;
-      case LM_SPAN:
+      case LM_FREQ_1:
         if (FREQ_IS_STARTSTOP())
           lever_move(status, ST_STOP);
         else
@@ -2732,11 +2732,21 @@ static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
   if (touch_y > HEIGHT) {
-    select_lever_mode(touch_x < FREQUENCIES_XPOS2 ? LM_CENTER : LM_SPAN);
+    int mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
+    touch_wait_release();
+    if (!select_lever_mode(mode)){
+      // Call keyboard for enter
+      if (mode == LM_FREQ_0)
+        ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START);
+      else
+        ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN : KM_STOP);
+      ui_process_keypad();
+    }
     return TRUE;
   }
   if (touch_y < 25) {
     select_lever_mode((touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER);
+    touch_wait_release();
     return TRUE;
   }
   return FALSE;
@@ -2760,7 +2770,6 @@ void ui_process_touch(void)
 #endif
       // Try select lever mode (top and bottom screen)
       if (touch_lever_mode_select(touch_x, touch_y)) {
-        touch_wait_release();
         break;
       }
       // switch menu mode after release
