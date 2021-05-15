@@ -138,7 +138,9 @@ caldata_save(uint32_t id)
   return 0;
 }
 
-static properties_t *get_properties(uint32_t id){
+const properties_t *
+get_properties(uint32_t id)
+{
   if (id >= SAVEAREA_MAX)
     return NULL;
   // point to saved area on the flash memory
@@ -156,7 +158,7 @@ int
 caldata_recall(uint32_t id)
 {
   // point to saved area on the flash memory
-  properties_t *src = get_properties(id);
+  const properties_t *src = get_properties(id);
   if (src == NULL){
     load_default_properties();
     return 1;

@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.58"
+#define VERSION "1.0.59"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -935,21 +935,27 @@ static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, reserved,
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
-  { 1, 0, 30*POINTS_COUNT/100, 0 },
-#if MARKERS_MAX >=1
-  { 0, 0, 40*POINTS_COUNT/100, 0 },
+  { 1, 0, 30*POINTS_COUNT/100-1, 0 },
+#if MARKERS_MAX > 1
+  { 0, 0, 40*POINTS_COUNT/100-1, 0 },
 #endif
-#if MARKERS_MAX >=2
-  { 0, 0, 50*POINTS_COUNT/100, 0 },
+#if MARKERS_MAX > 2
+  { 0, 0, 50*POINTS_COUNT/100-1, 0 },
 #endif
-#if MARKERS_MAX >=3
-  { 0, 0, 60*POINTS_COUNT/100, 0 },
+#if MARKERS_MAX > 3
+  { 0, 0, 60*POINTS_COUNT/100-1, 0 },
 #endif
-#if MARKERS_MAX >=4
-  { 0, 0, 70*POINTS_COUNT/100, 0 },
+#if MARKERS_MAX > 4
+  { 0, 0, 70*POINTS_COUNT/100-1, 0 },
 #endif
-#if MARKERS_MAX >=5
-  { 0, 0, 80*POINTS_COUNT/100, 0 },
+#if MARKERS_MAX > 5
+  { 0, 0, 80*POINTS_COUNT/100-1, 0 },
+#endif
+#if MARKERS_MAX > 6
+  { 0, 0, 90*POINTS_COUNT/100-1, 0 },
+#endif
+#if MARKERS_MAX > 7
+  { 0, 0,100*POINTS_COUNT/100-1, 0 },
 #endif
 };
 

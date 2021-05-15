@@ -109,6 +109,9 @@ static int8_t  selection = 0;
 #define MT_CLOSE           0x05
 #define MT_ADV_CALLBACK    0x06
 
+// Set for custom label
+#define MT_CUSTOM_LABEL    0
+
 // Button definition (used in MT_ADV_CALLBACK for custom)
 #define BUTTON_ICON_NONE            -1
 #define BUTTON_ICON_NOCHECK          0
@@ -141,8 +144,8 @@ typedef struct {
     int32_t  i;
     uint32_t u;
     const char *text;
-  } p1, p2;    // void data for label printf
-
+  } p1;        // void data for label printf
+  char label[32];
 } button_t;
 
 // Call back functions for MT_CALLBACK type
@@ -616,7 +619,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
   if (b){
-    b->p1.i = data;
+    const properties_t *p = get_properties(data);
+    if (p)
+      plot_printf(b->label, sizeof(b->label), "%.6FHz\n%.6FHz", (float)p->_frequency0, (float)p->_frequency1, data);//\n%d-drstx8
+    else
+      plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
     return;
   }
@@ -998,7 +1005,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   request_to_redraw(REDRAW_MARKER);
 }
 
-#if MARKERS_MAX < 6
 static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb)
 {
   (void)data;
@@ -1009,7 +1015,6 @@ static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb)
   active_marker = MARKER_INVALID;
   request_to_redraw(REDRAW_MARKER);
 }
-#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 {
@@ -1198,20 +1203,20 @@ const menuitem_t menu_save[] = {
 };
 
 const menuitem_t menu_recall[] = {
-  { MT_ADV_CALLBACK, 0, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 1, "RECALL %d", menu_recall_acb },
-  { MT_ADV_CALLBACK, 2, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, MT_CUSTOM_LABEL, menu_recall_acb },
 #if SAVEAREA_MAX > 3
-  { MT_ADV_CALLBACK, 3, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 3, MT_CUSTOM_LABEL, menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 4
-  { MT_ADV_CALLBACK, 4, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 4, MT_CUSTOM_LABEL, menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 5, MT_CUSTOM_LABEL, menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, "RECALL %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_recall_acb },
 #endif
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1411,9 +1416,13 @@ const menuitem_t menu_marker_sel[] = {
 #if MARKERS_MAX >=6
   { MT_ADV_CALLBACK, 5, "MARKER %d", menu_marker_sel_acb },
 #endif
-#if MARKERS_MAX < 6
-  { MT_CALLBACK, 0,     "ALL OFF", menu_marker_disable_all_cb },
+#if MARKERS_MAX >=7
+  { MT_ADV_CALLBACK, 6, "MARKER %d", menu_marker_sel_acb },
 #endif
+#if MARKERS_MAX >=8
+  { MT_ADV_CALLBACK, 7, "MARKER %d", menu_marker_sel_acb },
+#endif
+  { MT_CALLBACK, 0,     "ALL OFF", menu_marker_disable_all_cb },
   { MT_ADV_CALLBACK, 0,     "DELTA", menu_marker_delta_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
@@ -1933,11 +1942,18 @@ draw_menu_buttons(const menuitem_t *menu)
       button.bg = LCD_MENU_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
-    // Custom button, apply custom settings from callback
+    char *text;
+    // Custom button, apply custom settings/label from callback
     if (menu[i].type == MT_ADV_CALLBACK){
       menuaction_acb_t cb = (menuaction_acb_t)menu[i].reference;
       if (cb) (*cb)(menu[i].data, &button);
+      // Apply custom text, from button label and
+      if (menu[i].label != MT_CUSTOM_LABEL)
+        plot_printf(button.label, sizeof(button.label), menu[i].label, button.p1.u);
+      text = button.label;
     }
+    else
+      text = menu[i].label;
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
@@ -1945,11 +1961,8 @@ draw_menu_buttons(const menuitem_t *menu)
       ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
-    // Apply custom text, from button label and
-    char button_text[32];
-    plot_printf(button_text, sizeof(button_text), menu[i].label, button.p1.u, button.p2.u);
-    int lines = menu_is_multiline(button_text);
-    ili9341_drawstring(button_text, text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2);
+    int lines = menu_is_multiline(text);
+    ili9341_drawstring(text, text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2);
   }
   // Erase empty buttons
   if (AREA_HEIGHT_NORMAL + OFFSETY - y){
