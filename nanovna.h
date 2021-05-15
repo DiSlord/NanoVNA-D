@@ -89,8 +89,8 @@
 
 #if AUDIO_ADC_FREQ_K == 768
 // For 768k ADC    (16k step for 48 samples)
-//#define FREQUENCY_IF_K          8  // only  96 samples and variable table
-#define FREQUENCY_IF_K         12    // only 192 samples and variable table
+#define FREQUENCY_IF_K          8    // only  96 samples and variable table
+//#define FREQUENCY_IF_K         12  // only 192 samples and variable table
 //#define FREQUENCY_IF_K         16
 //#define FREQUENCY_IF_K         32
 //#define FREQUENCY_IF_K         48
@@ -676,8 +676,8 @@ typedef struct trace {
   float refpos;
 } trace_t;
 
-// marker 1 to 6
-#define MARKERS_MAX 6
+// marker 1 to 8
+#define MARKERS_MAX 8
 typedef struct marker {
   uint8_t  enabled;
   uint8_t  reserved;
@@ -1029,6 +1029,7 @@ extern uint16_t lastsaveid;
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);
 const properties_t *caldata_reference(void);
+const properties_t *get_properties(uint32_t id);
 
 int config_save(void);
 int config_recall(void);
