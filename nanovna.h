@@ -619,7 +619,7 @@ enum marker_smithvalue {
 };
 
 // lever_mode
-enum {LM_MARKER, LM_SEARCH, LM_CENTER, LM_SPAN, LM_EDELAY};
+enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define MARKER_INVALID       -1
 #define TRACE_INVALID        -1

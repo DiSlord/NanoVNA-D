@@ -1725,9 +1725,9 @@ draw_frequencies(void)
     plot_printf(buf1, sizeof(buf1), " %s 0s", "START");
     plot_printf(buf2, sizeof(buf2), " %s %Fs (%Fm)", "STOP", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
   }
-  if (lever_mode == LM_CENTER)
+  if (lever_mode == LM_FREQ_0)
     buf1[0] = S_SARROW[0];
-  if (lever_mode == LM_SPAN)
+  if (lever_mode == LM_FREQ_1)
     buf2[0] = S_SARROW[0];
   // Draw frequency string
   ili9341_set_foreground(LCD_FG_COLOR);
