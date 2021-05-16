@@ -24,7 +24,6 @@
 #include "chprintf.h"
 #include "nanovna.h"
 #include "si5351.h"
-#include <string.h>
 
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
@@ -97,7 +96,7 @@ static uint8_t keypad_mode;
 static char    kp_buf[NUMINPUT_LEN+1];
 static int8_t  kp_index = 0;
 static uint8_t menu_current_level = 0;
-static int8_t  selection = 0;
+static int8_t  selection = -1;
 
 // UI menu structure
 // Type of menu item:
@@ -428,21 +427,21 @@ touch_cal_exec(void)
 {
   int x1, x2, y1, y2;
 
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_clear_screen();
-  ili9341_line(0, 0, 0, 32);
-  ili9341_line(0, 0, 32, 0);
-  ili9341_drawstring("TOUCH UPPER LEFT", 10, 10);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_clear_screen();
+  lcd_line(0, 0, 0, 32);
+  lcd_line(0, 0, 32, 0);
+  lcd_drawstring(10, 10, "TOUCH UPPER LEFT");
 
   touch_wait_release();
   x1 = last_touch_x;
   y1 = last_touch_y;
 
-  ili9341_clear_screen();
-  ili9341_line(LCD_WIDTH-1, LCD_HEIGHT-1, LCD_WIDTH-1, LCD_HEIGHT-32);
-  ili9341_line(LCD_WIDTH-1, LCD_HEIGHT-1, LCD_WIDTH-32, LCD_HEIGHT-1);
-  ili9341_drawstring("TOUCH LOWER RIGHT", LCD_WIDTH-17*(FONT_WIDTH)-10, LCD_HEIGHT-FONT_GET_HEIGHT-10);
+  lcd_clear_screen();
+  lcd_line(LCD_WIDTH-1, LCD_HEIGHT-1, LCD_WIDTH-1, LCD_HEIGHT-32);
+  lcd_line(LCD_WIDTH-1, LCD_HEIGHT-1, LCD_WIDTH-32, LCD_HEIGHT-1);
+  lcd_drawstring(LCD_WIDTH-17*(FONT_WIDTH)-10, LCD_HEIGHT-FONT_GET_HEIGHT-10, "TOUCH LOWER RIGHT");
 
   touch_wait_release();
   x2 = last_touch_x;
@@ -459,10 +458,10 @@ touch_draw_test(void)
 {
   int x0, y0;
   int x1, y1;
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_clear_screen();
-  ili9341_drawstring("TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH", OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_clear_screen();
+  lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
 
   do {
     if (touch_check() == EVT_TOUCH_PRESSED){
@@ -470,7 +469,7 @@ touch_draw_test(void)
       do {
         chThdSleepMilliseconds(50);
         touch_position(&x1, &y1);
-        ili9341_line(x0, y0, x1, y1);
+        lcd_line(x0, y0, x1, y1);
         x0 = x1;
         y0 = y1;
       } while (touch_check() != EVT_TOUCH_RELEASED);
@@ -492,21 +491,19 @@ touch_position(int *x, int *y)
 static void
 show_version(void)
 {
-  char buffer[32];
   int x = 5, y = 5, i = 1;
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
 
-  ili9341_clear_screen();
+  lcd_clear_screen();
   uint16_t shift = 0b000100000;
-  ili9341_drawstring_size(BOARD_NAME, x , y, 3);
+  lcd_drawstring_size(BOARD_NAME, x , y, 3);
   y+=FONT_GET_HEIGHT*3+3-5;
   while (info_about[i]) {
     do {shift>>=1; y+=5;} while (shift&1);
-    ili9341_drawstring(info_about[i++], x, y+=FONT_STR_HEIGHT+3-5);
+    lcd_drawstring(x, y+=FONT_STR_HEIGHT+3-5, info_about[i++]);
   }
-  plot_printf(buffer, sizeof(buffer), "TCXO = %qHz", config._xtal_freq);
-  ili9341_drawstring(buffer, x, y+= FONT_STR_HEIGHT + 3);
+  lcd_printf(x, y+= FONT_STR_HEIGHT + 3, "TCXO = %qHz", config._xtal_freq);
 
   y+=3*FONT_STR_HEIGHT;
   // Update battery and time
@@ -522,7 +519,7 @@ show_version(void)
 #ifdef __USE_RTC__
     uint32_t tr = rtc_get_tr_bin(); // TR read first
     uint32_t dr = rtc_get_dr_bin(); // DR read second
-    plot_printf(buffer, sizeof(buffer), "Time: 20%02d/%02d/%02d %02d:%02d:%02d" " (LS%c)",
+    lcd_printf(x, y, "Time: 20%02d/%02d/%02d %02d:%02d:%02d" " (LS%c)",
       RTC_DR_YEAR(dr),
       RTC_DR_MONTH(dr),
       RTC_DR_DAY(dr),
@@ -530,12 +527,10 @@ show_version(void)
       RTC_TR_MIN(dr),
       RTC_TR_SEC(dr),
       (RCC->BDCR & STM32_RTCSEL_MASK) == STM32_RTCSEL_LSE ? 'E' : 'I');
-    ili9341_drawstring(buffer, x, y);
 #endif
 #if 1
     uint32_t vbat=adc_vbat_read();
-    plot_printf(buffer, sizeof(buffer), "Batt: %d.%03dV", vbat/1000, vbat%1000);
-    ili9341_drawstring(buffer, x, y + FONT_STR_HEIGHT + 2);
+    lcd_printf(x, y + FONT_STR_HEIGHT + 2, "Batt: %d.%03dV", vbat/1000, vbat%1000);
 #endif
   }
 }
@@ -547,12 +542,12 @@ enter_dfu(void)
   touch_stop_watchdog();
 
   int x = 5, y = 20;
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
   // leave a last message 
-  ili9341_clear_screen();
-  ili9341_drawstring("DFU: Device Firmware Update Mode\n"
-                     "To exit DFU mode, please reset device yourself.", x, y);
+  lcd_clear_screen();
+  lcd_drawstring(x, y, "DFU: Device Firmware Update Mode\n"
+                       "To exit DFU mode, please reset device yourself.");
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
@@ -832,7 +827,6 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
 #endif
   {
     ui_mode_keypad(data);
-    ui_process_keypad();
   }
 }
 
@@ -920,7 +914,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
 static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
 {
   marker_search_dir(markers[active_marker].index, data == MK_SEARCH_RIGHT ? MK_SEARCH_RIGHT : MK_SEARCH_LEFT);
-  VNA_mode&=~VNA_MODE_MARKER_TRACK;
+  props_mode&=~TD_MARKER_TRACK;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
 #endif
@@ -930,10 +924,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 {
   (void)data;
   if (b){
-    b->icon = (VNA_mode & VNA_MODE_MARKER_TRACK) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = (props_mode & TD_MARKER_TRACK) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  VNA_mode^= VNA_MODE_MARKER_TRACK;
+  props_mode^= TD_MARKER_TRACK;
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
@@ -1020,10 +1014,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 {
   (void)data;
   if (b){
-    b->icon = VNA_mode & VNA_MODE_MARKER_DELTA ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = props_mode & TD_MARKER_DELTA ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
-  VNA_mode^= VNA_MODE_MARKER_DELTA;
+  props_mode^= TD_MARKER_DELTA;
   request_to_redraw(REDRAW_MARKER);
 }
 
@@ -1057,11 +1051,11 @@ static UI_FUNCTION_CALLBACK(menu_brightness_cb)
 {
   (void)data;
   int16_t value = config._brightness;
-  ili9341_set_foreground(LCD_MENU_TEXT_COLOR);
-  ili9341_set_background(LCD_MENU_COLOR);
-  ili9341_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
-  ili9341_drawstring("BRIGHTNESS", LCD_WIDTH/2-35, LCD_HEIGHT/2-13);
-  ili9341_drawstring(S_LARROW" USE LEVELER BUTTON "S_RARROW, LCD_WIDTH/2-72, LCD_HEIGHT/2+2);
+  lcd_set_foreground(LCD_MENU_TEXT_COLOR);
+  lcd_set_background(LCD_MENU_COLOR);
+  lcd_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
+  lcd_drawstring(LCD_WIDTH/2-35, LCD_HEIGHT/2-13, "BRIGHTNESS");
+  lcd_drawstring(LCD_WIDTH/2-72, LCD_HEIGHT/2+2, S_LARROW" USE LEVELER BUTTON "S_RARROW);
   while (TRUE) {
     int status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
@@ -1288,8 +1282,8 @@ const menuitem_t menu_scale[] = {
 };
 
 const menuitem_t menu_channel[] = {
-  { MT_ADV_CALLBACK, 0, "CH0\nREFLECT", menu_channel_acb },
-  { MT_ADV_CALLBACK, 1, "CH1\nTHROUGH", menu_channel_acb },
+  { MT_ADV_CALLBACK, 0, "S11\nREFLECT", menu_channel_acb },
+  { MT_ADV_CALLBACK, 1, "S21\nTHROUGH", menu_channel_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1724,32 +1718,37 @@ static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
   uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
-  ili9341_set_foreground(b->fg);
-  ili9341_set_background(b->bg);ili9341_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
+  lcd_set_foreground(b->fg);
+  lcd_set_background(b->bg);lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
   if (bw==0) return;
   uint16_t br = LCD_RISE_EDGE_COLOR;
   uint16_t bd = LCD_FALLEN_EDGE_COLOR;
   uint16_t type = b->border;
-  ili9341_set_background(type&BUTTON_BORDER_TOP    ? br : bd);ili9341_fill(x,          y,           w, bw); // top
-  ili9341_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);ili9341_fill(x + w - bw, y,          bw,  h); // right
-  ili9341_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);ili9341_fill(x,          y,          bw,  h); // left
-  ili9341_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);ili9341_fill(x,          y + h - bw,  w, bw); // bottom
+  lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
+  lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
+  lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
+  lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
   // Set colors for button text after
-  ili9341_set_background(b->bg);
+  lcd_set_background(b->bg);
 }
 
 static void drawMessageBox(char *header, char *text, uint32_t delay){
   button_t b;
+  int x , y;
   b.bg = LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
   b.border = BUTTON_BORDER_FLAT|1;
   // Draw header
   draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-  ili9341_drawstring(header, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10, LCD_HEIGHT/2-40 + 5);
+  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
+  y = LCD_HEIGHT/2-40 + 5;
+  lcd_drawstring(x, y, header);
   // Draw window
-  ili9341_set_background(LCD_FG_COLOR);
-  ili9341_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-  ili9341_drawstring(text, (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20, LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14);
+  lcd_set_background(LCD_FG_COLOR);
+  lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
+  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
+  y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
+  lcd_drawstring(x, y, text);
   chThdSleepMilliseconds(delay);
 }
 
@@ -1771,7 +1770,7 @@ draw_keypad(void)
     int x = KP_GET_X(keypads[i].x);
     int y = KP_GET_Y(keypads[i].y);
     draw_button(x, y, KP_WIDTH, KP_HEIGHT, &button);
-    ili9341_drawfont(keypads[i].c,
+    lcd_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
   }while (keypads[++i].c != KP_NONE);
@@ -1780,11 +1779,11 @@ draw_keypad(void)
 static void
 draw_numeric_area_frame(void)
 {
-  ili9341_set_foreground(LCD_INPUT_TEXT_COLOR);
-  ili9341_set_background(LCD_INPUT_BG_COLOR);
-  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
-  ili9341_drawstring(keypads_mode_tbl[keypad_mode].name, 10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2);
-  //ili9341_drawfont(KP_KEYPAD, 300, 216);
+  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
+  lcd_set_background(LCD_INPUT_BG_COLOR);
+  lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
+  lcd_drawstring(10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2, keypads_mode_tbl[keypad_mode].name);
+  //lcd_drawfont(KP_KEYPAD, 300, 216);
 }
 
 static void
@@ -1815,19 +1814,19 @@ draw_numeric_input(const char *buf)
       }
     }
 #endif
-    ili9341_set_foreground(fg);
-    ili9341_set_background(bg);
+    lcd_set_foreground(fg);
+    lcd_set_background(bg);
     if (c < 0 && focused) c = 0;
     if (c >= 0) // c is number
-      ili9341_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
+      lcd_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
     else        // erase
       break;
 
     x += xsim&0x8000 ? NUM_FONT_GET_WIDTH+2+8 : NUM_FONT_GET_WIDTH+2;
   }
   // erase last
-  ili9341_set_background(LCD_INPUT_BG_COLOR);
-  ili9341_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8);
+  lcd_set_background(LCD_INPUT_BG_COLOR);
+  lcd_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8);
 }
 
 static int
@@ -1958,16 +1957,16 @@ draw_menu_buttons(const menuitem_t *menu)
     uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
 
     if (button.icon >=0){
-      ili9341_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
+      lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
       text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
     }
     int lines = menu_is_multiline(text);
-    ili9341_drawstring(text, text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2);
+    lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
   }
   // Erase empty buttons
   if (AREA_HEIGHT_NORMAL + OFFSETY - y){
-    ili9341_set_background(LCD_BG_COLOR);
-    ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
+    lcd_set_background(LCD_BG_COLOR);
+    lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
   }
 }
 
@@ -2011,8 +2010,8 @@ draw_menu(void)
 static void
 erase_menu_buttons(void)
 {
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
 }
 #endif
 
@@ -2034,8 +2033,8 @@ ui_mode_menu(void)
 static void
 erase_numeric_input(void)
 {
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
 }
 
 static void
@@ -2247,17 +2246,18 @@ numeric_apply_touch(int touch_x, int touch_y)
 static void
 ui_mode_keypad(int _keypad_mode)
 {
-  if (ui_mode == UI_KEYPAD)
-    return;
+//  if (ui_mode == UI_KEYPAD)
+//    return;
 
   // keypads array
   keypad_mode = _keypad_mode;
   keypads = keypads_mode_tbl[keypad_mode].keypad_type;
-
+  selection = -1;
   ui_mode = UI_KEYPAD;
   draw_menu();
   draw_keypad();
   draw_numeric_area_frame();
+  ui_process_keypad();
 }
 
 static void
@@ -2647,7 +2647,7 @@ touch_pickup_marker(int touch_x, int touch_y)
     active_marker = i;
   }
   // Disable tracking
-  VNA_mode&= ~VNA_MODE_MARKER_DELTA;
+  props_mode&= ~TD_MARKER_TRACK;
   // Leveler mode = marker move
   select_lever_mode(LM_MARKER);
   // select trace
@@ -2682,15 +2682,15 @@ static const uint8_t bmp_header_v4[14+56] = {
   0x10, 0x00,                // 16bpp
   0x03, 0x00, 0x00, 0x00,    // Compression (BI_BITFIELDS)
   BMP_UINT32(BMP_SIZE),      // Bitmap size (w*h*2)
-  0xC4, 0x0E, 0x00, 0x00,    // x Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
-  0xC4, 0x0E, 0x00, 0x00,    // y Resolution (96 DPI = 96 * 39.3701 inches per metre = 0x0EC4)
+  0xC4, 0x0E, 0x00, 0x00,    // x Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
+  0xC4, 0x0E, 0x00, 0x00,    // y Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
   0x00, 0x00, 0x00, 0x00,    // Palette size
   0x00, 0x00, 0x00, 0x00,    // Palette used
 // Extend v4 header data (color mask for RGB565)
-  0x00, 0xF8, 0x00, 0x00,    // R mask = 0b11111000 00000000
-  0xE0, 0x07, 0x00, 0x00,    // G mask = 0b00000111 11100000
-  0x1F, 0x00, 0x00, 0x00,    // B mask = 0b00000000 00011111
-  0x00, 0x00, 0x00, 0x00     // A mask = 0b00000000 00000000
+  BMP_UINT32(0b1111100000000000),// R mask = 0b11111000 00000000
+  BMP_UINT32(0b0000011111100000),// G mask = 0b00000111 11100000
+  BMP_UINT32(0b0000000000011111),// B mask = 0b00000000 00011111
+  BMP_UINT32(0b0000000000000000) // A mask = 0b00000000 00000000
 };
 
 static bool
@@ -2711,7 +2711,7 @@ made_screenshot(int touch_x, int touch_y)
   if (res == FR_OK){
     res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
     for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
-      ili9341_read_memory(0, y, LCD_WIDTH, 1, buf);
+      lcd_read_memory(0, y, LCD_WIDTH, 1, buf);
       for (i = 0; i < LCD_WIDTH; i++)
         buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
       res = f_write(fs_file, buf, LCD_WIDTH*sizeof(uint16_t), &size);
@@ -2731,22 +2731,21 @@ made_screenshot(int touch_x, int touch_y)
 static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
-  if (touch_y > HEIGHT) {
-    int mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
+  int mode = -1;
+  if (touch_y > HEIGHT)
+    mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
+  if (touch_y < 25)
+    mode = (touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
+  if (mode != -1){
     touch_wait_release();
     if (!select_lever_mode(mode)){
       // Call keyboard for enter
-      if (mode == LM_FREQ_0)
-        ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START);
-      else
-        ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN : KM_STOP);
-      ui_process_keypad();
+      switch(mode){
+        case LM_FREQ_0: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START); break;
+        case LM_FREQ_1: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN   : KM_STOP ); break;
+        case LM_EDELAY: ui_mode_keypad(KM_EDELAY); break;
+      }
     }
-    return TRUE;
-  }
-  if (touch_y < 25) {
-    select_lever_mode((touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER);
-    touch_wait_release();
     return TRUE;
   }
   return FALSE;
@@ -2765,13 +2764,13 @@ void ui_process_touch(void)
       if (touch_pickup_marker(touch_x, touch_y))
         break;
 #ifdef __USE_SD_CARD__
+      // Try made screenshot
       if (made_screenshot(touch_x, touch_y))
         break;
 #endif
       // Try select lever mode (top and bottom screen)
-      if (touch_lever_mode_select(touch_x, touch_y)) {
+      if (touch_lever_mode_select(touch_x, touch_y))
         break;
-      }
       // switch menu mode after release
       touch_wait_release();
       selection = -1; // hide keyboard mode selection

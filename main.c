@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.59"
+#define VERSION "1.0.60"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -154,10 +154,10 @@ const char *info_about[]={
 #ifdef DEBUG_CONSOLE_SHOW
 void my_debug_log(int offs, char *log){
   static uint16_t shell_line_y = 0;
-  ili9341_set_foreground(LCD_FG_COLOR);
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
-  ili9341_drawstring(log, FREQUENCIES_XPOS1 + offs, shell_line_y);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_fill(FREQUENCIES_XPOS1, shell_line_y, LCD_WIDTH-FREQUENCIES_XPOS1, 2 * FONT_GET_HEIGHT);
+  lcd_drawstring(FREQUENCIES_XPOS1 + offs, shell_line_y, log);
   shell_line_y+=FONT_STR_HEIGHT;
   if (shell_line_y >= LCD_HEIGHT - FONT_STR_HEIGHT*4) shell_line_y=0;
 }
@@ -862,7 +862,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   // read 2 row pixel time
   for (y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
-    ili9341_read_memory(0, y, LCD_WIDTH, READ_ROWS, (uint16_t *)spi_buffer);
+    lcd_read_memory(0, y, LCD_WIDTH, READ_ROWS, (uint16_t *)spi_buffer);
     streamWrite(shell_stream, (void*)spi_buffer, READ_ROWS * LCD_WIDTH * sizeof(uint16_t));
   }
 }
@@ -1075,7 +1075,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
 //  START_PROFILE;
-  ili9341_set_background(LCD_SWEEP_LINE_COLOR);
+  lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   for (; p_sweep < sweep_points; p_sweep++) {
@@ -1111,11 +1111,11 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
     st_delay = 0;
 // Display SPI made noise on measurement (can see in CW mode)
     if (config._bandwidth >= BANDWIDTH_100)
-      ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
+      lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
   }
-  ili9341_set_background(LCD_GRID_COLOR);
+  lcd_set_background(LCD_GRID_COLOR);
   if (config._bandwidth >= BANDWIDTH_100)
-    ili9341_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
+    lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -2035,7 +2035,7 @@ static const struct {
 };
 
 static const char * const trc_channel_name[] = {
-  "CH0", "CH1"
+  "S11", "S21"
 };
 
 const char *get_trace_typename(int t)
@@ -2588,7 +2588,7 @@ VNA_SHELL_FUNCTION(cmd_color)
   color = RGBHEX(my_atoui(argv[1]));
   config._lcd_palette[i] = color;
   // Redraw all
-  request_to_redraw(REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY);
 }
 #endif
 
@@ -3196,7 +3196,7 @@ int main(void)
 /*
  * SPI bus and LCD Initialize
  */
-  ili9341_init();
+  lcd_init();
 
 /*
  * Restore config
@@ -3331,26 +3331,25 @@ void hard_fault_handler_c(uint32_t *sp)
   uint32_t psr = sp[7];
   int y = 0;
   int x = 20;
-  char buf[16];
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_set_foreground(LCD_FG_COLOR);
-  plot_printf(buf, sizeof(buf), "SP  0x%08x",  (uint32_t)sp);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R0  0x%08x",  r0);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R1  0x%08x",  r1);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R2  0x%08x",  r2);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R3  0x%08x",  r3);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R4  0x%08x",  r4);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R5  0x%08x",  r5);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R6  0x%08x",  r6);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R7  0x%08x",  r7);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R8  0x%08x",  r8);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R9  0x%08x",  r9);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R10 0x%08x", r10);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R11 0x%08x", r11);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "R12 0x%08x", r12);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "LR  0x%08x",  lr);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "PC  0x%08x",  pc);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
-  plot_printf(buf, sizeof(buf), "PSR 0x%08x", psr);ili9341_drawstring(buf, x, y+=FONT_STR_HEIGHT);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "SP  0x%08x",  (uint32_t)sp);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R0  0x%08x",  r0);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R1  0x%08x",  r1);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R2  0x%08x",  r2);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R3  0x%08x",  r3);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R4  0x%08x",  r4);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R5  0x%08x",  r5);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R6  0x%08x",  r6);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R7  0x%08x",  r7);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R8  0x%08x",  r8);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R9  0x%08x",  r9);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R10 0x%08x", r10);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R11 0x%08x", r11);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "R12 0x%08x", r12);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "LR  0x%08x",  lr);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "PC  0x%08x",  pc);
+  lcd_printf(x, y+=FONT_STR_HEIGHT, "PSR 0x%08x", psr);
 
   shell_printf("===================================\r\n");
 #else
