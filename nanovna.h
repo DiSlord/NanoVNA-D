@@ -643,6 +643,10 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Sweep mode
 #define TD_START_STOP           (0<<0)
 #define TD_CENTER_SPAN          (1<<6)
+// Marker track
+#define TD_MARKER_TRACK         (1<<7)
+// Marker delta
+#define TD_MARKER_DELTA         (1<<8)
 
 // config._mode flags
 // Made x4 average on calibration data
@@ -661,10 +665,6 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_SHOW_GRID        0x10
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
-// Marker track
-#define VNA_MODE_MARKER_TRACK     0x40
-// Marker delta
-#define VNA_MODE_MARKER_DELTA     0x80
 
 #define TRACES_MAX 4
 typedef struct trace {
@@ -901,32 +901,38 @@ extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 #define _BMP24(d)                    (((d)>>16)&0xFF), (((d)>>8)&0xFF), ((d)&0xFF)
 #define _BMP32(d)  (((d)>>24)&0xFF), (((d)>>16)&0xFF), (((d)>>8)&0xFF), ((d)&0xFF)
 
-void ili9341_init(void);
-void ili9341_bulk(int x, int y, int w, int h);
-void ili9341_fill(int x, int y, int w, int h);
+void lcd_init(void);
+void lcd_bulk(int x, int y, int w, int h);
+void lcd_fill(int x, int y, int w, int h);
 
 #if DISPLAY_CELL_BUFFER_COUNT == 1
-#define ili9341_get_cell_buffer()             spi_buffer
-#define ili9341_bulk_continue                 ili9341_bulk
-#define ili9341_bulk_finish()                 {}
+#define lcd_get_cell_buffer()             spi_buffer
+#define lcd_bulk_continue                 lcd_bulk
+#define lcd_bulk_finish()                 {}
 #else
-pixel_t *ili9341_get_cell_buffer(void);                     // get buffer for cell render
-void ili9341_bulk_continue(int x, int y, int w, int h);     // send data to display, in DMA mode use it, no wait DMA complete
-void ili9341_bulk_finish(void);                             // wait DMA complete (need call at end)
+pixel_t *lcd_get_cell_buffer(void);                     // get buffer for cell render
+void lcd_bulk_continue(int x, int y, int w, int h);     // send data to display, in DMA mode use it, no wait DMA complete
+void lcd_bulk_finish(void);                             // wait DMA complete (need call at end)
 #endif
 
-void ili9341_set_foreground(uint16_t fg_idx);
-void ili9341_set_background(uint16_t bg_idx);
-void ili9341_clear_screen(void);
-void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
-void ili9341_drawchar(uint8_t ch, int x, int y);
-void ili9341_drawstring(const char *str, int x, int y);
-void ili9341_drawstringV(const char *str, int x, int y);
-int  ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
-void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size);
-void ili9341_drawfont(uint8_t ch, int x, int y);
-void ili9341_read_memory(int x, int y, int w, int h, uint16_t* out);
-void ili9341_line(int x0, int y0, int x1, int y1);
+void lcd_set_foreground(uint16_t fg_idx);
+void lcd_set_background(uint16_t bg_idx);
+void lcd_clear_screen(void);
+void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
+void lcd_drawchar(uint8_t ch, int x, int y);
+#if 0
+void lcd_drawstring(int16_t x, int16_t y, const char *str);
+#else
+// use printf for draw string
+#define lcd_drawstring lcd_printf
+#endif
+int  lcd_printf(int16_t x, int16_t y, const char *fmt, ...);
+void lcd_drawstringV(const char *str, int x, int y);
+int  lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
+void lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
+void lcd_drawfont(uint8_t ch, int x, int y);
+void lcd_read_memory(int x, int y, int w, int h, uint16_t* out);
+void lcd_line(int x0, int y0, int x1, int y1);
 
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
 void     lcd_setBrightness(uint16_t b);
@@ -1085,7 +1091,7 @@ int plot_printf(char *str, int, const char *fmt, ...);
 #define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
-#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%08d", chVTGetSystemTimeX() - time);ili9341_drawstringV(string_buf, 1, 90);}
+#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%08d", chVTGetSystemTimeX() - time); lcd_set_foreground(LCD_BG_COLOR); lcd_drawstringV(string_buf, 1, 90);}
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)

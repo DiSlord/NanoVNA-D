@@ -21,7 +21,7 @@
 #include "ch.h"
 #include "hal.h"
 #include "nanovna.h"
-
+#include "chprintf.h"
 #include "spi.h"
 
 // Pin macros for LCD
@@ -361,7 +361,7 @@ static void ili9341_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 // Disable inline for this function
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
-  ili9341_bulk_finish();
+  lcd_bulk_finish();
   // Set read speed (if need different)
   SPI_BR_SET(LCD_SPI, SPI_BR_DIV256);
   // Send
@@ -510,7 +510,7 @@ void lcd_setBrightness(uint16_t b){
 #define lcd_initBrightness()
 #endif
 
-void ili9341_init(void)
+void lcd_init(void)
 {
   spi_init();
   // Init Brightness if LCD support
@@ -526,7 +526,7 @@ void ili9341_init(void)
     p += 2 + p[1];
     chThdSleepMilliseconds(5);
   }
-  ili9341_clear_screen();
+  lcd_clear_screen();
 }
 
 static void ili9341_setWindow(int x, int y, int w, int h){
@@ -541,7 +541,7 @@ static void ili9341_setWindow(int x, int y, int w, int h){
 }
 
 #ifndef __USE_DISPLAY_DMA__
-void ili9341_fill(int x, int y, int w, int h)
+void lcd_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y, w, h);
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
@@ -557,7 +557,7 @@ void ili9341_fill(int x, int y, int w, int h)
   }while(--len);
 }
 
-void ili9341_bulk(int x, int y, int w, int h)
+void lcd_bulk(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y, w, h);
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
@@ -571,7 +571,7 @@ void ili9341_bulk(int x, int y, int w, int h)
 #define LCD_DMA_MODE (LCD_PIXEL_SIZE == 2 ? (STM32_DMA_CR_PSIZE_HWORD|STM32_DMA_CR_MSIZE_HWORD) : (STM32_DMA_CR_PSIZE_BYTE|STM32_DMA_CR_MSIZE_BYTE))
 
 // Fill region by some color
-void ili9341_fill(int x, int y, int w, int h)
+void lcd_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(x, y, w, h);
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
@@ -591,37 +591,37 @@ static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
 }
 
 // Copy spi_buffer to region, wait completion after
-void ili9341_bulk(int x, int y, int w, int h)
+void lcd_bulk(int x, int y, int w, int h)
 {
   ili9341_DMA_bulk(x, y, w, h, spi_buffer);  // Send data
   dmaWaitCompletion(dmatx);                  // Wait
 }
 
 // Used only in double buffer mode
-#ifndef ili9341_get_cell_buffer
+#ifndef lcd_get_cell_buffer
 #define LCD_BUFFER_1    0x01
 #define LCD_DMA_RUN     0x02
 static uint8_t LCD_dma_status = 0;
 // Return free buffer for render
-pixel_t *ili9341_get_cell_buffer(void){
+pixel_t *lcd_get_cell_buffer(void){
   return &spi_buffer[(LCD_dma_status&LCD_BUFFER_1) ? SPI_BUFFER_SIZE/2 : 0];
 }
 #endif
 
 // Wait completion before next data send
-#ifndef ili9341_bulk_finish
-void ili9341_bulk_finish(void){
+#ifndef lcd_bulk_finish
+void lcd_bulk_finish(void){
   dmaWaitCompletion(dmatx);        // Wait DMA
 //while (SPI_IN_TX_RX(LCD_SPI));   // Wait tx
 }
 #endif
 
 // Copy part of spi_buffer to region, no wait completion after if buffer count !=1
-#ifndef ili9341_bulk_continue
-void ili9341_bulk_continue(int x, int y, int w, int h)
+#ifndef lcd_bulk_continue
+void lcd_bulk_continue(int x, int y, int w, int h)
 {
-  ili9341_bulk_finish();                                   // Wait DMA
-  ili9341_DMA_bulk(x, y, w, h, ili9341_get_cell_buffer()); // Send new cell data
+  lcd_bulk_finish();                                   // Wait DMA
+  ili9341_DMA_bulk(x, y, w, h, lcd_get_cell_buffer()); // Send new cell data
   LCD_dma_status^=LCD_BUFFER_1;                            // Switch buffer
 }
 #endif
@@ -630,7 +630,7 @@ void ili9341_bulk_continue(int x, int y, int w, int h)
 #ifdef LCD_DRIVER_ILI9341
 // ILI9341 send data in RGB888 format, need parse it
 // Copy ILI9341 screen data to buffer
-void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
+void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
   ili9341_setWindow(x, y, w, h);
@@ -689,7 +689,7 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 #ifdef LCD_DRIVER_ST7796S
 // ST7796S send data in RGB565 format, not need parse it
 // Copy ST7796S screen data to buffer
-void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
+void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
   ili9341_setWindow(x, y, w, h);
@@ -716,17 +716,17 @@ void ili9341_read_memory(int x, int y, int w, int h, uint16_t *out)
 }
 #endif
 
-void ili9341_clear_screen(void)
+void lcd_clear_screen(void)
 {
-  ili9341_fill(0, 0, LCD_WIDTH, LCD_HEIGHT);
+  lcd_fill(0, 0, LCD_WIDTH, LCD_HEIGHT);
 }
 
-void ili9341_set_foreground(uint16_t fg_idx)
+void lcd_set_foreground(uint16_t fg_idx)
 {
   foreground_color = GET_PALTETTE_COLOR(fg_idx);
 }
 
-void ili9341_set_background(uint16_t bg_idx)
+void lcd_set_background(uint16_t bg_idx)
 {
   background_color = GET_PALTETTE_COLOR(bg_idx);
 }
@@ -738,7 +738,7 @@ void ili9341_set_rotation(uint8_t r)
   ili9341_send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &r);
 }
 
-void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b)
+void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b)
 {
   pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
@@ -749,15 +749,16 @@ void ili9341_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height,
       bits <<= 1;
     }
   }
-  ili9341_bulk(x, y, width, height);
+  lcd_bulk(x, y, width, height);
 }
 
-void ili9341_drawchar(uint8_t ch, int x, int y)
+void lcd_drawchar(uint8_t ch, int x, int y)
 {
-  ili9341_blitBitmap(x, y, FONT_GET_WIDTH(ch), FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  lcd_blitBitmap(x, y, FONT_GET_WIDTH(ch), FONT_GET_HEIGHT, FONT_GET_DATA(ch));
 }
 
-void ili9341_drawstring(const char *str, int x, int y)
+#ifndef lcd_drawstring
+void lcd_drawstring(int16_t x, int16_t y, const char *str)
 {
   int x_pos = x;
   while (*str) {
@@ -765,19 +766,53 @@ void ili9341_drawstring(const char *str, int x, int y)
     if (ch == '\n') {x = x_pos; y+=FONT_STR_HEIGHT; continue;}
     const uint8_t *char_buf = FONT_GET_DATA(ch);
     uint16_t w = FONT_GET_WIDTH(ch);
-    ili9341_blitBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
+    lcd_blitBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
     x += w;
   }
 }
+#endif
 
-void ili9341_drawstringV(const char *str, int x, int y)
+typedef struct {
+  const void *vmt;
+  int16_t start_x;
+  int16_t start_y;
+  int16_t x;
+  int16_t y;
+} lcdPrintStream;
+
+static msg_t lcd_put(void *ip, uint8_t ch) {
+  lcdPrintStream *ps = ip;
+  if (ch == '\n') {ps->x = ps->start_x; ps->y+=FONT_STR_HEIGHT; return MSG_OK;}
+  uint16_t w = FONT_GET_WIDTH(ch);
+  lcd_blitBitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  ps->x+= w;
+  return MSG_OK;
+}
+
+// Simple print in buffer function
+int lcd_printf(int16_t x, int16_t y, const char *fmt, ...) {
+  // Init small lcd print stream
+  struct lcd_printStreamVMT {
+    _base_sequential_stream_methods
+  } lcd_vmt = {NULL, NULL, lcd_put, NULL};
+  lcdPrintStream ps = {&lcd_vmt, x, y, x, y};
+  // Performing the print operation using the common code.
+  va_list ap;
+  va_start(ap, fmt);
+  int retval = chvprintf((BaseSequentialStream *)(void *)&ps, fmt, ap);
+  va_end(ap);
+  // Return number of bytes that would have been written.
+  return retval;
+}
+
+void lcd_drawstringV(const char *str, int x, int y)
 {
   ili9341_set_rotation(DISPLAY_ROTATION_270);
-  ili9341_drawstring(str, LCD_HEIGHT-y, x);
+  lcd_drawstring(LCD_HEIGHT-y, x, str);
   ili9341_set_rotation(DISPLAY_ROTATION_0);
 }
 
-int ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
+int lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
 {
   pixel_t *buf = spi_buffer;
   const uint8_t *char_buf = FONT_GET_DATA(ch);
@@ -790,22 +825,22 @@ int ili9341_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
           *buf++ = (0x80 & bits) ? foreground_color : background_color;
     }
   }
-  ili9341_bulk(x, y, w * size, FONT_GET_HEIGHT * size);
+  lcd_bulk(x, y, w * size, FONT_GET_HEIGHT * size);
   return w*size;
 }
 
-void ili9341_drawfont(uint8_t ch, int x, int y)
+void lcd_drawfont(uint8_t ch, int x, int y)
 {
-  ili9341_blitBitmap(x, y, NUM_FONT_GET_WIDTH, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_DATA(ch));
+  lcd_blitBitmap(x, y, NUM_FONT_GET_WIDTH, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_DATA(ch));
 }
 
-void ili9341_drawstring_size(const char *str, int x, int y, uint8_t size)
+void lcd_drawstring_size(const char *str, int x, int y, uint8_t size)
 {
   while (*str)
-    x += ili9341_drawchar_size(*str++, x, y, size);
+    x += lcd_drawchar_size(*str++, x, y, size);
 }
 #if 0
-static void ili9341_pixel(int x, int y, uint16_t color)
+static void lcd_pixel(int x, int y, uint16_t color)
 {
   uint32_t xx = __REV16(x|((x)<<16));
   uint32_t yy = __REV16(y|((y)<<16));
@@ -815,7 +850,7 @@ static void ili9341_pixel(int x, int y, uint16_t color)
 }
 #endif
 
-void ili9341_line(int x0, int y0, int x1, int y1)
+void lcd_line(int x0, int y0, int x1, int y1)
 {
 #if 0
   // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
@@ -856,9 +891,9 @@ void ili9341_line(int x0, int y0, int x1, int y1)
       }
     }
     if (dy > 0)
-      ili9341_fill(x0, y0, dx, dy);
+      lcd_fill(x0, y0, dx, dy);
     else
-      ili9341_fill(x0, y0+dy, dx, -dy);
+      lcd_fill(x0, y0+dy, dx, -dy);
     x0 += dx;
     y0 += dy;
   }
@@ -878,13 +913,13 @@ void ili9341_test(int mode)
   switch (mode) {
     default:
 #if 1
-    ili9341_fill(0, 0, LCD_WIDTH, LCD_HEIGHT, 0);
+    lcd_fill(0, 0, LCD_WIDTH, LCD_HEIGHT, 0);
     for (y = 0; y < LCD_HEIGHT; y++) {
-      ili9341_fill(0, y, LCD_WIDTH, 1, RGB(LCD_HEIGHT-y, y, (y + 120) % 256));
+      lcd_fill(0, y, LCD_WIDTH, 1, RGB(LCD_HEIGHT-y, y, (y + 120) % 256));
     }
     break;
     case 1:
-      ili9341_fill(0, 0, LCD_WIDTH, LCD_HEIGHT, 0);
+      lcd_fill(0, 0, LCD_WIDTH, LCD_HEIGHT, 0);
       for (y = 0; y < LCD_HEIGHT; y++) {
         for (x = 0; x < LCD_WIDTH; x++) {
           ili9341_pixel(x, y, (y<<8)|x);
@@ -899,7 +934,7 @@ void ili9341_test(int mode)
 #if 1
     case 3:
       for (i = 0; i < 10; i++)
-        ili9341_drawfont(i, i*20, 120);
+        lcd_drawfont(i, i*20, 120);
     break;
 #endif
 #if 0
@@ -908,10 +943,10 @@ void ili9341_test(int mode)
     break;
 #endif
     case 4:
-      ili9341_line(0, 0, 15, 100);
-      ili9341_line(0, 0, 100, 100);
-      ili9341_line(0, 15, 100, 0);
-      ili9341_line(0, 100, 100, 0);
+      lcd_line(0, 0, 15, 100);
+      lcd_line(0, 0, 100, 100);
+      lcd_line(0, 15, 100, 0);
+      lcd_line(0, 100, 100, 0);
     break;
   }
 }

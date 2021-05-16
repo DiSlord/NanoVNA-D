@@ -209,8 +209,8 @@ static void cell_draw_lc_match(int x0, int y0)
   int xp = STR_LC_MATH_X - x0;
   int yp = STR_LC_MATH_Y - y0;
 
-  ili9341_set_background(LCD_BG_COLOR);
-  ili9341_set_foreground(LCD_LC_MATCH_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_LC_MATCH_COLOR);
 
   cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array.R0);
 #if 0
