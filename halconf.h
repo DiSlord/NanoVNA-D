@@ -59,7 +59,11 @@
  * @brief   Enables the DAC subsystem.
  */
 #if !defined(HAL_USE_DAC) || defined(__DOXYGEN__)
-#define HAL_USE_DAC                 TRUE
+#if defined(NANOVNA_F303)
+#define HAL_USE_DAC                 TRUE 
+#else
+#define HAL_USE_DAC                 FALSE
+#endif
 #endif
 
 /**
@@ -183,7 +187,11 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(ADC_USE_WAIT) || defined(__DOXYGEN__)
+#if defined(NANOVNA_F303)
 #define ADC_USE_WAIT                TRUE
+#else
+#define ADC_USE_WAIT                FALSE
+#endif
 #endif
 
 /**
@@ -328,6 +336,8 @@
 #define SERIAL_USB_BUFFERS_NUMBER   2
 #endif
 
+//#define STM32_USB_USE_FAST_COPY   TRUE
+//#define STM32_USB_USE_ISOCHRONOUS TRUE
 /*===========================================================================*/
 /* SPI driver related settings.                                              */
 /*===========================================================================*/

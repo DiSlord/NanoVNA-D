@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.60"
+#define VERSION "1.0.61"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -612,7 +612,7 @@ calculate:
   }
 }
 
-double
+float
 my_atof(const char *p)
 {
   int neg = FALSE;
@@ -3243,6 +3243,12 @@ int main(void)
   i2sObjectInit(&I2SD2);
   i2sStart(&I2SD2, &i2sconfig);
   i2sStartExchange(&I2SD2);
+
+/*
+ * SD Card init (if inserted) allow fix issues
+ * Some card after insert work in SDIO mode and can corrupt SPI exchange (need switch it to SPI)
+ */
+  disk_initialize(0);
 
 /*
  * UI (menu, touch, buttons) and plot initialize
