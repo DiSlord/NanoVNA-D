@@ -68,7 +68,7 @@ static char  *fs_filename = (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE]))
 #endif
 
 enum {
-  UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
+  UI_NORMAL, UI_MENU//, UI_NUMERIC, UI_KEYPAD
 };
 
 // Keypad structures
@@ -88,12 +88,12 @@ typedef struct {
   const char *name;
 } keypads_list;
 // Max keyboard input length
-#define NUMINPUT_LEN 10
+#define NUMINPUT_LEN 12
 
 static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
-static char    kp_buf[NUMINPUT_LEN+1];
+static char    kp_buf[NUMINPUT_LEN+2];
 static int8_t  kp_index = 0;
 static uint8_t menu_current_level = 0;
 static int8_t  selection = -1;
@@ -714,6 +714,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
   ui_mode_normal();
 }
 
+#if 0
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 {
   if (current_trace == TRACE_INVALID) return;
@@ -724,6 +725,19 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
   }
   set_trace_channel(current_trace, data);
   menu_move_back(true);
+}
+#endif
+
+static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
+{
+  (void)data;
+  if (current_trace == TRACE_INVALID) {if (b) b->p1.text = ""; return;}
+  int ch = trace[current_trace].channel;
+  if (b){
+    b->p1.text = ch == 0 ? " S11 (REFL)" : " S21 (THRU)";
+    return;
+  }
+  set_trace_channel(current_trace, ch^1);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
@@ -846,6 +860,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
   (void)data;
   if (b){
+    b->p1.text = sweep_mode&SWEEP_ENABLE ? "PAUSE" : "RESUME";
     b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
   }
@@ -1281,12 +1296,14 @@ const menuitem_t menu_scale[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
+#if 0
 const menuitem_t menu_channel[] = {
   { MT_ADV_CALLBACK, 0, "S11\nREFLECT", menu_channel_acb },
   { MT_ADV_CALLBACK, 1, "S21\nTHROUGH", menu_channel_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
+#endif
 
 const menuitem_t menu_transform_window[] = {
   { MT_ADV_CALLBACK, TD_WINDOW_MINIMUM, "MINIMUM", menu_transform_window_acb },
@@ -1354,7 +1371,7 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU, 0, "TRACE", menu_trace },
   { MT_SUBMENU, 0, "FORMAT", menu_format },
   { MT_SUBMENU, 0, "SCALE", menu_scale },
-  { MT_SUBMENU, 0, "CHANNEL", menu_channel },
+  { MT_ADV_CALLBACK, 0, "CHANNEL\n%s", menu_channel_acb },
   { MT_SUBMENU, 0, "TRANSFORM", menu_transform },
   { MT_SUBMENU, 0, "BANDWIDTH", menu_bandwidth },
 #ifdef __USE_SMOOTH__
@@ -1388,7 +1405,8 @@ const menuitem_t menu_stimulus[] = {
   { MT_CALLBACK, KM_CENTER, "CENTER", menu_keyboard_cb },
   { MT_CALLBACK, KM_SPAN, "SPAN",  menu_keyboard_cb },
   { MT_CALLBACK, KM_CW, "CW FREQ", menu_keyboard_cb },
-  { MT_ADV_CALLBACK, 0, "PAUSE\nSWEEP", menu_pause_acb },
+  { MT_SUBMENU,      0, "SWEEP\nPOINTS", menu_sweep_points },
+  { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1502,7 +1520,6 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
   { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
   { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
-  { MT_SUBMENU,                       0, "SWEEP\nPOINTS", menu_sweep_points },
 #ifdef __USE_SERIAL_CONSOLE__
   { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif
@@ -2253,7 +2270,7 @@ ui_mode_keypad(int _keypad_mode)
   keypad_mode = _keypad_mode;
   keypads = keypads_mode_tbl[keypad_mode].keypad_type;
   selection = -1;
-  ui_mode = UI_KEYPAD;
+//  ui_mode = UI_KEYPAD;
   draw_menu();
   draw_keypad();
   draw_numeric_area_frame();
@@ -2438,51 +2455,61 @@ ui_process_menu(void)
   return;
 }
 
+static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
+
 static int
 keypad_click(int key)
 {
   int c = keypads[key].c;
   if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
-    int32_t scale = 1;
-    if (c >= KP_X1 && c <= KP_G) {
-      int n = c - KP_X1;
-      while (n-- > 0)
-        scale *= 1000;
-    } else if (c == KP_N) {
-      scale *= 1000;
+    if (kp_index == 0)
+      return KP_CANCEL;
+    uint16_t scale = 0;
+    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
+    if (c == KP_N) scale = 1;
+    if (scale){
+      scale+= (scale<<1);
+      int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;
+      while (scale--) {
+        char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
+        kp_buf[i+1] = kp_buf[i];
+        kp_buf[i  ] = v;
+        i++;
+      }
     }
     /* numeric input done */
-    double value = my_atof(kp_buf) * scale;
+    uint32_t u_val = my_atoui(kp_buf);
+    float    f_val = my_atof(kp_buf);
     switch (keypad_mode) {
     case KM_START:
-      set_sweep_frequency(ST_START, value);
+      set_sweep_frequency(ST_START, u_val);
       break;
     case KM_STOP:
-      set_sweep_frequency(ST_STOP, value);
+      set_sweep_frequency(ST_STOP, u_val);
       break;
     case KM_CENTER:
-      set_sweep_frequency(ST_CENTER, value);
+      set_sweep_frequency(ST_CENTER, u_val);
       break;
     case KM_SPAN:
-      set_sweep_frequency(ST_SPAN, value);
+      set_sweep_frequency(ST_SPAN, u_val);
       break;
     case KM_CW:
-      set_sweep_frequency(ST_CW, value);
+      set_sweep_frequency(ST_CW, u_val);
       break;
     case KM_SCALE:
-      set_trace_scale(current_trace, value);
+      set_trace_scale(current_trace, f_val);
       break;
     case KM_REFPOS:
-      set_trace_refpos(current_trace, value);
+      set_trace_refpos(current_trace, f_val);
       break;
     case KM_EDELAY:
-      set_electrical_delay(value); // pico seconds
+      set_electrical_delay(f_val); // pico seconds
       break;
     case KM_VELOCITY_FACTOR:
-      velocity_factor = value;
+      velocity_factor = u_val;
       break;
     case KM_SCALEDELAY:
-      set_trace_scale(current_trace, value * 1e-12); // pico second
+      set_trace_scale(current_trace, f_val * 1e-12); // pico second
       break;
     }
     return KP_DONE;
@@ -2491,12 +2518,8 @@ keypad_click(int key)
   if (c <= 9 && kp_index < NUMINPUT_LEN) {
     kp_buf[kp_index++] = '0' + c;
   } else if (c == KP_PERIOD && kp_index < NUMINPUT_LEN) {
-    // check period in former input
-    int j;
-    for (j = 0; j < kp_index && kp_buf[j] != '.'; j++)
-      ;
     // append period if there are no period
-    if (kp_index == j)
+    if (kp_index == period_pos())
       kp_buf[kp_index++] = '.';
   } else if (c == KP_MINUS) {
     if (kp_index == 0)
@@ -2591,9 +2614,9 @@ ui_process_lever(void)
     ui_process_numeric();
     break;
 #endif
-  case UI_KEYPAD:
-    ui_process_keypad();
-    break;
+//  case UI_KEYPAD:
+//    ui_process_keypad();
+//    break;
   }
 }
 
@@ -2773,7 +2796,6 @@ void ui_process_touch(void)
         break;
       // switch menu mode after release
       touch_wait_release();
-      selection = -1; // hide keyboard mode selection
       ui_mode_menu();
       break;
     case UI_MENU:

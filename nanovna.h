@@ -225,7 +225,7 @@ uint8_t get_smooth_factor(void);
 
 int32_t  my_atoi(const char *p);
 uint32_t my_atoui(const char *p);
-double   my_atof(const char *p);
+float    my_atof(const char *p);
 
 void toggle_sweep(void);
 void load_default_properties(void);
@@ -978,6 +978,20 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 /*
  * flash.c
  */
+#if defined(NANOVNA_F303)
+// For STM32F303xC CPU setting
+#define FLASH_START_ADDRESS   0x08000000
+#define FLASH_TOTAL_SIZE     (256*1024)
+
+#define FLASH_PAGESIZE 0x800
+
+#define SAVEAREA_MAX 7
+
+// Depend from config_t size, should be aligned by FLASH_PAGESIZE
+#define SAVE_CONFIG_SIZE        0x00000800
+// Depend from properties_t size, should be aligned by FLASH_PAGESIZE
+#define SAVE_PROP_CONFIG_SIZE   0x00004000
+#else
 // For STM32F072xB CPU setting
 #define FLASH_START_ADDRESS   0x08000000
 #define FLASH_TOTAL_SIZE     (128*1024)
@@ -990,6 +1004,8 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 #define SAVE_CONFIG_SIZE        0x00000800
 // Depend from properties_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_PROP_CONFIG_SIZE   0x00001800
+#endif
+
 // Save config_t and properties_t flash area (see flash7 from *.ld settings)
 #define SAVE_FULL_AREA_SIZE     (SAVE_CONFIG_SIZE + SAVEAREA_MAX * SAVE_PROP_CONFIG_SIZE)
 // Save setting at end of CPU flash area
@@ -1072,8 +1088,14 @@ extern uint8_t operation_requested;
 /*
  * adc.c
  */
+#if defined(NANOVNA_F303)
+#define rccEnableWWDG(lp) rccEnableAPB1(RCC_APB1ENR_WWDGEN, lp)
+#define ADC_TOUCH_X  ADC_CHANNEL_IN3
+#define ADC_TOUCH_Y  ADC_CHANNEL_IN4
+#else
 #define ADC_TOUCH_X  ADC_CHSELR_CHSEL6
 #define ADC_TOUCH_Y  ADC_CHSELR_CHSEL7
+#endif
 
 void adc_init(void);
 uint16_t adc_single_read(uint32_t chsel);
