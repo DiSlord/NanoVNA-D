@@ -36,7 +36,7 @@
 #define BUTTON_DOWN_LONG_TICKS      MS2ST(500)   // 500ms
 #define BUTTON_DOUBLE_TICKS         MS2ST(250)   // 250ms
 #define BUTTON_REPEAT_TICKS         MS2ST( 40)   //  40ms
-#define BUTTON_DEBOUNCE_TICKS       MS2ST(  2)   //   2ms
+#define BUTTON_DEBOUNCE_TICKS       MS2ST( 10)   //  10ms
 
 /* lever switch assignment */
 #define BIT_UP1     3
@@ -2039,9 +2039,8 @@ ui_mode_menu(void)
     return;
 
   ui_mode = UI_MENU;
-  /* narrowen plotting area */
-  area_width  = AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH;
-  area_height = AREA_HEIGHT_NORMAL;
+  // narrowen plotting area
+  set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
   ensure_selection();
   draw_menu();
 }
@@ -2209,8 +2208,7 @@ ui_process_numeric(void)
             uistat.value -= step;
         }
         draw_numeric_area();
-        status = btn_wait_release();
-      } while (status != 0);
+      } while ((status = btn_wait_release()) != 0);
     }
   }
 
@@ -2282,9 +2280,7 @@ ui_mode_normal(void)
 {
   if (ui_mode == UI_NORMAL)
     return;
-
-  area_width  = AREA_WIDTH_NORMAL;
-  area_height = AREA_HEIGHT_NORMAL;
+  set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
 #ifdef UI_USE_NUMERIC_INPUT
   if (ui_mode == UI_NUMERIC) {
     request_to_draw_cells_behind_numeric_input();
@@ -2320,8 +2316,7 @@ lever_move_marker(int status)
       redraw_marker(active_marker);
       step++;
     }
-    status = btn_wait_release();
-  } while (status != 0);
+  } while ((status = btn_wait_release()) != 0);
 }
 
 #ifdef UI_USE_LEVELER_SEARCH_MODE
@@ -2578,8 +2573,7 @@ ui_process_keypad(void)
             selection = 0;
         draw_keypad();
         chThdSleepMilliseconds(200);
-        status = btn_wait_release();
-      } while (status != 0);
+      } while ((status = btn_wait_release()) != 0);
     }
 
     else if (status == EVT_BUTTON_SINGLE_CLICK) {

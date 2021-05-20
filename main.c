@@ -2091,6 +2091,7 @@ void set_trace_refpos(int t, float refpos)
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
     plot_into_index(measured);
+    request_to_redraw(REDRAW_REF);
   }
 }
 

@@ -53,8 +53,10 @@
 //#define USE_FFT_WINDOW_BUFFER
 // Enable data smooth option
 #define __USE_SMOOTH__
-// Enable DSP instruction (support only by Cortex M4)
+// Enable DSP instruction (support only by Cortex M4 and higher)
+#ifdef ARM_MATH_CM4
 #define __USE_DSP__
+#endif
 
 /*
  * main.c
@@ -245,18 +247,7 @@ extern const char *info_about[];
  */
 // Enable si5351 timing command, used for debug align times
 //#define ENABLE_SI5351_TIMINGS
-
-#if 0
-// Generator ready delays, values in us
-#define DELAY_BAND_1_2           US2ST( 100)   // 0 Delay for bands 1-2
-#define DELAY_BAND_3_4           US2ST( 160)   // 1 Delay for bands 3-4
-#define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
-#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
-#define DELAY_SWEEP_START        US2ST( 500)   // 4 Delay at sweep start
-// Delay after before/after set new PLL values in ms
-#define DELAY_RESET_PLL_BEFORE            0    // 5    0 (0 for disabled)
-#define DELAY_RESET_PLL_AFTER          2000    // 6 4000 (0 for disabled)
-#else
+#if defined(NANOVNA_F303)
 // Generator ready delays, values in us
 #define DELAY_BAND_1_2           US2ST(  90)   // Delay for bands 1-2
 #define DELAY_BAND_3_4           US2ST( 160)   // Delay for bands 3-4
@@ -266,6 +257,16 @@ extern const char *info_about[];
 // Delay after set new PLL values in ms, and send reset
 #define DELAY_RESET_PLL_BEFORE            0    //    0 (0 for disabled)
 #define DELAY_RESET_PLL_AFTER          4000    // 4000 (0 for disabled)
+#else
+// Generator ready delays, values in us
+#define DELAY_BAND_1_2           US2ST( 100)   // 0 Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 160)   // 1 Delay for bands 3-4
+#define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
+#define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
+#define DELAY_SWEEP_START        US2ST( 500)   // 4 Delay at sweep start
+// Delay after before/after set new PLL values in ms
+#define DELAY_RESET_PLL_BEFORE            0    // 5    0 (0 for disabled)
+#define DELAY_RESET_PLL_AFTER          2000    // 6 4000 (0 for disabled)
 #endif
 
 /*
@@ -354,9 +355,6 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
  * plot.c
  */
 // LCD display size settings
-extern uint16_t area_width;
-extern uint16_t area_height;
-
 #ifdef LCD_320x240 // 320x240 display plot definitions
 #define LCD_WIDTH                   320
 #define LCD_HEIGHT                  240
@@ -446,7 +444,7 @@ extern uint16_t area_height;
 #define LCD_HEIGHT                  320
 
 // Define maximum distance in pixel for pickup marker (can be bigger for big displays)
-#define MARKER_PICKUP_DISTANCE    20
+#define MARKER_PICKUP_DISTANCE    30
 // Used marker size settings
 #define _USE_BIG_MARKER_     1
 // Used font settings
@@ -747,6 +745,7 @@ void request_to_draw_cells_behind_numeric_input(void);
 void redraw_marker(int8_t marker);
 void plot_into_index(float array[2][POINTS_COUNT][2]);
 void draw_all(bool flush);
+void set_area_size(uint16_t w, uint16_t h);
 
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
@@ -762,9 +761,10 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
-#define REDRAW_BATTERY    (1<<4)
-#define REDRAW_AREA       (1<<5)
-#define REDRAW_CLRSCR     (1<<6)
+#define REDRAW_REF        (1<<4)
+#define REDRAW_BATTERY    (1<<5)
+#define REDRAW_AREA       (1<<6)
+#define REDRAW_CLRSCR     (1<<7)
 
 /*
  * ili9341.c

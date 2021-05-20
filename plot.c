@@ -36,8 +36,8 @@ static int16_t grid_width;
 
 static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
-uint16_t area_width  = AREA_WIDTH_NORMAL;
-uint16_t area_height = AREA_HEIGHT_NORMAL;
+static uint16_t area_width  = AREA_WIDTH_NORMAL;
+static uint16_t area_height = AREA_HEIGHT_NORMAL;
 
 // Counter for sweep
 static uint16_t sweep_count = 0;
@@ -684,6 +684,11 @@ mark_cells_from_index(void)
   }
 }
 
+void set_area_size(uint16_t w, uint16_t h){
+  area_width  = w;
+  area_height = h;
+}
+
 static inline void
 markmap_upperarea(void)
 {
@@ -1148,6 +1153,11 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
+static void
+markmap_all_refpos(void)
+{
+  invalidate_rect(OFFSETX, OFFSETY, CELLOFFSETX+1, AREA_HEIGHT_NORMAL);
+}
 //
 // Marker search functions
 //
@@ -1546,8 +1556,10 @@ draw_all(bool flush)
   }
   if (redraw_request & REDRAW_AREA)
     force_set_markmap();
-  else if (redraw_request & REDRAW_MARKER)
-    markmap_all_markers();
+  else {
+    if (redraw_request & REDRAW_MARKER) markmap_all_markers();
+    if (redraw_request & REDRAW_REF   ) markmap_all_refpos();
+  }
   if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_AREA))
     draw_all_cells(flush);
   if (redraw_request & REDRAW_FREQUENCY)
