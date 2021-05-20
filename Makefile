@@ -70,25 +70,20 @@ endif
 ##############################################################################
 # Architecture or project specific options
 #
-
-# Stack size to be allocated to the Cortex-M process stack. This stack is
-# the stack used by the main() thread.
-ifeq ($(USE_PROCESS_STACKSIZE),)
-  USE_PROCESS_STACKSIZE = 0x200
+ifeq ($(TARGET),F303)
+  USE_FPU = hard
 endif
 
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
 # stack is used for processing interrupts and exceptions.
 ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
+  USE_PROCESS_STACKSIZE = 0x200
+endif
+# Stack size to the allocated to the Cortex-M main/exceptions stack. This
+# stack is used for processing interrupts and exceptions.
+ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
   USE_EXCEPTIONS_STACKSIZE = 0x100
 endif
-
-ifeq ($(TARGET),F303)
-  USE_FPU = hard
-  USE_PROCESS_STACKSIZE = 0x200
-  USE_EXCEPTIONS_STACKSIZE = 0x200
-endif
-
 #
 # Architecture or project specific options
 ##############################################################################
@@ -153,8 +148,6 @@ CSRC = $(STARTUPSRC) \
        usbcfg.c \
        main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont20x22.c Font5x7.c Font7x13b.c Font10x14.c flash.c adc.c rtc.c vna_math.c
 
-#       $(TESTSRC) \
-
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
 CPPSRC =
@@ -184,8 +177,7 @@ ASMSRC = $(STARTUPASM) $(PORTASM) $(OSALASM)
 
 INCDIR = $(STARTUPINC) $(KERNINC) $(PORTINC) $(OSALINC) \
          $(HALINC) $(PLATFORMINC) $(BOARDINC)  \
-         $(STREAMSINC) $(SHELLINC)
-# $(TESTINC)
+         $(STREAMSINC)
 
 #
 # Project, sources and paths
@@ -241,15 +233,14 @@ CPPWARN = -Wall -Wextra -Wundef
 
 # List all user C define here, like -D_DEBUG=1
 ifeq ($(TARGET),F303)
- UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303 -D__FPU_PRESENT -D__FPU_USED -DST7796S
+ UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303 -D__FPU_PRESENT -D__FPU_USED
+else
+ UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 
+endif
 #Enable if use RTC and need auto select source LSE or LSI
 UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
 #Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU and no VNA_AUTO_SELECT_RTC_SOURCE
 #UDEFS+= -DVNA_USE_LSE
-#-DCH_DBG_STATISTICS 
-else
- UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 
-endif
 
 # Define ASM defines here
 UADEFS =
