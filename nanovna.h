@@ -761,9 +761,10 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
-#define REDRAW_BATTERY    (1<<4)
-#define REDRAW_AREA       (1<<5)
-#define REDRAW_CLRSCR     (1<<6)
+#define REDRAW_REF        (1<<4)
+#define REDRAW_BATTERY    (1<<5)
+#define REDRAW_AREA       (1<<6)
+#define REDRAW_CLRSCR     (1<<7)
 
 /*
  * ili9341.c
