@@ -68,7 +68,7 @@ static char  *fs_filename = (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE]))
 #endif
 
 enum {
-  UI_NORMAL, UI_MENU//, UI_NUMERIC, UI_KEYPAD
+  UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
 };
 
 // Keypad structures
@@ -184,7 +184,6 @@ static void ui_mode_normal(void);
 static void ui_mode_menu(void);
 static void ui_mode_keypad(int _keypad_mode);
 static void draw_menu(void);
-static void ui_process_keypad(void);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
@@ -257,6 +256,13 @@ static int btn_wait_release(void)
     }
   }
 }
+
+#if 0
+static void btn_wait(void){
+  while (READ_PORT() & BUTTON_MASK) chThdSleepMilliseconds(10);
+}
+#endif
+
 #if 0
 static void bubbleSort(uint16_t *v, int n) {
   bool swapped = true;
@@ -835,13 +841,10 @@ static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
 #ifdef UI_USE_NUMERIC_INPUT
   if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
     ui_mode_numeric(data);
-//    ui_process_numeric();
+    return;
   }
-  else
 #endif
-  {
-    ui_mode_keypad(data);
-  }
+  ui_mode_keypad(data);
 }
 
 #ifdef __USE_GRID_VALUES__
@@ -1988,36 +1991,6 @@ draw_menu_buttons(const menuitem_t *menu)
 }
 
 static void
-menu_select_touch(int i)
-{
-  selection = i;
-  draw_menu();
-  touch_wait_release();
-  selection = -1;
-  menu_invoke(i);
-}
-
-static void
-menu_apply_touch(int touch_x, int touch_y)
-{
-  const menuitem_t *menu = menu_stack[menu_current_level];
-  int i, y;
-  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
-    if (menu[i].type == MT_NONE)
-      break;
-    if (menu[i].type == MT_BLANK)
-      continue;
-    if (y < touch_y && touch_y < y+menu_button_height && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
-      menu_select_touch(i);
-      return;
-    }
-  }
-
-  touch_wait_release();
-  ui_mode_normal();
-}
-
-static void
 draw_menu(void)
 {
   draw_menu_buttons(menu_stack[menu_current_level]);
@@ -2032,6 +2005,9 @@ erase_menu_buttons(void)
 }
 #endif
 
+/*
+ * Menu mode processing
+ */
 static void
 ui_mode_menu(void)
 {
@@ -2045,6 +2021,53 @@ ui_mode_menu(void)
   draw_menu();
 }
 
+static void
+ui_process_menu_lever(int status)
+{
+  if (status & EVT_BUTTON_SINGLE_CLICK) {
+    menu_invoke(selection);
+    return;
+  }
+  do {
+    if (status & EVT_UP)
+      selection++;
+    if (status & EVT_DOWN)
+      selection--;
+    // close menu if next item is sentinel or less
+    if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE){
+      ui_mode_normal();
+      return;
+    }
+    draw_menu();
+    chThdSleepMilliseconds(200);
+  } while ((status = btn_wait_release()) != 0);
+}
+
+static void
+menu_apply_touch(int touch_x, int touch_y)
+{
+  const menuitem_t *menu = menu_stack[menu_current_level];
+  int i, y;
+  for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
+    if (menu[i].type == MT_NONE)
+      break;
+    if (menu[i].type == MT_BLANK)
+      continue;
+    if (y < touch_y && touch_y < y+menu_button_height && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+   	  selection = i;
+   	  draw_menu();
+   	  touch_wait_release();
+   	  selection = -1;
+   	  menu_invoke(i);
+      return;
+    }
+  }
+
+  touch_wait_release();
+  ui_mode_normal();
+}
+//================== end menu processing =================================
+
 #ifdef UI_USE_NUMERIC_INPUT
 static void
 erase_numeric_input(void)
@@ -2057,79 +2080,36 @@ static void
 fetch_numeric_target(void)
 {
   switch (keypad_mode) {
-  case KM_START:
-    uistat.value = get_sweep_frequency(ST_START);
-    break;
-  case KM_STOP:
-    uistat.value = get_sweep_frequency(ST_STOP);
-    break;
-  case KM_CENTER:
-    uistat.value = get_sweep_frequency(ST_CENTER);
-    break;
-  case KM_SPAN:
-    uistat.value = get_sweep_frequency(ST_SPAN);
-    break;
-  case KM_CW:
-    uistat.value = get_sweep_frequency(ST_CW);
-    break;
-  case KM_SCALE:
-    uistat.value = get_trace_scale(current_trace) * 1000;
-    break;
-  case KM_REFPOS:
-    uistat.value = get_trace_refpos(current_trace) * 1000;
-    break;
-  case KM_EDELAY:
-    uistat.value = get_electrical_delay();
-    break;
-  case KM_VELOCITY_FACTOR:
-    uistat.value = velocity_factor * 100;
-    break;
-  case KM_SCALEDELAY:
-    uistat.value = get_trace_scale(current_trace) * 1e12;
-    break;
+  case KM_START: uistat.value = get_sweep_frequency(ST_START ); break;
+  case KM_STOP:  uistat.value = get_sweep_frequency(ST_STOP  ); break;
+  case KM_CENTER:uistat.value = get_sweep_frequency(ST_CENTER); break;
+  case KM_SPAN:  uistat.value = get_sweep_frequency(ST_SPAN  ); break;
+  case KM_CW:    uistat.value = get_sweep_frequency(ST_CW    ); break;
+  case KM_SCALE: uistat.value = get_trace_scale(current_trace) * 1000; break;
+  case KM_REFPOS:uistat.value = get_trace_refpos(current_trace) * 1000;break;
+  case KM_EDELAY:uistat.value = get_electrical_delay(); break;
+  case KM_VELOCITY_FACTOR: uistat.value = velocity_factor; break;
+  case KM_SCALEDELAY: uistat.value = get_trace_scale(current_trace) * 1e12; break;
   }
 
-  {
-    uint32_t x = uistat.value;
-    int n = 0;
-    for (; x >= 10 && n < 9; n++)
-      x /= 10;
-    uistat.digit = n;
-  }
-//  uistat.previous_value = uistat.value;
+  uint32_t x = uistat.value;
+  for (uistat.digit = 0; x >= 10 && uistat.digit < 9; uistat.digit++)
+    x /= 10;
 }
 
 static void
 set_numeric_value(void)
 {
   switch (keypad_mode) {
-  case KM_START:
-    set_sweep_frequency(ST_START, uistat.value);
-    break;
-  case KM_STOP:
-    set_sweep_frequency(ST_STOP, uistat.value);
-    break;
-  case KM_CENTER:
-    set_sweep_frequency(ST_CENTER, uistat.value);
-    break;
-  case KM_SPAN:
-    set_sweep_frequency(ST_SPAN, uistat.value);
-    break;
-  case KM_CW:
-    set_sweep_frequency(ST_CW, uistat.value);
-    break;
-  case KM_SCALE:
-    set_trace_scale(current_trace, uistat.value / 1000.0);
-    break;
-  case KM_REFPOS:
-    set_trace_refpos(current_trace, uistat.value / 1000.0);
-    break;
-  case KM_EDELAY:
-    set_electrical_delay(uistat.value);
-    break;
-  case KM_VELOCITY_FACTOR:
-    velocity_factor = uistat.value/100.0;
-    break;
+  case KM_START:  set_sweep_frequency(ST_START , uistat.value); break;
+  case KM_STOP:   set_sweep_frequency(ST_STOP  , uistat.value); break;
+  case KM_CENTER: set_sweep_frequency(ST_CENTER, uistat.value); break;
+  case KM_SPAN:   set_sweep_frequency(ST_SPAN  , uistat.value); break;
+  case KM_CW:     set_sweep_frequency(ST_CW    , uistat.value); break;
+  case KM_SCALE:  set_trace_scale(current_trace, uistat.value / 1000.0);break;
+  case KM_REFPOS: set_trace_refpos(current_trace, uistat.value / 1000.0);break;
+  case KM_EDELAY: set_electrical_delay(uistat.value); break;
+  case KM_VELOCITY_FACTOR:velocity_factor = uistat.value; break;
   }
 }
 
@@ -2161,57 +2141,53 @@ ui_mode_numeric(int _keypad_mode)
 }
 
 static void
-ui_process_numeric(void)
+ui_process_numeric_lever(int status)
 {
-  int status = btn_check();
-
-  if (status != 0) {
-    if (status == EVT_BUTTON_SINGLE_CLICK) {
-      status = btn_wait_release();
-      if (uistat.digit_mode) {
-        if (status & (EVT_BUTTON_SINGLE_CLICK | EVT_BUTTON_DOWN_LONG)) {
-          uistat.digit_mode = FALSE;
-          draw_numeric_area();
-        }
-      } else {
-        if (status & EVT_BUTTON_DOWN_LONG) {
-          uistat.digit_mode = TRUE;
-          draw_numeric_area();
-        } else if (status & EVT_BUTTON_SINGLE_CLICK) {
-          set_numeric_value();
-          ui_mode_normal();
-        }
+  if (status == EVT_BUTTON_SINGLE_CLICK) {
+    status = btn_wait_release();
+    if (uistat.digit_mode) {
+      if (status & (EVT_BUTTON_SINGLE_CLICK | EVT_BUTTON_DOWN_LONG)) {
+        uistat.digit_mode = FALSE;
+        draw_numeric_area();
       }
     } else {
-      do {
-        if (uistat.digit_mode) {
-          if (status & EVT_DOWN) {
-            if (uistat.digit < 8)
-              uistat.digit++;
-            else
-              goto exit;
-          }
-          if (status & EVT_UP) {
-            if (uistat.digit > 0)
-              uistat.digit--;
-            else
-              goto exit;
-          }
-        } else {
-          int32_t step = 1;
-          int n;
-          for (n = uistat.digit; n > 0; n--)
-            step *= 10;
-          if (status & EVT_DOWN)
-            uistat.value += step;
-          if (status & EVT_UP)
-            uistat.value -= step;
-        }
+      if (status & EVT_BUTTON_DOWN_LONG) {
+        uistat.digit_mode = TRUE;
         draw_numeric_area();
-      } while ((status = btn_wait_release()) != 0);
+      } else if (status & EVT_BUTTON_SINGLE_CLICK) {
+        set_numeric_value();
+        goto exit;
+      }
     }
+    return;
   }
 
+  do {
+    if (uistat.digit_mode) {
+      if (status & EVT_DOWN) {
+        if (uistat.digit < 8)
+          uistat.digit++;
+        else
+          goto exit;
+      }
+      if (status & EVT_UP) {
+        if (uistat.digit > 0)
+          uistat.digit--;
+        else
+          goto exit;
+      }
+    } else {
+      int32_t step = 1;
+      int n;
+      for (n = uistat.digit; n > 0; n--)
+        step *= 10;
+      if (status & EVT_DOWN)
+        uistat.value += step;
+      if (status & EVT_UP)
+        uistat.value -= step;
+    }
+    draw_numeric_area();
+  } while ((status = btn_wait_release()) != 0);
   return;
 
  exit:
@@ -2258,23 +2234,137 @@ numeric_apply_touch(int touch_x, int touch_y)
 }
 #endif
 
+/*
+ * Keyboard processing
+ */
 static void
 ui_mode_keypad(int _keypad_mode)
 {
-//  if (ui_mode == UI_KEYPAD)
-//    return;
-
+  if (ui_mode == UI_KEYPAD)
+    return;
+  set_area_size(0, 0);
   // keypads array
   keypad_mode = _keypad_mode;
   keypads = keypads_mode_tbl[keypad_mode].keypad_type;
   selection = -1;
-//  ui_mode = UI_KEYPAD;
+  kp_index = 0;
+  ui_mode = UI_KEYPAD;
   draw_menu();
   draw_keypad();
   draw_numeric_area_frame();
-  ui_process_keypad();
 }
 
+static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
+
+static int
+keypad_click(int key)
+{
+  int c = keypads[key].c;
+  if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
+    if (kp_index == 0)
+      return KP_CANCEL;
+    uint16_t scale = 0;
+    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
+    if (c == KP_N) scale = 1;
+    if (scale){
+      scale+= (scale<<1);
+      int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;
+      while (scale--) {
+        char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
+        kp_buf[i+1] = kp_buf[i];
+        kp_buf[i  ] = v;
+        i++;
+      }
+    }
+    /* numeric input done */
+    uint32_t u_val = my_atoui(kp_buf); // Get as uint value
+    float    f_val = my_atof(kp_buf);  // Get as float value
+    switch (keypad_mode) {
+      case KM_START:  set_sweep_frequency(ST_START,  u_val); break;
+      case KM_STOP:   set_sweep_frequency(ST_STOP,   u_val); break;
+      case KM_CENTER: set_sweep_frequency(ST_CENTER, u_val); break;
+      case KM_SPAN:   set_sweep_frequency(ST_SPAN,   u_val); break;
+      case KM_CW:     set_sweep_frequency(ST_CW,     u_val); break;
+      case KM_SCALE:  set_trace_scale(current_trace, f_val); break;
+      case KM_REFPOS: set_trace_refpos(current_trace, f_val);break;
+      case KM_EDELAY: set_electrical_delay(f_val);           break; // pico seconds
+      case KM_VELOCITY_FACTOR: velocity_factor = u_val;      break;
+      case KM_SCALEDELAY: set_trace_scale(current_trace, f_val * 1e-12); break;// pico second
+    }
+    return KP_DONE;
+  }
+
+  if (c <= KP_9 && kp_index < NUMINPUT_LEN) {
+    kp_buf[kp_index++] = '0' + c;
+  } else if (c == KP_PERIOD && kp_index < NUMINPUT_LEN) {
+    // append period if there are no period
+    if (kp_index == period_pos())
+      kp_buf[kp_index++] = '.';
+  } else if (c == KP_MINUS) {
+    if (kp_index == 0)
+      kp_buf[kp_index++] = '-';
+  } else if (c == KP_BS) {
+    if (kp_index == 0)
+      return KP_CANCEL;
+    --kp_index;
+  }
+  kp_buf[kp_index] = '\0';
+  draw_numeric_input(kp_buf);
+  return KP_CONTINUE;
+}
+
+static void
+keypad_apply_touch(int touch_x, int touch_y)
+{
+  int i = 0;
+  do {
+    int x = KP_GET_X(keypads[i].x);
+    int y = KP_GET_Y(keypads[i].y);
+    if (x < touch_x && touch_x < x+KP_WIDTH && y < touch_y && touch_y < y+KP_HEIGHT) {
+      // draw focus
+      selection = i;
+      draw_keypad();
+      touch_wait_release();
+      // erase focus
+      selection = -1;
+      draw_keypad();
+      // Exit loop on done or cancel
+      if (keypad_click(i) != KP_CONTINUE)
+        ui_mode_normal();
+      return;
+    }
+  }while (keypads[++i].c != KP_NONE);
+  return;
+}
+
+static void
+ui_process_keypad_lever(int status)
+{
+  if (status == EVT_BUTTON_SINGLE_CLICK){
+    // Process input
+    int result = keypad_click(selection);
+    // Exit loop on done or cancel
+    if (result != KP_CONTINUE)
+      ui_mode_normal();
+    return;
+  }
+  int keypads_last_index;
+  for (keypads_last_index = 0; keypads[keypads_last_index+1].c != KP_NONE; keypads_last_index++)
+    ;
+  do {
+    if ((status & EVT_DOWN) && --selection < 0)
+      selection = keypads_last_index;
+    if ((status & EVT_UP)   && ++selection > keypads_last_index)
+        selection = 0;
+    draw_keypad();
+    chThdSleepMilliseconds(200);
+  } while ((status = btn_wait_release()) != 0);
+}
+//========================== end keyboard input =======================
+
+/*
+ * Normal plot processing
+ */
 static void
 ui_mode_normal(void)
 {
@@ -2286,11 +2376,11 @@ ui_mode_normal(void)
     request_to_draw_cells_behind_numeric_input();
     erase_numeric_input();
   }
-  if (ui_mode == UI_MENU)
 #endif
-  {
+  if (ui_mode == UI_MENU)
     request_to_draw_cells_behind_menu();
-  }
+  if (ui_mode == UI_KEYPAD)
+    request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
 }
@@ -2338,298 +2428,42 @@ static uint32_t
 step_round(uint32_t v)
 {
   // decade step
-  uint32_t x = 1;
-  for (x = 1; x*10 < v; x*= 10)
-    ;
-
+  uint32_t nx, x = 1;
+  while((nx = x*10) < v) x = nx;
   // 1-2-5 step
-  if (x * 2 > v)
-    return x;
-  else if (x * 5 > v)
-    return x * 2;
-  else
-    return x * 5;
+  if (x * 2 > v) return x;
+  if (x * 5 > v) return x * 2;
+  return x * 5;
 }
 
 static void
-lever_zoom_span(int status)
+lever_frequency(int status, int mode)
 {
-  freq_t span = get_sweep_frequency(ST_SPAN);
-  if (status & EVT_UP) {
-    span = step_round(span - 1);
-  } else if (status & EVT_DOWN) {
-    span = step_round(span + 1);
-    span = step_round(span * 3);
+  freq_t freq = get_sweep_frequency(mode);
+  if (mode == ST_SPAN){
+    if (status & EVT_UP  ) freq = step_round(freq*4 + 1);
+    if (status & EVT_DOWN) freq = step_round(freq   - 1);
   }
-  set_sweep_frequency(ST_SPAN, span);
-}
-
-static void
-lever_move(int status, int mode)
-{
-  freq_t center = get_sweep_frequency(mode);
-  freq_t span = get_sweep_frequency(ST_SPAN);
-  span = step_round(span / 3);
-  if (status & EVT_UP) {
-    set_sweep_frequency(mode, center + span);
-  } else if (status & EVT_DOWN) {
-    set_sweep_frequency(mode, center - span);
+  else{
+    freq_t span = step_round(get_sweep_frequency(ST_SPAN) / 4);
+    if (status & EVT_UP  ) freq+= span;
+    if (status & EVT_DOWN) freq-= span;
+    if (freq > STOP_MAX) return;
   }
+  set_sweep_frequency(mode, freq);
 }
 
 #define STEPRATIO 0.2
-
 static void
 lever_edelay(int status)
 {
   float value = electrical_delay;
-  float ratio = STEPRATIO;
-  if (value < 0)
-    ratio = -ratio;
-  if (status & EVT_UP) {
-    value = (1 - ratio) * value;
-  } else if (status & EVT_DOWN) {
-    value = (1 + ratio) * value;
-  }
+  float ratio = value > 0 ?  STEPRATIO : -STEPRATIO;
+  if (status & EVT_UP)
+    value*= (1 - ratio);
+  if (status & EVT_DOWN)
+    value*= (1 + ratio);
   set_electrical_delay(value);
-}
-
-static void
-ui_process_normal(void)
-{
-  int status = btn_check();
-  if (status != 0) {
-    if (status & EVT_BUTTON_SINGLE_CLICK) {
-      ui_mode_menu();
-    } else {
-    switch (lever_mode) {
-      case LM_MARKER: lever_move_marker(status);   break;
-#ifdef UI_USE_LEVELER_SEARCH_MODE
-      case LM_SEARCH: lever_search_marker(status); break;
-#endif
-      case LM_FREQ_0:
-        lever_move(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER);
-        break;
-      case LM_FREQ_1:
-        if (FREQ_IS_STARTSTOP())
-          lever_move(status, ST_STOP);
-        else
-          lever_zoom_span(status);
-        break;
-      case LM_EDELAY:
-        lever_edelay(status);
-        break;
-      }
-    }
-  }
-}
-
-static void
-ui_process_menu(void)
-{
-  int status = btn_check();
-  if (status != 0) {
-    if (status & EVT_BUTTON_SINGLE_CLICK) {
-      menu_invoke(selection);
-      return;
-    }
-    do {
-      if (status & EVT_UP)
-        selection++;
-      if (status & EVT_DOWN)
-        selection--;
-      // close menu if next item is sentinel or less
-      if (selection < 0 || menu_stack[menu_current_level][selection].type == MT_NONE){
-        ui_mode_normal();
-        return;
-      }
-      draw_menu();
-      chThdSleepMilliseconds(200);
-    } while ((status = btn_wait_release()) != 0);
-  }
-  return;
-}
-
-static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
-
-static int
-keypad_click(int key)
-{
-  int c = keypads[key].c;
-  if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
-    if (kp_index == 0)
-      return KP_CANCEL;
-    uint16_t scale = 0;
-    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
-    if (c == KP_N) scale = 1;
-    if (scale){
-      scale+= (scale<<1);
-      int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;
-      while (scale--) {
-        char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
-        kp_buf[i+1] = kp_buf[i];
-        kp_buf[i  ] = v;
-        i++;
-      }
-    }
-    /* numeric input done */
-    uint32_t u_val = my_atoui(kp_buf);
-    float    f_val = my_atof(kp_buf);
-    switch (keypad_mode) {
-    case KM_START:
-      set_sweep_frequency(ST_START, u_val);
-      break;
-    case KM_STOP:
-      set_sweep_frequency(ST_STOP, u_val);
-      break;
-    case KM_CENTER:
-      set_sweep_frequency(ST_CENTER, u_val);
-      break;
-    case KM_SPAN:
-      set_sweep_frequency(ST_SPAN, u_val);
-      break;
-    case KM_CW:
-      set_sweep_frequency(ST_CW, u_val);
-      break;
-    case KM_SCALE:
-      set_trace_scale(current_trace, f_val);
-      break;
-    case KM_REFPOS:
-      set_trace_refpos(current_trace, f_val);
-      break;
-    case KM_EDELAY:
-      set_electrical_delay(f_val); // pico seconds
-      break;
-    case KM_VELOCITY_FACTOR:
-      velocity_factor = u_val;
-      break;
-    case KM_SCALEDELAY:
-      set_trace_scale(current_trace, f_val * 1e-12); // pico second
-      break;
-    }
-    return KP_DONE;
-  }
-
-  if (c <= 9 && kp_index < NUMINPUT_LEN) {
-    kp_buf[kp_index++] = '0' + c;
-  } else if (c == KP_PERIOD && kp_index < NUMINPUT_LEN) {
-    // append period if there are no period
-    if (kp_index == period_pos())
-      kp_buf[kp_index++] = '.';
-  } else if (c == KP_MINUS) {
-    if (kp_index == 0)
-      kp_buf[kp_index++] = '-';
-  } else if (c == KP_BS) {
-    if (kp_index == 0) {
-      return KP_CANCEL;
-    }
-    --kp_index;
-  }
-  kp_buf[kp_index] = '\0';
-  draw_numeric_input(kp_buf);
-  return KP_CONTINUE;
-}
-
-static int
-keypad_apply_touch(void)
-{
-  int touch_x, touch_y;
-  int i = 0;
-  touch_position(&touch_x, &touch_y);
-  do {
-    int x = KP_GET_X(keypads[i].x);
-    int y = KP_GET_Y(keypads[i].y);
-    if (x < touch_x && touch_x < x+KP_WIDTH && y < touch_y && touch_y < y+KP_HEIGHT) {
-      // draw focus
-      selection = i;
-      draw_keypad();
-      touch_wait_release();
-      // erase focus
-      selection = -1;
-      draw_keypad();
-      return i;
-    }
-  }while (keypads[++i].c != KP_NONE);
-  return -1;
-}
-
-static void
-ui_process_keypad(void)
-{
-  int status;
-  int keypads_last_index;
-  for (keypads_last_index = 0; keypads[keypads_last_index+1].c != KP_NONE; keypads_last_index++)
-    ;
-  kp_index = 0; // Hide input index in keyboard mode
-  while (TRUE) {
-    status = btn_check();
-    if (status & (EVT_UP|EVT_DOWN)) {
-      do {
-        if (status & EVT_DOWN)
-          if (--selection < 0)
-            selection = keypads_last_index;
-        if (status & EVT_UP)
-          if (++selection > keypads_last_index)
-            selection = 0;
-        draw_keypad();
-        chThdSleepMilliseconds(200);
-      } while ((status = btn_wait_release()) != 0);
-    }
-
-    else if (status == EVT_BUTTON_SINGLE_CLICK) {
-      if (keypad_click(selection))
-        /* exit loop on done or cancel */
-        break;
-    }
-
-    else if (touch_check() == EVT_TOUCH_PRESSED) {
-      int key = keypad_apply_touch();
-      if (key >= 0 && keypad_click(key))
-        /* exit loop on done or cancel */
-        break;
-    }
-  }
-  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
-  ui_mode_normal();
-}
-
-static void
-ui_process_lever(void)
-{
-  switch (ui_mode) {
-  case UI_NORMAL:
-    ui_process_normal();
-    break;
-  case UI_MENU:
-    ui_process_menu();
-    break;
-#ifdef UI_USE_NUMERIC_INPUT
-  case UI_NUMERIC:
-    ui_process_numeric();
-    break;
-#endif
-//  case UI_KEYPAD:
-//    ui_process_keypad();
-//    break;
-  }
-}
-
-static void
-drag_marker(int t, int8_t m)
-{
-  /* wait touch release */
-  do {
-    int touch_x, touch_y;
-    int index;
-    touch_position(&touch_x, &touch_y);
-    touch_x -= OFFSETX;
-    touch_y -= OFFSETY;
-    index = search_nearest_index(touch_x, touch_y, t);
-    if (index >= 0) {
-      set_marker_index(m, index);
-      redraw_marker(m);
-    }
-  } while (touch_check()!= EVT_TOUCH_RELEASED);
 }
 
 static bool
@@ -2670,7 +2504,14 @@ touch_pickup_marker(int touch_x, int touch_y)
   // select trace
   current_trace = mt;
   // drag marker until release
-  drag_marker(mt, i);
+  do {
+    touch_position(&touch_x, &touch_y);
+    int index = search_nearest_index(touch_x - OFFSETX, touch_y - OFFSETY, current_trace);
+    if (index >= 0) {
+      set_marker_index(active_marker, index);
+      redraw_marker(active_marker);
+    }
+  } while (touch_check()!= EVT_TOUCH_RELEASED);
   return TRUE;
 }
 
@@ -2768,6 +2609,58 @@ touch_lever_mode_select(int touch_x, int touch_y)
   return FALSE;
 }
 
+static void
+ui_process_normal_lever(int status)
+{
+  if (status & EVT_BUTTON_SINGLE_CLICK) {
+    ui_mode_menu();
+    return;
+  }
+  switch (lever_mode) {
+    case LM_MARKER: lever_move_marker(status);   break;
+#ifdef UI_USE_LEVELER_SEARCH_MODE
+    case LM_SEARCH: lever_search_marker(status); break;
+#endif
+    case LM_FREQ_0: lever_frequency(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER); break;
+    case LM_FREQ_1: lever_frequency(status, FREQ_IS_STARTSTOP() ? ST_STOP  : ST_SPAN  ); break;
+    case LM_EDELAY: lever_edelay(status); break;
+  }
+}
+
+static void
+normal_apply_touch(int touch_x, int touch_y){
+  // Try drag marker
+  if (touch_pickup_marker(touch_x, touch_y))
+    return;
+#ifdef __USE_SD_CARD__
+  // Try made screenshot
+  if (made_screenshot(touch_x, touch_y))
+    return;
+#endif
+  // Try select lever mode (top and bottom screen)
+  if (touch_lever_mode_select(touch_x, touch_y))
+    return;
+  // switch menu mode after release
+  touch_wait_release();
+  ui_mode_menu();
+}
+//========================== end normal plot input =======================
+
+static void
+ui_process_lever(void)
+{
+  int status = btn_check();
+  if (status == 0) return;
+  switch (ui_mode) {
+    case UI_NORMAL: ui_process_normal_lever(status);  break;
+    case UI_MENU:   ui_process_menu_lever(status);    break;
+#ifdef UI_USE_NUMERIC_INPUT
+    case UI_NUMERIC:ui_process_numeric_lever(status); break;
+#endif
+    case UI_KEYPAD: ui_process_keypad_lever(status);  break;
+  }
+}
+
 static
 void ui_process_touch(void)
 {
@@ -2776,30 +2669,12 @@ void ui_process_touch(void)
   if (status == EVT_TOUCH_PRESSED || status == EVT_TOUCH_DOWN) {
     touch_position(&touch_x, &touch_y);
     switch (ui_mode) {
-    case UI_NORMAL:
-      // Try drag marker
-      if (touch_pickup_marker(touch_x, touch_y))
-        break;
-#ifdef __USE_SD_CARD__
-      // Try made screenshot
-      if (made_screenshot(touch_x, touch_y))
-        break;
-#endif
-      // Try select lever mode (top and bottom screen)
-      if (touch_lever_mode_select(touch_x, touch_y))
-        break;
-      // switch menu mode after release
-      touch_wait_release();
-      ui_mode_menu();
-      break;
-    case UI_MENU:
-      menu_apply_touch(touch_x, touch_y);
-      break;
+      case UI_NORMAL: normal_apply_touch(touch_x, touch_y); break;
+      case UI_MENU:   menu_apply_touch(touch_x, touch_y);   break;
 #ifdef UI_USE_NUMERIC_INPUT
-    case UI_NUMERIC:
-      numeric_apply_touch(touch_x, touch_y);
-      break;
+      case UI_NUMERIC:numeric_apply_touch(touch_x, touch_y);break;
 #endif
+      case UI_KEYPAD: keypad_apply_touch(touch_x, touch_y); break;
     }
   }
 }
@@ -2821,7 +2696,9 @@ static void extcb1(EXTDriver *extp, expchannel_t channel)
 {
   (void)extp;
   (void)channel;
-  operation_requested|=OP_LEVER;
+  // Only for pressed button
+  if (READ_PORT() & BUTTON_MASK)
+    operation_requested|=OP_LEVER;
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 

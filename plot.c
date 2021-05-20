@@ -1550,6 +1550,7 @@ draw_all_cells(bool flush_markmap)
 void
 draw_all(bool flush)
 {
+  if (area_width == 0) {redraw_request = 0; return;}
   if (redraw_request & REDRAW_CLRSCR){
     lcd_set_background(LCD_BG_COLOR);
     lcd_clear_screen();
