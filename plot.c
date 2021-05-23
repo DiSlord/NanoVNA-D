@@ -1153,11 +1153,14 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
+#if 0
 static void
 markmap_all_refpos(void)
 {
   invalidate_rect(OFFSETX, OFFSETY, CELLOFFSETX+1, AREA_HEIGHT_NORMAL);
 }
+#endif
+
 //
 // Marker search functions
 //
@@ -1559,7 +1562,6 @@ draw_all(bool flush)
     force_set_markmap();
   else {
     if (redraw_request & REDRAW_MARKER) markmap_all_markers();
-    if (redraw_request & REDRAW_REF   ) markmap_all_refpos();
   }
   if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_AREA))
     draw_all_cells(flush);

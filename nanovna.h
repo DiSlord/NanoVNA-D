@@ -39,6 +39,8 @@
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
+// Allow run commands from SD card (config.ini in root)
+//#define __SD_CARD_LOAD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
@@ -233,6 +235,8 @@ void toggle_sweep(void);
 void load_default_properties(void);
 int  load_properties(uint32_t id);
 void set_sweep_points(uint16_t points);
+
+void sd_card_load_config(void);
 
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
@@ -645,6 +649,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TD_MARKER_TRACK         (1<<7)
 // Marker delta
 #define TD_MARKER_DELTA         (1<<8)
+// Marker delta
+#define TD_MARKER_LOCK          (1<<9)
 
 // config._mode flags
 // Made x4 average on calibration data
@@ -703,6 +709,7 @@ typedef struct properties {
   uint32_t magic;
   freq_t   _frequency0;
   freq_t   _frequency1;
+  freq_t   _var_freq;
   uint16_t _sweep_points;
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
@@ -761,10 +768,9 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
-#define REDRAW_REF        (1<<4)
-#define REDRAW_BATTERY    (1<<5)
-#define REDRAW_AREA       (1<<6)
-#define REDRAW_CLRSCR     (1<<7)
+#define REDRAW_BATTERY    (1<<4)
+#define REDRAW_AREA       (1<<5)
+#define REDRAW_CLRSCR     (1<<6)
 
 /*
  * ili9341.c
@@ -941,6 +947,19 @@ void     lcd_setBrightness(uint16_t b);
 #ifdef  __USE_SD_CARD__
 #include "../FatFs/ff.h"
 #include "../FatFs/diskio.h"
+
+// Buffers for SD card use spi_buffer
+#if SPI_BUFFER_SIZE < 2048
+#error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
+#else
+// Fat file system work area (at the end of spi_buffer)
+#define fs_volume    (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS))
+// FatFS file object (at the end of spi_buffer)
+#define fs_file      (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL))
+// Filename object (at the end of spi_buffer)
+#define fs_filename  (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL) - FF_LFN_BUF - 4)
+#endif
+
 void testLog(void);        // debug log
 #endif
 
@@ -1020,6 +1039,7 @@ extern uint16_t lastsaveid;
 
 #define frequency0          current_props._frequency0
 #define frequency1          current_props._frequency1
+#define var_freq            current_props._var_freq
 #define sweep_points        current_props._sweep_points
 #define cal_status          current_props._cal_status
 #define cal_data            current_props._cal_data
