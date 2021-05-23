@@ -61,7 +61,10 @@ enum {
 // Keypad structures
 // Enum for keypads_list
 enum {
-  KM_START, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY, KM_NONE
+  KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR,
+  KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY,
+  KM_XTAL, KM_THRESHOLD, KM_VBAT,
+  KM_NONE
 };
 
 typedef struct {
@@ -273,8 +276,8 @@ static void bubbleSort(uint16_t *v, int n) {
 //*******************************************************************************
 #ifdef SOFTWARE_TOUCH
 // ADC read count for measure X and Y (2^N count)
-#define TOUCH_X_N 2
-#define TOUCH_Y_N 2
+#define TOUCH_X_N 3
+#define TOUCH_Y_N 3
 static int
 touch_measure_y(void)
 {
@@ -621,6 +624,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 #define MENU_CONFIG_TOUCH_CAL   0
 #define MENU_CONFIG_TOUCH_TEST  1
 #define MENU_CONFIG_VERSION     2
+#define MENU_CONFIG_RESET       3
 static UI_FUNCTION_CALLBACK(menu_config_cb)
 {
   switch (data) {
@@ -632,6 +636,10 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       break;
   case MENU_CONFIG_VERSION:
       show_version();
+      break;
+  case MENU_CONFIG_RESET:
+      clear_all_config_prop_data();
+      NVIC_SystemReset();
       break;
   }
   ui_mode_normal();
@@ -819,10 +827,19 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
   set_power(data);
 }
 
-static UI_FUNCTION_CALLBACK(menu_keyboard_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
-  if (data == KM_SCALE && trace[current_trace].type == TRC_DELAY) {
+  if (data == KM_SCALE && current_trace != TRACE_INVALID && trace[current_trace].type == TRC_DELAY)
     data = KM_SCALEDELAY;
+  if (b){
+    switch(data){
+      case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
+      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n %.6qHz" : "JOG STEP\n AUTO", var_freq); break;
+      case KM_XTAL:            b->p1.u = config._xtal_freq; break;
+      case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
+      case KM_VBAT:            b->p1.u = config._vbat_offset; break;
+    }
+    return;
   }
 #ifdef UI_USE_NUMERIC_INPUT
   if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
@@ -1282,9 +1299,9 @@ const menuitem_t menu_format[] = {
 };
 
 const menuitem_t menu_scale[] = {
-  { MT_CALLBACK, KM_SCALE, "SCALE/DIV", menu_keyboard_cb },
-  { MT_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_cb },
-  { MT_CALLBACK, KM_EDELAY, "ELECTRICAL\nDELAY", menu_keyboard_cb },
+  { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "ELECTRICAL\nDELAY",   menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
@@ -1316,7 +1333,7 @@ const menuitem_t menu_transform[] = {
   { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP, "LOW PASS\nSTEP", menu_transform_filter_acb },
   { MT_ADV_CALLBACK, TD_FUNC_BANDPASS, "BANDPASS", menu_transform_filter_acb },
   { MT_SUBMENU, 0, "WINDOW", menu_transform_window },
-  { MT_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR", menu_keyboard_cb },
+  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR %d%%%%", menu_keyboard_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -1397,11 +1414,12 @@ const menuitem_t menu_sweep_points[] = {
 };
 
 const menuitem_t menu_stimulus[] = {
-  { MT_CALLBACK, KM_START, "START", menu_keyboard_cb },
-  { MT_CALLBACK, KM_STOP, "STOP",   menu_keyboard_cb },
-  { MT_CALLBACK, KM_CENTER, "CENTER", menu_keyboard_cb },
-  { MT_CALLBACK, KM_SPAN, "SPAN",  menu_keyboard_cb },
-  { MT_CALLBACK, KM_CW, "CW FREQ", menu_keyboard_cb },
+  { MT_ADV_CALLBACK, KM_START,  "START",       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_STOP,   "STOP",        menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_CENTER, "CENTER",      menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",        menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",     menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VAR,  MT_CUSTOM_LABEL, menu_keyboard_acb },
   { MT_SUBMENU,      0, "SWEEP\nPOINTS", menu_sweep_points },
   { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
@@ -1513,9 +1531,22 @@ const menuitem_t menu_connection[] = {
 };
 #endif
 
+const menuitem_t menu_device[] = {
+  { MT_ADV_CALLBACK, KM_THRESHOLD,  "THRESHOLD\n%.10q",   menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
+#ifdef __SD_CARD_LOAD__
+  { MT_CALLBACK,           0,       "LOAD\nCONFIG",       menu_sdcard_load_cb },
+#endif
+  { MT_CALLBACK,  MENU_CONFIG_RESET,"CLEAR\nCONFIG",      menu_config_cb },
+  { MT_CANCEL, 0, S_LARROW" BACK", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_config[] = {
   { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
   { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
+  { MT_SUBMENU,                       0, "EXPERT\nSETTINGS", menu_device },
   { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
 #ifdef __USE_SERIAL_CONSOLE__
   { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
@@ -1716,17 +1747,42 @@ static const keypads_t keypads_time[] = {
 };
 
 static const keypads_list keypads_mode_tbl[KM_NONE] = {
-[KM_START]           = {keypads_freq , "START"    }, // start
-[KM_STOP]            = {keypads_freq , "STOP"     }, // stop
-[KM_CENTER]          = {keypads_freq , "CENTER"   }, // center
-[KM_SPAN]            = {keypads_freq , "SPAN"     }, // span
-[KM_CW]              = {keypads_freq , "CW FREQ"  }, // cw freq
-[KM_SCALE]           = {keypads_scale, "SCALE"    }, // scale
-[KM_REFPOS]          = {keypads_scale, "REFPOS"   }, // refpos
-[KM_EDELAY]          = {keypads_time , "EDELAY"   }, // electrical delay
-[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%"}, // velocity factor
-[KM_SCALEDELAY]      = {keypads_time , "DELAY"    }  // scale of delay
+[KM_START]           = {keypads_freq , "START"     }, // start
+[KM_STOP]            = {keypads_freq , "STOP"      }, // stop
+[KM_CENTER]          = {keypads_freq , "CENTER"    }, // center
+[KM_SPAN]            = {keypads_freq , "SPAN"      }, // span
+[KM_CW]              = {keypads_freq , "CW FREQ"   }, // cw freq
+[KM_VAR]             = {keypads_freq , "JOG STEP"  }, // VAR freq step
+[KM_SCALE]           = {keypads_scale, "SCALE"     }, // scale
+[KM_REFPOS]          = {keypads_scale, "REFPOS"    }, // refpos
+[KM_EDELAY]          = {keypads_time , "EDELAY"    }, // electrical delay
+[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%"}, // velocity factor
+[KM_SCALEDELAY]      = {keypads_time , "DELAY"     }, // scale of delay
+[KM_XTAL]            = {keypads_freq , "TCXO"      }, // XTAL frequency
+[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD" }, // Harmonic threshold frequency
+[KM_VBAT]            = {keypads_scale, "BAT OFFSET"}, // Vbat offset input in mV
 };
+
+static void
+set_numeric_value(float f_val, freq_t u_val)
+{
+  switch (keypad_mode) {
+    case KM_START:    set_sweep_frequency(ST_START,  u_val); break;
+    case KM_STOP:     set_sweep_frequency(ST_STOP,   u_val); break;
+    case KM_CENTER:   set_sweep_frequency(ST_CENTER, u_val); break;
+    case KM_SPAN:     set_sweep_frequency(ST_SPAN,   u_val); break;
+    case KM_CW:       set_sweep_frequency(ST_CW,     u_val); break;
+    case KM_VAR:      var_freq = u_val;                      break;
+    case KM_SCALE:    set_trace_scale(current_trace, f_val); break;
+    case KM_REFPOS:   set_trace_refpos(current_trace, f_val);break;
+    case KM_EDELAY:   set_electrical_delay(f_val);           break; // pico seconds
+    case KM_VELOCITY_FACTOR: velocity_factor = u_val;        break;
+    case KM_SCALEDELAY: set_trace_scale(current_trace, f_val * 1e-12); break;// pico second
+    case KM_XTAL:     config._xtal_freq = u_val;             break;
+    case KM_THRESHOLD:config._harmonic_freq_threshold= u_val;break;
+    case KM_VBAT:     config._vbat_offset = u_val;           break;
+  }
+}
 
 static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
@@ -1808,7 +1864,7 @@ draw_numeric_input(const char *buf)
   bool focused = FALSE;
   uint16_t xsim = 0b0010010000000000;
 
-  for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 10 && buf[i]; i++, xsim<<=1) {
+  for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 11 && buf[i]; i++, xsim<<=1) {
     uint16_t fg = LCD_INPUT_TEXT_COLOR;
     uint16_t bg = LCD_INPUT_BG_COLOR;
     int c = buf[i];
@@ -2074,37 +2130,25 @@ static void
 fetch_numeric_target(void)
 {
   switch (keypad_mode) {
-  case KM_START: uistat.value = get_sweep_frequency(ST_START ); break;
-  case KM_STOP:  uistat.value = get_sweep_frequency(ST_STOP  ); break;
-  case KM_CENTER:uistat.value = get_sweep_frequency(ST_CENTER); break;
-  case KM_SPAN:  uistat.value = get_sweep_frequency(ST_SPAN  ); break;
-  case KM_CW:    uistat.value = get_sweep_frequency(ST_CW    ); break;
-  case KM_SCALE: uistat.value = get_trace_scale(current_trace) * 1000; break;
-  case KM_REFPOS:uistat.value = get_trace_refpos(current_trace) * 1000;break;
-  case KM_EDELAY:uistat.value = get_electrical_delay(); break;
+  case KM_START:     uistat.value = get_sweep_frequency(ST_START ); break;
+  case KM_STOP:      uistat.value = get_sweep_frequency(ST_STOP  ); break;
+  case KM_CENTER:    uistat.value = get_sweep_frequency(ST_CENTER); break;
+  case KM_SPAN:      uistat.value = get_sweep_frequency(ST_SPAN  ); break;
+  case KM_CW:        uistat.value = get_sweep_frequency(ST_CW    ); break;
+  case KM_VAR:       uistat.value = var_freq;                       break;
+  case KM_SCALE:     uistat.value = get_trace_scale(current_trace) * 1000; break;
+  case KM_REFPOS:    uistat.value = get_trace_refpos(current_trace) * 1000;break;
+  case KM_EDELAY:    uistat.value = get_electrical_delay(); break;
   case KM_VELOCITY_FACTOR: uistat.value = velocity_factor; break;
   case KM_SCALEDELAY: uistat.value = get_trace_scale(current_trace) * 1e12; break;
+  case KM_XTAL:      uistat.value = config._xtal_freq;              break;
+  case KM_THRESHOLD: uistat.value = config._harmonic_freq_threshold;break;
+  case KM_VBAT:      uistat.value = config._vbat_offset;            break;
   }
 
   uint32_t x = uistat.value;
   for (uistat.digit = 0; x >= 10 && uistat.digit < 9; uistat.digit++)
     x /= 10;
-}
-
-static void
-set_numeric_value(void)
-{
-  switch (keypad_mode) {
-  case KM_START:  set_sweep_frequency(ST_START , uistat.value); break;
-  case KM_STOP:   set_sweep_frequency(ST_STOP  , uistat.value); break;
-  case KM_CENTER: set_sweep_frequency(ST_CENTER, uistat.value); break;
-  case KM_SPAN:   set_sweep_frequency(ST_SPAN  , uistat.value); break;
-  case KM_CW:     set_sweep_frequency(ST_CW    , uistat.value); break;
-  case KM_SCALE:  set_trace_scale(current_trace, uistat.value / 1000.0);break;
-  case KM_REFPOS: set_trace_refpos(current_trace, uistat.value / 1000.0);break;
-  case KM_EDELAY: set_electrical_delay(uistat.value); break;
-  case KM_VELOCITY_FACTOR:velocity_factor = uistat.value; break;
-  }
 }
 
 static void
@@ -2270,21 +2314,8 @@ keypad_click(int key)
         i++;
       }
     }
-    /* numeric input done */
-    uint32_t u_val = my_atoui(kp_buf); // Get as uint value
-    float    f_val = my_atof(kp_buf);  // Get as float value
-    switch (keypad_mode) {
-      case KM_START:  set_sweep_frequency(ST_START,  u_val); break;
-      case KM_STOP:   set_sweep_frequency(ST_STOP,   u_val); break;
-      case KM_CENTER: set_sweep_frequency(ST_CENTER, u_val); break;
-      case KM_SPAN:   set_sweep_frequency(ST_SPAN,   u_val); break;
-      case KM_CW:     set_sweep_frequency(ST_CW,     u_val); break;
-      case KM_SCALE:  set_trace_scale(current_trace, f_val); break;
-      case KM_REFPOS: set_trace_refpos(current_trace, f_val);break;
-      case KM_EDELAY: set_electrical_delay(f_val);           break; // pico seconds
-      case KM_VELOCITY_FACTOR: velocity_factor = u_val;      break;
-      case KM_SCALEDELAY: set_trace_scale(current_trace, f_val * 1e-12); break;// pico second
-    }
+    // numeric input done
+    set_numeric_value(my_atof(kp_buf),  my_atoui(kp_buf));
     return KP_DONE;
   }
 
@@ -2435,16 +2466,17 @@ lever_frequency(int status, int mode)
 {
   freq_t freq = get_sweep_frequency(mode);
   if (mode == ST_SPAN){
-    if (status & EVT_UP  ) freq = step_round(freq*4 + 1);
-    if (status & EVT_DOWN) freq = step_round(freq   - 1);
+    if (status & EVT_UP  ) freq = var_freq ? (freq + var_freq) : step_round(freq*4 + 1);
+    if (status & EVT_DOWN) freq = var_freq ? (freq - var_freq) : step_round(freq   - 1);
   }
   else{
-    freq_t span = step_round(get_sweep_frequency(ST_SPAN) / 4);
+    freq_t span = var_freq ? var_freq : step_round(get_sweep_frequency(ST_SPAN) / 4);
     if (status & EVT_UP  ) freq+= span;
     if (status & EVT_DOWN) freq-= span;
-    if (freq > STOP_MAX) return;
   }
+  if (freq > STOP_MAX || freq < START_MIN) return;
   set_sweep_frequency(mode, freq);
+  while (btn_wait_release() != 0);
 }
 
 #define STEPRATIO 0.2
@@ -2458,6 +2490,7 @@ lever_edelay(int status)
   if (status & EVT_DOWN)
     value*= (1 + ratio);
   set_electrical_delay(value);
+  while (btn_wait_release() != 0);
 }
 
 static bool
@@ -2588,19 +2621,18 @@ touch_lever_mode_select(int touch_x, int touch_y)
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
   if (touch_y < 25)
     mode = (touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
-  if (mode != -1){
-    touch_wait_release();
-    if (!select_lever_mode(mode)){
-      // Call keyboard for enter
-      switch(mode){
-        case LM_FREQ_0: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START); break;
-        case LM_FREQ_1: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN   : KM_STOP ); break;
-        case LM_EDELAY: ui_mode_keypad(KM_EDELAY); break;
-      }
-    }
-    return TRUE;
+  if (mode == -1) return FALSE;
+
+  touch_wait_release();
+  // Check already selected
+  if (select_lever_mode(mode)) return TRUE;
+  // Call keyboard for enter
+  switch(mode){
+    case LM_FREQ_0: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START); break;
+    case LM_FREQ_1: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN   : KM_STOP ); break;
+    case LM_EDELAY: ui_mode_keypad(KM_EDELAY); break;
   }
-  return FALSE;
+  return TRUE;
 }
 
 static void
@@ -2621,6 +2653,28 @@ ui_process_normal_lever(int status)
   }
 }
 
+static bool
+normal_apply_ref_scale(int touch_x, int touch_y){
+  int t = current_trace;
+  if (t == TRACE_INVALID) return FALSE;
+  if (touch_x < OFFSETX - 5 || touch_x > OFFSETX + CELLOFFSETX + 10 ||
+      touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
+  float ref   = trace[t].refpos;
+  float scale = trace[t].scale;
+
+       if (touch_y < GRIDY*1*NGRIDY/4) ref+=0.5f;
+  else if (touch_y < GRIDY*2*NGRIDY/4) {scale*=2.0f;ref=ref/2-NGRIDY/4 + NGRIDY/2;}
+  else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=2*ref-NGRIDY   + NGRIDY/2;}
+  else                                 ref-=0.5f;
+
+  trace[t].scale  = scale;
+  trace[t].refpos =   ref;
+  plot_into_index(measured);
+  request_to_redraw(REDRAW_AREA);
+  chThdSleepMilliseconds(100);
+  return TRUE;
+}
+
 static void
 normal_apply_touch(int touch_x, int touch_y){
   // Try drag marker
@@ -2631,10 +2685,12 @@ normal_apply_touch(int touch_x, int touch_y){
   if (made_screenshot(touch_x, touch_y))
     return;
 #endif
+  if (normal_apply_ref_scale(touch_x, touch_y))
+    return;
   // Try select lever mode (top and bottom screen)
   if (touch_lever_mode_select(touch_x, touch_y))
     return;
-  // switch menu mode after release
+  // default: switch menu mode after release
   touch_wait_release();
   ui_mode_menu();
 }

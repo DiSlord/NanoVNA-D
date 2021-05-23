@@ -647,6 +647,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TD_MARKER_TRACK         (1<<7)
 // Marker delta
 #define TD_MARKER_DELTA         (1<<8)
+// Marker delta
+#define TD_MARKER_LOCK          (1<<9)
 
 // config._mode flags
 // Made x4 average on calibration data
@@ -705,6 +707,7 @@ typedef struct properties {
   uint32_t magic;
   freq_t   _frequency0;
   freq_t   _frequency1;
+  freq_t   _var_freq;
   uint16_t _sweep_points;
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
@@ -1034,6 +1037,7 @@ extern uint16_t lastsaveid;
 
 #define frequency0          current_props._frequency0
 #define frequency1          current_props._frequency1
+#define var_freq            current_props._var_freq
 #define sweep_points        current_props._sweep_points
 #define cal_status          current_props._cal_status
 #define cal_data            current_props._cal_data
