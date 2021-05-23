@@ -2091,7 +2091,6 @@ void set_trace_refpos(int t, float refpos)
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
     plot_into_index(measured);
-    request_to_redraw(REDRAW_REF);
   }
 }
 
@@ -2694,15 +2693,11 @@ VNA_SHELL_FUNCTION(cmd_usart)
 #ifndef __USE_SD_CARD__
 #error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
 #endif
-// Fat file system work area (at the end of spi_buffer)
-static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
-// FatFS file object (at the end of spi_buffer)
-static FIL   *fs_file     = (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL));
 
 static FRESULT cmd_sd_card_mount(void){
   const FRESULT res = f_mount(fs_volume, "", 1);
   if (res != FR_OK)
-    shell_printf("error: card not mounted\r\n");
+    shell_printf("err: no card\r\n");
   return res;
 }
 
@@ -2714,11 +2709,16 @@ VNA_SHELL_FUNCTION(cmd_sd_list)
   DIR dj;
   FILINFO fno;
   FRESULT res;
-  shell_printf("sd_list:\r\n");
-  res = cmd_sd_card_mount();
-  if (res != FR_OK)
+  if (cmd_sd_card_mount() != FR_OK)
     return;
-  res = f_findfirst(&dj, &fno, "", "*.*");
+  char *search;
+  switch (argc){
+    case 0: search =   "*.*";break;
+    case 1: search = argv[0];break;
+    default: shell_printf("usage: sd_list {pattern}\r\n"); return;
+  }
+  shell_printf("sd_list:\r\n");
+  res = f_findfirst(&dj, &fno, "", search);
   while (res == FR_OK && fno.fname[0])
   {
     shell_printf("%s %u\r\n", fno.fname, fno.fsize);
@@ -2727,27 +2727,24 @@ VNA_SHELL_FUNCTION(cmd_sd_list)
   f_closedir(&dj);
 }
 
-VNA_SHELL_FUNCTION(cmd_sd_readfile)
+VNA_SHELL_FUNCTION(cmd_sd_read)
 {
   FRESULT res;
   char *buf = (char *)spi_buffer;
-  if (argc < 1)
+  if (argc != 1)
   {
-     shell_printf("usage: sd_readfile {filename}\r\n");
+     shell_printf("usage: sd_read {filename}\r\n");
      return;
   }
   const char *filename = argv[0];
-  shell_printf("sd_readfile: %s\r\n", filename);
-  res = cmd_sd_card_mount();
-  if (res != FR_OK)
+  if (cmd_sd_card_mount() != FR_OK)
     return;
 
-  res = f_open(fs_file, filename, FA_OPEN_EXISTING | FA_READ);
-  if (res != FR_OK)
-  {
-    shell_printf("error: %s not opened\r\n", filename);
+  if (f_open(fs_file, filename, FA_OPEN_EXISTING | FA_READ) != FR_OK){
+    shell_printf("err: no file\r\n");
     return;
   }
+  // shell_printf("sd_read: %s\r\n", filename);
 
   // number of bytes to follow (file size)
   const uint32_t filesize = f_size(fs_file);
@@ -2763,6 +2760,22 @@ VNA_SHELL_FUNCTION(cmd_sd_readfile)
     streamWrite(shell_stream, (void *)buf, size);
   }
   res = f_close(fs_file);
+  return;
+}
+
+VNA_SHELL_FUNCTION(cmd_sd_delete)
+{
+  FRESULT res;
+  if (argc != 1) {
+     shell_printf("usage: sd_delete {filename}\r\n");
+     return;
+  }
+  if (cmd_sd_card_mount() != FR_OK)
+    return;
+  const char *filename = argv[0];
+  res = f_unlink(filename);
+  shell_printf("delete: %s %s\r\n", filename, res == FR_OK ? "OK" : "err");
+  return;
 }
 #endif
 
@@ -2802,8 +2815,9 @@ static const VNAShellCommand commands[] =
     {"time"        , cmd_time        , 0},
 #endif
 #ifdef ENABLE_SD_CARD_CMD
-    {"sd_list"       , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"sd_readfile"   , cmd_sd_readfile , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_list",   cmd_sd_list,   CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_read",   cmd_sd_read,   CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_delete", cmd_sd_delete, CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , 0},
@@ -3111,6 +3125,52 @@ static void VNAShell_executeLine(char *line)
   }
   shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
 }
+
+#ifdef __SD_CARD_LOAD__
+#ifndef __USE_SD_CARD__
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
+#endif
+void sd_card_load_config(void){
+  FRESULT res = f_mount(fs_volume, "", 1);
+  if (res != FR_OK) return;
+
+  if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
+    return;
+
+  char *buf = (char *)spi_buffer;
+  UINT size = 0;
+
+  if (res == FR_OK){
+    char *ptr = shell_line;
+    while (1){
+      res = f_read(fs_file, buf, 512, &size);
+      if (res!= FR_OK || size == 0) break;
+      uint32_t i = 0;
+      while (i < size) {
+        uint8_t c = buf[i++];
+        // New line (Enter)
+        if (c == '\r') {
+//          ptr[0] = '\r';
+//          ptr[1] = '\n';
+//          ptr[2] = 0;
+//          shell_printf(shell_line);
+          ptr[0] = 0;
+          VNAShell_executeLine(shell_line);
+          ptr = shell_line;
+          continue;
+        }
+        // Others (skip)
+        if (c < 0x20) continue;
+        // Store
+        if (ptr < shell_line + VNA_SHELL_MAX_LENGTH - 1)
+          *ptr++ = (char)c;
+      }
+    }
+  }
+  res = f_close(fs_file);
+  return;
+}
+#endif
 
 #ifdef VNA_SHELL_THREAD
 static THD_WORKING_AREA(waThread2, /* cmd_* max stack size + alpha */442);

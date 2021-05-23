@@ -54,19 +54,6 @@ uint8_t operation_requested = OP_NONE;
 
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
-#ifdef __USE_SD_CARD__
-#if SPI_BUFFER_SIZE < 2048
-#error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
-#else
-// Fat file system work area (at the end of spi_buffer)
-static FATFS *fs_volume   = (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS));
-// FatFS file object (at the end of spi_buffer)
-static FIL   *fs_file     = (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL));
-// Filename object (at the end of spi_buffer)
-static char  *fs_filename = (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL) - FF_LFN_BUF - 4);
-#endif
-#endif
-
 enum {
   UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
 };
@@ -622,7 +609,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6FHz\n%.6FHz", (float)p->_frequency0, (float)p->_frequency1, data);//\n%d-drstx8
+      plot_printf(b->label, sizeof(b->label), "%.6FHz\n%.6FHz", (float)p->_frequency0, (float)p->_frequency1, data);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
@@ -789,7 +776,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 }
 
 #ifdef __USE_SMOOTH__
-
 static UI_FUNCTION_ADV_CALLBACK(menu_smooth_func_acb)
 {
   (void)data;
@@ -1175,6 +1161,14 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   ui_mode_normal();
 }
 
+#ifdef __SD_CARD_LOAD__
+extern sd_card_load_config(void);
+static UI_FUNCTION_CALLBACK(menu_sdcard_load_cb){
+  sd_card_load_config();
+  ui_mode_normal();
+}
+#endif
+
 static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
@@ -1189,8 +1183,8 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_LOAD,  "LOAD",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
-  { MT_CALLBACK, 0,         "DONE",  menu_caldone_cb },
-  { MT_CANCEL,   0, S_LARROW" BACK", NULL },
+  { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
+  { MT_CANCEL,   0,    S_LARROW" BACK", NULL },
   { MT_NONE,     0, NULL, NULL } // sentinel
 };
 
@@ -1809,9 +1803,9 @@ draw_numeric_area_frame(void)
 static void
 draw_numeric_input(const char *buf)
 {
-  int i;
-  int x;
-  int focused = FALSE;
+  uint16_t i;
+  uint16_t x;
+  bool focused = FALSE;
   uint16_t xsim = 0b0010010000000000;
 
   for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 10 && buf[i]; i++, xsim<<=1) {
@@ -1942,7 +1936,7 @@ static const uint8_t button_icons[] = {
 static void
 draw_menu_buttons(const menuitem_t *menu)
 {
-  int i, y;
+  uint16_t i, y;
   for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
     if (menu[i].type == MT_NONE)
       break;
@@ -1984,7 +1978,7 @@ draw_menu_buttons(const menuitem_t *menu)
     lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
   }
   // Erase empty buttons
-  if (AREA_HEIGHT_NORMAL + OFFSETY - y){
+  if (AREA_HEIGHT_NORMAL + OFFSETY > y){
     lcd_set_background(LCD_BG_COLOR);
     lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
   }
@@ -2696,9 +2690,7 @@ static void extcb1(EXTDriver *extp, expchannel_t channel)
 {
   (void)extp;
   (void)channel;
-  // Only for pressed button
-  if (READ_PORT() & BUTTON_MASK)
-    operation_requested|=OP_LEVER;
+  operation_requested|=OP_LEVER;
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 

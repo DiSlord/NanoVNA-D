@@ -39,6 +39,8 @@
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
+// Allow run commands from SD card (config.ini in root)
+//#define __SD_CARD_LOAD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
@@ -761,10 +763,9 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
-#define REDRAW_REF        (1<<4)
-#define REDRAW_BATTERY    (1<<5)
-#define REDRAW_AREA       (1<<6)
-#define REDRAW_CLRSCR     (1<<7)
+#define REDRAW_BATTERY    (1<<4)
+#define REDRAW_AREA       (1<<5)
+#define REDRAW_CLRSCR     (1<<6)
 
 /*
  * ili9341.c
@@ -941,6 +942,19 @@ void     lcd_setBrightness(uint16_t b);
 #ifdef  __USE_SD_CARD__
 #include "../FatFs/ff.h"
 #include "../FatFs/diskio.h"
+
+// Buffers for SD card use spi_buffer
+#if SPI_BUFFER_SIZE < 2048
+#error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
+#else
+// Fat file system work area (at the end of spi_buffer)
+#define fs_volume    (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS))
+// FatFS file object (at the end of spi_buffer)
+#define fs_file      (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL))
+// Filename object (at the end of spi_buffer)
+#define fs_filename  (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL) - FF_LFN_BUF - 4)
+#endif
+
 void testLog(void);        // debug log
 #endif
 
