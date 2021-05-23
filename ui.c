@@ -625,6 +625,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 #define MENU_CONFIG_TOUCH_TEST  1
 #define MENU_CONFIG_VERSION     2
 #define MENU_CONFIG_RESET       3
+#define MENU_CONFIG_LOAD        4
 static UI_FUNCTION_CALLBACK(menu_config_cb)
 {
   switch (data) {
@@ -641,6 +642,10 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       clear_all_config_prop_data();
       NVIC_SystemReset();
       break;
+#ifdef __SD_CARD_LOAD__
+      sd_card_load_config();
+      break;
+#endif
   }
   ui_mode_normal();
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
@@ -1178,14 +1183,6 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   ui_mode_normal();
 }
 
-#ifdef __SD_CARD_LOAD__
-extern sd_card_load_config(void);
-static UI_FUNCTION_CALLBACK(menu_sdcard_load_cb){
-  sd_card_load_config();
-  ui_mode_normal();
-}
-#endif
-
 static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
@@ -1536,9 +1533,9 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK,           0,       "LOAD\nCONFIG",       menu_sdcard_load_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG",       menu_config_cb },
 #endif
-  { MT_CALLBACK,  MENU_CONFIG_RESET,"CLEAR\nCONFIG",      menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR\nCONFIG",      menu_config_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };

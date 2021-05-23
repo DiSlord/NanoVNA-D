@@ -236,6 +236,8 @@ void load_default_properties(void);
 int  load_properties(uint32_t id);
 void set_sweep_points(uint16_t points);
 
+void sd_card_load_config(void);
+
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
 #define SWEEP_BINARY  0x08
