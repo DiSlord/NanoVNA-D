@@ -643,6 +643,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       NVIC_SystemReset();
       break;
 #ifdef __SD_CARD_LOAD__
+  case MENU_CONFIG_LOAD:
       sd_card_load_config();
       break;
 #endif

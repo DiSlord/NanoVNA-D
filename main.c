@@ -3309,7 +3309,9 @@ int main(void)
  * SD Card init (if inserted) allow fix issues
  * Some card after insert work in SDIO mode and can corrupt SPI exchange (need switch it to SPI)
  */
+#ifdef __USE_SD_CARD__
   disk_initialize(0);
+#endif
 
 /*
  * UI (menu, touch, buttons) and plot initialize
