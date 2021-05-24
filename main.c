@@ -3128,7 +3128,7 @@ static void VNAShell_executeLine(char *line)
 
 #ifdef __SD_CARD_LOAD__
 #ifndef __USE_SD_CARD__
-#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use __SD_CARD_LOAD__"
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
 #endif
 void sd_card_load_config(void){
   FRESULT res = f_mount(fs_volume, "", 1);
@@ -3309,7 +3309,9 @@ int main(void)
  * SD Card init (if inserted) allow fix issues
  * Some card after insert work in SDIO mode and can corrupt SPI exchange (need switch it to SPI)
  */
+#ifdef __USE_SD_CARD__
   disk_initialize(0);
+#endif
 
 /*
  * UI (menu, touch, buttons) and plot initialize
