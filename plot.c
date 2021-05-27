@@ -1276,20 +1276,18 @@ static void cell_grid_line_info(int x0, int y0)
   uint32_t trace_type = 1 << trace[current_trace].type;
   if (trace_type&((1 << TRC_SMITH) | (1 << TRC_POLAR) | (1 << TRC_OFF))) return;
   // Render at right
-  int xpos = GRID_X_TEXT - x0;
-  int ypos = 0           - y0 + 2;
-
+  int16_t xpos = GRID_X_TEXT - x0;
+  int16_t ypos = 0           - y0 + 2;
+  // Get top value
   float scale = get_trace_scale(current_trace);
   float   ref = get_trace_refpos(current_trace);
-
+  float     v = (NGRIDY - ref) * scale;
+  if (trace_type&(1 << TRC_SWR)) v+=1.0f;  // For SWR trace, value shift by 1.0
+  // Render grid values
   lcd_set_foreground(LCD_TRACE_1_COLOR + current_trace);
-  for (int i = 0; i < NGRIDY; i++, ypos+=GRIDY){
-    if ((uint32_t)(ypos+FONT_GET_HEIGHT) >= CELLHEIGHT + FONT_GET_HEIGHT) continue;
-    // Calculate grid value
-    float v = ((NGRIDY - i) - ref) * scale;
-    if (trace_type&(1 << TRC_SWR)) v+=1.0;  // For SWR trace, value shift by 1.0
-    cell_printf(xpos, ypos, "% 6.3F", v);
-  }
+  do {
+    cell_printf(xpos, ypos, "% 6.3F", v); v-=scale;
+  }while((ypos+=GRIDY) < CELLHEIGHT);
 }
 #endif
 
