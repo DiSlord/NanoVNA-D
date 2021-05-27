@@ -36,7 +36,7 @@
 #define BUTTON_DOWN_LONG_TICKS      MS2ST(500)   // 500ms
 #define BUTTON_DOUBLE_TICKS         MS2ST(250)   // 250ms
 #define BUTTON_REPEAT_TICKS         MS2ST( 40)   //  40ms
-#define BUTTON_DEBOUNCE_TICKS       MS2ST( 10)   //  10ms
+#define BUTTON_DEBOUNCE_TICKS       MS2ST( 20)   //  20ms
 
 /* lever switch assignment */
 #define BIT_UP1     3
@@ -183,7 +183,7 @@ static void drawMessageBox(char *header, char *text, uint32_t delay);
 static void ui_mode_numeric(int _keypad_mode);
 #endif
 
-static int btn_check(void)
+static uint16_t btn_check(void)
 {
   systime_t ticks;
   // Debounce input
@@ -191,9 +191,9 @@ static int btn_check(void)
     ticks = chVTGetSystemTimeX();
     if(ticks - last_button_down_ticks > BUTTON_DEBOUNCE_TICKS)
       break;
-    chThdSleepMilliseconds(1);
+    chThdSleepMilliseconds(2);
   }
-  int status = 0;
+  uint16_t status = 0;
   uint16_t cur_button = READ_PORT() & BUTTON_MASK;
   // Detect only changed and pressed buttons
   uint16_t button_set = (last_button ^ cur_button) & cur_button;
@@ -209,7 +209,7 @@ static int btn_check(void)
   return status;
 }
 
-static int btn_wait_release(void)
+static uint16_t btn_wait_release(void)
 {
   while (TRUE) {
     systime_t ticks = chVTGetSystemTimeX();
@@ -236,7 +236,7 @@ static int btn_wait_release(void)
 
     if (dt > BUTTON_DOWN_LONG_TICKS &&
         ticks > last_button_repeat_ticks) {
-      int status = 0;
+      uint16_t status = 0;
       if (cur_button & (1<<BIT_DOWN1))
         status |= EVT_DOWN | EVT_REPEAT;
       if (cur_button & (1<<BIT_UP1))
@@ -1084,7 +1084,7 @@ static UI_FUNCTION_CALLBACK(menu_brightness_cb)
   lcd_drawstring(LCD_WIDTH/2-35, LCD_HEIGHT/2-13, "BRIGHTNESS");
   lcd_drawstring(LCD_WIDTH/2-72, LCD_HEIGHT/2+2, S_LARROW" USE LEVELER BUTTON "S_RARROW);
   while (TRUE) {
-    int status = btn_check();
+    uint16_t status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
       do {
         if (status & EVT_UP  ) value+=5;
@@ -1745,20 +1745,20 @@ static const keypads_t keypads_time[] = {
 };
 
 static const keypads_list keypads_mode_tbl[KM_NONE] = {
-[KM_START]           = {keypads_freq , "START"     }, // start
-[KM_STOP]            = {keypads_freq , "STOP"      }, // stop
-[KM_CENTER]          = {keypads_freq , "CENTER"    }, // center
-[KM_SPAN]            = {keypads_freq , "SPAN"      }, // span
-[KM_CW]              = {keypads_freq , "CW FREQ"   }, // cw freq
-[KM_VAR]             = {keypads_freq , "JOG STEP"  }, // VAR freq step
-[KM_SCALE]           = {keypads_scale, "SCALE"     }, // scale
-[KM_REFPOS]          = {keypads_scale, "REFPOS"    }, // refpos
-[KM_EDELAY]          = {keypads_time , "EDELAY"    }, // electrical delay
-[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%"}, // velocity factor
-[KM_SCALEDELAY]      = {keypads_time , "DELAY"     }, // scale of delay
-[KM_XTAL]            = {keypads_freq , "TCXO"      }, // XTAL frequency
-[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD" }, // Harmonic threshold frequency
-[KM_VBAT]            = {keypads_scale, "BAT OFFSET"}, // Vbat offset input in mV
+[KM_START]           = {keypads_freq , "START"      }, // start
+[KM_STOP]            = {keypads_freq , "STOP"       }, // stop
+[KM_CENTER]          = {keypads_freq , "CENTER"     }, // center
+[KM_SPAN]            = {keypads_freq , "SPAN"       }, // span
+[KM_CW]              = {keypads_freq , "CW FREQ"    }, // cw freq
+[KM_VAR]             = {keypads_freq , "JOG STEP"   }, // VAR freq step
+[KM_SCALE]           = {keypads_scale, "SCALE"      }, // scale
+[KM_REFPOS]          = {keypads_scale, "REFPOS"     }, // refpos
+[KM_EDELAY]          = {keypads_time , "EDELAY"     }, // electrical delay
+[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%" }, // velocity factor
+[KM_SCALEDELAY]      = {keypads_time , "DELAY"      }, // scale of delay
+[KM_XTAL]            = {keypads_freq , "TCXO 26MHz" }, // XTAL frequency
+[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD"  }, // Harmonic threshold frequency
+[KM_VBAT]            = {keypads_scale, "BAT OFFSET" }, // Vbat offset input in mV
 };
 
 static void
@@ -1776,7 +1776,7 @@ set_numeric_value(float f_val, freq_t u_val)
     case KM_EDELAY:   set_electrical_delay(f_val);           break; // pico seconds
     case KM_VELOCITY_FACTOR: velocity_factor = u_val;        break;
     case KM_SCALEDELAY: set_trace_scale(current_trace, f_val * 1e-12); break;// pico second
-    case KM_XTAL:     config._xtal_freq = u_val;             break;
+    case KM_XTAL:     si5351_set_tcxo(u_val);                break;
     case KM_THRESHOLD:config._harmonic_freq_threshold= u_val;break;
     case KM_VBAT:     config._vbat_offset = u_val;           break;
   }
@@ -1844,6 +1844,8 @@ draw_keypad(void)
   }while (keypads[++i].c != KP_NONE);
 }
 
+static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
+
 static void
 draw_numeric_area_frame(void)
 {
@@ -1857,21 +1859,19 @@ draw_numeric_area_frame(void)
 static void
 draw_numeric_input(const char *buf)
 {
-  uint16_t i;
-  uint16_t x;
   bool focused = FALSE;
-  uint16_t xsim = 0b0010010000000000;
-
-  for (i = 0, x = 10 + 10 * FONT_WIDTH + 4; i < 11 && buf[i]; i++, xsim<<=1) {
-    uint16_t fg = LCD_INPUT_TEXT_COLOR;
-    uint16_t bg = LCD_INPUT_BG_COLOR;
-    int c = buf[i];
-    if (c == '.')
-      c = KP_PERIOD;
-    else if (c == '-')
-      c = KP_MINUS;
+  uint16_t x = 14 + 10 * FONT_WIDTH;
+  uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
+  uint16_t xsim = (0b00100100100100100 >>(2-(period_pos()%3)))&(~1);
+  int c;
+  while(*buf) {
+    c = *buf++;
+         if (c == '.'){c = KP_PERIOD;xsim<<=4;}
+    else if (c == '-'){c = KP_MINUS; xsim&=~3;}
     else// if (c >= '0' && c <= '9')
       c = c - '0';
+    uint16_t fg = LCD_INPUT_TEXT_COLOR;
+    uint16_t bg = LCD_INPUT_BG_COLOR;
 #ifdef UI_USE_NUMERIC_INPUT
     if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
       fg = LCD_SPEC_INPUT_COLOR;
@@ -1885,16 +1885,17 @@ draw_numeric_input(const char *buf)
     lcd_set_foreground(fg);
     lcd_set_background(bg);
     if (c < 0 && focused) c = 0;
-    if (c >= 0) // c is number
-      lcd_drawfont(c, x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4);
-    else        // erase
-      break;
-
-    x += xsim&0x8000 ? NUM_FONT_GET_WIDTH+2+8 : NUM_FONT_GET_WIDTH+2;
+    // Add space before char
+    int16_t space = xsim&1 ? 2 + 10 : 2;
+    xsim>>=1;
+    lcd_fill(x, y, space, NUM_FONT_GET_HEIGHT);
+    x+=space;
+    if (c < 0) continue; // c is number
+    lcd_drawfont(c, x, y);
+    x+=NUM_FONT_GET_WIDTH;
   }
-  // erase last
   lcd_set_background(LCD_INPUT_BG_COLOR);
-  lcd_fill(x, LCD_HEIGHT-NUM_INPUT_HEIGHT+4, NUM_FONT_GET_WIDTH+2+8, NUM_FONT_GET_WIDTH+2+8);
+  lcd_fill(x, y, NUM_FONT_GET_WIDTH+2+10, NUM_FONT_GET_HEIGHT);
 }
 
 static int
@@ -2070,7 +2071,7 @@ ui_mode_menu(void)
 }
 
 static void
-ui_process_menu_lever(int status)
+ui_process_menu_lever(uint16_t status)
 {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     menu_invoke(selection);
@@ -2177,7 +2178,7 @@ ui_mode_numeric(int _keypad_mode)
 }
 
 static void
-ui_process_numeric_lever(int status)
+ui_process_numeric_lever(uint16_t status)
 {
   if (status == EVT_BUTTON_SINGLE_CLICK) {
     status = btn_wait_release();
@@ -2290,8 +2291,6 @@ ui_mode_keypad(int _keypad_mode)
   draw_numeric_area_frame();
 }
 
-static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
-
 static int
 keypad_click(int key)
 {
@@ -2361,7 +2360,7 @@ keypad_apply_touch(int touch_x, int touch_y)
 }
 
 static void
-ui_process_keypad_lever(int status)
+ui_process_keypad_lever(uint16_t status)
 {
   if (status == EVT_BUTTON_SINGLE_CLICK){
     // Process input
@@ -2410,7 +2409,7 @@ ui_mode_normal(void)
 
 #define MARKER_SPEEDUP  (808 / POINTS_COUNT)
 static void
-lever_move_marker(int status)
+lever_move_marker(uint16_t status)
 {
   uint16_t step = 1<<MARKER_SPEEDUP;
   do {
@@ -2460,7 +2459,7 @@ step_round(uint32_t v)
 }
 
 static void
-lever_frequency(int status, int mode)
+lever_frequency(uint16_t status, int mode)
 {
   freq_t freq = get_sweep_frequency(mode);
   if (mode == ST_SPAN){
@@ -2479,7 +2478,7 @@ lever_frequency(int status, int mode)
 
 #define STEPRATIO 0.2
 static void
-lever_edelay(int status)
+lever_edelay(uint16_t status)
 {
   float value = electrical_delay;
   float ratio = value > 0 ?  STEPRATIO : -STEPRATIO;
@@ -2634,7 +2633,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
 }
 
 static void
-ui_process_normal_lever(int status)
+ui_process_normal_lever(uint16_t status)
 {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     ui_mode_menu();
@@ -2697,7 +2696,7 @@ normal_apply_touch(int touch_x, int touch_y){
 static void
 ui_process_lever(void)
 {
-  int status = btn_check();
+  uint16_t status = btn_check();
   if (status == 0) return;
   switch (ui_mode) {
     case UI_NORMAL: ui_process_normal_lever(status);  break;

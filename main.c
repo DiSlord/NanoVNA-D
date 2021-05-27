@@ -1372,8 +1372,6 @@ update_frequencies(bool interpolate)
 void
 set_sweep_frequency(int type, freq_t freq)
 {
-  int cal_applied = cal_status & CALSTAT_APPLY;
-
   // Check frequency for out of bounds (minimum SPAN can be any value)
   if (type != ST_SPAN && freq < START_MIN)
     freq = START_MIN;
@@ -1421,14 +1419,14 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = freq;
       break;
   }
-  update_frequencies(cal_applied);
+  update_frequencies(cal_status & CALSTAT_APPLY);
 }
 
 freq_t
 get_sweep_frequency(int type)
 {
   // Obsolete, ensure correct start/stop, start always must be < stop
-  if (frequency0 > frequency1) SWAP(uint32_t, frequency0, frequency1);
+  if (frequency0 > frequency1) SWAP(freq_t, frequency0, frequency1);
   switch (type) {
     case ST_START:  return frequency0;
     case ST_STOP:   return frequency1;
@@ -2729,7 +2727,6 @@ VNA_SHELL_FUNCTION(cmd_sd_list)
 
 VNA_SHELL_FUNCTION(cmd_sd_read)
 {
-  FRESULT res;
   char *buf = (char *)spi_buffer;
   if (argc != 1)
   {
@@ -2745,21 +2742,15 @@ VNA_SHELL_FUNCTION(cmd_sd_read)
     return;
   }
   // shell_printf("sd_read: %s\r\n", filename);
-
   // number of bytes to follow (file size)
-  const uint32_t filesize = f_size(fs_file);
+  uint32_t filesize = f_size(fs_file);
   streamWrite(shell_stream, (void *)&filesize, 4);
-
+  UINT size = 0;
   // file data (send all data from file)
-  while (1)
-  {
-    UINT size = 0;
-    res = f_read(fs_file, buf, 512, &size);
-    if (res != FR_OK || size == 0)
-      break;
+  while (f_read(fs_file, buf, 512, &size) == FR_OK && size > 0)
     streamWrite(shell_stream, (void *)buf, size);
-  }
-  res = f_close(fs_file);
+
+  f_close(fs_file);
   return;
 }
 
@@ -2792,9 +2783,12 @@ typedef struct {
 
 // Some commands can executed only in sweep thread, not in main cycle
 #define CMD_WAIT_MUTEX  1
+// Command execution need in sweep thread, and need break sweep for run
 #define CMD_BREAK_SWEEP 2
-// Command can run in shell thread if sweep thread process UI
+// Command can run in shell thread (if sweep thread process UI, not sweep)
 #define CMD_RUN_IN_UI   4
+// Command can run in load script
+#define CMD_RUN_IN_LOAD 8
 
 static const VNAShellCommand commands[] =
 {
@@ -2804,15 +2798,15 @@ static const VNAShellCommand commands[] =
 #endif
     {"data"        , cmd_data        , 0},
     {"frequencies" , cmd_frequencies , 0},
-    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"power"       , cmd_power       , 0},
+    {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"power"       , cmd_power       , CMD_RUN_IN_LOAD},
 #ifdef USE_VARIABLE_OFFSET
-    {"offset"      , cmd_offset      , CMD_WAIT_MUTEX|CMD_RUN_IN_UI},
+    {"offset"      , cmd_offset      , CMD_WAIT_MUTEX|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif
-    {"bandwidth"   , cmd_bandwidth   , 0},
+    {"bandwidth"   , cmd_bandwidth   , CMD_RUN_IN_LOAD},
 #ifdef __USE_RTC__
-    {"time"        , cmd_time        , 0},
+    {"time"        , cmd_time        , CMD_RUN_IN_UI},
 #endif
 #ifdef ENABLE_SD_CARD_CMD
     { "sd_list",   cmd_sd_list,   CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
@@ -2820,15 +2814,15 @@ static const VNAShellCommand commands[] =
     { "sd_delete", cmd_sd_delete, CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #ifdef __VNA_ENABLE_DAC__
-    {"dac"         , cmd_dac         , 0},
+    {"dac"         , cmd_dac         , CMD_RUN_IN_LOAD},
 #endif
-    {"saveconfig"  , cmd_saveconfig  , 0},
-    {"clearconfig" , cmd_clearconfig , 0},
+    {"saveconfig"  , cmd_saveconfig  , CMD_RUN_IN_LOAD},
+    {"clearconfig" , cmd_clearconfig , CMD_RUN_IN_LOAD},
 #ifdef ENABLED_DUMP_COMMAND
     {"dump"        , cmd_dump        , 0},
 #endif
 #ifdef ENABLE_PORT_COMMAND
-    {"port"        , cmd_port        , 0},
+    {"port"        , cmd_port        , CMD_RUN_IN_LOAD},
 #endif
 #ifdef ENABLE_STAT_COMMAND
     {"stat"        , cmd_stat        , CMD_WAIT_MUTEX},
@@ -2844,42 +2838,42 @@ static const VNAShellCommand commands[] =
 #endif
     {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
-    {"save"        , cmd_save        , 0},
-    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"trace"       , cmd_trace       , 0},
-    {"marker"      , cmd_marker      , 0},
-//  {"grid"        , cmd_grid        , 0},
-    {"edelay"      , cmd_edelay      , 0},
+    {"save"        , cmd_save        , CMD_RUN_IN_LOAD},
+    {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
+    {"marker"      , cmd_marker      , CMD_RUN_IN_LOAD},
+//  {"grid"        , cmd_grid        , CMD_RUN_IN_LOAD},
+    {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"vbat"        , cmd_vbat        , 0},
-    {"tcxo"        , cmd_tcxo        , 0},
-    {"reset"       , cmd_reset       , 0},
+    {"vbat"        , cmd_vbat        , CMD_RUN_IN_LOAD},
+    {"tcxo"        , cmd_tcxo        , CMD_RUN_IN_LOAD},
+    {"reset"       , cmd_reset       , CMD_RUN_IN_LOAD},
 #ifdef __USE_SMOOTH__
-    {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif
 #ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
-    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"usart"       , cmd_usart       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif
 #endif
 #ifdef ENABLE_VBAT_OFFSET_COMMAND
-    {"vbat_offset" , cmd_vbat_offset , 0},
+    {"vbat_offset" , cmd_vbat_offset , CMD_RUN_IN_LOAD},
 #endif
 #ifdef ENABLE_TRANSFORM_COMMAND
-    {"transform"   , cmd_transform   , 0},
+    {"transform"   , cmd_transform   , CMD_RUN_IN_LOAD},
 #endif
-    {"threshold"   , cmd_threshold   , 0},
+    {"threshold"   , cmd_threshold   , CMD_RUN_IN_LOAD},
     {"help"        , cmd_help        , 0},
 #ifdef ENABLE_INFO_COMMAND
     {"info"        , cmd_info        , 0},
 #endif
     {"version"     , cmd_version     , 0},
 #ifdef ENABLE_COLOR_COMMAND
-    {"color"       , cmd_color       , 0},
+    {"color"       , cmd_color       , CMD_RUN_IN_LOAD},
 #endif
 #ifdef ENABLE_I2C_COMMAND
     {"i2c"         , cmd_i2c         , CMD_WAIT_MUTEX},
@@ -3030,52 +3024,7 @@ static void shell_init_connection(void){
 }
 #endif
 
-//
-// Read command line from shell_stream
-//
-static int VNAShell_readLine(char *line, int max_size)
-{
-  // Read line from input stream
-  uint8_t c;
-  // Prepare I/O for shell_stream
-  PREPARE_STREAM;
-  char *ptr = line;
-  while (1) {
-    // Return 0 only if stream not active
-    if (streamRead(shell_stream, &c, 1) == 0)
-      return 0;
-    // Backspace or Delete
-    if (c == 8 || c == 0x7f) {
-      if (ptr != line) {
-        static const char backspace[] = {0x08, 0x20, 0x08, 0x00};
-        shell_printf(backspace);
-        ptr--;
-      }
-      continue;
-    }
-    // New line (Enter)
-    if (c == '\r') {
-      shell_printf(VNA_SHELL_NEWLINE_STR);
-      *ptr = 0;
-      return 1;
-    }
-    // Others (skip)
-    if (c < 0x20)
-      continue;
-    // Store
-    if (ptr < line + max_size - 1) {
-      streamPut(shell_stream, c); // Echo
-      *ptr++ = (char)c;
-    }
-  }
-  return 0;
-}
-
-//
-// Parse and run command line
-//
-static void VNAShell_executeLine(char *line)
-{
+static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
@@ -3093,35 +3042,77 @@ static void VNAShell_executeLine(char *line)
     if ((lp = ep) == NULL) break;
     // Argument limits check
     if (shell_nargs > VNA_SHELL_MAX_ARGUMENTS) {
-      shell_printf("too many arguments, max " define_to_STR(
-          VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
-      return;
+      shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
+      return NULL;
     }
     // Set zero at the end of string and continue check
     *lp++ = 0;
   }
-  if (shell_nargs == 0) return;
+  if (shell_nargs){
+    const VNAShellCommand *scp;
+    for (scp = commands; scp->sc_name != NULL; scp++)
+      if (get_str_index(scp->sc_name, shell_args[0]) == 0)
+        return scp;
+  }
+  return NULL;
+}
+
+//
+// Read command line from shell_stream
+//
+static int VNAShell_readLine(char *line, int max_size)
+{
+  // send backspace, space for erase, backspace again
+  char backspace[] = {0x08, 0x20, 0x08, 0x00};
+  uint8_t c;
+  // Prepare I/O for shell_stream
+  PREPARE_STREAM;
+  uint16_t j = 0;
+  // Return 0 only if stream not active
+  while (streamRead(shell_stream, &c, 1)) {
+    // Backspace or Delete
+    if (c == 0x08 || c == 0x7f) {
+      if (j > 0) {shell_printf(backspace); j--;}
+      continue;
+    }
+    // New line (Enter)
+    if (c == '\r') {
+      shell_printf(VNA_SHELL_NEWLINE_STR);
+      line[j] = 0;
+      return 1;
+    }
+    // Others (skip) or too long - skip
+    if (c < ' ' || j >= max_size - 1) continue;
+    streamPut(shell_stream, c); // Echo
+    line[j++] = (char)c;
+  }
+  return 0;
+}
+
+//
+// Parse and run command line
+//
+static void VNAShell_executeLine(char *line)
+{
   // Execute line
-  const VNAShellCommand *scp;
-  for (scp = commands; scp->sc_name != NULL; scp++) {
-    if (get_str_index(scp->sc_name, shell_args[0]) == 0) {
-      uint16_t cmd_flag = scp->flags;
-      // Skip wait mutex if process UI
-      if ((cmd_flag& CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
-      // Wait
-      if (cmd_flag & CMD_WAIT_MUTEX) {
-        shell_function = scp->sc_function;
-        if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
-        // Wait execute command in sweep thread
-        do {
-          chThdSleepMilliseconds(100);
-        } while (shell_function);
-        return;
-      }
-      scp->sc_function(shell_nargs - 1, &shell_args[1]);
-//    DEBUG_LOG(10, "ok");
+  const VNAShellCommand *scp = VNAShell_parceLine(line);
+  if (scp) {
+    uint16_t cmd_flag = scp->flags;
+    // Skip wait mutex if process UI
+    if ((cmd_flag& CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
+    // Wait
+    if (cmd_flag & CMD_WAIT_MUTEX) {
+      shell_function = scp->sc_function;
+      if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
+      // Wait execute command in sweep thread
+      do {
+        chThdSleepMilliseconds(10);
+      } while (shell_function);
       return;
     }
+    scp->sc_function(shell_nargs - 1, &shell_args[1]);
+//  DEBUG_LOG(10, "ok");
+    return;
   }
   shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
 }
@@ -3131,8 +3122,9 @@ static void VNAShell_executeLine(char *line)
 #error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
 #endif
 void sd_card_load_config(void){
-  FRESULT res = f_mount(fs_volume, "", 1);
-  if (res != FR_OK) return;
+  // Mount card
+  if (f_mount(fs_volume, "", 1) != FR_OK)
+    return;
 
   if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
     return;
@@ -3140,34 +3132,31 @@ void sd_card_load_config(void){
   char *buf = (char *)spi_buffer;
   UINT size = 0;
 
-  if (res == FR_OK){
-    char *ptr = shell_line;
-    while (1){
-      res = f_read(fs_file, buf, 512, &size);
-      if (res!= FR_OK || size == 0) break;
-      uint32_t i = 0;
-      while (i < size) {
-        uint8_t c = buf[i++];
-        // New line (Enter)
-        if (c == '\r') {
-//          ptr[0] = '\r';
-//          ptr[1] = '\n';
-//          ptr[2] = 0;
-//          shell_printf(shell_line);
-          ptr[0] = 0;
-          VNAShell_executeLine(shell_line);
-          ptr = shell_line;
-          continue;
-        }
-        // Others (skip)
-        if (c < 0x20) continue;
-        // Store
-        if (ptr < shell_line + VNA_SHELL_MAX_LENGTH - 1)
-          *ptr++ = (char)c;
+  uint16_t j = 0, i;
+  while (f_read(fs_file, buf, 512, &size) == FR_OK && size > 0){
+    i = 0;
+    while (i < size) {
+      uint8_t c = buf[i++];
+      // New line (Enter)
+      if (c == '\r') {
+//        shell_line[j  ] = '\r';
+//        shell_line[j+1] = '\n';
+//        shell_line[j+2] = 0;
+//        shell_printf(shell_line);
+        shell_line[j] = 0; j = 0;
+        const VNAShellCommand *scp = VNAShell_parceLine(shell_line);
+        if (scp && (scp->flags&CMD_RUN_IN_LOAD))
+          scp->sc_function(shell_nargs - 1, &shell_args[1]);
+        continue;
       }
+      // Others (skip)
+      if (c < 0x20) continue;
+      // Store
+      if (j < VNA_SHELL_MAX_LENGTH - 1)
+        shell_line[j++] = (char)c;
     }
   }
-  res = f_close(fs_file);
+  f_close(fs_file);
   return;
 }
 #endif
