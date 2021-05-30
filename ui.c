@@ -492,7 +492,7 @@ show_version(void)
   lcd_set_background(LCD_BG_COLOR);
 
   lcd_clear_screen();
-  uint16_t shift = 0b000100000;
+  uint16_t shift = 0b00010101000;
   lcd_drawstring_size(BOARD_NAME, x , y, 3);
   y+=FONT_GET_HEIGHT*3+3-5;
   while (info_about[i]) {
