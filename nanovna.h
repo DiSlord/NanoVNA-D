@@ -40,7 +40,7 @@
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
-//#define __SD_CARD_LOAD__
+#define __SD_CARD_LOAD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
