@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.62"
+#define VERSION "1.0.63"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -473,6 +473,7 @@ transform_domain(uint16_t ch_mask)
 // Shell commands output
 int shell_printf(const char *fmt, ...)
 {
+  if (shell_stream == NULL) return 0;
   va_list ap;
   int formatted_bytes;
   va_start(ap, fmt);
@@ -922,6 +923,7 @@ config_t config = {
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._lever_mode = LM_MARKER,
+  ._digit_separator = '.',
 };
 
 properties_t current_props;
@@ -2992,7 +2994,7 @@ static void shell_init_connection(void){
 
 #else
 // Only USB console, shell_stream always on USB
-#define PREPARE_STREAM
+#define PREPARE_STREAM shell_stream = (BaseSequentialStream *)&SDU1;
 
 // Check connection as Active, if no suspend input
 static bool shell_check_connect(void){
@@ -3020,7 +3022,7 @@ static void shell_init_connection(void){
 /*
  *  Set I/O stream SDU1 for shell
  */
-  shell_stream = (BaseSequentialStream *)&SDU1;
+  PREPARE_STREAM;
 }
 #endif
 
@@ -3129,6 +3131,8 @@ void sd_card_load_config(void){
   if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
     return;
 
+  // Disable shell output
+  shell_stream = NULL;
   char *buf = (char *)spi_buffer;
   UINT size = 0;
 
@@ -3157,6 +3161,7 @@ void sd_card_load_config(void){
     }
   }
   f_close(fs_file);
+  PREPARE_STREAM;
   return;
 }
 #endif

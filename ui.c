@@ -1184,6 +1184,18 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   ui_mode_normal();
 }
 
+#ifdef __DIGIT_SEPARATOR__
+static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = DIGIT_SEPARATOR == '.' ? " DOT '.'" : " COMMA ','";
+    return;
+  }
+  DIGIT_SEPARATOR = DIGIT_SEPARATOR == '.' ? ',' : '.';
+}
+#endif
+
 static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
@@ -1533,8 +1545,11 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_THRESHOLD,  "THRESHOLD\n%.10q",   menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
+#ifdef __DIGIT_SEPARATOR__
+  { MT_ADV_CALLBACK, 0,             "SEPARATOR\n%s",      menu_separator_acb },
+#endif
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG",       menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
   { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR\nCONFIG",      menu_config_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
@@ -1886,7 +1901,7 @@ draw_numeric_input(const char *buf)
     lcd_set_background(bg);
     if (c < 0 && focused) c = 0;
     // Add space before char
-    int16_t space = xsim&1 ? 2 + 10 : 2;
+    uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
     lcd_fill(x, y, space, NUM_FONT_GET_HEIGHT);
     x+=space;
@@ -2473,7 +2488,6 @@ lever_frequency(uint16_t status, int mode)
   }
   if (freq > STOP_MAX || freq < START_MIN) return;
   set_sweep_frequency(mode, freq);
-  while (btn_wait_release() != 0);
 }
 
 #define STEPRATIO 0.2
@@ -2696,6 +2710,7 @@ normal_apply_touch(int touch_x, int touch_y){
 static void
 ui_process_lever(void)
 {
+  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
   switch (ui_mode) {
