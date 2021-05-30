@@ -136,6 +136,7 @@ const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2021 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
+  "Donate support: https://paypal.me/DiSlord",
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
