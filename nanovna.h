@@ -40,7 +40,7 @@
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
-//#define __SD_CARD_LOAD__
+#define __SD_CARD_LOAD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
@@ -55,6 +55,8 @@
 //#define USE_FFT_WINDOW_BUFFER
 // Enable data smooth option
 #define __USE_SMOOTH__
+// Enable optional change digit separator for locales (dot or comma, need for correct work some external software)
+#define __DIGIT_SEPARATOR__
 // Enable DSP instruction (support only by Cortex M4 and higher)
 #ifdef ARM_MATH_CM4
 #define __USE_DSP__
@@ -702,6 +704,7 @@ typedef struct config {
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
   uint8_t  _lever_mode;
+  uint8_t  _digit_separator;
   uint32_t checksum;
 } config_t;
 
@@ -1067,6 +1070,12 @@ extern uint16_t lastsaveid;
 
 #define VNA_mode             config._vna_mode
 #define lever_mode           config._lever_mode
+
+#ifdef __DIGIT_SEPARATOR__
+#define DIGIT_SEPARATOR      config._digit_separator
+#else
+#define DIGIT_SEPARATOR      '.'
+#endif
 
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);

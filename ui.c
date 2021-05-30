@@ -1184,6 +1184,18 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   ui_mode_normal();
 }
 
+#ifdef __DIGIT_SEPARATOR__
+static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = DIGIT_SEPARATOR == '.' ? " DOT '.'" : " COMMA ','";
+    return;
+  }
+  DIGIT_SEPARATOR = DIGIT_SEPARATOR == '.' ? ',' : '.';
+}
+#endif
+
 static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
@@ -1533,8 +1545,11 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_THRESHOLD,  "THRESHOLD\n%.10q",   menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
+#ifdef __DIGIT_SEPARATOR__
+  { MT_ADV_CALLBACK, 0,             "SEPARATOR\n%s",      menu_separator_acb },
+#endif
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG",       menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
   { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR\nCONFIG",      menu_config_cb },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
@@ -1821,12 +1836,13 @@ static void drawMessageBox(char *header, char *text, uint32_t delay){
 }
 
 static void
-draw_keypad(void)
+draw_keypad(uint32_t mask)
 {
-  int i = 0;
+  int i;
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
-  do {
+  for(i = 0; keypads[i].c != KP_NONE; i++) {
+    if ((mask&(1<<i)) == 0) continue;
     if (i == selection){
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
@@ -1841,7 +1857,7 @@ draw_keypad(void)
     lcd_drawfont(keypads[i].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
-  }while (keypads[++i].c != KP_NONE);
+  }
 }
 
 static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
@@ -1886,7 +1902,7 @@ draw_numeric_input(const char *buf)
     lcd_set_background(bg);
     if (c < 0 && focused) c = 0;
     // Add space before char
-    int16_t space = xsim&1 ? 2 + 10 : 2;
+    uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
     lcd_fill(x, y, space, NUM_FONT_GET_HEIGHT);
     x+=space;
@@ -1989,7 +2005,7 @@ static const uint8_t button_icons[] = {
 };
 
 static void
-draw_menu_buttons(const menuitem_t *menu)
+draw_menu_buttons(const menuitem_t *menu, uint32_t mask)
 {
   uint16_t i, y;
   for (i = 0, y = 1; i < MENU_BUTTON_MAX; i++, y+=menu_button_height) {
@@ -1997,7 +2013,7 @@ draw_menu_buttons(const menuitem_t *menu)
       break;
     if (menu[i].type == MT_BLANK)
       continue;
-
+    if ((mask&(1<<i)) == 0) continue;
     button_t button;
     button.fg = LCD_MENU_TEXT_COLOR;
     button.icon = BUTTON_ICON_NONE;
@@ -2042,7 +2058,13 @@ draw_menu_buttons(const menuitem_t *menu)
 static void
 draw_menu(void)
 {
-  draw_menu_buttons(menu_stack[menu_current_level]);
+  draw_menu_buttons(menu_stack[menu_current_level], -1);
+}
+
+static void
+draw_menu_mask(uint32_t mask)
+{
+  draw_menu_buttons(menu_stack[menu_current_level], mask);
 }
 
 #if 0
@@ -2078,6 +2100,7 @@ ui_process_menu_lever(uint16_t status)
     return;
   }
   do {
+    uint32_t mask = 1<<selection;
     if (status & EVT_UP)
       selection++;
     if (status & EVT_DOWN)
@@ -2087,8 +2110,8 @@ ui_process_menu_lever(uint16_t status)
       ui_mode_normal();
       return;
     }
-    draw_menu();
-    chThdSleepMilliseconds(200);
+    draw_menu_mask(mask|(1<<selection));
+    chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
 
@@ -2103,11 +2126,12 @@ menu_apply_touch(int touch_x, int touch_y)
     if (menu[i].type == MT_BLANK)
       continue;
     if (y < touch_y && touch_y < y+menu_button_height && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
-   	  selection = i;
-   	  draw_menu();
-   	  touch_wait_release();
-   	  selection = -1;
-   	  menu_invoke(i);
+      uint32_t mask = (1<<i)|(1<<selection);
+      selection = i;
+      draw_menu_mask(mask);
+      touch_wait_release();
+      selection = -1;
+      menu_invoke(i);
       return;
     }
   }
@@ -2287,7 +2311,7 @@ ui_mode_keypad(int _keypad_mode)
   kp_index = 0;
   ui_mode = UI_KEYPAD;
   draw_menu();
-  draw_keypad();
+  draw_keypad(-1);
   draw_numeric_area_frame();
 }
 
@@ -2344,12 +2368,13 @@ keypad_apply_touch(int touch_x, int touch_y)
     int y = KP_GET_Y(keypads[i].y);
     if (x < touch_x && touch_x < x+KP_WIDTH && y < touch_y && touch_y < y+KP_HEIGHT) {
       // draw focus
+      uint32_t mask = (1<<i)|(1<<selection);
       selection = i;
-      draw_keypad();
+      draw_keypad(mask);
       touch_wait_release();
       // erase focus
       selection = -1;
-      draw_keypad();
+      draw_keypad(1<<i);
       // Exit loop on done or cancel
       if (keypad_click(i) != KP_CONTINUE)
         ui_mode_normal();
@@ -2374,12 +2399,13 @@ ui_process_keypad_lever(uint16_t status)
   for (keypads_last_index = 0; keypads[keypads_last_index+1].c != KP_NONE; keypads_last_index++)
     ;
   do {
+    uint32_t mask = 1<<selection;
     if ((status & EVT_DOWN) && --selection < 0)
       selection = keypads_last_index;
     if ((status & EVT_UP)   && ++selection > keypads_last_index)
         selection = 0;
-    draw_keypad();
-    chThdSleepMilliseconds(200);
+    draw_keypad(mask|(1<<selection));
+    chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
 //========================== end keyboard input =======================
@@ -2473,7 +2499,6 @@ lever_frequency(uint16_t status, int mode)
   }
   if (freq > STOP_MAX || freq < START_MIN) return;
   set_sweep_frequency(mode, freq);
-  while (btn_wait_release() != 0);
 }
 
 #define STEPRATIO 0.2
@@ -2696,6 +2721,7 @@ normal_apply_touch(int touch_x, int touch_y){
 static void
 ui_process_lever(void)
 {
+  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
   switch (ui_mode) {
