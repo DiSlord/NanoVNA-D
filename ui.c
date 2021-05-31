@@ -531,12 +531,11 @@ show_version(void)
   }
 }
 
+#ifdef __DFU_SOFTWARE_MODE__
 void
 enter_dfu(void)
 {
-#ifdef __DFU_SOFTWARE_MODE__
   touch_stop_watchdog();
-
   int x = 5, y = 20;
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
@@ -547,8 +546,8 @@ enter_dfu(void)
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
-#endif
 }
+#endif
 
 static bool
 select_lever_mode(int mode)
@@ -2721,7 +2720,7 @@ normal_apply_touch(int touch_x, int touch_y){
 static void
 ui_process_lever(void)
 {
-  last_button = 0;
+//  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
   switch (ui_mode) {
