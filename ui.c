@@ -1540,17 +1540,23 @@ const menuitem_t menu_connection[] = {
 };
 #endif
 
+const menuitem_t menu_clear[] = {
+  { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR ALL\nAND RESET", menu_config_cb },
+  { MT_CANCEL, 0, S_LARROW"CANCEL", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD,  "THRESHOLD\n%.10q",   menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.10q",   menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.9q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, 0,             "SEPARATOR\n%s",      menu_separator_acb },
+  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
 #endif
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG.INI",   menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
-  { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR\nCONFIG",      menu_config_cb },
+  { MT_SUBMENU, 0,                 "CLEAR\nCONFIG",      menu_clear },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
