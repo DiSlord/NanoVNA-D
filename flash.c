@@ -157,6 +157,7 @@ get_properties(uint32_t id)
 int
 caldata_recall(uint32_t id)
 {
+  lastsaveid = -1;
   // point to saved area on the flash memory
   const properties_t *src = get_properties(id);
   if (src == NULL){
@@ -180,7 +181,7 @@ caldata_reference(void)
 void
 clear_all_config_prop_data(void)
 {
-  lastsaveid = 0;
+  lastsaveid = -1;
   checksum_ok = 0;
   // unlock and erase flash pages
   flash_erase_pages(SAVE_CONFIG_ADDR, SAVE_FULL_AREA_SIZE);
