@@ -531,12 +531,11 @@ show_version(void)
   }
 }
 
+#ifdef __DFU_SOFTWARE_MODE__
 void
 enter_dfu(void)
 {
-#ifdef __DFU_SOFTWARE_MODE__
   touch_stop_watchdog();
-
   int x = 5, y = 20;
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
@@ -547,8 +546,8 @@ enter_dfu(void)
   // see __early_init in ./NANOVNA_STM32_F072/board.c
   *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
   NVIC_SystemReset();
-#endif
 }
+#endif
 
 static bool
 select_lever_mode(int mode)
@@ -644,7 +643,8 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       break;
 #ifdef __SD_CARD_LOAD__
   case MENU_CONFIG_LOAD:
-      sd_card_load_config();
+      if (!sd_card_load_config())
+        drawMessageBox("Error", "No config.ini", 2000);
       break;
 #endif
   }
@@ -1541,17 +1541,23 @@ const menuitem_t menu_connection[] = {
 };
 #endif
 
+const menuitem_t menu_clear[] = {
+  { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR ALL\nAND RESET", menu_config_cb },
+  { MT_CANCEL, 0, S_LARROW"CANCEL", NULL },
+  { MT_NONE, 0, NULL, NULL } // sentinel
+};
+
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD,  "THRESHOLD\n%.10q",   menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,       "TCXO\n%.9q",         menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,       "VBAT OFFSET\n %umV", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.10q",   menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.9q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, 0,             "SEPARATOR\n%s",      menu_separator_acb },
+  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
 #endif
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK, MENU_CONFIG_LOAD,  "LOAD\nCONFIG.INI",   menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
-  { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR\nCONFIG",      menu_config_cb },
+  { MT_SUBMENU, 0,                 "CLEAR\nCONFIG",      menu_clear },
   { MT_CANCEL, 0, S_LARROW" BACK", NULL },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
@@ -2721,7 +2727,7 @@ normal_apply_touch(int touch_x, int touch_y){
 static void
 ui_process_lever(void)
 {
-  last_button = 0;
+//  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
   switch (ui_mode) {

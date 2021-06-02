@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.63"
+#define VERSION "1.0.64"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -549,7 +549,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
 {
   (void)argc;
   (void)argv;
-
+#ifdef __DFU_SOFTWARE_MODE__
   if (argc == 1) {
     if (get_str_index(argv[0], "dfu") == 0) {
       shell_printf("Performing reset to DFU mode\r\n");
@@ -557,6 +557,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
       return;
     }
   }
+#endif
   shell_printf("Performing reset\r\n");
 
   rccEnableWWDG(FALSE);
@@ -622,14 +623,14 @@ my_atof(const char *p)
     neg = TRUE;
   if (*p == '-' || *p == '+')
     p++;
-  double x = my_atoi(p);
+  float x = my_atoi(p);
   while (_isdigit((int)*p))
     p++;
   if (*p == '.') {
-    double d = 1.0f;
+    float d = 1.0f;
     p++;
     while (_isdigit((int)*p)) {
-      d /= 10;
+      d /= 10.0f;
       x += d * (*p - '0');
       p++;
     }
@@ -3124,13 +3125,13 @@ static void VNAShell_executeLine(char *line)
 #ifndef __USE_SD_CARD__
 #error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
 #endif
-void sd_card_load_config(void){
+bool sd_card_load_config(void){
   // Mount card
   if (f_mount(fs_volume, "", 1) != FR_OK)
-    return;
+    return FALSE;
 
   if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
-    return;
+    return FALSE;
 
   // Disable shell output
   shell_stream = NULL;
@@ -3163,7 +3164,7 @@ void sd_card_load_config(void){
   }
   f_close(fs_file);
   PREPARE_STREAM;
-  return;
+  return TRUE;
 }
 #endif
 
