@@ -3125,13 +3125,13 @@ static void VNAShell_executeLine(char *line)
 #ifndef __USE_SD_CARD__
 #error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
 #endif
-void sd_card_load_config(void){
+bool sd_card_load_config(void){
   // Mount card
   if (f_mount(fs_volume, "", 1) != FR_OK)
-    return;
+    return FALSE;
 
   if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
-    return;
+    return FALSE;
 
   // Disable shell output
   shell_stream = NULL;
@@ -3164,7 +3164,7 @@ void sd_card_load_config(void){
   }
   f_close(fs_file);
   PREPARE_STREAM;
-  return;
+  return TRUE;
 }
 #endif
 

@@ -238,7 +238,7 @@ void load_default_properties(void);
 int  load_properties(uint32_t id);
 void set_sweep_points(uint16_t points);
 
-void sd_card_load_config(void);
+bool sd_card_load_config(void);
 
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
@@ -1036,7 +1036,8 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e51 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e52 /* 'CONF' */
+#define PROPS_MAGIC  0x434f4e51 /* 'CONF' */
 
 extern uint16_t lastsaveid;
 
