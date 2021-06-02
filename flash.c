@@ -127,7 +127,7 @@ caldata_save(uint32_t id)
     return -1;
 
   // Apply magic word and calculate checksum
-  current_props.magic = CONFIG_MAGIC;
+  current_props.magic = PROPS_MAGIC;
   current_props.checksum = checksum(&current_props, sizeof current_props - sizeof current_props.checksum);
 
   // write to flash
@@ -148,7 +148,7 @@ get_properties(uint32_t id)
   // Check crc cache mask (made it only 1 time)
   if (checksum_ok&(1<<id))
     return src;
-  if (src->magic != CONFIG_MAGIC || checksum(src, sizeof *src - sizeof src->checksum) != src->checksum)
+  if (src->magic != PROPS_MAGIC || checksum(src, sizeof *src - sizeof src->checksum) != src->checksum)
     return NULL;
   checksum_ok|=1<<id;
   return src;

@@ -643,7 +643,8 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       break;
 #ifdef __SD_CARD_LOAD__
   case MENU_CONFIG_LOAD:
-      sd_card_load_config();
+      if (!sd_card_load_config())
+        drawMessageBox("Error", "No config.ini", 2000);
       break;
 #endif
   }
