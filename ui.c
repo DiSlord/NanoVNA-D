@@ -1582,13 +1582,15 @@ static const menuitem_t *menu_next_item(const menuitem_t *m){
   return m->type == MT_NONE ? (menuitem_t *)m->reference : m;
 }
 
-static const menuitem_t *menu_item(const menuitem_t *m, int i){
+static const menuitem_t *current_menu_item(int i){
+  const menuitem_t *m = menu_stack[menu_current_level];
   while (i--) m = menu_next_item(m);
   return m;
 }
 
-static int menu_get_count(const menuitem_t *m){
+static int current_menu_get_count(void){
   int i = 0;
+  const menuitem_t *m = menu_stack[menu_current_level];
   while (m){m = menu_next_item(m); i++;}
   return i;
 }
@@ -1596,7 +1598,7 @@ static int menu_get_count(const menuitem_t *m){
 static void
 ensure_selection(void)
 {
-  int i = menu_get_count(menu_stack[menu_current_level]);
+  int i = current_menu_get_count();
   if (selection < 0)
     selection = -1;
   else if (selection >= i)
@@ -1640,7 +1642,7 @@ menu_move_top(void)
 static void
 menu_invoke(int item)
 {
-  const menuitem_t *menu = menu_item(menu_stack[menu_current_level], item);
+  const menuitem_t *menu = current_menu_item(item);
   if (menu == NULL) return;
   switch (menu->type) {
   case MT_CLOSE:
@@ -2089,7 +2091,7 @@ ui_process_menu_lever(uint16_t status)
     menu_invoke(selection);
     return;
   }
-  uint16_t count = menu_get_count(menu_stack[menu_current_level]);
+  uint16_t count = current_menu_get_count();
   do {
     uint32_t mask = 1<<selection;
     if (status & EVT_UP  ) selection++;
