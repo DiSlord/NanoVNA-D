@@ -47,16 +47,18 @@ float vna_sqrtf(float x);
 //================================
 // log
 float vna_logf(float x);
+float vna_log10f_x_10(float x);
 // atan
 float vna_atanf(float x);
 float vna_atan2f(float x, float y);
 #else
 // Use defaults math functions
-#define vna_fabsf    fabsf
-#define vna_sqrtf    sqrtf
-#define vna_logf     logf
-#define vna_atanf    atanf
-#define vna_atan2f   atan2f
+#define vna_fabsf        fabsf
+#define vna_sqrtf        sqrtf
+#define vna_logf         logf
+#define vna_log10f_x_10 (logf(x) * (10.0f / logf(10.0f)))
+#define vna_atanf        atanf
+#define vna_atan2f       atan2f
 #endif
 
 // fft

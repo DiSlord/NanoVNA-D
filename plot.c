@@ -268,42 +268,6 @@ rectangular_grid_y(int y)
   return 1;
 }
 
-#if 0
-int
-set_strut_grid(int x)
-{
-  uint16_t *buf = spi_buffer;
-  int y;
-
-  for (y = 0; y < HEIGHT; y++) {
-    int c = rectangular_grid(x, y);
-    c |= smith_grid(x, y);
-    *buf++ = c;
-  }
-  return y;
-}
-
-void
-draw_on_strut(int v0, int d, int color)
-{
-  int v;
-  int v1 = v0 + d;
-  if (v0 < 0) v0 = 0;
-  if (v1 < 0) v1 = 0;
-  if (v0 >= HEIGHT) v0 = HEIGHT-1;
-  if (v1 >= HEIGHT) v1 = HEIGHT-1;
-  if (v0 == v1) {
-    v = v0; d = 2;
-  } else if (v0 < v1) {
-    v = v0; d = v1 - v0 + 1;
-  } else {
-    v = v1; d = v0 - v1 + 1;
-  }
-  while (d-- > 0)
-    spi_buffer[v++] |= color;
-}
-#endif
-
 /*
  * calculate log10(abs(gamma))
  */ 
@@ -312,7 +276,8 @@ logmag(const float *v)
 {
   float x = v[0]*v[0] + v[1]*v[1];
 //  return log10f(x) *  10.0f;
-  return vna_logf(x) * (10.0f / logf(10.0f));
+//  return vna_logf(x) * (10.0f / logf(10.0f));
+  return vna_log10f_x_10(x);
 }
 
 /*
@@ -649,7 +614,7 @@ static void
 invalidate_rect_func(int x0, int y0, int x1, int y1)
 {
   int x, y;
-  map_t *map = &markmap[current_mappage][0];
+  map_t *map = markmap[current_mappage];
   for (y = y0; y <= y1; y++)
     if ((uint32_t)y < MAX_MARKMAP_Y)
       for (x = x0; x <= x1; x++)
