@@ -508,7 +508,7 @@ float vna_cbrtf(float x)
 //**********************************************************************************
 float vna_logf(float x)
 {
-   #define MULTIPLIER 0.69314718f  // logf(2.0f)
+  const float MULTIPLIER = logf(2.0f);
 #if 0
   // Give up to 0.006 error (2.5x faster original code)
   union {float f; int32_t i;} u = {x};
@@ -577,6 +577,27 @@ float vna_logf(float x)
 #endif
 }
 
+float vna_log10f_x_10(float x)
+{
+  const float MULTIPLIER = (10.0f * logf(2.0f) / logf(10.0f));
+#if 0
+  // Give up to 0.006 error (2.5x faster original code)
+  union {float f; int32_t i;} u = {x};
+  const int      log_2 = ((u.i >> 23) & 255) - 128;
+  if (u.i <=0) return (x-x)/0.0f;             // if <=0 return NAN
+  u.i = (u.i&0x007FFFFF) + 0x3F800000;
+  u.f = ((-1.0f/3) * u.f + 2) * u.f - (2.0f/3); // (1)
+  return (u.f + log_2) * MULTIPLIER;
+#else
+  // Give up to 0.0001 error (2x faster original code)
+  // fast log2f approximation, give 0.0004 error
+  union { float f; uint32_t i; } vx = { x };
+  union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
+  // if <=0 return NAN
+  if (vx.i <=0) return (x-x)/0.0f;
+  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
+#endif
+}
 //**********************************************************************************
 // atanf
 //**********************************************************************************
