@@ -614,11 +614,12 @@ static void
 invalidate_rect_func(int x0, int y0, int x1, int y1)
 {
   int x, y;
+  if (y0 < 0            ) y0 = 0;
+  if (y1 >=MAX_MARKMAP_Y) y1 = MAX_MARKMAP_Y-1;
   map_t *map = markmap[current_mappage];
   for (y = y0; y <= y1; y++)
-    if ((uint32_t)y < MAX_MARKMAP_Y)
-      for (x = x0; x <= x1; x++)
-        map[y]|= 1 << x;
+    for (x = x0; x <= x1; x++)
+      map[y]|= 1 << x;
 }
 #define invalidate_rect(x0, y0, x1, y1) invalidate_rect_func((x0)/CELLWIDTH, (y0)/CELLHEIGHT, (x1)/CELLWIDTH, (y1)/CELLHEIGHT)
 
@@ -1838,4 +1839,5 @@ void
 plot_init(void)
 {
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  draw_all(true);
 }

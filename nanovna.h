@@ -406,6 +406,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Maximum menu buttons count
 #define MENU_BUTTON_MAX        16
 #define MENU_BUTTON_MIN         8
+// Menu buttons y offset
+#define MENU_BUTTON_Y_OFFSET    1
 // Menu buttons size
 #define MENU_BUTTON_WIDTH      66
 #define MENU_BUTTON_HEIGHT(n)  (AREA_HEIGHT_NORMAL/(n))
@@ -490,6 +492,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Maximum menu buttons count
 #define MENU_BUTTON_MAX        16
 #define MENU_BUTTON_MIN         8
+// Menu buttons y offset
+#define MENU_BUTTON_Y_OFFSET    1
 // Menu buttons size
 #define MENU_BUTTON_WIDTH      84
 #define MENU_BUTTON_HEIGHT(n)  (AREA_HEIGHT_NORMAL/(n))

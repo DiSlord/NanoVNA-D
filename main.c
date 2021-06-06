@@ -227,6 +227,18 @@ static THD_FUNCTION(Thread1, arg)
 {
   (void)arg;
   chRegSetThreadName("sweep");
+/*
+ * UI (menu, touch, buttons) and plot initialize
+ */
+  ui_init();
+  //Initialize graph plotting
+  plot_init();
+/*
+ * Set LCD display brightness
+ */
+#ifdef  __LCD_BRIGHTNESS__
+  lcd_setBrightness(config._brightness);
+#endif
 
   while (1) {
     bool completed = false;
@@ -3310,25 +3322,11 @@ int main(void)
 #endif
 
 /*
- * UI (menu, touch, buttons) and plot initialize
- */
-  ui_init();
-  //Initialize graph plotting
-  plot_init();
-
-/*
  * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
  */
 #ifdef  __VNA_ENABLE_DAC__
   dacStart(&DACD2, &dac1cfg1);
   dacPutChannelX(&DACD2, 0, config.dac_value);  // Set config DAC value
-#endif
-
-/*
- * Set LCD display brightness
- */
-#ifdef  __LCD_BRIGHTNESS__
-  lcd_setBrightness(config._brightness);
 #endif
 
 /*
