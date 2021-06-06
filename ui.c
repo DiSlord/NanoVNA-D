@@ -1072,15 +1072,32 @@ static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
 }
 #endif
 
+#ifdef USE_VARIABLE_OFFSET_MENU
+static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
+{
+  int32_t offset = (data+1) * FREQUENCY_OFFSET_STEP;
+  if (b){
+    b->icon = si5351_get_frequency_offset() == offset ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = offset;
+    return;
+  }
+  si5351_set_frequency_offset(offset);
+}
+#endif
+
 #ifdef __LCD_BRIGHTNESS__
-static UI_FUNCTION_CALLBACK(menu_brightness_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 {
   (void)data;
+  if (b){
+    b->p1.u = config._brightness;
+    return;
+  }
   int16_t value = config._brightness;
   lcd_set_foreground(LCD_MENU_TEXT_COLOR);
   lcd_set_background(LCD_MENU_COLOR);
   lcd_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
-  lcd_drawstring(LCD_WIDTH/2-35, LCD_HEIGHT/2-13, "BRIGHTNESS");
+  lcd_printf(LCD_WIDTH/2-50, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
   lcd_drawstring(LCD_WIDTH/2-72, LCD_HEIGHT/2+2, S_LARROW" USE LEVELER BUTTON "S_RARROW);
   while (TRUE) {
     uint16_t status = btn_check();
@@ -1090,9 +1107,9 @@ static UI_FUNCTION_CALLBACK(menu_brightness_cb)
         if (status & EVT_DOWN) value-=5;
         if (value <   0) value =   0;
         if (value > 100) value = 100;
+        lcd_printf(LCD_WIDTH/2-50, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
         lcd_setBrightness(value);
-        status = btn_wait_release();
-      } while (status != 0);
+      } while ((status = btn_wait_release()) != 0);
     }
     if (status == EVT_BUTTON_SINGLE_CLICK)
       break;
@@ -1526,10 +1543,27 @@ const menuitem_t menu_clear[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
+#ifdef USE_VARIABLE_OFFSET_MENU
+const menuitem_t menu_offset[] = {
+  { MT_ADV_CALLBACK, 0, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 1, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 2, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 3, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 4, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 5, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 6, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 7, "%dHz", menu_offset_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
 const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.10q",   menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.9q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
+#ifdef USE_VARIABLE_OFFSET_MENU
+  { MT_SUBMENU, 0,                 "IF OFFSET",          menu_offset },
+#endif
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
 #endif
@@ -1550,7 +1584,7 @@ const menuitem_t menu_config[] = {
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
-  { MT_CALLBACK,                      0, "BRIGHTNESS",    menu_brightness_cb },
+  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n %d%%%%", menu_brightness_acb },
 #endif
 #ifdef __DFU_SOFTWARE_MODE__
   { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
