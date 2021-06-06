@@ -1222,15 +1222,14 @@ static inline uint8_t SD_ReadR1(uint32_t cnt) {
 static inline bool SD_WaitDataToken(uint8_t token, uint32_t wait_time) {
   uint8_t res;
   uint32_t time = chVTGetSystemTimeX();
-  uint32_t count = 0;
+  uint8_t count = 0;
   do{
     if ((res = spi_RxByte()) == token)
       return true;
     count++;
-    // Check timeout only every 65536 bytes read (~50ms interval)
-    if ((count&0xFFFF) == 0)
-      if ((chVTGetSystemTimeX() - time) > wait_time)
-        break;
+    // Check timeout only every 256 bytes read (~8ms)
+    if (count == 0 && (chVTGetSystemTimeX() - time) > wait_time)
+      break;
   }while (res == 0xFF);
   return false;
 }
@@ -1246,15 +1245,14 @@ static inline uint8_t SD_WaitDataAccept(uint32_t cnt) {
 static uint8_t SD_WaitNotBusy(uint32_t wait_time) {
   uint8_t res;
   uint32_t time = chVTGetSystemTimeX();
-  uint32_t count = 0;
+  uint8_t count = 0;
   do{
     if ((res = spi_RxByte()) == 0xFF)
       return res;
     count++;
-    // Check timeout only every 65536 bytes read (~50ms interval)
-    if ((count&0xFFFF) == 0)
-      if ((chVTGetSystemTimeX() - time) > wait_time)
-        break;
+    // Check timeout only every 256 bytes read (~8ms)
+    if (count == 0 && (chVTGetSystemTimeX() - time) > wait_time)
+      break;
   }while (1);
   return 0;
 }
@@ -1379,9 +1377,6 @@ static void SD_PowerOn(void) {
   // Set SD card to idle state
   if (SD_SendCmd(CMD0, 0) == SD_R1_IDLE)
     Stat|= STA_POWER_ON;
-  else{
-    Stat = STA_NOINIT;
-  }
   SD_Unselect_SPI();
 }
 
@@ -1417,8 +1412,11 @@ DSTATUS disk_initialize(BYTE pdrv) {
   total_time = chVTGetSystemTimeX();
 #endif
   if (pdrv != 0) return STA_NOINIT;
+  // Start init SD card
+  Stat = STA_NOINIT;
   // power on, try detect on bus, set card to idle state
   SD_PowerOn();
+  if (!SD_CheckPower()) return Stat;
   // check disk type
   uint8_t  type = 0;
   uint32_t cnt = 100;
@@ -1488,11 +1486,9 @@ DSTATUS disk_initialize(BYTE pdrv) {
   SD_Unselect_SPI();
   CardType = type;
   DEBUG_PRINT("CardType %d\r\n", type);
-  // Clear STA_NOINIT and set Power on
-  if (type){
-    Stat&= ~STA_NOINIT;
-    Stat|=  STA_POWER_ON;
-  }
+  // Clear STA_NOINIT
+  if (type)
+    Stat&=~STA_NOINIT;
   else // Initialization failed
     SD_PowerOff();
   return Stat;
