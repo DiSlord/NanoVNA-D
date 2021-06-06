@@ -1653,16 +1653,14 @@ menu_invoke(int item)
     menu_move_back(false);
     break;
 
-  case MT_CALLBACK: {
-    menuaction_cb_t cb = (menuaction_cb_t)menu->reference;
-    if (cb) (*cb)(menu->data);
+  case MT_CALLBACK:
+    if (menu->reference) ((menuaction_cb_t)menu->reference)(menu->data);
     break;
-  }
-  case MT_ADV_CALLBACK: {
-    menuaction_acb_t cb = (menuaction_acb_t)menu->reference;
-    if (cb) (*cb)(menu->data, NULL);
+
+  case MT_ADV_CALLBACK:
+    if (menu->reference) ((menuaction_acb_t)menu->reference)(menu->data, NULL);
     break;
-  }
+
   case MT_SUBMENU:
     menu_push_submenu((const menuitem_t*)menu->reference);
     break;
@@ -2003,8 +2001,9 @@ static const uint8_t button_icons[] = {
 static void
 draw_menu_buttons(const menuitem_t *m, uint32_t mask)
 {
-  int i, y;
-  for (i = 0, y = 1; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
+  int i;
+  int y = MENU_BUTTON_Y_OFFSET;
+  for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
     if ((mask&(1<<i)) == 0) continue;
     button_t button;
     button.fg = LCD_MENU_TEXT_COLOR;
@@ -2018,11 +2017,11 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
       button.bg = LCD_MENU_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
-    char *text;
     // Custom button, apply custom settings/label from callback
+    char *text;
+    uint16_t text_offs;
     if (m->type == MT_ADV_CALLBACK){
-      menuaction_acb_t cb = (menuaction_acb_t)m->reference;
-      if (cb) (*cb)(m->data, &button);
+      if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
       // Apply custom text, from button label and
       if (m->label != MT_CUSTOM_LABEL)
         plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
@@ -2030,13 +2029,16 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     }
     else
       text = m->label;
+    // Draw button
     draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
-    uint16_t text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
-
+    // Draw icon if need (and add extra shift for text)
     if (button.icon >=0){
       lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
-      text_offs=LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER+1+ICON_WIDTH;
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 1 + ICON_WIDTH;
     }
+    else
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
+    // Draw button text
     int lines = menu_is_multiline(text);
     lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
   }
@@ -2109,10 +2111,9 @@ ui_process_menu_lever(uint16_t status)
 static void
 menu_apply_touch(int touch_x, int touch_y)
 {
-  const menuitem_t *m = menu_stack[menu_current_level];
-  int i, y;
-  for (i = 0, y = 1; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
-    if (y < touch_y && touch_y < y+menu_button_height && LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+  if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
+    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
       uint32_t mask = (1<<i)|(1<<selection);
       selection = i;
       draw_menu_mask(mask);

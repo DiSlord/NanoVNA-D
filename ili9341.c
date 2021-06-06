@@ -524,7 +524,7 @@ void lcd_init(void)
   for (p = LCD_INIT; *p; ) {
     ili9341_send_command(p[0], p[1], &p[2]);
     p += 2 + p[1];
-    chThdSleepMilliseconds(5);
+    chThdSleepMilliseconds(2);
   }
   lcd_clear_screen();
 }
