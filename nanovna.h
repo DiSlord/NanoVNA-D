@@ -92,8 +92,10 @@
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
 #define USE_VARIABLE_OFFSET
+//#define USE_VARIABLE_OFFSET_MENU
 
 #if AUDIO_ADC_FREQ_K == 768
+#define FREQUENCY_OFFSET_STEP    16000
 // For 768k ADC    (16k step for 48 samples)
 #define FREQUENCY_IF_K          8    // only  96 samples and variable table
 //#define FREQUENCY_IF_K         12  // only 192 samples and variable table
@@ -103,6 +105,7 @@
 //#define FREQUENCY_IF_K         64
 
 #elif AUDIO_ADC_FREQ_K == 384
+#define FREQUENCY_OFFSET_STEP    4000
 // For 384k ADC    (8k step for 48 samples)
 //#define FREQUENCY_IF_K          8
 #define FREQUENCY_IF_K         12  // only 96 samples and variable table
@@ -112,6 +115,7 @@
 //#define FREQUENCY_IF_K         32
 
 #elif AUDIO_ADC_FREQ_K == 192
+#define FREQUENCY_OFFSET_STEP    4000
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
 //#define FREQUENCY_IF_K          8
 #define FREQUENCY_IF_K         12
@@ -121,6 +125,7 @@
 //#define FREQUENCY_IF_K         28
 
 #elif AUDIO_ADC_FREQ_K == 96
+#define FREQUENCY_OFFSET_STEP    2000
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 //#define FREQUENCY_IF_K          6
 //#define FREQUENCY_IF_K          8
@@ -128,6 +133,7 @@
 #define FREQUENCY_IF_K         12
 
 #elif AUDIO_ADC_FREQ_K == 48
+#define FREQUENCY_OFFSET_STEP    1000
 // For 48k ADC (sin_cos table in dsp.c generated for 3k, 4k, 5k, 6k, if change need create new table )
 //#define FREQUENCY_IF_K          3
 //#define FREQUENCY_IF_K          4

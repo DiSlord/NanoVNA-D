@@ -79,11 +79,19 @@ uint32_t si5351_get_frequency(void)
   return current_freq;
 }
 
+#ifdef USE_VARIABLE_OFFSET
 void si5351_set_frequency_offset(int32_t offset)
 {
   si5351_reset_cache();
+  generate_DSP_Table(offset);
   current_offset = offset;
 }
+
+int32_t si5351_get_frequency_offset(void)
+{
+  return current_offset;
+}
+#endif
 
 void si5351_set_power(uint8_t drive_strength){
   if (drive_strength == current_power) return;

@@ -682,9 +682,7 @@ VNA_SHELL_FUNCTION(cmd_offset)
     shell_printf("usage: offset {frequency offset(Hz)}\r\n");
     return;
   }
-  int32_t offset = my_atoi(argv[0]);
-  generate_DSP_Table(offset);
-  si5351_set_frequency_offset(offset);
+  si5351_set_frequency_offset(my_atoi(argv[0]));
 }
 #endif
 
@@ -3259,7 +3257,7 @@ int main(void)
   chSysInit();
 
 #ifdef USE_VARIABLE_OFFSET
-  generate_DSP_Table(FREQUENCY_OFFSET);
+  si5351_set_frequency_offset(FREQUENCY_OFFSET);
 #endif
 
 /*
