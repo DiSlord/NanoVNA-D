@@ -245,14 +245,15 @@ static char *ftoaS(char *p, float num, int16_t precision) {
  *
  * @api
  */
-#define IS_LONG             1
-#define LEFT_ALIGN          2
-#define POSITIVE            4
-#define NEGATIVE            8
-#define PAD_ZERO            16
-#define PLUS_SPACE          32
-#define DEFAULT_PRESCISION  64
-#define COMPLEX             128
+#define IS_LONG             0x0001
+#define LEFT_ALIGN          0x0002
+#define POSITIVE            0x0004
+#define NEGATIVE            0x0008
+#define PAD_ZERO            0x0010
+#define PLUS_SPACE          0x0020
+#define DEFAULT_PRESCISION  0x0040
+#define COMPLEX             0x0080
+#define SHORT_FLOAT         0x0100
 
 int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
   char *p, *s, c, filler=' ';
@@ -304,6 +305,8 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       else if (*fmt == ' ')
         state|=PLUS_SPACE;
 #endif
+      else if (*fmt == 'b')
+        state|=SHORT_FLOAT;
       else
         break;
       fmt++;
@@ -390,7 +393,10 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
 #if CHPRINTF_USE_FLOAT
     case 'F':
     case 'f':
-      value.f = va_arg(ap, double);
+      if (state & SHORT_FLOAT)
+        value.u = va_arg(ap, uint32_t);
+      else
+        value.f = va_arg(ap, double);
       if (value.f < 0) {
         state|=NEGATIVE;
         *p++ = '-';

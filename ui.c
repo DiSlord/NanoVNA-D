@@ -131,6 +131,7 @@ typedef struct {
   union {
     int32_t  i;
     uint32_t u;
+    float    f;
     const char *text;
   } p1;        // void data for label printf
   char label[32];
@@ -740,7 +741,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
   if (current_trace == TRACE_INVALID) {if (b) b->p1.text = ""; return;}
   int ch = trace[current_trace].channel;
   if (b){
-    b->p1.text = ch == 0 ? " S11 (REFL)" : " S21 (THRU)";
+    b->p1.text = ch == 0 ? "S11 (REFL)" : "S21 (THRU)";
     return;
   }
   set_trace_channel(current_trace, ch^1);
@@ -748,12 +749,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
 {
+  char *text = "";
+  switch(props_mode & TD_WINDOW){
+    case TD_WINDOW_MINIMUM: text = "MINIMUM"; data = TD_WINDOW_NORMAL;  break;
+    case TD_WINDOW_NORMAL:  text = "NORMAL";  data = TD_WINDOW_MAXIMUM; break;
+    case TD_WINDOW_MAXIMUM: text = "MAXIMUM"; data = TD_WINDOW_MINIMUM; break;
+  }
   if(b){
-    b->icon = (props_mode & TD_WINDOW) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.text = text;
     return;
   }
   props_mode = (props_mode & ~TD_WINDOW) | data;
-  ui_mode_normal();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
@@ -765,7 +771,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   }
   props_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
-  ui_mode_normal();
+//  ui_mode_normal();
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
@@ -775,7 +781,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
     return;
   }
   props_mode = (props_mode & ~TD_FUNC) | data;
-  ui_mode_normal();
+//  ui_mode_normal();
+}
+
+const menuitem_t menu_bandwidth[];
+static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.u = get_bandwidth_frequency(config._bandwidth);
+    return;
+  }
+  menu_push_submenu(menu_bandwidth);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
@@ -810,6 +827,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
 }
 #endif
 
+const menuitem_t menu_sweep_points[];
+static UI_FUNCTION_ADV_CALLBACK(menu_points_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.u = sweep_points;
+    return;
+  }
+  menu_push_submenu(menu_sweep_points);
+}
+
 static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
 static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 {
@@ -820,6 +848,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
     return;
   }
   set_sweep_points(p_count);
+}
+
+const menuitem_t menu_power[];
+static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
+{
+  (void)data;
+  if (b){
+    if (current_props._power == SI5351_CLK_DRIVE_STRENGTH_AUTO)
+      plot_printf(b->label, sizeof(b->label), "POWER  AUTO");
+    else
+      plot_printf(b->label, sizeof(b->label), "POWER  %umA", 2+current_props._power*2);
+    return;
+  }
+  menu_push_submenu(menu_power);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
@@ -838,11 +880,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
     data = KM_SCALEDELAY;
   if (b){
     switch(data){
+//    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
       case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
       case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n %.6qHz" : "JOG STEP\n AUTO", var_freq); break;
       case KM_XTAL:            b->p1.u = config._xtal_freq; break;
       case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
       case KM_VBAT:            b->p1.u = config._vbat_offset; break;
+      case KM_EDELAY:          b->p1.f = electrical_delay * 1E-12; break;
     }
     return;
   }
@@ -1283,11 +1327,11 @@ const menuitem_t menu_power[] = {
 };
 
 const menuitem_t menu_cal[] = {
-  { MT_SUBMENU,      0, "CALIBRATE", menu_calop },
-  { MT_SUBMENU,      0, "POWER",     menu_power },
-  { MT_SUBMENU,      0, "SAVE",      menu_save },
-  { MT_CALLBACK,     0, "RESET",     menu_cal_reset_cb },
-  { MT_ADV_CALLBACK, 0, "APPLY",     menu_cal_apply_acb },
+  { MT_SUBMENU,      0, "CALIBRATE",     menu_calop },
+  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
+  { MT_SUBMENU,      0, "SAVE",          menu_save },
+  { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
+  { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1324,7 +1368,7 @@ const menuitem_t menu_format[] = {
 const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "ELECTRICAL\nDELAY",   menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n %b.7Fs",    menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
@@ -1341,19 +1385,12 @@ const menuitem_t menu_channel[] = {
 };
 #endif
 
-const menuitem_t menu_transform_window[] = {
-  { MT_ADV_CALLBACK, TD_WINDOW_MINIMUM, "MINIMUM", menu_transform_window_acb },
-  { MT_ADV_CALLBACK, TD_WINDOW_NORMAL,   "NORMAL", menu_transform_window_acb },
-  { MT_ADV_CALLBACK, TD_WINDOW_MAXIMUM, "MAXIMUM", menu_transform_window_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
 const menuitem_t menu_transform[] = {
-  { MT_ADV_CALLBACK, 0, "TRANSFORM\nON", menu_transform_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE", menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP, "LOW PASS\nSTEP", menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_BANDPASS, "BANDPASS", menu_transform_filter_acb },
-  { MT_SUBMENU, 0, "WINDOW", menu_transform_window },
+  { MT_ADV_CALLBACK, 0,                       "TRANSFORM\n ON",     menu_transform_acb },
+  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
+  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
+  { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
+  { MT_ADV_CALLBACK, 0,                       "WINDOW\n  %s",       menu_transform_window_acb },
   { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR %d%%%%", menu_keyboard_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1400,14 +1437,14 @@ const menuitem_t menu_smooth_count[] = {
 #endif
 
 const menuitem_t menu_display[] = {
-  { MT_SUBMENU, 0, "TRACE", menu_trace },
-  { MT_SUBMENU, 0, "FORMAT", menu_format },
-  { MT_SUBMENU, 0, "SCALE", menu_scale },
-  { MT_ADV_CALLBACK, 0, "CHANNEL\n%s", menu_channel_acb },
-  { MT_SUBMENU, 0, "TRANSFORM", menu_transform },
-  { MT_SUBMENU, 0, "BANDWIDTH", menu_bandwidth },
+  { MT_SUBMENU,      0, "TRACE",             menu_trace },
+  { MT_SUBMENU,      0, "FORMAT",            menu_format },
+  { MT_SUBMENU,      0, "SCALE",             menu_scale },
+  { MT_ADV_CALLBACK, 0, "CHANNEL\n %s",      menu_channel_acb },
+  { MT_SUBMENU,      0, "TRANSFORM",         menu_transform },
+  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n  %uHz", menu_bandwidth_sel_acb },
 #ifdef __USE_SMOOTH__
-  { MT_SUBMENU, 0, "DATA\nSMOOTH", menu_smooth_count },
+  { MT_SUBMENU,      0, "DATA\nSMOOTH",      menu_smooth_count },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1430,13 +1467,13 @@ const menuitem_t menu_sweep_points[] = {
 };
 
 const menuitem_t menu_stimulus[] = {
-  { MT_ADV_CALLBACK, KM_START,  "START",       menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_STOP,   "STOP",        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_CENTER, "CENTER",      menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",     menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VAR,  MT_CUSTOM_LABEL, menu_keyboard_acb },
-  { MT_SUBMENU,      0, "SWEEP\nPOINTS", menu_sweep_points },
+  { MT_ADV_CALLBACK, KM_START,  "START",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_STOP,   "STOP",          menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_CENTER, "CENTER",        menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP\nPOINTS %u",  menu_points_sel_acb },
   { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
