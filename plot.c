@@ -1838,6 +1838,6 @@ request_to_redraw(uint8_t mask)
 void
 plot_init(void)
 {
-  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   draw_all(true);
 }

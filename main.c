@@ -1356,11 +1356,7 @@ set_frequencies(freq_t start, freq_t stop, uint16_t points)
   freq_t f = start, df = step>>1;
   for (i = 0; i <= step; i++, f+=delta) {
     frequencies[i] = f;
-    df+=error;
-    if (df >=step) {
-      f++;
-      df -= step;
-    }
+    if ((df+=error) >= step) {f++; df-= step;}
   }
   // disable at out of sweep range
   for (; i < POINTS_COUNT; i++)
