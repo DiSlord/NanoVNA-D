@@ -1256,6 +1256,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 }
 #endif
 
+#if STORED_TRACES > 0
+static UI_FUNCTION_CALLBACK(menu_store_trace_cb)
+{
+  storeCurrentTrace(data);
+}
+
+static UI_FUNCTION_CALLBACK(menu_clean_trace_cb)
+{
+  disableStoredTrace(data);
+}
+#endif
+
 // Back button submenu list
 static const menuitem_t menu_back[] = {
   { MT_CANCEL,   0, S_LARROW" BACK", NULL },
@@ -1340,6 +1352,14 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
+#if STORED_TRACES > 0
+  { MT_CALLBACK,     0, "STORE SLOT", menu_store_trace_cb},
+  { MT_CALLBACK,     0, "CLEAN SLOT", menu_clean_trace_cb},
+#endif
+#if STORED_TRACES > 1
+  { MT_CALLBACK,     1, "STORE SLOT 1", menu_store_trace_cb},
+  { MT_CALLBACK,     1, "CLEAN SLOT 1", menu_clean_trace_cb},
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
