@@ -57,6 +57,8 @@
 #define __USE_SMOOTH__
 // Enable optional change digit separator for locales (dot or comma, need for correct work some external software)
 #define __DIGIT_SEPARATOR__
+// Use table for frequency list (if disabled use real time calc)
+//#define __USE_FREQ_TABLE__
 // Enable DSP instruction (support only by Cortex M4 and higher)
 #ifdef ARM_MATH_CM4
 #define __USE_DSP__
@@ -180,7 +182,6 @@ typedef uint32_t freq_t;
 #endif
 
 extern float measured[2][POINTS_COUNT][2];
-extern freq_t frequencies[POINTS_COUNT];
 
 #define CAL_LOAD  0
 #define CAL_OPEN  1
@@ -220,6 +221,8 @@ void cal_done(void);
 enum stimulus_type {
   ST_START=0, ST_STOP, ST_CENTER, ST_SPAN, ST_CW
 };
+
+freq_t getFrequency(uint16_t idx);
 
 void   set_marker_index(int m, int idx);
 freq_t get_marker_frequency(int marker);
@@ -275,7 +278,7 @@ extern const char *info_about[];
 #define DELAY_BAND_3_4           US2ST( 160)   // 1 Delay for bands 3-4
 #define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
 #define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
-#define DELAY_SWEEP_START        US2ST( 500)   // 4 Delay at sweep start
+#define DELAY_SWEEP_START        US2ST(2000)   // 4 Delay at sweep start
 // Delay after before/after set new PLL values in ms
 #define DELAY_RESET_PLL_BEFORE            0    // 5    0 (0 for disabled)
 #define DELAY_RESET_PLL_AFTER          2000    // 6 4000 (0 for disabled)

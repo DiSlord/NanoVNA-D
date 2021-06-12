@@ -121,7 +121,6 @@ static uint16_t p_sweep = 0;
 static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 // Sweep measured data
 float measured[2][POINTS_COUNT][2];
-freq_t frequencies[POINTS_COUNT];
 
 //Buffer for fast apply FFT window function
 #ifdef USE_FFT_WINDOW_BUFFER
@@ -129,7 +128,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.64"
+#define VERSION "1.0.65"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1092,8 +1091,9 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
+  int bar_start = 0;
   for (; p_sweep < sweep_points; p_sweep++) {
-    freq_t frequency = frequencies[p_sweep];
+    freq_t frequency = getFrequency(p_sweep);
     delay = set_frequency(frequency);
     // CH0:REFLECTION, reset and begin measure
     if (ch_mask & SWEEP_CH0_MEASURE){
@@ -1123,13 +1123,17 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask)
     if (electrical_delay != 0) apply_edelay(ch_mask, p_sweep, frequency);
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
-// Display SPI made noise on measurement (can see in CW mode)
-    if (config._bandwidth >= BANDWIDTH_100)
-      lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, (p_sweep * WIDTH)/(sweep_points-1), 1);
+// Display SPI made noise on measurement (can see in CW mode), use reduced update
+    if (config._bandwidth >= BANDWIDTH_100){
+      int current_bar =  (p_sweep * WIDTH)/(sweep_points-1);
+      lcd_fill(OFFSETX+CELLOFFSETX + bar_start, OFFSETY, current_bar - bar_start, 1);
+      bar_start = current_bar;
+    }
   }
-  lcd_set_background(LCD_GRID_COLOR);
-  if (config._bandwidth >= BANDWIDTH_100)
-    lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, WIDTH, 1);
+  if (bar_start){
+    lcd_set_background(LCD_GRID_COLOR);
+    lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
+  }
   // Apply calibration at end if need
   if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
     uint16_t start_sweep;
@@ -1253,7 +1257,7 @@ VNA_SHELL_FUNCTION(cmd_scan)
   uint32_t old_cal_status = cal_status;
   if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
   // Rebuild frequency table if need
-  if (frequencies[0]!=start || frequencies[points-1]!=stop){
+  if (getFrequency(0)!=start || getFrequency(points-1)!=stop){
     set_frequencies(start, stop, points);
     if (cal_status & CALSTAT_APPLY)
       cal_interpolate();
@@ -1271,14 +1275,14 @@ VNA_SHELL_FUNCTION(cmd_scan)
       streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
       streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
       for (i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) streamWrite(shell_stream, (void *)&frequencies[i],    sizeof(freq_t));    // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_FREQ ) {freq_t f = getFrequency(i); streamWrite(shell_stream, (void *)&f, sizeof(freq_t));}    // 4 bytes .. frequency
         if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
         if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
       }
     }
     else{
       for (i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", frequencies[i]);
+        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", getFrequency(i));
         if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
         if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
         shell_printf("\r\n");
@@ -1307,7 +1311,7 @@ void set_marker_index(int m, int idx)
 {
   if (m == MARKER_INVALID || (uint32_t)idx >= sweep_points) return;
   markers[m].index = idx;
-  markers[m].frequency = frequencies[idx];
+  markers[m].frequency = getFrequency(idx);
 }
 
 freq_t get_marker_frequency(int marker)
@@ -1345,6 +1349,11 @@ update_marker_index(void)
   }
 }
 
+/*
+ * Frequency list functions
+ */
+#ifdef __USE_FREQ_TABLE__
+static freq_t frequencies[POINTS_COUNT];
 static void
 set_frequencies(freq_t start, freq_t stop, uint16_t points)
 {
@@ -1356,16 +1365,30 @@ set_frequencies(freq_t start, freq_t stop, uint16_t points)
   freq_t f = start, df = step>>1;
   for (i = 0; i <= step; i++, f+=delta) {
     frequencies[i] = f;
-    df+=error;
-    if (df >=step) {
-      f++;
-      df -= step;
-    }
+    if ((df+=error) >= step) {f++; df-= step;}
   }
   // disable at out of sweep range
   for (; i < POINTS_COUNT; i++)
     frequencies[i] = 0;
 }
+freq_t getFrequency(uint16_t idx) {return frequencies[idx];}
+#else
+static freq_t   _f_start;
+static freq_t   _f_delta;
+static freq_t   _f_error;
+static uint16_t _f_step;
+
+static void
+set_frequencies(freq_t start, freq_t stop, uint16_t points)
+{
+  freq_t span = stop - start;
+  _f_start = start;
+  _f_step  = (points - 1);
+  _f_delta = span / _f_step;
+  _f_error = span % _f_step;
+}
+freq_t getFrequency(uint16_t idx) {return _f_start + _f_delta * idx + (_f_step / 2 + _f_error * idx) / _f_step;}
+#endif
 
 static void
 update_frequencies(bool interpolate)
@@ -1861,7 +1884,7 @@ cal_interpolate(void)
     return;
 
   // Upload not interpolated if some
-  if (frequencies[0] == src->_frequency0 && frequencies[src->_sweep_points-1] == src->_frequency1){
+  if (getFrequency(0) == src->_frequency0 && getFrequency(src->_sweep_points-1) == src->_frequency1){
     memcpy(current_props._cal_data, src->_cal_data, sizeof(src->_cal_data));
     cal_status = src->_cal_status;
     request_to_redraw(REDRAW_CAL_STATUS);
@@ -1870,7 +1893,7 @@ cal_interpolate(void)
   uint32_t src_f = src->_frequency0;
   // lower than start freq of src range
   for (i = 0; i < sweep_points; i++) {
-    if (frequencies[i] >= src_f)
+    if (getFrequency(i) >= src_f)
       break;
 
     // fill cal_data at head of src range
@@ -1888,7 +1911,7 @@ cal_interpolate(void)
   freq_t df = src_points>>1;
   j = 0;
   for (; i < sweep_points; i++) {
-    freq_t f = frequencies[i];
+    freq_t f = getFrequency(i);
     if (f == 0) goto interpolate_finish;
     for (; j < src_points; j++) {
       if (src_f <= f && f < src_f + delta) {
@@ -2288,8 +2311,7 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
   (void)argc;
   (void)argv;
   for (i = 0; i < sweep_points; i++) {
-    if (frequencies[i] == 0) break;
-    shell_printf("%u\r\n", frequencies[i]);
+    shell_printf("%u\r\n", getFrequency(i));
   }
 }
 
