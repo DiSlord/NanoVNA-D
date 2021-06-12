@@ -1228,7 +1228,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
     }
     // Write all points data
     for (i = 0; i < sweep_points && res == FR_OK; i++) {
-      size = plot_printf(buf, 128, s_file_format, frequencies[i], measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+      size = plot_printf(buf, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
 //      total_size+=size;
       res = f_write(fs_file, buf, size, &size);
     }

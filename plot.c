@@ -499,7 +499,7 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
   case MS_RLC:
     zr = resistance(coeff);
     zi = reactance(coeff);
-    frequency = frequencies[idx];
+    frequency = getFrequency(idx);
     if (zi < 0) {// Capacity
       format = "%F"S_OHM" %FF";
       zi = -1 / (2 * VNA_PI * frequency * zi);

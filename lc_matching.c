@@ -166,15 +166,16 @@ static void lc_match_process(void)
     return;
 
   const uint32_t index = current_props._markers[am].index;
-  if (index >= sweep_points || frequencies[index] == 0)
+  if (index >= sweep_points)
     return;
 
   // Made calculation only one time for current sweep and frequency
-  if (lc_match_array.sweep_n == sweep_count && lc_match_array.Hz == frequencies[index])
+  freq_t freq =  getFrequency(index);
+  if (lc_match_array.sweep_n == sweep_count && lc_match_array.Hz == freq)
     return;
 
   lc_match_array.R0 = 50.0f;
-  lc_match_array.Hz = frequencies[index];
+  lc_match_array.Hz = freq;
   lc_match_array.sweep_n = sweep_count;
 
   // compute the possible LC matches
