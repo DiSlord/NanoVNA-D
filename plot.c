@@ -65,7 +65,7 @@ typedef struct {
   uint16_t y;
   uint16_t x;
 } index_t;
-static index_t trace_index[TRACES_MAX][POINTS_COUNT];
+static index_t trace_index[TRACE_INDEX_COUNT][POINTS_COUNT];
 
 #if 1
 // All used in plot v > 0
@@ -623,14 +623,33 @@ invalidate_rect_func(int x0, int y0, int x1, int y1)
 }
 #define invalidate_rect(x0, y0, x1, y1) invalidate_rect_func((x0)/CELLWIDTH, (y0)/CELLHEIGHT, (x1)/CELLWIDTH, (y1)/CELLHEIGHT)
 
+#if STORED_TRACES > 0
+static uint8_t enabled_store_trace = 0;
+void storeCurrentTrace(int idx){
+  if (current_trace == TRACE_INVALID) return;
+  memcpy(trace_index[TRACES_MAX + idx], trace_index[current_trace], sizeof(trace_index[0]));
+  enabled_store_trace|=1<<idx;
+}
+
+void disableStoredTrace(int idx){
+  enabled_store_trace&=~(1<<idx);
+}
+#else
+#define enabled_store_trace 0
+#endif
+
 static void
 mark_cells_from_index(void)
 {
   int t, i, j;
   /* mark cells between each neighbor points */
   map_t *map = &markmap[current_mappage][0];
-  for (t = 0; t < TRACES_MAX; t++) {
-    if (!trace[t].enabled)
+  for (t = 0; t < TRACE_INDEX_COUNT; t++) {
+    if (t < TRACES_MAX){
+      if (!trace[t].enabled)
+        continue;
+    }
+    else if ((enabled_store_trace & (1<<(t-TRACES_MAX))) == 0)
       continue;
     index_t *index = trace_index[t];
     int m0 = index[0].x / CELLWIDTH;
@@ -1332,9 +1351,11 @@ draw_cell(int m, int n)
   c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
   // Generate grid type list
   uint32_t trace_type = 0;
+  int t_count = 0;
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
+      t_count++;
     }
   }
   const int step = (VNA_mode & VNA_MODE_DOT_GRID) ? 2 : 1;
@@ -1380,11 +1401,13 @@ draw_cell(int m, int n)
 // Draw traces (50-600 system ticks for all screen calls, depend from lines
 // count and size)
 #if 1
-  int t_count = 0;
-  for (t = 0; t < TRACES_MAX; t++) {
-    if (!trace[t].enabled)
+  for (t = 0; t < TRACE_INDEX_COUNT; t++) {
+    if (t < TRACES_MAX){
+      if (!trace[t].enabled)
+        continue;
+    }
+    else if ((enabled_store_trace & (1<<(t-TRACES_MAX))) == 0)
       continue;
-    t_count++;
     c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     index_t *index = trace_index[t];
     i0 = i1 = 0;

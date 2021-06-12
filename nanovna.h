@@ -685,7 +685,10 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
 
-#define TRACES_MAX 4
+#define STORED_TRACES  0
+#define TRACES_MAX     4
+#define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
+
 typedef struct trace {
   uint8_t enabled;
   uint8_t type;
@@ -772,6 +775,9 @@ void set_area_size(uint16_t w, uint16_t h);
 
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
+
+void storeCurrentTrace(int idx);
+void disableStoredTrace(int idx);
 
 // Marker search functions
 #define MK_SEARCH_LEFT    -1
@@ -874,17 +880,19 @@ typedef uint16_t pixel_t;
 #define LCD_TRACE_2_COLOR        7
 #define LCD_TRACE_3_COLOR        8
 #define LCD_TRACE_4_COLOR        9
-#define LCD_NORMAL_BAT_COLOR    10
-#define LCD_LOW_BAT_COLOR       11
-#define LCD_SPEC_INPUT_COLOR    12
-#define LCD_RISE_EDGE_COLOR     13
-#define LCD_FALLEN_EDGE_COLOR   14
-#define LCD_SWEEP_LINE_COLOR    15
-#define LCD_BW_TEXT_COLOR       16
-#define LCD_INPUT_TEXT_COLOR    17
-#define LCD_INPUT_BG_COLOR      18
-#define LCD_LC_MATCH_COLOR      19
-#define LCD_GRID_VALUE_COLOR    20
+#define LCD_TRACE_5_COLOR       10
+#define LCD_TRACE_6_COLOR       11
+#define LCD_NORMAL_BAT_COLOR    12
+#define LCD_LOW_BAT_COLOR       13
+#define LCD_SPEC_INPUT_COLOR    14
+#define LCD_RISE_EDGE_COLOR     15
+#define LCD_FALLEN_EDGE_COLOR   16
+#define LCD_SWEEP_LINE_COLOR    17
+#define LCD_BW_TEXT_COLOR       18
+#define LCD_INPUT_TEXT_COLOR    19
+#define LCD_INPUT_BG_COLOR      20
+#define LCD_LC_MATCH_COLOR      21
+#define LCD_GRID_VALUE_COLOR    22
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -897,6 +905,8 @@ typedef uint16_t pixel_t;
 [LCD_TRACE_2_COLOR    ] = RGB565(  0,255,255), \
 [LCD_TRACE_3_COLOR    ] = RGB565(  0,255,  0), \
 [LCD_TRACE_4_COLOR    ] = RGB565(255,  0,255), \
+[LCD_TRACE_5_COLOR    ] = RGB565(255,  0,  0), \
+[LCD_TRACE_6_COLOR    ] = RGB565(  0,  0,255), \
 [LCD_NORMAL_BAT_COLOR ] = RGB565( 31,227,  0), \
 [LCD_LOW_BAT_COLOR    ] = RGB565(255,  0,  0), \
 [LCD_SPEC_INPUT_COLOR ] = RGB565(128,255,128), \
@@ -1049,7 +1059,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e52 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e53 /* 'CONF' */
 #define PROPS_MAGIC  0x434f4e51 /* 'CONF' */
 
 extern uint16_t lastsaveid;
