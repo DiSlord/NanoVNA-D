@@ -1376,18 +1376,18 @@ freq_t getFrequency(uint16_t idx) {return frequencies[idx];}
 static freq_t   _f_start;
 static freq_t   _f_delta;
 static freq_t   _f_error;
-static uint16_t _f_step;
+static uint16_t _f_points;
 
 static void
 set_frequencies(freq_t start, freq_t stop, uint16_t points)
 {
   freq_t span = stop - start;
-  _f_start = start;
-  _f_step  = (points - 1);
-  _f_delta = span / _f_step;
-  _f_error = span % _f_step;
+  _f_start  = start;
+  _f_points = (points - 1);
+  _f_delta  = span / _f_points;
+  _f_error  = span % _f_points;
 }
-freq_t getFrequency(uint16_t idx) {return _f_start + _f_delta * idx + (_f_step / 2 + _f_error * idx) / _f_step;}
+freq_t getFrequency(uint16_t idx) {return _f_start + _f_delta * idx + (_f_points / 2 + _f_error * idx) / _f_points;}
 #endif
 
 static void
@@ -1872,6 +1872,7 @@ cal_done(void)
   cal_status&=~CALSTAT_INTERPOLATED;
   cal_status|= CALSTAT_APPLY;
   request_to_redraw(REDRAW_CAL_STATUS);
+  lastsaveid = NO_SAVE_SLOT;
 }
 
 static void
@@ -1897,7 +1898,7 @@ cal_interpolate(void)
       break;
 
     // fill cal_data at head of src range
-    for (eterm = 0; eterm < 5; eterm++) {
+    for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
       cal_data[eterm][i][0] = src->_cal_data[eterm][0][0];
       cal_data[eterm][i][1] = src->_cal_data[eterm][0][1];
     }
@@ -1938,7 +1939,7 @@ cal_interpolate(void)
           }
         }
         float k0 = 1.0 - k1;
-        for (eterm = 0; eterm < 5; eterm++) {
+        for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
           cal_data[eterm][i][0] = src->_cal_data[eterm][idx][0] * k0 + src->_cal_data[eterm][idx+1][0] * k1;
           cal_data[eterm][i][1] = src->_cal_data[eterm][idx][1] * k0 + src->_cal_data[eterm][idx+1][1] * k1;
         }
@@ -1954,7 +1955,7 @@ cal_interpolate(void)
   // upper than end freq of src range
   for (; i < sweep_points; i++) {
     // fill cal_data at tail of src
-    for (eterm = 0; eterm < 5; eterm++) {
+    for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
       cal_data[eterm][i][0] = src->_cal_data[eterm][src_points][0];
       cal_data[eterm][i][1] = src->_cal_data[eterm][src_points][1];
     }
