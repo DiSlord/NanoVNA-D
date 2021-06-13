@@ -183,11 +183,12 @@ typedef uint32_t freq_t;
 
 extern float measured[2][POINTS_COUNT][2];
 
-#define CAL_LOAD  0
-#define CAL_OPEN  1
-#define CAL_SHORT 2
-#define CAL_THRU  3
-#define CAL_ISOLN 4
+#define CAL_TYPE_COUNT  5
+#define CAL_LOAD        0
+#define CAL_OPEN        1
+#define CAL_SHORT       2
+#define CAL_THRU        3
+#define CAL_ISOLN       4
 
 #define CALSTAT_LOAD (1<<0)
 #define CALSTAT_OPEN (1<<1)
@@ -685,7 +686,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
 
-#define STORED_TRACES  0
+#define STORED_TRACES  1
 #define TRACES_MAX     4
 #define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
 
@@ -741,7 +742,7 @@ typedef struct properties {
   uint8_t  _power;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
-  float    _cal_data[5][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
+  float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
 
@@ -1062,6 +1063,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 #define CONFIG_MAGIC 0x434f4e53 /* 'CONF' */
 #define PROPS_MAGIC  0x434f4e51 /* 'CONF' */
 
+#define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;
 
 #define frequency0          current_props._frequency0

@@ -1754,6 +1754,7 @@ draw_cal_status(void)
   if (cal_status & CALSTAT_APPLY) {
     // Set 'C' string for slot status
     char c[4] = {'C', '0' + lastsaveid, 0, 0};
+    if (lastsaveid == NO_SAVE_SLOT) c[1] = '*';
     if (cal_status & CALSTAT_INTERPOLATED){lcd_set_foreground(LCD_NORMAL_BAT_COLOR); c[0] = 'c';}
     lcd_drawstring(x, y, c);
   }
