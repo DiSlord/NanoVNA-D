@@ -915,8 +915,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
   (void)data;
   if (b){
-    b->p1.text = sweep_mode&SWEEP_ENABLE ? "PAUSE" : "RESUME";
-    b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
+    b->p1.text = sweep_mode&SWEEP_ENABLE ? "" : "\nPAUSED";
+    b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
   sweep_mode^= SWEEP_ENABLE;
@@ -1494,7 +1494,7 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP\nPOINTS %u",  menu_points_sel_acb },
-  { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP%s",       menu_pause_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 

@@ -93,7 +93,7 @@ endif
 #
 
 # Define project name here
-PROJECT = ch
+PROJECT = NanoVNA-D
 
 # Imported source files and paths
 #CHIBIOS = ../ChibiOS-RT
@@ -238,7 +238,7 @@ else
  UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 
 endif
 #Enable if use RTC and need auto select source LSE or LSI
-UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
+#UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
 #Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU and no VNA_AUTO_SELECT_RTC_SOURCE
 #UDEFS+= -DVNA_USE_LSE
 
@@ -261,11 +261,11 @@ ULIBS = -lm
 RULESPATH = $(CHIBIOS)/os/common/startup/ARMCMx/compilers/GCC
 include $(RULESPATH)/rules.mk
 
-flash: build/ch.bin
-	dfu-util -d 0483:df11 -a 0 -s 0x08000000:leave -D build/ch.bin
+flash: build/$(PROJECT).bin
+	dfu-util -d 0483:df11 -a 0 -s 0x08000000:leave -D build/$(PROJECT).bin
 
 dfu:
-	-@printf "reset dfu\r" >/dev/cu.usbmodem401
+	-@printf "\rreset dfu\r" >/dev/ttyACM0 && sleep 1
 
 TAGS: Makefile
 ifeq ($(TARGET),F303)

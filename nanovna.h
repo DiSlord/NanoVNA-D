@@ -36,15 +36,15 @@
 // Allow enter to DFU from menu or command
 #define __DFU_SOFTWARE_MODE__
 // Add RTC clock support
-#define __USE_RTC__
+// #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
-#define __USE_SD_CARD__
+// #define __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
 #ifdef __USE_SD_CARD__
 #define __SD_CARD_LOAD__
 #endif
 // If enabled serial in halconf.h, possible enable serial console control
-#define __USE_SERIAL_CONSOLE__
+// #define __USE_SERIAL_CONSOLE__
 // Add LC match function
 #define __USE_LC_MATCHING__
 // Add show y grid line values option
@@ -60,7 +60,7 @@
 // Enable optional change digit separator for locales (dot or comma, need for correct work some external software)
 #define __DIGIT_SEPARATOR__
 // Use table for frequency list (if disabled use real time calc)
-//#define __USE_FREQ_TABLE__
+#define __USE_FREQ_TABLE__
 // Enable DSP instruction (support only by Cortex M4 and higher)
 #ifdef ARM_MATH_CM4
 #define __USE_DSP__
@@ -70,7 +70,7 @@
  * main.c
  */
 // Minimum frequency set
-#define START_MIN                800
+#define START_MIN                1000
 // Maximum frequency set
 #define STOP_MAX                 2700000000U
 // Frequency threshold (max frequency for si5351, harmonic mode after)

@@ -10,3 +10,9 @@ python
 TAGS
 .emacs-dirvars
 *png
+*.bak
+*.diff
+*.new
+*.old
+*.orig
+*.patch
