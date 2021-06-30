@@ -1165,6 +1165,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 }
 #endif
 
+// Back button submenu list
+static const menuitem_t menu_back[] = {
+  { MT_CANCEL,   0, S_LARROW" BACK", NULL },
+  { MT_NONE,     0, NULL, NULL } // sentinel
+};
+
 #ifdef __USE_SD_CARD__
 #define SAVE_S1P_FILE  1
 #define SAVE_S2P_FILE  2
@@ -1244,6 +1250,13 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   ui_mode_normal();
 }
 
+static const menuitem_t menu_sdcard[] = {
+  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
+  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
+  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
 #ifdef __DIGIT_SEPARATOR__
 static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 {
@@ -1266,19 +1279,6 @@ static UI_FUNCTION_CALLBACK(menu_clean_trace_cb)
 {
   disableStoredTrace(data);
 }
-#endif
-
-// Back button submenu list
-static const menuitem_t menu_back[] = {
-  { MT_CANCEL,   0, S_LARROW" BACK", NULL },
-  { MT_NONE,     0, NULL, NULL } // sentinel
-};
-
-static const menuitem_t menu_sdcard[] = {
-  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
-  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
-  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
-};
 #endif
 
 static const menuitem_t menu_calop[] = {

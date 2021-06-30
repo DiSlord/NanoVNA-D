@@ -97,7 +97,9 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable usart command
 #define ENABLE_USART_COMMAND
 // Enable SD card console command
+#ifdef __USE_SD_CARD__
 #define ENABLE_SD_CARD_CMD
+#endif
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
