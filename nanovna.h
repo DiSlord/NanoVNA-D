@@ -40,7 +40,9 @@
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
+#ifdef __USE_SD_CARD__
 #define __SD_CARD_LOAD__
+#endif
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
 // Add LC match function
@@ -607,6 +609,7 @@ extern const uint8_t numfont16x22[];
 #define S_LARROW   "\032"  // hex 0x1A
 #define S_RARROW   "\033"  // hex 0x1B
 #define S_PI       "\034"  // hex 0x1C
+#define C_MICRO    '\035'  // hex 0x1D as char
 #define S_MICRO    "\035"  // hex 0x1D
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
