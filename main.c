@@ -3153,7 +3153,8 @@ static void VNAShell_executeLine(char *line)
 //  DEBUG_LOG(10, "ok");
     return;
   }
-  shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
+  if (**shell_args) // unknown command (not empty), ignore <CR>
+    shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
 }
 
 #ifdef __SD_CARD_LOAD__
