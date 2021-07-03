@@ -326,7 +326,7 @@ static void adc_lld_serve_interrupt(ADCDriver *adcp, uint32_t isr) {
  *
  * @isr
  */
-__attribute__((weak)) OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) { // HACK DiSlord #1
+__attribute__((weak)) OSAL_IRQ_HANDLER(STM32_ADC1_HANDLER) {
   uint32_t isr;
 
   OSAL_IRQ_PROLOGUE();
@@ -855,7 +855,7 @@ void adc_lld_stop_conversion(ADCDriver *adcp) {
  */
 void adcSTM32EnableVREF(ADCDriver *adcp) {
 
-  adcp->adcc->CCR |= ADC_CCR_VBATEN;
+  adcp->adcc->CCR |= ADC12_CCR_VREFEN;
 }
 
 /**
@@ -870,7 +870,7 @@ void adcSTM32EnableVREF(ADCDriver *adcp) {
  */
 void adcSTM32DisableVREF(ADCDriver *adcp) {
 
-  adcp->adcc->CCR &= ~ADC_CCR_VBATEN;
+  adcp->adcc->CCR &= ~ADC12_CCR_VREFEN;
 }
 
 /**

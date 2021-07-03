@@ -51,6 +51,7 @@ uint32_t SystemCoreClock = STM32_HCLK;
  * @note    WARNING! Changing clock source impossible without resetting
  *          of the whole BKP domain.
  */
+#ifndef STM32_NO_BACKUP_DOMAIN_INIT
 static void hal_lld_backup_domain_init(void) {
 
   /* Backup domain access enabled and left open.*/
@@ -88,6 +89,7 @@ static void hal_lld_backup_domain_init(void) {
   }
 #endif /* STM32_RTCSEL != STM32_RTCSEL_NOCLOCK */
 }
+#endif
 
 /*===========================================================================*/
 /* Driver interrupt handlers.                                                */
@@ -111,9 +113,10 @@ void hal_lld_init(void) {
 
   /* PWR clock enabled.*/
   rccEnablePWRInterface(FALSE);
-
   /* Initializes the backup domain.*/
+#ifndef STM32_NO_BACKUP_DOMAIN_INIT
   hal_lld_backup_domain_init();
+#endif
 
 #if defined(STM32_DMA_REQUIRED)
   dmaInit();
