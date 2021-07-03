@@ -411,7 +411,7 @@ static const struct {
 [TRC_PHASE]  = {"%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, phase        },
 [TRC_DELAY]  = {"%.4Fs",        "%.4Fs",               NULL         }, // Custom
 [TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
-[TRC_POLAR]  = {"%.2f%+.2fj",   "%.2f%+.2fj",          NULL         }, // Custom
+[TRC_POLAR]  = {"%.2f%+j.2f",   "%.2f%+j.2f",          NULL         }, // Custom
 [TRC_LINEAR] = {"%.4f",         S_DELTA"%.3f",         linear       },
 [TRC_SWR]    = {"%.3f",         S_DELTA"%.3f",         swr          },
 [TRC_REAL]   = {"%.4f",         S_DELTA"%.3f",         real         },
