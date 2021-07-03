@@ -172,12 +172,13 @@ static int16_t last_touch_y;
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
+static void draw_menu(uint32_t mask);
 static void ui_mode_keypad(int _keypad_mode);
-static void draw_menu(void);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
-static void drawMessageBox(char *header, char *text, uint32_t delay);
+
+void drawMessageBox(char *header, char *text, uint32_t delay);
 
 #ifdef UI_USE_NUMERIC_INPUT
 static void ui_mode_numeric(int _keypad_mode);
@@ -591,6 +592,7 @@ static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
   (void)data;
   // RESET
   cal_status = 0;
+  lastsaveid = NO_SAVE_SLOT;
   set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
 }
 
@@ -771,7 +773,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   }
   props_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
-//  ui_mode_normal();
+  request_to_redraw(REDRAW_FREQUENCY);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
@@ -1243,6 +1245,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
+#endif
 
 #ifdef __DIGIT_SEPARATOR__
 static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
@@ -1257,14 +1260,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 #endif
 
 #if STORED_TRACES > 0
-static UI_FUNCTION_CALLBACK(menu_store_trace_cb)
+static UI_FUNCTION_CALLBACK(menu_stored_trace_cb)
 {
-  storeCurrentTrace(data);
-}
-
-static UI_FUNCTION_CALLBACK(menu_clean_trace_cb)
-{
-  disableStoredTrace(data);
+  if (data & 1)
+    disableStoredTrace(data>>1);
+  else
+    storeCurrentTrace(data>>1);
 }
 #endif
 
@@ -1274,6 +1275,7 @@ static const menuitem_t menu_back[] = {
   { MT_NONE,     0, NULL, NULL } // sentinel
 };
 
+#ifdef __USE_SD_CARD__
 static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
@@ -1353,12 +1355,12 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
 #if STORED_TRACES > 0
-  { MT_CALLBACK,     0, "STORE SLOT", menu_store_trace_cb},
-  { MT_CALLBACK,     0, "CLEAN SLOT", menu_clean_trace_cb},
+  { MT_CALLBACK,     0, "STORE TRACE", menu_stored_trace_cb},
+  { MT_CALLBACK,     1, "CLEAN STORE", menu_stored_trace_cb},
 #endif
 #if STORED_TRACES > 1
-  { MT_CALLBACK,     1, "STORE SLOT 1", menu_store_trace_cb},
-  { MT_CALLBACK,     1, "CLEAN SLOT 1", menu_clean_trace_cb},
+  { MT_CALLBACK,     2, "STORE TRACE 1", menu_stored_trace_cb},
+  { MT_CALLBACK,     3, "CLEAN STORE 1", menu_stored_trace_cb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1758,7 +1760,7 @@ menu_invoke(int item)
   }
   // Redraw menu after if UI in menu mode
   if (ui_mode == UI_MENU)
-    draw_menu();
+    draw_menu(-1);
 }
 
 // Key names (use numfont16x22.c glyph)
@@ -1900,7 +1902,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
   lcd_set_background(b->bg);
 }
 
-static void drawMessageBox(char *header, char *text, uint32_t delay){
+void drawMessageBox(char *header, char *text, uint32_t delay){
   button_t b;
   int x , y;
   b.bg = LCD_MENU_COLOR;
@@ -2141,13 +2143,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
 }
 
 static void
-draw_menu(void)
-{
-  draw_menu_buttons(menu_stack[menu_current_level], -1);
-}
-
-static void
-draw_menu_mask(uint32_t mask)
+draw_menu(uint32_t mask)
 {
   draw_menu_buttons(menu_stack[menu_current_level], mask);
 }
@@ -2174,7 +2170,7 @@ ui_mode_menu(void)
   // narrowen plotting area
   set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
   ensure_selection();
-  draw_menu();
+  draw_menu(-1);
 }
 
 static void
@@ -2194,7 +2190,7 @@ ui_process_menu_lever(uint16_t status)
       ui_mode_normal();
       return;
     }
-    draw_menu_mask(mask|(1<<selection));
+    draw_menu(mask|(1<<selection));
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
@@ -2207,7 +2203,7 @@ menu_apply_touch(int touch_x, int touch_y)
     if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
       uint32_t mask = (1<<i)|(1<<selection);
       selection = i;
-      draw_menu_mask(mask);
+      draw_menu(mask);
       touch_wait_release();
       selection = -1;
       menu_invoke(i);
@@ -2389,7 +2385,7 @@ ui_mode_keypad(int _keypad_mode)
   selection = -1;
   kp_index = 0;
   ui_mode = UI_KEYPAD;
-  draw_menu();
+  draw_menu(-1);
   draw_keypad(-1);
   draw_numeric_area_frame();
 }
@@ -2516,23 +2512,22 @@ ui_mode_normal(void)
 static void
 lever_move_marker(uint16_t status)
 {
+  if (active_marker == MARKER_INVALID || !markers[active_marker].enabled) return;
   uint16_t step = 1<<MARKER_SPEEDUP;
   do {
-    if (active_marker != MARKER_INVALID && markers[active_marker].enabled) {
-      int idx = (int)markers[active_marker].index;
-      if (status & EVT_DOWN) {
-        idx-= step>>MARKER_SPEEDUP;
-        if (idx < 0) idx = 0;
-      }
-      if (status & EVT_UP) {
-       idx+= step>>MARKER_SPEEDUP;
-        if (idx  > sweep_points-1)
-          idx = sweep_points-1 ;
-      }
-      set_marker_index(active_marker, idx);
-      redraw_marker(active_marker);
-      step++;
+    int idx = (int)markers[active_marker].index;
+    if (status & EVT_DOWN) {
+      idx-= step>>MARKER_SPEEDUP;
+      if (idx < 0) idx = 0;
     }
+    if (status & EVT_UP) {
+     idx+= step>>MARKER_SPEEDUP;
+      if (idx  > sweep_points-1)
+        idx = sweep_points-1 ;
+    }
+    set_marker_index(active_marker, idx);
+    redraw_marker(active_marker);
+    step++;
   } while ((status = btn_wait_release()) != 0);
 }
 
