@@ -96,8 +96,10 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define DEBUG_CONSOLE_SHOW
 // Enable usart command
 #define ENABLE_USART_COMMAND
+#ifdef __USE_SD_CARD__
 // Enable SD card console command
 #define ENABLE_SD_CARD_CMD
+#endif
 
 static void apply_CH0_error_term_at(int i);
 static void apply_CH1_error_term_at(int i);
@@ -3279,10 +3281,6 @@ int main(void)
   halInit();
   chSysInit();
 
-#ifdef USE_VARIABLE_OFFSET
-  si5351_set_frequency_offset(FREQUENCY_OFFSET);
-#endif
-
 /*
  * SPI bus and LCD Initialize
  */
@@ -3298,6 +3296,12 @@ int main(void)
  */
   load_properties(0);
 
+/*
+ * Set frequency offset
+ */
+#ifdef USE_VARIABLE_OFFSET
+  si5351_set_frequency_offset(FREQUENCY_OFFSET);
+#endif
 /*
  * Init Shell console connection data
  */
