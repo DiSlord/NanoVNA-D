@@ -328,8 +328,11 @@
  * @note    The default is 16 bytes for both the transmission and receive
  *          buffers.
  */
-#if !defined(SERIAL_BUFFERS_SIZE) || defined(__DOXYGEN__)
-#define SERIAL_BUFFERS_SIZE         16
+#if !defined(SERIAL_RX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_RX_BUFFERS_SIZE         16
+#endif
+#if !defined(SERIAL_TX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_TX_BUFFERS_SIZE         16
 #endif
 /** @} */
 
@@ -347,16 +350,21 @@
  * @note    The default is 256 bytes for both the transmission and receive
  *          buffers.
  */
-#if !defined(SERIAL_USB_BUFFERS_SIZE) || defined(__DOXYGEN__)
-#define SERIAL_USB_BUFFERS_SIZE     256
+#if !defined(SERIAL_USB_RX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_USB_RX_BUFFERS_SIZE     256
 #endif
-
+#if !defined(SERIAL_USB_TX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_USB_TX_BUFFERS_SIZE     256
+#endif
 /**
  * @brief   Serial over USB number of buffers.
  * @note    The default is 2 buffers.
  */
-#if !defined(SERIAL_USB_BUFFERS_NUMBER) || defined(__DOXYGEN__)
-#define SERIAL_USB_BUFFERS_NUMBER   2
+#if !defined(SERIAL_USB_RX_BUFFERS_NUMBER) || defined(__DOXYGEN__)
+#define SERIAL_USB_RX_BUFFERS_NUMBER   2
+#endif
+#if !defined(SERIAL_USB_TX_BUFFERS_NUMBER) || defined(__DOXYGEN__)
+#define SERIAL_USB_TX_BUFFERS_NUMBER   2
 #endif
 /** @} */
 

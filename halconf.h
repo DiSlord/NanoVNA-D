@@ -309,10 +309,12 @@
  * @note    The default is 64 bytes for both the transmission and receive
  *          buffers.
  */
-#if !defined(SERIAL_BUFFERS_SIZE) || defined(__DOXYGEN__)
-#define SERIAL_BUFFERS_SIZE         64
+#if !defined(SERIAL_RX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_RX_BUFFERS_SIZE         64
 #endif
-
+#if !defined(SERIAL_TX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_TX_BUFFERS_SIZE         64
+#endif
 /*===========================================================================*/
 /* SERIAL_USB driver related setting.                                        */
 /*===========================================================================*/
@@ -324,16 +326,21 @@
  * @note    The default is 64 bytes for both the transmission and receive
  *          buffers.
  */
-#if !defined(SERIAL_USB_BUFFERS_SIZE) || defined(__DOXYGEN__)
-#define SERIAL_USB_BUFFERS_SIZE     64
+#if !defined(SERIAL_USB_RX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_USB_RX_BUFFERS_SIZE     64
 #endif
-
+#if !defined(SERIAL_USB_TX_BUFFERS_SIZE) || defined(__DOXYGEN__)
+#define SERIAL_USB_TX_BUFFERS_SIZE     64
+#endif
 /**
  * @brief   Serial over USB number of buffers.
  * @note    The default is 2 buffers.
  */
-#if !defined(SERIAL_USB_BUFFERS_NUMBER) || defined(__DOXYGEN__)
-#define SERIAL_USB_BUFFERS_NUMBER   2
+#if !defined(SERIAL_RX_USB_BUFFERS_NUMBER) || defined(__DOXYGEN__)
+#define SERIAL_USB_RX_BUFFERS_NUMBER   1
+#endif
+#if !defined(SERIAL_TX_USB_BUFFERS_NUMBER) || defined(__DOXYGEN__)
+#define SERIAL_USB_TX_BUFFERS_NUMBER   2
 #endif
 
 //#define STM32_USB_USE_FAST_COPY   TRUE
