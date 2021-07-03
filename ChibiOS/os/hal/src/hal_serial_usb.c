@@ -41,10 +41,12 @@
 /*
  * Current Line Coding.
  */
+
 static cdc_linecoding_t linecoding = {
-  {0x00, 0x96, 0x00, 0x00},             /* 38400.                           */
+  {0x00, 0x64, 0x68, 0x03},             /* 3686400.                          */
   LC_STOP_1, LC_PARITY_NONE, 8
 };
+
 
 /*===========================================================================*/
 /* Driver local functions.                                                   */
@@ -155,7 +157,7 @@ static void ibnotify(io_buffers_queue_t *bqp) {
     if (buf != NULL) {
       /* Buffer found, starting a new transaction.*/
       usbStartReceiveI(sdup->config->usbp, sdup->config->bulk_out,
-                       buf, SERIAL_USB_BUFFERS_SIZE);
+                       buf, SERIAL_USB_RX_BUFFERS_SIZE);
     }
   }
 }
@@ -216,10 +218,10 @@ void sduObjectInit(SerialUSBDriver *sdup) {
   osalEventObjectInit(&sdup->event);
   sdup->state = SDU_STOP;
   ibqObjectInit(&sdup->ibqueue, sdup->ib,
-                SERIAL_USB_BUFFERS_SIZE, SERIAL_USB_BUFFERS_NUMBER,
+                SERIAL_USB_RX_BUFFERS_SIZE, SERIAL_USB_RX_BUFFERS_NUMBER,
                 ibnotify, sdup);
   obqObjectInit(&sdup->obqueue, sdup->ob,
-                SERIAL_USB_BUFFERS_SIZE, SERIAL_USB_BUFFERS_NUMBER,
+                SERIAL_USB_TX_BUFFERS_SIZE, SERIAL_USB_TX_BUFFERS_NUMBER,
                 obnotify, sdup);
 }
 
@@ -318,7 +320,7 @@ void sduConfigureHookI(SerialUSBDriver *sdup) {
   osalDbgAssert(buf != NULL, "no free buffer");
 
   usbStartReceiveI(sdup->config->usbp, sdup->config->bulk_out,
-                   buf, SERIAL_USB_BUFFERS_SIZE);
+                   buf, SERIAL_USB_RX_BUFFERS_SIZE);
 }
 
 /**
@@ -478,7 +480,7 @@ void sduDataReceived(USBDriver *usbp, usbep_t ep) {
   if (buf != NULL) {
     /* Buffer found, starting a new transaction.*/
     usbStartReceiveI(sdup->config->usbp, sdup->config->bulk_out,
-                     buf, SERIAL_USB_BUFFERS_SIZE);
+                     buf, SERIAL_USB_RX_BUFFERS_SIZE);
   }
   osalSysUnlockFromISR();
 }

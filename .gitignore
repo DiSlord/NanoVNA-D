@@ -3,7 +3,6 @@
 .dep
 build*
 test
-CMSIS
 python
 *.py
 *.ipynb
