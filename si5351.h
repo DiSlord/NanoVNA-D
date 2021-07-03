@@ -60,6 +60,7 @@
 #define SI5351_R_DIV_32     (5<<4)
 #define SI5351_R_DIV_64     (6<<4)
 #define SI5351_R_DIV_128    (7<<4)
+#define SI5351_R_DIV(n)     ((n)<<4)
 
 #define SI5351_REG_177_PLL_RESET    177
 #define SI5351_PLL_RESET_B          (1<<7)

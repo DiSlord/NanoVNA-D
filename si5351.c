@@ -482,31 +482,29 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   uint32_t ofreq = freq + current_offset;
 
   // Select optimal band for prepared freq
-  if (freq <  10000U) {
-     rdiv = SI5351_R_DIV_128;
+  if (freq <  26000U) {
+     rdiv = SI5351_R_DIV(7);
+     drive_strength = SI5351_CLK_DRIVE_STRENGTH_2MA; // Always use 2ma
      freq<<= 7;
     ofreq<<= 7;
     band = 1;
-  } else if (freq <= 500000U) {
-    rdiv = SI5351_R_DIV_64;
-     freq<<= 6;
-    ofreq<<= 6;
-    band = 2;
-  } else if (freq <= 4000000U) {
-    rdiv = SI5351_R_DIV_8;
-     freq<<= 3;
-    ofreq<<= 3;
+  } else if (freq <= 1000000U) {
+    rdiv = SI5351_R_DIV(4);
+     freq<<= 4;
+    ofreq<<= 4;
     band = 2;
   }
   else
     band = si5351_get_harmonic_lvl(freq);
 
+#if 0
   uint32_t align = band_s[band].freq_align;
   if (align > 1){
     freq/=align;
     freq*=align;
     ofreq = freq + current_offset;
   }
+#endif
   // Check current power settings
   if (current_power != drive_strength){
     si5351_reset_cache();

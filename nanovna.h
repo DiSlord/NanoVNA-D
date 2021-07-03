@@ -607,7 +607,7 @@ extern const uint8_t numfont16x22[];
 #define S_LARROW   "\032"  // hex 0x1A
 #define S_RARROW   "\033"  // hex 0x1B
 #define S_PI       "\034"  // hex 0x1C
-#define S_MICRO    "\035"  // hex 0x1D
+#define S_MICRO    '\035'  // hex 0x1D
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
 
