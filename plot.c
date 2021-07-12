@@ -30,6 +30,7 @@ static void draw_battery_status(void);
 static void draw_cal_status(void);
 static void draw_frequencies(void);
 static int  cell_printf(int16_t x, int16_t y, const char *fmt, ...);
+static void markmap_all_markers(void);
 
 static int16_t grid_offset;
 static int16_t grid_width;
@@ -38,9 +39,6 @@ static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
 
 static uint16_t area_width  = AREA_WIDTH_NORMAL;
 static uint16_t area_height = AREA_HEIGHT_NORMAL;
-
-// Counter for sweep
-static uint16_t sweep_count = 0;
 
 // Cell render use spi buffer
 static pixel_t *cell_buffer;
@@ -817,11 +815,76 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
   return retval;
 }
 
+#ifdef __VNA_MEASURE_MODULE__
 // Include L/C match functions
 #ifdef __USE_LC_MATCHING__
   #include "lc_matching.c"
 #endif
 
+typedef void (*measure_cell_cb_t)(int x0, int y0);
+typedef void (*measure_prepare_cb_t)(uint8_t mode);
+
+static measure_cell_cb_t    measure_cell_handler = NULL;
+static uint8_t data_update = 0;
+
+#define MESAURE_NONE 0
+#define MESAURE_S11  1
+#define MESAURE_S21  2
+#define MESAURE_ALL  3
+
+#define MEASURE_UPD_SWEEP  1
+#define MEASURE_UPD_FREQ   2
+#define MEASURE_UPD_ALL    3
+
+static const struct {
+  uint8_t option;
+  uint8_t update;
+  measure_cell_cb_t    measure_cell;
+  measure_prepare_cb_t measure_prepare;
+} measure[]={
+  [MEASURE_NONE]        = {MESAURE_NONE,                0,               NULL,             NULL},
+#ifdef __USE_LC_MATCHING__
+  [MEASURE_LC_MATH]     = {MESAURE_NONE,  MEASURE_UPD_ALL,      draw_lc_match, prepare_lc_match},
+#endif
+#ifdef __S21_MEASURE__
+  [MEASURE_SHUNT_LC]    = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
+  [MEASURE_SERIES_LC]   = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
+  [MEASURE_SERIES_XTAL] = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
+#endif
+};
+
+static inline void measure_set_flag(uint8_t flag) {
+  data_update|= flag;
+}
+
+void plot_set_measure_mode(uint8_t mode) {
+  if (mode >= MEASURE_END) return;
+  measure_cell_handler = measure[mode].measure_cell;
+  current_props._measure = mode;
+  data_update = 0xFF;
+  request_to_redraw(REDRAW_AREA);
+}
+
+uint16_t plot_get_measure_channels(void) {
+  return measure[current_props._measure].option;
+}
+
+static void measure_prepare(void) {
+  if (current_props._measure == 0) return;
+  measure_prepare_cb_t measure_cb = measure[current_props._measure].measure_prepare;
+  // Do measure and cache data only if update flags some
+  if (measure_cb && (data_update & measure[current_props._measure].update))
+    measure_cb(current_props._measure);
+  data_update = 0;
+}
+
+static void cell_draw_measure(int x0, int y0){
+  if (measure_cell_handler == NULL) return;
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_LC_MATCH_COLOR);
+  measure_cell_handler(x0, y0);
+}
+#endif
 
 // Reference bitmap (size and offset)
 #define REFERENCE_WIDTH    6
@@ -1253,8 +1316,11 @@ plot_into_index(float array[2][POINTS_COUNT][2])
   // Marker track on data update
   if (props_mode & TD_MARKER_TRACK)
     marker_search(false);
-  // Current scan count
-  sweep_count++;
+#ifdef __VNA_MEASURE_MODULE__
+  // Current scan update
+  measure_set_flag(MEASURE_UPD_SWEEP);
+#endif
+
   // Build cell list for update from data indexes
   mark_cells_from_index();
   // Mark for update cells, and add markers
@@ -1477,10 +1543,10 @@ draw_cell(int m, int n)
   if (n <= (((cnt+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
-// L/C match data output
-#ifdef __USE_LC_MATCHING__
-  if (props_mode & TD_LC_MATH)
-    cell_draw_lc_match(x0, y0);
+
+// Measure data output
+#ifdef __VNA_MEASURE_MODULE__
+  cell_draw_measure(x0, y0);
 #endif
 //  PULSE;
 // Draw reference position (<10 system ticks for all screen calls)
@@ -1515,6 +1581,9 @@ static void
 draw_all_cells(bool flush_markmap)
 {
   int m, n;
+#ifdef __VNA_MEASURE_MODULE__
+  measure_prepare();
+#endif
 //  START_PROFILE
   for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++){
     map_t update_map = markmap[0][n] | markmap[1][n];
@@ -1581,6 +1650,10 @@ redraw_marker(int8_t marker)
   // mark map on new position of marker
   markmap_marker(marker);
 
+#ifdef __VNA_MEASURE_MODULE__
+  if (marker == active_marker)
+    measure_set_flag(MEASURE_UPD_FREQ);
+#endif
   // mark cells on marker info
   markmap_upperarea();
 
@@ -1773,11 +1846,9 @@ draw_cal_status(void)
     if (cal_status & calibration_text[i].mask)
       lcd_drawstring(x, y+=FONT_STR_HEIGHT, &calibration_text[i].text);
 
-  if (cal_status & CALSTAT_APPLY){
-    const properties_t *src = caldata_reference();
-    if (src && src->_power != current_props._power)
-      lcd_set_foreground(LCD_LOW_BAT_COLOR);
-  }
+  if ((cal_status & CALSTAT_APPLY) && cal_power != current_props._power)
+    lcd_set_foreground(LCD_LOW_BAT_COLOR);
+
   // 2,4,6,8 mA power or auto
   lcd_printf(x, y+=FONT_STR_HEIGHT, "P%c", current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'));
 #ifdef __USE_SMOOTH__

@@ -36,7 +36,6 @@
 static uint8_t  current_band   = 0;
 static uint8_t  current_power  = 0;
 static uint32_t current_freq   = 0;
-static int32_t  current_offset = FREQUENCY_OFFSET;
 // Use cache for this reg, not update if not change
 static uint8_t  clk_cache[3] = {0, 0, 0};
 
@@ -84,12 +83,7 @@ void si5351_set_frequency_offset(int32_t offset)
 {
   si5351_reset_cache();
   generate_DSP_Table(offset);
-  current_offset = offset;
-}
-
-int32_t si5351_get_frequency_offset(void)
-{
-  return current_offset;
+  IF_OFFSET = offset;
 }
 #endif
 
@@ -407,8 +401,8 @@ const
 #endif
 band_strategy_t band_s[] = {
   {           0U,                0, { 0}, 0, 0,                            -1,                            -1, -1, -1,       1}, // 0
-  {       10000U, SI5351_FIXED_PLL, { 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 1
-  {   100000000U, SI5351_FIXED_PLL, {32}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_8MA, SI5351_CLK_DRIVE_STRENGTH_6MA,  0,  0,       1}, // 2
+  {       26000U, SI5351_FIXED_PLL, { 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_2MA, SI5351_CLK_DRIVE_STRENGTH_2MA,  0,  0,       1}, // 1
+  {   100000000U, SI5351_FIXED_PLL, {32}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_2MA, SI5351_CLK_DRIVE_STRENGTH_2MA,  0,  0,       1}, // 2
 
   {   130000000U, SI5351_FIXED_MULT,{ 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 3
   {   180000000U, SI5351_FIXED_MULT,{ 6}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 4
@@ -479,7 +473,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   if (freq == 0) return 0;
   uint32_t rdiv = SI5351_R_DIV_1;
   uint32_t fdiv, pll_n;
-  uint32_t ofreq = freq + current_offset;
+  uint32_t ofreq = freq + IF_OFFSET;
 
   // Select optimal band for prepared freq
   if (freq <  26000U) {

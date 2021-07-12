@@ -64,6 +64,9 @@ enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR,
   KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
+#ifdef __S21_MEASURE__
+  KM_MEASURE_R,
+#endif
   KM_NONE
 };
 
@@ -578,13 +581,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
   selection = c_list[data].next;
 }
 
+extern const menuitem_t menu_save[];
 static UI_FUNCTION_CALLBACK(menu_caldone_cb)
 {
-  extern const menuitem_t menu_save[];
-  (void)data;
   cal_done();
   menu_move_back(false);
-  menu_push_submenu(menu_save);
+  if (data == 0)
+    menu_push_submenu(menu_save);
 }
 
 static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
@@ -594,6 +597,25 @@ static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
   cal_status = 0;
   lastsaveid = NO_SAVE_SLOT;
   set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb){
+  (void)data;
+  bool calibrated = cal_status & (CALSTAT_ES|CALSTAT_ER|CALSTAT_ET|CALSTAT_ED|CALSTAT_EX|CALSTAT_OPEN|CALSTAT_SHORT|CALSTAT_THRU);
+  if (b){
+    if (calibrated){
+      b->bg = (cal_status&CALSTAT_INTERPOLATED) ? LCD_NORMAL_BAT_COLOR : LCD_MENU_COLOR;
+      plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6FHz\n %.6FHz", cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
+    }
+    else
+      plot_printf(b->label, sizeof(b->label), "RESET\nCAL RANGE");
+    return;
+  }
+  // Reset range to calibration
+  if (calibrated && (cal_status&CALSTAT_INTERPOLATED)){
+    reset_sweep_frequency();
+    set_power(cal_power);
+  }
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
@@ -889,6 +911,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
       case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
       case KM_VBAT:            b->p1.u = config._vbat_offset; break;
       case KM_EDELAY:          b->p1.f = electrical_delay * 1E-12; break;
+#ifdef __S21_MEASURE__
+      case KM_MEASURE_R:       b->p1.f = config._measure_r; break;
+#endif
     }
     return;
   }
@@ -1012,16 +1037,15 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
   request_to_redraw(REDRAW_MARKER);
 }
 
-#ifdef __USE_LC_MATCHING__
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_lc_match_acb)
+#ifdef __VNA_MEASURE_MODULE__
+static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb)
 {
   (void)data;
   if (b){
-    b->icon = props_mode & TD_LC_MATH ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    b->icon = current_props._measure == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
-  props_mode^=TD_LC_MATH;
-  ui_mode_normal();
+  plot_set_measure_mode(data);
 }
 #endif
 
@@ -1123,11 +1147,22 @@ static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
 {
   int32_t offset = (data+1) * FREQUENCY_OFFSET_STEP;
   if (b){
-    b->icon = si5351_get_frequency_offset() == offset ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->icon = IF_OFFSET == offset ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = offset;
     return;
   }
   si5351_set_frequency_offset(offset);
+}
+
+const menuitem_t menu_offset[];
+static UI_FUNCTION_ADV_CALLBACK(menu_offset_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.i = IF_OFFSET;
+    return;
+  }
+  menu_push_submenu(menu_offset);
 }
 #endif
 
@@ -1290,6 +1325,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
+  { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1344,6 +1380,7 @@ const menuitem_t menu_cal[] = {
   { MT_SUBMENU,      0, "CALIBRATE",     menu_calop },
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
   { MT_SUBMENU,      0, "SAVE",          menu_save },
+  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_cal_range_acb },
   { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
@@ -1553,17 +1590,33 @@ const menuitem_t menu_marker_smith[] = {
   { MT_ADV_CALLBACK, MS_REIM,"Re+Im", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RX,  "R+jX", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RLC, "R+L/C", menu_marker_smith_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+#ifdef __VNA_MEASURE_MODULE__
+const menuitem_t menu_marker_measure[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",           menu_measure_acb },
 #ifdef __USE_LC_MATCHING__
-  { MT_ADV_CALLBACK,      0, "L/C MATCH", menu_marker_lc_match_acb },
+  { MT_ADV_CALLBACK, MEASURE_LC_MATH,     "L/C MATCH",     menu_measure_acb },
+#endif
+#ifdef __S21_MEASURE__
+  { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC",      menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC",     menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\n XTAL", menu_measure_acb },
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\nRl = %b.4F"S_OHM, menu_keyboard_acb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
+#endif
 
 const menuitem_t menu_marker[] = {
   { MT_SUBMENU, 0, "SELECT\nMARKER", menu_marker_sel },
   { MT_SUBMENU, 0, "SEARCH", menu_marker_search },
   { MT_SUBMENU, 0, "OPERATIONS", menu_marker_ops },
   { MT_SUBMENU, 0, "SMITH\nVALUE", menu_marker_smith },
+#ifdef __VNA_MEASURE_MODULE__
+  { MT_SUBMENU, 0, "MEASURE", menu_marker_measure },
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1621,7 +1674,7 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.9q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
 #ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_SUBMENU, 0,                 "IF OFFSET",          menu_offset },
+  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n %dHz",   menu_offset_sel_acb },
 #endif
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
@@ -1861,6 +1914,9 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_XTAL]            = {keypads_freq , "TCXO 26MHz" }, // XTAL frequency
 [KM_THRESHOLD]       = {keypads_freq , "THRESHOLD"  }, // Harmonic threshold frequency
 [KM_VBAT]            = {keypads_scale, "BAT OFFSET" }, // Vbat offset input in mV
+#ifdef __S21_MEASURE__
+[KM_MEASURE_R]       = {keypads_scale, "MEASURE Rl" }, // CH0 port impedance in Om
+#endif
 };
 
 static void
@@ -1881,6 +1937,9 @@ set_numeric_value(float f_val, freq_t u_val)
     case KM_XTAL:     si5351_set_tcxo(u_val);                break;
     case KM_THRESHOLD:config._harmonic_freq_threshold= u_val;break;
     case KM_VBAT:     config._vbat_offset = u_val;           break;
+#ifdef __S21_MEASURE__
+    case KM_MEASURE_R:config._measure_r = f_val;             break;
+#endif
   }
 }
 

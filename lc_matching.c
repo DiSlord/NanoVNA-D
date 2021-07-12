@@ -8,10 +8,27 @@
  *   DiSlord adaptation to use on NanoVNA
  */
 
-// calculate physical component values to match an impendace to 'ref_impedance' (ie 50R)
+#ifdef __VNA_MEASURE_MODULE__
+// Memory for measure cache data
+static char measure_memory[64];
+
+// Measure math functions
+// quadratic function solver
+static void match_quadratic_equation(float a, float b, float c, float *x)
+{
+  const float a_x_2 = 2.0f * a;
+  const float d = (b * b) - (2.0f * a_x_2 * c);
+  if (d < 0){
+    x[0] = x[1] = 0.0f;
+    return;
+  }
+  const float sd = vna_sqrtf(d);
+  x[0] = (-b + sd) / a_x_2;
+  x[1] = (-b - sd) / a_x_2;
+}
 
 #ifdef __USE_LC_MATCHING__
-
+// calculate physical component values to match an impendace to 'ref_impedance' (ie 50R)
 typedef struct
 {
    float xps;   // Reactance parallel to source (can be NAN if not applicable)
@@ -21,28 +38,15 @@ typedef struct
 
 typedef struct
 {
-   uint32_t Hz;
-   float R0;
+   freq_t Hz;
+   float  R0;
    // L-Network solution structure
    t_lc_match matches[4];
    int16_t num_matches;
-   uint16_t sweep_n;
-} t_lc_match_array;
+} lc_match_array_t;
 
-static t_lc_match_array lc_match_array;
-
-static void lc_match_quadratic_equation(float a, float b, float c, float *x)
-{
-  const float d = (b * b) - (4.0f * a * c);
-  if (d < 0){
-    x[0] = x[1] = 0.0f;
-    return;
-  }
-  const float sd = vna_sqrtf(d);
-  const float a2 = 2.0f * a;
-  x[0] = (-b + sd) / a2;
-  x[1] = (-b - sd) / a2;
-}
+// Size = 60 bytes
+static lc_match_array_t *lc_match_array = (lc_match_array_t *)measure_memory;
 
 // Calculate two solutions for ZL where (R + X * X / R) > R0
 static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
@@ -52,7 +56,7 @@ static void lc_match_calc_hi(float R0, float RL, float XL, t_lc_match *matches)
   const float a = R0 - RL;
   const float b = 2.0f * XL * R0;
   const float c = R0 * (XL * XL + RL * RL);
-  lc_match_quadratic_equation(a, b, c, xp);
+  match_quadratic_equation(a, b, c, xp);
 
   // found two impedances parallel to load
   //
@@ -82,7 +86,7 @@ static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
   const float a = 1.0f;
   const float b = 2.0f * XL;
   const float c = RL * RL + XL * XL - R0 * RL;
-  lc_match_quadratic_equation(a, b, c, xs);
+  match_quadratic_equation(a, b, c, xs);
 
   // got two serial impedances that change ZL to the Y.real = 1/R0
   //
@@ -110,7 +114,7 @@ static void lc_match_calc_lo(float R0, float RL, float XL, t_lc_match *matches)
 
 static int lc_match_calc(int index)
 {
-  const float R0 = lc_match_array.R0;
+  const float R0 = lc_match_array->R0;
   // compute the impedance at the chosen frequency
   const float *coeff = measured[0][index];
   const float RL = resistance(coeff);
@@ -127,7 +131,7 @@ static int lc_match_calc(int index)
 
   // only one solution is enough: just a serial reactance
   // this gives SWR < 1.1 if R is within the range 0.91 .. 1.1 of R0
-  t_lc_match *matches = lc_match_array.matches;
+  t_lc_match *matches = lc_match_array->matches;
   if ((RL * 1.1f) > R0  && RL < (R0 * 1.1f)){
     matches[0].xpl = 0.0f;
     matches[0].xps = 0.0f;
@@ -151,36 +155,25 @@ static int lc_match_calc(int index)
   return 4;
 }
 
-// Mark to redraw area under L/C match text
-static void lc_match_mark_area(void){
-  // Update area
-  int n = lc_match_array.num_matches; if (n < 0) n = 0;
-  invalidate_rect(STR_LC_MATH_X                        , STR_LC_MATH_Y,
-                  STR_LC_MATH_X + 3 * STR_LC_MATH_WIDTH, STR_LC_MATH_Y + (n + 2)*STR_LC_MATH_HEIGHT);
-}
-
-static void lc_match_process(void)
+static void prepare_lc_match(uint8_t mode)
 {
-  const uint32_t am = (uint32_t)active_marker;
-  if (am >=MARKERS_MAX || current_props._markers[am].enabled == false)
-    return;
-
-  const uint32_t index = current_props._markers[am].index;
-  if (index >= sweep_points)
-    return;
-
+  (void)mode;
   // Made calculation only one time for current sweep and frequency
-  freq_t freq =  getFrequency(index);
-  if (lc_match_array.sweep_n == sweep_count && lc_match_array.Hz == freq)
+  freq_t freq = get_marker_frequency(active_marker);
+  if (freq == 0)// || lc_match_array->Hz == freq)
     return;
 
-  lc_match_array.R0 = 50.0f;
-  lc_match_array.Hz = freq;
-  lc_match_array.sweep_n = sweep_count;
+  lc_match_array->R0 = 50.0f;
+  lc_match_array->Hz = freq;
 
   // compute the possible LC matches
-  lc_match_array.num_matches = lc_match_calc(index);
-  lc_match_mark_area();
+  lc_match_array->num_matches = lc_match_calc(markers[active_marker].index);
+
+  // Mark to redraw area under L/C match text
+  int n = lc_match_array->num_matches;
+  if (n < 0) n = 0;
+  invalidate_rect(STR_LC_MATH_X                        , STR_LC_MATH_Y,
+                  STR_LC_MATH_X + 3 * STR_LC_MATH_WIDTH, STR_LC_MATH_Y + (n + 2)*STR_LC_MATH_HEIGHT);
 }
 
 //
@@ -203,38 +196,34 @@ static void lc_match_x_str(uint32_t FHz, float X, int xp, int yp)
 }
 
 // Render L/C match to cell
-static void cell_draw_lc_match(int x0, int y0)
+static void draw_lc_match(int x0, int y0)
 {
-  lc_match_process();
-
   int xp = STR_LC_MATH_X - x0;
   int yp = STR_LC_MATH_Y - y0;
-
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_LC_MATCH_COLOR);
-
-  cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array.R0);
+  cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array->R0);
 #if 0
   yp += STR_LC_MATH_HEIGHT;
   cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', fabsf(match_array->XL));
 #endif
   yp += STR_LC_MATH_HEIGHT;
   if (yp >= CELLHEIGHT) return;
-  if (lc_match_array.num_matches < 0)
+  if (lc_match_array->num_matches < 0)
     cell_printf(xp, yp, "No LC match for this");
-  else if (lc_match_array.num_matches == 0)
+  else if (lc_match_array->num_matches == 0)
     cell_printf(xp, yp, "No need for LC match");
   else {
     cell_printf(xp                      , yp, "Src shunt" );
     cell_printf(xp +   STR_LC_MATH_WIDTH, yp, "Series"    );
     cell_printf(xp + 2*STR_LC_MATH_WIDTH, yp, "Load shunt");
-    for (int i = 0; i < lc_match_array.num_matches; i++){
+    for (int i = 0; i < lc_match_array->num_matches; i++){
       yp += STR_LC_MATH_HEIGHT;
       if (yp >= CELLHEIGHT) return;
-      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xps, xp                      , yp);
-      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xs , xp +   STR_LC_MATH_WIDTH, yp);
-      lc_match_x_str(lc_match_array.Hz, lc_match_array.matches[i].xpl, xp + 2*STR_LC_MATH_WIDTH, yp);
+      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xps, xp                      , yp);
+      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xs , xp +   STR_LC_MATH_WIDTH, yp);
+      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xpl, xp + 2*STR_LC_MATH_WIDTH, yp);
     }
   }
 }
-#endif
+#endif // __USE_LC_MATCHING__
+
+#endif // __VNA_MEASURE__

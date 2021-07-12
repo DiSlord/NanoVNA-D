@@ -39,12 +39,8 @@
 #define __USE_RTC__
 // Add SD card support, req enable RTC (additional settings for file system see FatFS lib ffconf.h)
 #define __USE_SD_CARD__
-// Allow run commands from SD card (config.ini in root)
-#define __SD_CARD_LOAD__
 // If enabled serial in halconf.h, possible enable serial console control
 #define __USE_SERIAL_CONSOLE__
-// Add LC match function
-#define __USE_LC_MATCHING__
 // Add show y grid line values option
 #define __USE_GRID_VALUES__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
@@ -63,6 +59,25 @@
 #ifdef ARM_MATH_CM4
 #define __USE_DSP__
 #endif
+// Add measure module option (allow made some measure calculations on data)
+#define __VNA_MEASURE_MODULE__
+
+/*
+ * Submodules defines
+ */
+// If SD card enabled
+#ifdef __USE_SD_CARD__
+// Allow run commands from SD card (config.ini in root)
+#define __SD_CARD_LOAD__
+#endif
+
+// If measure module enabled, add submodules
+#ifdef __VNA_MEASURE_MODULE__
+// Add LC match function
+#define __USE_LC_MATCHING__
+// Enable Series measure option
+//#define __S21_MEASURE__
+#endif
 
 /*
  * main.c
@@ -77,6 +92,8 @@
 #define XTALFREQ 26000000U
 // Define i2c bus speed, add predefined for 400k, 600k, 900k
 #define STM32_I2C_SPEED          900
+// Define default src impedance for xtal calculations
+#define MEASURE_DEFAULT_R        50.0f
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
@@ -155,6 +172,7 @@
 
 // pi const
 #define VNA_PI                   3.14159265358979323846f
+#define VNA_TWOPI                6.28318530717958647692f
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             401
@@ -224,10 +242,12 @@ enum stimulus_type {
 };
 
 freq_t getFrequency(uint16_t idx);
+freq_t getFrequencyStep(void);
 
 void   set_marker_index(int m, int idx);
 freq_t get_marker_frequency(int marker);
 
+void   reset_sweep_frequency(void);
 void   set_sweep_frequency(int type, freq_t frequency);
 freq_t get_sweep_frequency(int type);
 
@@ -656,8 +676,6 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TD_WINDOW_NORMAL        (0b00<<3)
 #define TD_WINDOW_MINIMUM       (0b01<<3)
 #define TD_WINDOW_MAXIMUM       (0b10<<3)
-// L/C match enable option
-#define TD_LC_MATH              (1<<5)
 // Sweep mode
 #define TD_START_STOP           (0<<0)
 #define TD_CENTER_SPAN          (1<<6)
@@ -686,6 +704,20 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
 
+// Measure option mode
+enum {
+  MEASURE_NONE = 0,
+#ifdef __USE_LC_MATCHING__
+  MEASURE_LC_MATH,
+#endif
+#ifdef __S21_MEASURE__
+  MEASURE_SHUNT_LC,
+  MEASURE_SERIES_LC,
+  MEASURE_SERIES_XTAL,
+#endif
+  MEASURE_END
+};
+
 #define STORED_TRACES  1
 #define TRACES_MAX     4
 #define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
@@ -711,6 +743,7 @@ typedef struct marker {
 typedef struct config {
   uint32_t magic;
   uint32_t _harmonic_freq_threshold;
+  int32_t  _IF_freq;
   int16_t  _touch_cal[4];
   uint8_t  _vna_mode;
   uint8_t  _brightness;
@@ -720,6 +753,7 @@ typedef struct config {
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
+  float    _measure_r;
   uint8_t  _lever_mode;
   uint8_t  _digit_separator;
   uint32_t checksum;
@@ -729,17 +763,22 @@ typedef struct properties {
   uint32_t magic;
   freq_t   _frequency0;
   freq_t   _frequency1;
+  freq_t   _cal_frequency0;
+  freq_t   _cal_frequency1;
   freq_t   _var_freq;
-  uint16_t _sweep_points;
-  uint16_t _cal_status;
-  trace_t  _trace[TRACES_MAX];
-  marker_t _markers[MARKERS_MAX];
   uint16_t _mode;                // timed domain option flag and some others flags
+  uint16_t _sweep_points;
   int8_t   _current_trace;       // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
   int8_t   _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   int8_t   _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
-  uint8_t  _marker_smith_format;
   uint8_t  _power;
+  uint8_t  _cal_power;
+  uint8_t  _measure;
+  uint16_t _cal_sweep_points;
+  uint16_t _cal_status;
+  trace_t  _trace[TRACES_MAX];
+  marker_t _markers[MARKERS_MAX];
+  uint8_t  _marker_smith_format;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
@@ -773,6 +812,8 @@ void redraw_marker(int8_t marker);
 void plot_into_index(float array[2][POINTS_COUNT][2]);
 void draw_all(bool flush);
 void set_area_size(uint16_t w, uint16_t h);
+void plot_set_measure_mode(uint8_t mode);
+uint16_t plot_get_measure_channels(void);
 
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
@@ -1068,8 +1109,12 @@ extern uint16_t lastsaveid;
 
 #define frequency0          current_props._frequency0
 #define frequency1          current_props._frequency1
+#define cal_frequency0      current_props._cal_frequency0
+#define cal_frequency1      current_props._cal_frequency1
 #define var_freq            current_props._var_freq
 #define sweep_points        current_props._sweep_points
+#define cal_sweep_points    current_props._cal_sweep_points
+#define cal_power           current_props._cal_power
 #define cal_status          current_props._cal_status
 #define cal_data            current_props._cal_data
 #define electrical_delay    current_props._electrical_delay
@@ -1096,7 +1141,7 @@ extern uint16_t lastsaveid;
 
 #define VNA_mode             config._vna_mode
 #define lever_mode           config._lever_mode
-
+#define IF_OFFSET            config._IF_freq
 #ifdef __DIGIT_SEPARATOR__
 #define DIGIT_SEPARATOR      config._digit_separator
 #else
