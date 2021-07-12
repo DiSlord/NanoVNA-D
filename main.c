@@ -101,13 +101,12 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_SD_CARD_CMD
 #endif
 
-static void apply_CH0_error_term_at(int i);
-static void apply_CH1_error_term_at(int i);
-static void apply_edelay(uint16_t ch_mask, int i, freq_t freq);
+static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
+static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
+static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]);
 
 static uint16_t get_sweep_mask(void);
-static void cal_interpolate(void);
-static void update_frequencies(bool interpolate);
+static void update_frequencies(void);
 static int  set_frequency(freq_t freq);
 static void set_frequencies(freq_t start, freq_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t ch_mask);
@@ -130,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.65"
+#define VERSION "1.0.66"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -554,7 +553,7 @@ VNA_SHELL_FUNCTION(cmd_resume)
   (void)argv;
 
   // restore frequencies array and cal
-  update_frequencies(cal_status & CALSTAT_APPLY);
+  update_frequencies();
   resume_sweep();
 }
 
@@ -926,7 +925,8 @@ usage:
 config_t config = {
   .magic       = CONFIG_MAGIC,
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
-  ._touch_cal   = DEFAULT_TOUCH_CONFIG,
+  ._IF_freq    = FREQUENCY_OFFSET,
+  ._touch_cal  = DEFAULT_TOUCH_CONFIG,
   ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
@@ -935,6 +935,7 @@ config_t config = {
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
+  ._measure_r = MEASURE_DEFAULT_R,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
 };
@@ -979,9 +980,13 @@ void load_default_properties(void)
 {
 //Magic add on caldata_save
 //current_props.magic = CONFIG_MAGIC;
-  current_props._frequency0   =     50000;    // start =  50kHz
-  current_props._frequency1   = 900000000;    // end   = 900MHz
-  current_props._sweep_points = POINTS_COUNT_DEFAULT; // Set default points count
+  current_props._frequency0       =     50000;    // start =  50kHz
+  current_props._frequency1       = 900000000;    // end   = 900MHz
+  current_props._var_freq         = 0;
+  current_props._sweep_points     = POINTS_COUNT_DEFAULT; // Set default points count
+  current_props._cal_frequency0   =     50000;    // calibration start =  50kHz
+  current_props._cal_frequency1   = 900000000;    // calibration end   = 900MHz
+  current_props._cal_sweep_points = POINTS_COUNT_DEFAULT; // Set calibration default points count
   current_props._cal_status   = 0;
 //=============================================
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
@@ -994,7 +999,9 @@ void load_default_properties(void)
   current_props._previous_marker = MARKER_INVALID;
   current_props._mode            = 0;
   current_props._marker_smith_format = MS_RLC;
-  current_props._power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  current_props._measure   = MEASURE_NONE;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -1003,8 +1010,10 @@ void load_default_properties(void)
 
 int load_properties(uint32_t id){
   int r = caldata_recall(id);
-  update_frequencies(false);
-  request_to_redraw(REDRAW_CAL_STATUS);
+  update_frequencies();
+#ifdef __VNA_MEASURE_MODULE__
+  plot_set_measure_mode(current_props._measure);
+#endif
   return r;
 }
 
@@ -1065,8 +1074,11 @@ extern uint16_t timings[16];
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
-#define SWEEP_CH0_MEASURE   1
-#define SWEEP_CH1_MEASURE   2
+#define SWEEP_CH0_MEASURE         1
+#define SWEEP_CH1_MEASURE         2
+#define SWEEP_APPLY_EDELAY        4
+#define SWEEP_APPLY_CALIBRATION   8
+#define SWEEP_USE_INTERPOLATION  16
 
 static uint16_t get_sweep_mask(void){
   uint16_t ch_mask = 0;
@@ -1077,72 +1089,111 @@ static uint16_t get_sweep_mask(void){
     if (trace[t].channel == 0) ch_mask|=SWEEP_CH0_MEASURE;
     if (trace[t].channel == 1) ch_mask|=SWEEP_CH1_MEASURE;
   }
+#ifdef __VNA_MEASURE_MODULE__
+  // For measure calculations need data
+  ch_mask|= plot_get_measure_channels();
+#endif
+  if (cal_status & CALSTAT_APPLY)        ch_mask|= SWEEP_APPLY_CALIBRATION;
+  if (cal_status & CALSTAT_INTERPOLATED) ch_mask|= SWEEP_USE_INTERPOLATION;
+  if (electrical_delay)                  ch_mask|= SWEEP_APPLY_EDELAY;
   return ch_mask;
 }
 
+static void applyEDelay(float data[2], float s, float c){
+  float real = data[0];
+  float imag = data[1];
+  data[0] = real * c - imag * s;
+  data[1] = imag * c + real * s;
+}
+
 // main loop for measurement
-static bool sweep(bool break_on_operation, uint16_t ch_mask)
+static bool sweep(bool break_on_operation, uint16_t mask)
 {
-  int delay;
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
-  if (break_on_operation && ch_mask == 0)
+  if (break_on_operation && mask == 0)
     return false;
+  float s, c;
+  float data[4];
+  float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
+  int delay = 0;
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   int bar_start = 0;
+  int interpolation_idx;
+
   for (; p_sweep < sweep_points; p_sweep++) {
     freq_t frequency = getFrequency(p_sweep);
-    delay = set_frequency(frequency);
+    // Need made measure - set frequency
+    if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
+      delay = set_frequency(frequency);
+      interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
+      // Edelay calibration
+      if (mask & SWEEP_APPLY_EDELAY)
+        vna_sincosf(electrical_delay * frequency * 1E-12, &s, &c);
+      // Set invalid value for check
+      c_data[0][0] = INFINITY;
+    }
     // CH0:REFLECTION, reset and begin measure
-    if (ch_mask & SWEEP_CH0_MEASURE){
+    if (mask & SWEEP_CH0_MEASURE){
       tlv320aic3204_select(0);
       DSP_START(delay+st_delay);
       delay = DELAY_CHANNEL_CHANGE;
+      // Get calibration data
+      if (mask & SWEEP_APPLY_CALIBRATION)
+        cal_interpolate(interpolation_idx, frequency, c_data);
       //================================================
       // Place some code thats need execute while delay
       //================================================
       DSP_WAIT;
-      (*sample_func)(measured[0][p_sweep]);      // calculate reflection coefficient
-      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
-        apply_CH0_error_term_at(p_sweep);
+      (*sample_func)(&data[0]);             // calculate reflection coefficient
+      if (mask & SWEEP_APPLY_CALIBRATION)   // Apply calibration
+        apply_CH0_error_term(data, c_data);
+      if (mask & SWEEP_APPLY_EDELAY)        // Apply e-delay
+        applyEDelay(&data[0], s, c);
+      if (p_sweep < POINTS_COUNT){
+        measured[0][p_sweep][0] = data[0];
+        measured[0][p_sweep][1] = data[1];
+      }
     }
     // CH1:TRANSMISSION, reset and begin measure
-    if (ch_mask & SWEEP_CH1_MEASURE){
+    if (mask & SWEEP_CH1_MEASURE){
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
+      // Get calibration data
+      if ((mask & SWEEP_APPLY_CALIBRATION) && c_data[0][0] == INFINITY)
+        cal_interpolate(interpolation_idx, frequency, c_data);
       //================================================
       // Place some code thats need execute while delay
       //================================================
       DSP_WAIT;
-      (*sample_func)(measured[1][p_sweep]);      // Measure transmission coefficient
-      if (APPLY_CALIBRATION_AFTER_SWEEP == 0 && (cal_status & CALSTAT_APPLY))
-        apply_CH1_error_term_at(p_sweep);
+      (*sample_func)(&data[2]);              // Measure transmission coefficient
+      if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
+        apply_CH1_error_term(data, c_data);
+      if (mask & SWEEP_APPLY_EDELAY)         // Apply e-delay
+        applyEDelay(&data[2], s, c);
+      if (p_sweep < POINTS_COUNT){
+        measured[1][p_sweep][0] = data[2];
+        measured[1][p_sweep][1] = data[3];
+      }
     }
-    if (electrical_delay != 0) apply_edelay(ch_mask, p_sweep, frequency);
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
-// Display SPI made noise on measurement (can see in CW mode), use reduced update
+    // Display SPI made noise on measurement (can see in CW mode), use reduced update
     if (config._bandwidth >= BANDWIDTH_100){
       int current_bar =  (p_sweep * WIDTH)/(sweep_points-1);
-      lcd_fill(OFFSETX+CELLOFFSETX + bar_start, OFFSETY, current_bar - bar_start, 1);
-      bar_start = current_bar;
+      if (current_bar - bar_start > 0){
+        lcd_fill(OFFSETX+CELLOFFSETX + bar_start, OFFSETY, current_bar - bar_start, 1);
+        bar_start = current_bar;
+      }
     }
   }
   if (bar_start){
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
-  }
-  // Apply calibration at end if need
-  if (APPLY_CALIBRATION_AFTER_SWEEP && (cal_status & CALSTAT_APPLY) && p_sweep == sweep_points){
-    uint16_t start_sweep;
-    for (start_sweep = 0; start_sweep < p_sweep; start_sweep++){
-      if (ch_mask & SWEEP_CH0_MEASURE) apply_CH0_error_term_at(start_sweep);
-      if (ch_mask & SWEEP_CH1_MEASURE) apply_CH1_error_term_at(start_sweep);
-    }
   }
 //  STOP_PROFILE;
   // blink LED while scanning
@@ -1206,20 +1257,70 @@ void set_sweep_points(uint16_t points){
     return;
 
   sweep_points = points;
-  update_frequencies(cal_status & CALSTAT_APPLY);
+  update_frequencies();
+}
+
+/*
+ * Frequency list functions
+ */
+#ifdef __USE_FREQ_TABLE__
+static freq_t frequencies[POINTS_COUNT];
+static void
+set_frequencies(freq_t start, freq_t stop, uint16_t points)
+{
+  uint32_t i;
+  freq_t step = (points - 1);
+  freq_t span = stop - start;
+  freq_t delta = span / step;
+  freq_t error = span % step;
+  freq_t f = start, df = step>>1;
+  for (i = 0; i <= step; i++, f+=delta) {
+    frequencies[i] = f;
+    if ((df+=error) >= step) {f++; df-= step;}
+  }
+  // disable at out of sweep range
+  for (; i < POINTS_COUNT; i++)
+    frequencies[i] = 0;
+}
+#define _c_start    frequencies[0]
+#define _c_stop     frequencies[sweep_points-1]
+#define _c_points   (sweep_points)
+
+freq_t getFrequency(uint16_t idx) {return frequencies[idx];}
+#else
+static freq_t   _f_start;
+static freq_t   _f_delta;
+static freq_t   _f_error;
+static uint16_t _f_points;
+
+static void
+set_frequencies(freq_t start, freq_t stop, uint16_t points)
+{
+  freq_t span = stop - start;
+  _f_start  = start;
+  _f_points = (points - 1);
+  _f_delta  = span / _f_points;
+  _f_error  = span % _f_points;
+}
+freq_t getFrequency(uint16_t idx) {return _f_start + _f_delta * idx + (_f_points / 2 + _f_error * idx) / _f_points;}
+freq_t getFrequencyStep(void) {return _f_delta;}
+#endif
+
+static bool needInterpolate(freq_t start, freq_t stop, uint16_t points){
+  return start != cal_frequency0 || stop != cal_frequency1 || points != cal_sweep_points;
 }
 
 #define SCAN_MASK_OUT_FREQ       0b00000001
 #define SCAN_MASK_OUT_DATA0      0b00000010
 #define SCAN_MASK_OUT_DATA1      0b00000100
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
+#define SCAN_MASK_NO_EDELAY      0b00010000
 #define SCAN_MASK_BINARY         0b10000000
 
 VNA_SHELL_FUNCTION(cmd_scan)
 {
   freq_t start, stop;
   uint16_t points = sweep_points;
-  int i;
   if (argc < 2 || argc > 4) {
     shell_printf("usage: scan {start(Hz)} {stop(Hz)} [points] [outmask]\r\n");
     return;
@@ -1256,34 +1357,30 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
 #endif
 
-  uint32_t old_cal_status = cal_status;
-  if (mask&SCAN_MASK_NO_CALIBRATION) cal_status&=~CALSTAT_APPLY;
-  // Rebuild frequency table if need
-  if (getFrequency(0)!=start || getFrequency(points-1)!=stop){
-    set_frequencies(start, stop, points);
-    if (cal_status & CALSTAT_APPLY)
-      cal_interpolate();
-  }
 
+  if (!(mask&SCAN_MASK_NO_CALIBRATION)) sweep_ch|= SWEEP_APPLY_CALIBRATION;
+  if (electrical_delay)                 sweep_ch|= SWEEP_APPLY_EDELAY;
+  if (needInterpolate(start, stop, sweep_points))
+    sweep_ch|= SWEEP_USE_INTERPOLATION;
+
+  sweep_points = points;
+  set_frequencies(start, stop, points);
   if (sweep_ch & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE))
     sweep(false, sweep_ch);
-
-  cal_status = old_cal_status; // restore
-
   pause_sweep();
   // Output data after if set (faster data receive)
   if (mask) {
     if (mask&SCAN_MASK_BINARY){
       streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
       streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
-      for (i = 0; i < points; i++) {
+      for (int i = 0; i < points; i++) {
         if (mask & SCAN_MASK_OUT_FREQ ) {freq_t f = getFrequency(i); streamWrite(shell_stream, (void *)&f, sizeof(freq_t));}    // 4 bytes .. frequency
         if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
         if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
       }
     }
     else{
-      for (i = 0; i < points; i++) {
+      for (int i = 0; i < points; i++) {
         if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", getFrequency(i));
         if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
         if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
@@ -1351,49 +1448,8 @@ update_marker_index(void)
   }
 }
 
-/*
- * Frequency list functions
- */
-#ifdef __USE_FREQ_TABLE__
-static freq_t frequencies[POINTS_COUNT];
 static void
-set_frequencies(freq_t start, freq_t stop, uint16_t points)
-{
-  uint32_t i;
-  freq_t step = (points - 1);
-  freq_t span = stop - start;
-  freq_t delta = span / step;
-  freq_t error = span % step;
-  freq_t f = start, df = step>>1;
-  for (i = 0; i <= step; i++, f+=delta) {
-    frequencies[i] = f;
-    if ((df+=error) >= step) {f++; df-= step;}
-  }
-  // disable at out of sweep range
-  for (; i < POINTS_COUNT; i++)
-    frequencies[i] = 0;
-}
-freq_t getFrequency(uint16_t idx) {return frequencies[idx];}
-#else
-static freq_t   _f_start;
-static freq_t   _f_delta;
-static freq_t   _f_error;
-static uint16_t _f_points;
-
-static void
-set_frequencies(freq_t start, freq_t stop, uint16_t points)
-{
-  freq_t span = stop - start;
-  _f_start  = start;
-  _f_points = (points - 1);
-  _f_delta  = span / _f_points;
-  _f_error  = span % _f_points;
-}
-freq_t getFrequency(uint16_t idx) {return _f_start + _f_delta * idx + (_f_points / 2 + _f_error * idx) / _f_points;}
-#endif
-
-static void
-update_frequencies(bool interpolate)
+update_frequencies(void)
 {
   freq_t start = get_sweep_frequency(ST_START);
   freq_t stop  = get_sweep_frequency(ST_STOP);
@@ -1402,8 +1458,13 @@ update_frequencies(bool interpolate)
   update_marker_index();
   // set grid layout
   update_grid();
-  if (interpolate)
-    cal_interpolate();
+  // Update interpolation flag
+  if (needInterpolate(start, stop, sweep_points))
+    cal_status|= CALSTAT_INTERPOLATED;
+  else
+    cal_status&= ~CALSTAT_INTERPOLATED;
+
+  request_to_redraw(REDRAW_CAL_STATUS);
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
   RESET_SWEEP;
 }
@@ -1416,7 +1477,7 @@ set_sweep_frequency(int type, freq_t freq)
     freq = START_MIN;
   if (freq > STOP_MAX)
     freq = STOP_MAX;
-  uint32_t center, span;
+  freq_t center, span;
   switch (type) {
     case ST_START:
       FREQ_STARTSTOP();
@@ -1458,14 +1519,21 @@ set_sweep_frequency(int type, freq_t freq)
       frequency1 = freq;
       break;
   }
-  update_frequencies(cal_status & CALSTAT_APPLY);
+  update_frequencies();
+}
+
+void reset_sweep_frequency(void){
+  frequency0 = cal_frequency0;
+  frequency1 = cal_frequency1;
+  sweep_points = cal_sweep_points;
+  update_frequencies();
 }
 
 freq_t
 get_sweep_frequency(int type)
 {
-  // Obsolete, ensure correct start/stop, start always must be < stop
-  if (frequency0 > frequency1) SWAP(freq_t, frequency0, frequency1);
+// Obsolete, ensure correct start/stop, start always must be < stop
+//  if (frequency0 > frequency1) SWAP(freq_t, frequency0, frequency1);
   switch (type) {
     case ST_START:  return frequency0;
     case ST_STOP:   return frequency1;
@@ -1577,8 +1645,8 @@ eterm_calc_es(void)
     float s11aor = (1 - z*z) / sq;
     float s11aoi = 2*z / sq;
 #else
-    float s11aor = 1;
-    float s11aoi = 0;
+    float s11aor = 1.0f;
+    float s11aoi = 0.0f;
 #endif
     // S11mo’= S11mo - Ed
     // S11ms’= S11ms - Ed
@@ -1715,58 +1783,39 @@ static void apply_error_term_at(int i)
 }
 #endif
 
-static void apply_CH0_error_term_at(int i)
+static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
-    // S11m' = S11m - Ed
-    // S11a = S11m' / (Er + Es S11m')
-    float s11mr = measured[0][i][0] - cal_data[ETERM_ED][i][0];
-    float s11mi = measured[0][i][1] - cal_data[ETERM_ED][i][1];
-    float err = cal_data[ETERM_ER][i][0] + s11mr * cal_data[ETERM_ES][i][0] - s11mi * cal_data[ETERM_ES][i][1];
-    float eri = cal_data[ETERM_ER][i][1] + s11mr * cal_data[ETERM_ES][i][1] + s11mi * cal_data[ETERM_ES][i][0];
-    float sq = err*err + eri*eri;
-    float s11ar = (s11mr * err + s11mi * eri) / sq;
-    float s11ai = (s11mi * err - s11mr * eri) / sq;
-    measured[0][i][0] = s11ar;
-    measured[0][i][1] = s11ai;
+  // S11m' = S11m - Ed
+  // S11a = S11m' / (Er + Es S11m')
+  float s11mr = data[0] - c_data[ETERM_ED][0];
+  float s11mi = data[1] - c_data[ETERM_ED][1];
+  float err = c_data[ETERM_ER][0] + s11mr * c_data[ETERM_ES][0] - s11mi * c_data[ETERM_ES][1];
+  float eri = c_data[ETERM_ER][1] + s11mr * c_data[ETERM_ES][1] + s11mi * c_data[ETERM_ES][0];
+  float sq = err*err + eri*eri;
+  float s11ar = (s11mr * err + s11mi * eri) / sq;
+  float s11ai = (s11mi * err - s11mr * eri) / sq;
+  data[0] = s11ar;
+  data[1] = s11ai;
 }
 
-static void apply_CH1_error_term_at(int i)
+static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
-    // CAUTION: Et is inversed for efficiency
-    // S21a = (S21m - Ex) * Et
-    float s21mr = measured[1][i][0] - cal_data[ETERM_EX][i][0];
-    float s21mi = measured[1][i][1] - cal_data[ETERM_EX][i][1];
-    // Not made CH1 correction by CH0 data
-    float s21ar = s21mr * cal_data[ETERM_ET][i][0] - s21mi * cal_data[ETERM_ET][i][1];
-    float s21ai = s21mi * cal_data[ETERM_ET][i][0] + s21mr * cal_data[ETERM_ET][i][1];
-    measured[1][i][0] = s21ar;
-    measured[1][i][1] = s21ai;
-}
-
-static void apply_edelay(uint16_t ch_mask, int i, freq_t freq)
-{
-  float real, imag;
-  float s, c;
-  vna_sincosf(electrical_delay * freq * 1E-12, &s, &c);
-  if (ch_mask & SWEEP_CH0_MEASURE){
-    real = measured[0][i][0];
-    imag = measured[0][i][1];
-    measured[0][i][0] = real * c - imag * s;
-    measured[0][i][1] = imag * c + real * s;
-  }
-  if (ch_mask & SWEEP_CH1_MEASURE){
-    real = measured[1][i][0];
-    imag = measured[1][i][1];
-    measured[1][i][0] = real * c - imag * s;
-    measured[1][i][1] = imag * c + real * s;
-  }
+  // CAUTION: Et is inversed for efficiency
+  // S21a = (S21m - Ex) * Et
+  float s21mr = data[2] - c_data[ETERM_EX][0];
+  float s21mi = data[3] - c_data[ETERM_EX][1];
+  // Not made CH1 correction by CH0 data
+  float s21ar = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
+  float s21ai = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
+  data[2] = s21ar;
+  data[3] = s21ai;
 }
 
 void
 cal_collect(uint16_t type)
 {
   uint16_t dst, src;
-#if 1
+
   static const struct {
     uint16_t set_flag;
     uint16_t clr_flag;
@@ -1781,24 +1830,21 @@ cal_collect(uint16_t type)
     [CAL_ISOLN]= {CALSTAT_ISOLN, ~(                      CALSTAT_APPLY), CAL_ISOLN, 1},
   };
   if (type >= ARRAY_COUNT(calibration_set)) return;
+
+  // reset old calibration if frequency range/points not some
+  if (needInterpolate(frequency0, frequency1, sweep_points)){
+    cal_status = 0;
+    cal_frequency0 = frequency0;
+    cal_frequency1 = frequency1;
+    cal_sweep_points = sweep_points;
+  }
+  cal_power = current_props._power;
+
   cal_status&=calibration_set[type].clr_flag;
   cal_status|=calibration_set[type].set_flag;
   dst = calibration_set[type].dst;
   src = calibration_set[type].src;
-#else
-  switch (type) {
-//       type            set data flag            destination    source     reset flag
-    case CAL_LOAD:  cal_status|= CALSTAT_LOAD;  dst = CAL_LOAD;  src = 0; break;
-    case CAL_OPEN:  cal_status|= CALSTAT_OPEN;  dst = CAL_OPEN;  src = 0; cal_status&= ~(CALSTAT_ES); break;
-    case CAL_SHORT: cal_status|= CALSTAT_SHORT; dst = CAL_SHORT; src = 0; cal_status&= ~(CALSTAT_ER); break;
-    case CAL_THRU:  cal_status|= CALSTAT_THRU;  dst = CAL_THRU;  src = 1; cal_status&= ~(CALSTAT_ET); break;
-    case CAL_ISOLN: cal_status|= CALSTAT_ISOLN; dst = CAL_ISOLN; src = 1; break;
-    default:
-      return;
-  }
-  // Disable calibration apply
-  cal_status&= ~(CALSTAT_APPLY);
-#endif
+
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config._bandwidth;  // store current setting
   if (bw < BANDWIDTH_100)
@@ -1870,101 +1916,65 @@ cal_done(void)
   if (!(cal_status & CALSTAT_ES))
     eterm_set(ETERM_ES, 0.0, 0.0);
 
-  // Reset interpolation flag
-  cal_status&=~CALSTAT_INTERPOLATED;
   cal_status|= CALSTAT_APPLY;
-  request_to_redraw(REDRAW_CAL_STATUS);
   lastsaveid = NO_SAVE_SLOT;
 }
 
-static void
-cal_interpolate(void)
-{
-  const properties_t *src = caldata_reference();
-  uint32_t i, j;
+static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   int eterm;
-  if (src == NULL)
-    return;
-
-  // Upload not interpolated if some
-  if (getFrequency(0) == src->_frequency0 && getFrequency(src->_sweep_points-1) == src->_frequency1){
-    memcpy(current_props._cal_data, src->_cal_data, sizeof(src->_cal_data));
-    cal_status = src->_cal_status;
-    request_to_redraw(REDRAW_CAL_STATUS);
-    return;
+  uint16_t src_points = cal_sweep_points - 1;
+  if (idx >= 0)
+    goto copy_point;
+  if (f <= cal_frequency0){
+    idx = 0;
+    goto copy_point;
   }
-  uint32_t src_f = src->_frequency0;
-  // lower than start freq of src range
-  for (i = 0; i < sweep_points; i++) {
-    if (getFrequency(i) >= src_f)
-      break;
+  if (f >= cal_frequency1){
+    idx = src_points;
+    goto copy_point;
+  }
+  // Search k1
+  freq_t span = cal_frequency1 - cal_frequency0;
+  idx = (uint64_t)(f - cal_frequency0) * (uint64_t)src_points / span;
+  uint64_t v = (uint64_t)span * idx + src_points/2;
+  freq_t src_f0 = cal_frequency0 + (v       ) / src_points;
+  freq_t src_f1 = cal_frequency0 + (v + span) / src_points;
 
-    // fill cal_data at head of src range
-    for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
-      cal_data[eterm][i][0] = src->_cal_data[eterm][0][0];
-      cal_data[eterm][i][1] = src->_cal_data[eterm][0][1];
+  freq_t delta = src_f1 - src_f0;
+  // Not need interpolate
+  if (f == src_f0) goto copy_point;
+
+  float k1 = (delta == 0) ? 0.0 : (float)(f - src_f0) / delta;
+  // avoid glitch between freqs in different harmonics mode
+  uint32_t hf0 = si5351_get_harmonic_lvl(src_f0);
+  if (hf0 != si5351_get_harmonic_lvl(src_f1)) {
+    // f in prev harmonic, need extrapolate from prev 2 points
+    if (hf0 == si5351_get_harmonic_lvl(f)){
+      if (idx < 1) goto copy_point; // point limit
+      idx--;
+      k1+= 1.0f;
+    }
+    // f in next harmonic, need extrapolate from next 2 points
+    else {
+      if (idx >= src_points) goto copy_point; // point limit
+      idx++;
+      k1-= 1.0f;
     }
   }
-
-  // ReBuild src freq list
-  uint32_t src_points = (src->_sweep_points - 1);
-  freq_t span = src->_frequency1 - src->_frequency0;
-  freq_t delta = span / src_points;
-  freq_t error = span % src_points;
-  freq_t df = src_points>>1;
-  j = 0;
-  for (; i < sweep_points; i++) {
-    freq_t f = getFrequency(i);
-    if (f == 0) goto interpolate_finish;
-    for (; j < src_points; j++) {
-      if (src_f <= f && f < src_f + delta) {
-        // found f between freqs at j and j+1
-        float k1 = (delta == 0) ? 0.0 : (float)(f - src_f) / delta;
-        // avoid glitch between freqs in different harmonics mode
-        uint32_t idx = j;
-        if (si5351_get_harmonic_lvl(src_f) != si5351_get_harmonic_lvl(src_f+delta)) {
-          // f in prev harmonic, need extrapolate from prev 2 points
-          if (si5351_get_harmonic_lvl(f) == si5351_get_harmonic_lvl(src_f)){
-            if (idx >= 1){
-              idx--; k1+=1.0;
-            }
-            else // point limit
-              k1 = 0.0;
-          }
-          // f in next harmonic, need extrapolate from next 2 points
-          else {
-            if (idx < src_points){
-              idx++; k1-=1.0;
-            }
-            else // point limit
-              k1 = 1.0;
-          }
-        }
-        float k0 = 1.0 - k1;
-        for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
-          cal_data[eterm][i][0] = src->_cal_data[eterm][idx][0] * k0 + src->_cal_data[eterm][idx+1][0] * k1;
-          cal_data[eterm][i][1] = src->_cal_data[eterm][idx][1] * k0 + src->_cal_data[eterm][idx+1][1] * k1;
-        }
-        break;
-      }
-      df+=error;if (df >=src_points) {src_f++;df -= src_points;}
-      src_f+=delta;
-    }
-    if (j == src_points)
-      break;
+  // Interpolate by k1
+  float k0 = 1.0 - k1;
+  for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
+    data[eterm][0] = cal_data[eterm][idx][0] * k0 + cal_data[eterm][idx+1][0] * k1;
+    data[eterm][1] = cal_data[eterm][idx][1] * k0 + cal_data[eterm][idx+1][1] * k1;
   }
-
-  // upper than end freq of src range
-  for (; i < sweep_points; i++) {
-    // fill cal_data at tail of src
-    for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
-      cal_data[eterm][i][0] = src->_cal_data[eterm][src_points][0];
-      cal_data[eterm][i][1] = src->_cal_data[eterm][src_points][1];
-    }
+  return;
+  // Direct point copy
+copy_point:
+  for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
+    data[eterm][0] = cal_data[eterm][idx][0];
+    data[eterm][1] = cal_data[eterm][idx][1];
   }
-interpolate_finish:
-  cal_status = src->_cal_status | CALSTAT_INTERPOLATED;
-  request_to_redraw(REDRAW_CAL_STATUS);
+  return;
 }
 
 VNA_SHELL_FUNCTION(cmd_cal)
@@ -3301,7 +3311,7 @@ int main(void)
  * Set frequency offset
  */
 #ifdef USE_VARIABLE_OFFSET
-  si5351_set_frequency_offset(FREQUENCY_OFFSET);
+  si5351_set_frequency_offset(IF_OFFSET);
 #endif
 /*
  * Init Shell console connection data
