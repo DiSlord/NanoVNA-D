@@ -67,6 +67,9 @@ enum {
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
 #endif
+#ifdef __VNA_Z_RENORMALIZATION__
+  KM_Z_PORT,
+#endif
   KM_NONE
 };
 
@@ -914,6 +917,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 #ifdef __S21_MEASURE__
       case KM_MEASURE_R:       b->p1.f = config._measure_r; break;
 #endif
+#ifdef __VNA_Z_RENORMALIZATION__
+      case KM_Z_PORT:          b->p1.f = current_props._portz; break;
+#endif
     }
     return;
   }
@@ -1505,6 +1511,9 @@ const menuitem_t menu_display[] = {
 #ifdef __USE_SMOOTH__
   { MT_SUBMENU,      0, "DATA\nSMOOTH",      menu_smooth_count },
 #endif
+#ifdef __VNA_Z_RENORMALIZATION__
+  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1561,7 +1570,7 @@ const menuitem_t menu_marker_sel[] = {
   { MT_ADV_CALLBACK, 7, "MARKER %d", menu_marker_sel_acb },
 #endif
   { MT_CALLBACK, 0,     "ALL OFF", menu_marker_disable_all_cb },
-  { MT_ADV_CALLBACK, 0,     "DELTA", menu_marker_delta_acb },
+  { MT_ADV_CALLBACK, 0,   "DELTA", menu_marker_delta_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1917,6 +1926,9 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __S21_MEASURE__
 [KM_MEASURE_R]       = {keypads_scale, "MEASURE Rl" }, // CH0 port impedance in Om
 #endif
+#ifdef __VNA_Z_RENORMALIZATION__
+[KM_Z_PORT]          = {keypads_scale, "PORT Z 50" S_RARROW }, // Port Z renormalization impedance
+#endif
 };
 
 static void
@@ -1939,6 +1951,9 @@ set_numeric_value(float f_val, freq_t u_val)
     case KM_VBAT:     config._vbat_offset = u_val;           break;
 #ifdef __S21_MEASURE__
     case KM_MEASURE_R:config._measure_r = f_val;             break;
+#endif
+#ifdef __VNA_Z_RENORMALIZATION__
+    case KM_Z_PORT:   current_props._portz = f_val;          break;
 #endif
   }
 }

@@ -61,6 +61,8 @@
 #endif
 // Add measure module option (allow made some measure calculations on data)
 #define __VNA_MEASURE_MODULE__
+// Add Z normalization feature
+//#define __VNA_Z_RENORMALIZATION__
 
 /*
  * Submodules defines
@@ -781,6 +783,7 @@ typedef struct properties {
   uint8_t  _marker_smith_format;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
+  float    _portz;
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
