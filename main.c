@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.66"
+#define VERSION "1.0.67"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -993,6 +993,7 @@ void load_default_properties(void)
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
   current_props._electrical_delay = 0.0;
+  current_props._portz = 50.0f;
   current_props._velocity_factor = 70;
   current_props._current_trace   = 0;
   current_props._active_marker   = 0;
@@ -1074,11 +1075,12 @@ extern uint16_t timings[16];
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
-#define SWEEP_CH0_MEASURE         1
-#define SWEEP_CH1_MEASURE         2
-#define SWEEP_APPLY_EDELAY        4
-#define SWEEP_APPLY_CALIBRATION   8
-#define SWEEP_USE_INTERPOLATION  16
+#define SWEEP_CH0_MEASURE           1
+#define SWEEP_CH1_MEASURE           2
+#define SWEEP_APPLY_EDELAY          4
+#define SWEEP_APPLY_CALIBRATION     8
+#define SWEEP_USE_INTERPOLATION    16
+#define SWEEP_USE_RENORMALIZATION  32
 
 static uint16_t get_sweep_mask(void){
   uint16_t ch_mask = 0;
@@ -1093,6 +1095,10 @@ static uint16_t get_sweep_mask(void){
   // For measure calculations need data
   ch_mask|= plot_get_measure_channels();
 #endif
+#ifdef __VNA_Z_RENORMALIZATION__
+  if (current_props._portz != 50.0f)
+    ch_mask|= SWEEP_USE_RENORMALIZATION;
+#endif
   if (cal_status & CALSTAT_APPLY)        ch_mask|= SWEEP_APPLY_CALIBRATION;
   if (cal_status & CALSTAT_INTERPOLATED) ch_mask|= SWEEP_USE_INTERPOLATION;
   if (electrical_delay)                  ch_mask|= SWEEP_APPLY_EDELAY;
@@ -1105,6 +1111,10 @@ static void applyEDelay(float data[2], float s, float c){
   data[0] = real * c - imag * s;
   data[1] = imag * c + real * s;
 }
+
+#ifdef __VNA_Z_RENORMALIZATION__
+#include "vna_modules/vna_renorm.c"
+#endif
 
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
@@ -1154,10 +1164,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         apply_CH0_error_term(data, c_data);
       if (mask & SWEEP_APPLY_EDELAY)        // Apply e-delay
         applyEDelay(&data[0], s, c);
-      if (p_sweep < POINTS_COUNT){
-        measured[0][p_sweep][0] = data[0];
-        measured[0][p_sweep][1] = data[1];
-      }
     }
     // CH1:TRANSMISSION, reset and begin measure
     if (mask & SWEEP_CH1_MEASURE){
@@ -1175,7 +1181,17 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         apply_CH1_error_term(data, c_data);
       if (mask & SWEEP_APPLY_EDELAY)         // Apply e-delay
         applyEDelay(&data[2], s, c);
-      if (p_sweep < POINTS_COUNT){
+    }
+#ifdef __VNA_Z_RENORMALIZATION__
+    if (mask & SWEEP_USE_RENORMALIZATION)
+      apply_renormalization(data, mask);
+#endif
+    if (p_sweep < POINTS_COUNT){
+      if (mask & SWEEP_CH0_MEASURE){
+        measured[0][p_sweep][0] = data[0];
+        measured[0][p_sweep][1] = data[1];
+      }
+      if (mask & SWEEP_CH1_MEASURE){
         measured[1][p_sweep][0] = data[2];
         measured[1][p_sweep][1] = data[3];
       }
@@ -1705,7 +1721,7 @@ eterm_calc_et(void)
     float etr = cal_data[CAL_THRU][i][0] - cal_data[CAL_ISOLN][i][0];
     float eti = cal_data[CAL_THRU][i][1] - cal_data[CAL_ISOLN][i][1];
     float sq = etr*etr + eti*eti;
-    float invr = etr / sq;
+    float invr =  etr / sq;
     float invi = -eti / sq;
     cal_data[ETERM_ET][i][0] = invr;
     cal_data[ETERM_ET][i][1] = invi;
@@ -1792,10 +1808,8 @@ static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   float err = c_data[ETERM_ER][0] + s11mr * c_data[ETERM_ES][0] - s11mi * c_data[ETERM_ES][1];
   float eri = c_data[ETERM_ER][1] + s11mr * c_data[ETERM_ES][1] + s11mi * c_data[ETERM_ES][0];
   float sq = err*err + eri*eri;
-  float s11ar = (s11mr * err + s11mi * eri) / sq;
-  float s11ai = (s11mi * err - s11mr * eri) / sq;
-  data[0] = s11ar;
-  data[1] = s11ai;
+  data[0] = (s11mr * err + s11mi * eri) / sq;
+  data[1] = (s11mi * err - s11mr * eri) / sq;
 }
 
 static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
@@ -1805,10 +1819,8 @@ static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   float s21mr = data[2] - c_data[ETERM_EX][0];
   float s21mi = data[3] - c_data[ETERM_EX][1];
   // Not made CH1 correction by CH0 data
-  float s21ar = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
-  float s21ai = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
-  data[2] = s21ar;
-  data[3] = s21ai;
+  data[2] = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
+  data[3] = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
 }
 
 void

@@ -324,10 +324,16 @@ swr(const float *v)
   return (1 + x)/(1 - x);
 }
 
+#ifdef __VNA_Z_RENORMALIZATION__
+#define PORT_Z current_props._portz
+#else
+#define PORT_Z 50.0f
+#endif
+
 static float
 resistance(const float *v)
 {
-  const float z0 = 50;
+  const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return z0 * (1 - v[0]*v[0] - v[1]*v[1]) / d;
 }
@@ -335,7 +341,7 @@ resistance(const float *v)
 static float
 reactance(const float *v)
 {
-  const float z0 = 50;
+  const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return 2 * z0 * v[1] / d;
 }
@@ -343,7 +349,7 @@ reactance(const float *v)
 static float
 mod_z(const float *v)
 {
-  const float z0 = 50;
+  const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
 }
@@ -1778,8 +1784,15 @@ cell_draw_marker_info(int x0, int y0)
     xpos += 5;
 
     float edelay = electrical_delay * 1e-12; // to seconds
-    cell_printf(xpos, ypos, "Edelay %Fs (%Fm)", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
+    cell_printf(xpos, ypos, "Edelay: %Fs (%Fm)", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
   }
+#ifdef __VNA_Z_RENORMALIZATION__
+  if (current_props._portz != 50.0f) {
+    xpos = 1 + 18 + CELLOFFSETX          - x0;
+    ypos = 1 + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
+    cell_printf(xpos, ypos, "PORT-Z: 50 " S_RARROW " %F" S_OHM, current_props._portz);
+  }
+#endif
 }
 
 static void
