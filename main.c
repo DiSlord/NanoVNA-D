@@ -1373,9 +1373,8 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
 #endif
 
-
-  if (!(mask&SCAN_MASK_NO_CALIBRATION)) sweep_ch|= SWEEP_APPLY_CALIBRATION;
-  if (electrical_delay)                 sweep_ch|= SWEEP_APPLY_EDELAY;
+  if ((cal_status & CALSTAT_APPLY) && !(mask&SCAN_MASK_NO_CALIBRATION)) sweep_ch|= SWEEP_APPLY_CALIBRATION;
+  if (electrical_delay             && !(mask&SCAN_MASK_NO_EDELAY     )) sweep_ch|= SWEEP_APPLY_EDELAY;
   if (needInterpolate(start, stop, sweep_points))
     sweep_ch|= SWEEP_USE_INTERPOLATION;
 
@@ -3089,8 +3088,6 @@ static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
   char *lp = line, *ep;
   shell_nargs = 0;
-
-//  DEBUG_LOG(0, lp); // debug console log
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
     while (*lp == ' ' || *lp == '\t') lp++;
@@ -3155,6 +3152,7 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 static void VNAShell_executeLine(char *line)
 {
+//  DEBUG_LOG(0, line); // debug console log
   // Execute line
   const VNAShellCommand *scp = VNAShell_parceLine(line);
   if (scp) {

@@ -461,7 +461,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     return;
   }
   // Smith/Polar grid
-  if (type & ((1<<TRC_SMITH)|(1<<TRC_POLAR) /*|(1<<TRC_ADMIT)*/)){ // Need custom calculations
+  if (type & ROUND_GRID_MASK){ // Need custom calculations
     const float rscale = P_RADIUS / scale;
     int16_t y, x, i;
     for (i = 0; i <= point_count; i++){
@@ -1340,7 +1340,7 @@ static void cell_grid_line_info(int x0, int y0)
   if (current_trace == TRACE_INVALID) return;
   // Skip for SMITH/POLAR and off trace
   uint32_t trace_type = 1 << trace[current_trace].type;
-  if (trace_type&((1 << TRC_SMITH) | (1 << TRC_POLAR) | (1 << TRC_OFF))) return;
+  if (trace_type & (ROUND_GRID_MASK | (1 << TRC_OFF))) return;
   // Render at right
   int16_t xpos = GRID_X_TEXT - x0;
   int16_t ypos = 0           - y0 + 2;
@@ -1558,7 +1558,7 @@ draw_cell(int m, int n)
 // Draw reference position (<10 system ticks for all screen calls)
   for (t = 0; t < TRACES_MAX; t++) {
     // Skip draw reference position for disabled/smith/polar traces
-    if (!trace[t].enabled || ((1 << trace[t].type) & ((1 << TRC_SMITH) | (1 << TRC_POLAR) | (1 << TRC_OFF))))
+    if (!trace[t].enabled || ((1 << trace[t].type) & (ROUND_GRID_MASK | (1 << TRC_OFF))))
       continue;
     int x = 0 - x0 + CELLOFFSETX - REFERENCE_X_OFFSET;
     if ((uint32_t)(x + REFERENCE_WIDTH) < CELLWIDTH + REFERENCE_WIDTH) {
