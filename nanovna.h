@@ -643,6 +643,7 @@ enum trace_type {
 };
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_Q))
+#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH)/*|(1<<TRC_ADMIT)*/)
 
 // LOGMAG: SCALE, REFPOS, REFVAL
 // PHASE: SCALE, REFPOS, REFVAL
@@ -1027,8 +1028,6 @@ void     lcd_setBrightness(uint16_t b);
 #define fs_volume    (FATFS *)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS))
 // FatFS file object (at the end of spi_buffer)
 #define fs_file      (   FIL*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL))
-// Filename object (at the end of spi_buffer)
-#define fs_filename  (  char*)(((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - sizeof(FATFS) - sizeof(FIL) - FF_LFN_BUF - 4)
 #endif
 
 void testLog(void);        // debug log

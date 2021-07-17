@@ -952,7 +952,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
     b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
   }
-  sweep_mode^= SWEEP_ENABLE;
+  toggle_sweep();
 }
 
 #define UI_MARKER_EDELAY 4
@@ -1209,9 +1209,21 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #endif
 
 #ifdef __USE_SD_CARD__
-#define SAVE_S1P_FILE  1
-#define SAVE_S2P_FILE  2
+// Save format enum
+enum {
+  SAVE_S1P_FILE=0, SAVE_S2P_FILE, SAVE_BMP_FILE
+};
 
+// Save file extension
+static const char *file_ext[] = {
+  [SAVE_S1P_FILE] = "s1p",
+  [SAVE_S2P_FILE] = "s2p",
+  [SAVE_BMP_FILE] = "bmp"
+};
+
+//*******************************************************************************************
+// S1P and S2P file headers, and data structures
+//*******************************************************************************************
 static const char s1_file_header[] =
   "!File created by NanoVNA\r\n"\
   "# Hz S RI R 50\r\n";
@@ -1226,7 +1238,44 @@ static const char s2_file_header[] =
 static const char s2_file_param[] =
   "%10u % f % f % f % f 0 0 0 0\r\n";
 
-static FRESULT vna_create_file(char *ext){
+//*******************************************************************************************
+// Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
+//*******************************************************************************************
+#define BMP_UINT32(val)  ((val)>>0)&0xFF, ((val)>>8)&0xFF, ((val)>>16)&0xFF, ((val)>>24)&0xFF
+#define BMP_H1_SIZE      (14)                        // BMP header 14 bytes
+#define BMP_V4_SIZE      (56)                        // v4  header 56 bytes
+#define BMP_HEAD_SIZE    (BMP_H1_SIZE + BMP_V4_SIZE) // Size of all headers
+#define BMP_SIZE         (2*LCD_WIDTH*LCD_HEIGHT)    // Bitmap size = 2*w*h
+#define BMP_FILE_SIZE    (BMP_SIZE + BMP_HEAD_SIZE)  // File size = headers + bitmap
+static const uint8_t bmp_header_v4[14+56] = {
+// BITMAPFILEHEADER (14 byte size)
+  0x42, 0x4D,                // BM signature
+  BMP_UINT32(BMP_FILE_SIZE), // File size (h + v4 + bitmap)
+  0x00, 0x00,                // reserved
+  0x00, 0x00,                // reserved
+  BMP_UINT32(BMP_HEAD_SIZE), // Size of all headers (h + v4)
+// BITMAPINFOv4 (56 byte size)
+  BMP_UINT32(BMP_V4_SIZE),   // Data offset after this point (v4 size)
+  BMP_UINT32(LCD_WIDTH),     // Width
+  BMP_UINT32(LCD_HEIGHT),    // Height
+  0x01, 0x00,                // Planes
+  0x10, 0x00,                // 16bpp
+  0x03, 0x00, 0x00, 0x00,    // Compression (BI_BITFIELDS)
+  BMP_UINT32(BMP_SIZE),      // Bitmap size (w*h*2)
+  0xC4, 0x0E, 0x00, 0x00,    // x Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
+  0xC4, 0x0E, 0x00, 0x00,    // y Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
+  0x00, 0x00, 0x00, 0x00,    // Palette size
+  0x00, 0x00, 0x00, 0x00,    // Palette used
+// Extend v4 header data (color mask for RGB565)
+  BMP_UINT32(0b1111100000000000),// R mask = 0b11111000 00000000
+  BMP_UINT32(0b0000011111100000),// G mask = 0b00000111 11100000
+  BMP_UINT32(0b0000000000011111),// B mask = 0b00000000 00011111
+  BMP_UINT32(0b0000000000000000) // A mask = 0b00000000 00000000
+};
+
+// Create file name from current time
+static FRESULT vna_create_file(char *fs_filename, const char *ext)
+{
 //  shell_printf("S file\r\n");
   FRESULT res = f_mount(fs_volume, "", 1);
 //  shell_printf("Mount = %d\r\n", res);
@@ -1247,42 +1296,76 @@ static FRESULT vna_create_file(char *ext){
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
-  char *buf = (char *)spi_buffer;
-  int i;
+  char *buf_8;
+  uint16_t *buf_16;
+  char filename[32];
+  int i, y;
   UINT size;
+  // For screenshot need back to normal mode and redraw screen before capture!!
+  // Redraw use spi_buffer so need do it before any file ops
+  if (data == SAVE_BMP_FILE && ui_mode != UI_NORMAL){
+    ui_mode_normal();
+    request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
+    draw_all(true);
+  }
 //  UINT total_size = 0;
 //  systime_t time = chVTGetSystemTimeX();
-  // Prepare filename = .s1p or .s2p and open for write
-  FRESULT res = vna_create_file(data == SAVE_S1P_FILE ? "s1p" : "s2p");
+  // Prepare filename = .s1p / .s2p / .bmp and open for write
+  FRESULT res = vna_create_file(filename, file_ext[data]);
   if (res == FR_OK){
     const char *s_file_format;
-    // Write SxP file
-    if (data == SAVE_S1P_FILE){
-      s_file_format = s1_file_param;
-      // write sxp header (not write NULL terminate at end)
-      res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
+    switch(data) {
+      /*
+       *  Save touchstone file for VNA (use rev 1.1 format)
+       *  https://en.wikipedia.org/wiki/Touchstone_file
+       */
+      case SAVE_S1P_FILE:
+      case SAVE_S2P_FILE:
+      buf_8  = (char *)spi_buffer;
+      // Write SxP file
+      if (data == SAVE_S1P_FILE){
+        s_file_format = s1_file_param;
+        // write sxp header (not write NULL terminate at end)
+        res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
+//        total_size+=size;
+      }
+      else {
+        s_file_format = s2_file_param;
+        // Write s2p header (not write NULL terminate at end)
+        res = f_write(fs_file, s2_file_header, sizeof(s2_file_header)-1, &size);
+//        total_size+=size;
+      }
+      // Write all points data
+      for (i = 0; i < sweep_points && res == FR_OK; i++) {
+        size = plot_printf(buf_8, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+//        total_size+=size;
+        res = f_write(fs_file, buf_8, size, &size);
+      }
+      break;
+      /*
+       *  Save bitmap file (use v4 format allow set RGB mask)
+       */
+      case SAVE_BMP_FILE:
+      buf_16 = spi_buffer;
+      res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
 //      total_size+=size;
+      for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
+        lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
+        for (i = 0; i < LCD_WIDTH; i++)
+          buf_16[i] = __REVSH(buf_16[i]); // swap byte order (example 0x10FF to 0xFF10)
+        res = f_write(fs_file, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
+//        total_size+=size;
+      }
+      break;
     }
-    else {
-      s_file_format = s2_file_param;
-      // Write s2p header (not write NULL terminate at end)
-      res = f_write(fs_file, s2_file_header, sizeof(s2_file_header)-1, &size);
-//      total_size+=size;
-    }
-    // Write all points data
-    for (i = 0; i < sweep_points && res == FR_OK; i++) {
-      size = plot_printf(buf, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
-//      total_size+=size;
-      res = f_write(fs_file, buf, size, &size);
-    }
-    res = f_close(fs_file);
+    f_close(fs_file);
 //    shell_printf("Close = %d\r\n", res);
 //    testLog();
 //    time = chVTGetSystemTimeX() - time;
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
 
-  drawMessageBox("SAVE TRACE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
+  drawMessageBox("SD CARD SAVE", res == FR_OK ? filename : "  Fail write  ", 2000);
   request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
@@ -1318,8 +1401,9 @@ static const menuitem_t menu_back[] = {
 
 #ifdef __USE_SD_CARD__
 static const menuitem_t menu_sdcard[] = {
-  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P", menu_sdcard_cb },
-  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P", menu_sdcard_cb },
+  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
+  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
+  { MT_CALLBACK, SAVE_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2712,77 +2796,6 @@ touch_pickup_marker(int touch_x, int touch_y)
   return TRUE;
 }
 
-#ifdef __USE_SD_CARD__
-//*******************************************************************************************
-// Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
-//*******************************************************************************************
-#define BMP_UINT32(val)  ((val)>>0)&0xFF, ((val)>>8)&0xFF, ((val)>>16)&0xFF, ((val)>>24)&0xFF
-#define BMP_H1_SIZE      (14)                        // BMP header 14 bytes
-#define BMP_V4_SIZE      (56)                        // v4  header 56 bytes
-#define BMP_HEAD_SIZE    (BMP_H1_SIZE + BMP_V4_SIZE) // Size of all headers
-#define BMP_SIZE         (2*LCD_WIDTH*LCD_HEIGHT)    // Bitmap size = 2*w*h
-#define BMP_FILE_SIZE    (BMP_SIZE + BMP_HEAD_SIZE)  // File size = headers + bitmap
-static const uint8_t bmp_header_v4[14+56] = {
-// BITMAPFILEHEADER (14 byte size)
-  0x42, 0x4D,                // BM signature
-  BMP_UINT32(BMP_FILE_SIZE), // File size (h + v4 + bitmap)
-  0x00, 0x00,                // reserved
-  0x00, 0x00,                // reserved
-  BMP_UINT32(BMP_HEAD_SIZE), // Size of all headers (h + v4)
-// BITMAPINFOv4 (56 byte size)
-  BMP_UINT32(BMP_V4_SIZE),   // Data offset after this point (v4 size)
-  BMP_UINT32(LCD_WIDTH),     // Width
-  BMP_UINT32(LCD_HEIGHT),    // Height
-  0x01, 0x00,                // Planes
-  0x10, 0x00,                // 16bpp
-  0x03, 0x00, 0x00, 0x00,    // Compression (BI_BITFIELDS)
-  BMP_UINT32(BMP_SIZE),      // Bitmap size (w*h*2)
-  0xC4, 0x0E, 0x00, 0x00,    // x Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
-  0xC4, 0x0E, 0x00, 0x00,    // y Resolution (96 DPI = 96 * 39.3701 inches per meter = 0x0EC4)
-  0x00, 0x00, 0x00, 0x00,    // Palette size
-  0x00, 0x00, 0x00, 0x00,    // Palette used
-// Extend v4 header data (color mask for RGB565)
-  BMP_UINT32(0b1111100000000000),// R mask = 0b11111000 00000000
-  BMP_UINT32(0b0000011111100000),// G mask = 0b00000111 11100000
-  BMP_UINT32(0b0000000000011111),// B mask = 0b00000000 00011111
-  BMP_UINT32(0b0000000000000000) // A mask = 0b00000000 00000000
-};
-
-static bool
-made_screenshot(int touch_x, int touch_y)
-{
-  int y, i;
-  UINT size;
-  if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
-    return FALSE;
-  touch_wait_release();
-
-//  shell_printf("Screenshot\r\n");
-//  uint32_t time = chVTGetSystemTimeX();
-  // fs_volume, fs_file and fs_filename stored at end of spi_buffer!!!!!
-  uint16_t *buf = (uint16_t *)spi_buffer;
-  FRESULT res = vna_create_file("bmp");
-//  shell_printf("Open %s, result = %d\r\n", fs_filename, res);
-  if (res == FR_OK){
-    res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size);
-    for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
-      lcd_read_memory(0, y, LCD_WIDTH, 1, buf);
-      for (i = 0; i < LCD_WIDTH; i++)
-        buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
-      res = f_write(fs_file, buf, LCD_WIDTH*sizeof(uint16_t), &size);
-    }
-    res = f_close(fs_file);
-//    shell_printf("Close %d\r\n", res);
-//    testLog();
-  }
-//  time = chVTGetSystemTimeX() - time;
-//  shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, (LCD_WIDTH*LCD_HEIGHT*sizeof(uint16_t)+sizeof(bmp_header_v4))*10000/time);
-  drawMessageBox("SCREENSHOT", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
-  request_to_redraw(REDRAW_AREA);
-  return TRUE;
-}
-#endif
-
 static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
@@ -2826,7 +2839,8 @@ ui_process_normal_lever(uint16_t status)
 static bool
 normal_apply_ref_scale(int touch_x, int touch_y){
   int t = current_trace;
-  if (t == TRACE_INVALID) return FALSE;
+  // do not scale invalid or smith chart
+  if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
   if (touch_x < OFFSETX - 5 || touch_x > OFFSETX + CELLOFFSETX + 10 ||
       touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
   float ref   = trace[t].refpos;
@@ -2844,6 +2858,18 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   chThdSleepMilliseconds(100);
   return TRUE;
 }
+
+#ifdef __USE_SD_CARD__
+static bool
+made_screenshot(int touch_x, int touch_y)
+{
+  if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
+    return FALSE;
+  touch_wait_release();
+  menu_sdcard_cb(SAVE_BMP_FILE);
+  return TRUE;
+}
+#endif
 
 static void
 normal_apply_touch(int touch_x, int touch_y){
