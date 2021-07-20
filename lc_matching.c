@@ -117,14 +117,14 @@ static int lc_match_calc(int index)
   const float R0 = lc_match_array->R0;
   // compute the impedance at the chosen frequency
   const float *coeff = measured[0][index];
-  const float RL = resistance(coeff);
-  const float XL = reactance(coeff);
+  const float RL = resistance(index, coeff);
+  const float XL = reactance(index, coeff);
 
   if (RL <= 0.5f)
     return -1;
 
   const float q_factor = XL / RL;
-  const float vswr = swr(coeff);
+  const float vswr = swr(index, coeff);
   // no need for any matching
   if (vswr <= 1.1f || q_factor >= 100.0f)
     return 0;
@@ -155,9 +155,10 @@ static int lc_match_calc(int index)
   return 4;
 }
 
-static void prepare_lc_match(uint8_t mode)
+static void prepare_lc_match(uint8_t mode, uint8_t update_mask)
 {
   (void)mode;
+  (void)update_mask;
   // Made calculation only one time for current sweep and frequency
   freq_t freq = get_marker_frequency(active_marker);
   if (freq == 0)// || lc_match_array->Hz == freq)

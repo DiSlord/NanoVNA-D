@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.67"
+#define VERSION "1.0.68"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2070,36 +2070,13 @@ VNA_SHELL_FUNCTION(cmd_recall)
   shell_printf("recall {id}\r\n");
 }
 
-#if MAX_TRACE_TYPE != 14
-#error "Trace type enum possibly changed, check trace_info"
-#endif
-static const struct {
-  const char *name;
-  uint16_t refpos;
-  float scale_unit;
-} trace_info[MAX_TRACE_TYPE-1] = {
-  { "LOGMAG", NGRIDY-1,  10.0 },
-  { "PHASE",  NGRIDY/2,  90.0 },
-  { "DELAY",  NGRIDY/2,  1e-9 },
-  { "SMITH",         0,  1.00 },
-  { "POLAR",         0,  1.00 },
-  { "LINEAR",        0,  0.125},
-  { "SWR",           0,  0.25 },
-  { "REAL",   NGRIDY/2,  0.25 },
-  { "IMAG",   NGRIDY/2,  0.25 },
-  { "R",      NGRIDY/2, 100.0 },
-  { "X",      NGRIDY/2, 100.0 },
-  { "|Z|",           0,  50.0 },
-  { "Q",             0,  10.0 }
-};
-
 static const char * const trc_channel_name[] = {
   "S11", "S21"
 };
 
 const char *get_trace_typename(int t)
 {
-  return trace_info[trace[t].type].name;
+  return trace_info_list[trace[t].type].name;
 }
 
 const char *get_trace_chname(int t)
@@ -2119,9 +2096,9 @@ void set_trace_type(int t, int type)
   if (trace[t].type != type && enabled) {
     trace[t].type = type;
     // Set default trace refpos
-    trace[t].refpos = trace_info[type].refpos;
+    trace[t].refpos = trace_info_list[type].refpos;
     // Set default trace scale
-    trace[t].scale  = trace_info[type].scale_unit;
+    trace[t].scale  = trace_info_list[type].scale_unit;
     force = TRUE;
   }
   if (force)

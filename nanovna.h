@@ -79,6 +79,8 @@
 #define __USE_LC_MATCHING__
 // Enable Series measure option
 //#define __S21_MEASURE__
+// Enable S11 cable measure option
+//#define __S11_CABLE_MEASURE__
 #endif
 
 /*
@@ -639,20 +641,24 @@ extern const uint8_t numfont16x22[];
 // trace 
 #define MAX_TRACE_TYPE 14
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_Q, TRC_OFF
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, /*TRC_ADMIT,*/ TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_Q, TRC_OFF
 };
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_Q))
 #define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH)/*|(1<<TRC_ADMIT)*/)
 
-// LOGMAG: SCALE, REFPOS, REFVAL
-// PHASE: SCALE, REFPOS, REFVAL
-// DELAY: SCALE, REFPOS, REFVAL
-// SMITH: SCALE, <REFPOS>, <REFVAL>
-// LINMAG: SCALE, REFPOS, REFVAL
-// SWR: SCALE, REFPOS, REFVAL
-// Electrical Delay
-// Phase
+// Trace info description structure
+typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback
+typedef struct trace_info {
+  const char *name;            // Trace name
+  const char *format;          // trace value printf format for marker output
+  const char *dformat;         // delta value printf format
+  float refpos;                // default refpos
+  float scale_unit;            // default scale
+  get_value_cb_t get_value_cb; // get value callback (can be NULL, in this case need add custom calculations)
+} trace_info_t;
+// Trace render options in plot.c
+extern const trace_info_t trace_info_list[MAX_TRACE_TYPE];
 
 // marker smith value format
 enum marker_smithvalue {
@@ -717,6 +723,9 @@ enum {
   MEASURE_SHUNT_LC,
   MEASURE_SERIES_LC,
   MEASURE_SERIES_XTAL,
+#endif
+#ifdef __S11_CABLE_MEASURE__
+  MEASURE_S11_CABLE,
 #endif
   MEASURE_END
 };
@@ -805,7 +814,7 @@ void shell_update_speed(void);
 void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
-float groupdelay_from_array(int i, float array[POINTS_COUNT][2]);
+float groupdelay_from_array(int i, const float *v);
 
 void plot_init(void);
 void update_grid(void);
