@@ -224,6 +224,20 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
+#if 0
+static void
+cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
+{
+  int x, y;
+  // offset to center
+  x0 -= P_CENTER_X;
+  y0 -= P_CENTER_Y;
+  for (y = 0; y < h; y++)
+    for (x = 0; x < w; x++)
+      if (smith_grid(-(x + x0), y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
+}
+#endif
+
 void update_grid(void)
 {
   freq_t gdigit = 100000000;
@@ -270,8 +284,9 @@ rectangular_grid_y(int y)
  * calculate log10(abs(gamma))
  */ 
 static float
-logmag(const float *v)
+logmag(int i, const float *v)
 {
+  (void) i;
   float x = v[0]*v[0] + v[1]*v[1];
 //  return log10f(x) *  10.0f;
 //  return vna_logf(x) * (10.0f / logf(10.0f));
@@ -282,8 +297,9 @@ logmag(const float *v)
  * calculate phase[-2:2] of coefficient
  */ 
 static float
-phase(const float *v)
+phase(int i, const float *v)
 {
+  (void) i;
   return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
 }
 
@@ -307,8 +323,9 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
  * calculate abs(gamma)
  */
 static float
-linear(const float *v)
+linear(int i, const float *v)
 {
+  (void) i;
   return vna_sqrtf(v[0]*v[0] + v[1]*v[1]);
 }
 
@@ -316,9 +333,10 @@ linear(const float *v)
  * calculate vswr; (1+gamma)/(1-gamma)
  */ 
 static float
-swr(const float *v)
+swr(int i, const float *v)
 {
-  float x = linear(v);
+  (void) i;
+  float x = linear(i, v);
   if (x > 0.99)
     return INFINITY;
   return (1 + x)/(1 - x);
@@ -331,60 +349,71 @@ swr(const float *v)
 #endif
 
 static float
-resistance(const float *v)
+resistance(int i, const float *v)
 {
+  (void) i;
   const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return z0 * (1 - v[0]*v[0] - v[1]*v[1]) / d;
 }
 
 static float
-reactance(const float *v)
+reactance(int i, const float *v)
 {
+  (void) i;
   const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return 2 * z0 * v[1] / d;
 }
 
 static float
-mod_z(const float *v)
+mod_z(int i, const float *v)
 {
+  (void) i;
   const float z0 = PORT_Z;
   const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
   return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
 }
 
 static float
-qualityfactor(const float *v)
+imag_lc(int i, const float *v)
 {
-  const float i = 2 * v[1];
-  const float r = 1 - v[0]*v[0] - v[1]*v[1];
-  return vna_fabsf(i / r);
+  const float zi = reactance(i, v);
+  float w = 2 * VNA_PI * getFrequency(i);
+  if (zi < 0) return 1 / (w * zi); // Capacity
+  return            zi / (w     ); // Inductive
 }
 
 static float
-real(const float *v)
+qualityfactor(int i, const float *v)
 {
+  (void) i;
+  const float im = 2 * v[1];
+  const float re = 1 - v[0]*v[0] - v[1]*v[1];
+  return vna_fabsf(im / re);
+}
+
+static float
+real(int i, const float *v)
+{
+  (void) i;
   return v[0];
 }
 
 static float
-imag(const float *v)
+imag(int i, const float *v)
 {
+  (void) i;
   return v[1];
 }
 
 float
-groupdelay_from_array(int i, float array[POINTS_COUNT][2])
+groupdelay_from_array(int i, const float *v)
 {
-  int bottom = (i ==   0) ?   0 : i - 1;
-  int top    = (i == sweep_points-1) ? sweep_points-1 : i + 1;
-#if 0
-  freq_t deltaf = frequencies[top] - frequencies[bottom];
-#else
+  int bottom = (i ==              0) ? 0 : -1; // get prev point
+  int top    = (i == sweep_points-1) ? 0 :  1; // get next point
   freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((sweep_points - 1) / (top - bottom));
-#endif
-  return groupdelay(array[bottom], array[top], deltaf);
+  return groupdelay(&v[2*bottom], &v[2*top], deltaf);
 }
 
 static inline void
@@ -404,26 +433,22 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
 #error "Redefined trace_type list, need check format_list"
 #endif
 
-typedef float (*get_value_cb_t)(const float *v);
-static const struct {
-  const char *name;
-  const char *dname;
-  get_value_cb_t get_value_cb;
-} format_list[]={
-// Type        format           delta format           get value
-[TRC_LOGMAG] = {"%.2fdB",       S_DELTA"%.2fdB",       logmag       },
-[TRC_PHASE]  = {"%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, phase        },
-[TRC_DELAY]  = {"%.4Fs",        "%.4Fs",               NULL         }, // Custom
-[TRC_SMITH]  = {NULL,           NULL,                  NULL         }, // Custom
-[TRC_POLAR]  = {"%.2f%+j.2f",   "%.2f%+j.2f",          NULL         }, // Custom
-[TRC_LINEAR] = {"%.4f",         S_DELTA"%.3f",         linear       },
-[TRC_SWR]    = {"%.3f",         S_DELTA"%.3f",         swr          },
-[TRC_REAL]   = {"%.4f",         S_DELTA"%.3f",         real         },
-[TRC_IMAG]   = {"%.4fj",        S_DELTA"%.4fj",        imag         },
-[TRC_R]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    resistance   },
-[TRC_X]      = {"%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    reactance    },
-[TRC_Z]      = {"%.3f",         S_DELTA"%.3f",         mod_z        },
-[TRC_Q]      = {"%.3f",         S_DELTA"%.3f",         qualityfactor},
+const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
+// Type             name    format           delta format             ref  scale  get value
+[TRC_LOGMAG] = {"LOGMAG", "%.2fdB",       S_DELTA"%.2fdB",       NGRIDY-1,  10.0, logmag               },
+[TRC_PHASE]  = {"PHASE",  "%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, NGRIDY/2,  90.0, phase                },
+[TRC_DELAY]  = {"DELAY",  "%.4Fs",        "%.4Fs",               NGRIDY/2,  1e-9, groupdelay_from_array},
+[TRC_SMITH]  = {"SMITH",  NULL,           NULL,                         0,  1.00, NULL                 }, // Custom
+[TRC_POLAR]  = {"POLAR",  "%.2f%+j.2f",   "%.2f%+j.2f",                 0,  1.00, NULL                 }, // Custom
+//[TRC_ADMIT]= {"ADMIT",  "%.2f%+j.2f",   "%.2f%+j.2f",                 0,  1.00, NULL                 }, // Custom
+[TRC_LINEAR] = {"LINEAR", "%.4f",         S_DELTA"%.3f",                0, 0.125, linear               },
+[TRC_SWR]    = {"SWR",    "%.3f",         S_DELTA"%.3f",                0,  0.25, swr                  },
+[TRC_REAL]   = {"REAL",   "%.4f",         S_DELTA"%.3f",         NGRIDY/2,  0.25, real                 },
+[TRC_IMAG]   = {"IMAG",   "%.4fj",        S_DELTA"%.4fj",        NGRIDY/2,  0.25, imag                 },
+[TRC_R]      = {"R",      "%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,           0, 100.0, resistance           },
+[TRC_X]      = {"X",      "%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    NGRIDY/2, 100.0, reactance            },
+[TRC_Z]      = {"|Z|",    "%.3f",         S_DELTA"%.3f",                0,  50.0, mod_z                },
+[TRC_Q]      = { "Q",     "%.3f",         S_DELTA"%.3f",                0,  10.0, qualityfactor        },
 };
 
 // Calculate and cache point coordinates for trace
@@ -433,7 +458,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
   uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
-  get_value_cb_t c = format_list[trace[t].type].get_value_cb; // Get callback for value calculation
+  get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
   float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5;  // 0.5 for pixel align
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
@@ -444,9 +469,8 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     uint16_t error = WIDTH % point_count;
     int32_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
     for (i = 0; i <= point_count; i++, x+=delta) {
-      float v;
-      if (c)  v = c(array[i]);                     // Get value
-      else    v = groupdelay_from_array(i, array); // only TRC_DELAY !! custom on RECTANGULAR_GRID_MASK
+      float v = 0;
+      if (c) v = c(i, array[i]);         // Get value
       if (v == INFINITY) {
         y = 0;
       } else {
@@ -461,7 +485,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     return;
   }
   // Smith/Polar grid
-  if (type & ROUND_GRID_MASK){ // Need custom calculations
+  if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))){ // Need custom calculations
     const float rscale = P_RADIUS / scale;
     int16_t y, x, i;
     for (i = 0; i <= point_count; i++){
@@ -471,6 +495,19 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     }
     return;
   }
+#if 0
+  // Admit grid
+  if (type & (1<<TRC_ADMIT)){ // Need custom calculations
+    const float rscale = P_RADIUS / scale;
+    int16_t y, x, i;
+    for (i = 0; i <= point_count; i++){
+      cartesian_scale(array[i], &x, &y, rscale);
+      index[i].x = x;
+      index[i].y = y;
+    }
+    return;
+  }
+#endif
 }
 
 static void
@@ -478,39 +515,35 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
 {
   char *format;
   float zr, zi;
-  freq_t frequency;
   switch (marker_smith_format) {
   case MS_LIN:
-    zr = linear(coeff);
-    zi = phase(coeff);
+    zr = linear(idx, coeff);
+    zi = phase(idx, coeff);
     format = "%.2f %.1f" S_DEGREE;
     break;
   case MS_LOG:
-    zr = logmag(coeff);
-    zi = phase(coeff);
+    zr = logmag(idx, coeff);
+    zi = phase(idx, coeff);
     format = (zr == -INFINITY) ? "-"S_INFINITY" dB" : "%.1fdB %.1f" S_DEGREE;
     break;
   case MS_REIM:
-    zr = real(coeff);
-    zi = imag(coeff);
+    zr = real(idx, coeff);
+    zi = imag(idx, coeff);
     format = "%F%+jF";
     break;
   case MS_RX:
-    zr = resistance(coeff);
-    zi = reactance(coeff);
+    zr = resistance(idx, coeff);
+    zi = reactance(idx, coeff);
     format = "%F%+jF"S_OHM;
     break;
   case MS_RLC:
-    zr = resistance(coeff);
-    zi = reactance(coeff);
-    frequency = getFrequency(idx);
-    if (zi < 0) {// Capacity
-      format = "%F"S_OHM" %FF";
-      zi = -1 / (2 * VNA_PI * frequency * zi);
-    } else {     // Inductive
-      format = "%F"S_OHM" %FH";
-      zi = zi / (2 * VNA_PI * frequency);
-    }
+    zr = resistance(idx, coeff);
+    zi = imag_lc(idx, coeff);
+    if (zi < 0)
+      format = "%F"S_OHM" %FF"; // Capacity
+    else
+      format = "%F"S_OHM" %FH"; // Inductive
+    zi = fabsf(zi);
     break;
   default:
     return;
@@ -532,23 +565,19 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   // Get format data
   if (index_ref >=0){                           // Delta value
     coeff_ref = array[index_ref];
-    format = format_list[type].dname;
+    format = trace_info_list[type].dformat;
   }
   else{                                         // No delta
-    format = format_list[type].name;
+    format = trace_info_list[type].format;
   }
 
-  get_value_cb_t c = format_list[type].get_value_cb;
-  if (c){                                            // Run standard get value function from table
-    v = c(coeff);                                    // Get value
-    if (coeff_ref && v != INFINITY) v-=c(coeff_ref); // Calculate delta value
+  get_value_cb_t c = trace_info_list[type].get_value_cb;
+  if (c){                                                   // Run standard get value function from table
+    v = c(index, coeff);                                    // Get value
+    if (coeff_ref && v != INFINITY) v-=c(index, coeff_ref); // Calculate delta value
   }
   else { // Need custom calculations
     switch (type) {
-    case TRC_DELAY:
-      v = groupdelay_from_array(index, array);
-      if (coeff_ref) v-= groupdelay_from_array(index_ref, array);
-      break;
     case TRC_SMITH:
       format_smith_value(xpos, ypos, coeff, index);
       return;
@@ -822,13 +851,10 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
 }
 
 #ifdef __VNA_MEASURE_MODULE__
-// Include L/C match functions
-#ifdef __USE_LC_MATCHING__
-  #include "lc_matching.c"
-#endif
+
 
 typedef void (*measure_cell_cb_t)(int x0, int y0);
-typedef void (*measure_prepare_cb_t)(uint8_t mode);
+typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 
 static measure_cell_cb_t    measure_cell_handler = NULL;
 static uint8_t data_update = 0;
@@ -842,20 +868,28 @@ static uint8_t data_update = 0;
 #define MEASURE_UPD_FREQ   2
 #define MEASURE_UPD_ALL    3
 
+// Include L/C match functions
+#ifdef __USE_LC_MATCHING__
+  #include "lc_matching.c"
+#endif
+
 static const struct {
   uint8_t option;
   uint8_t update;
   measure_cell_cb_t    measure_cell;
   measure_prepare_cb_t measure_prepare;
 } measure[]={
-  [MEASURE_NONE]        = {MESAURE_NONE,                0,               NULL,             NULL},
+  [MEASURE_NONE]        = {MESAURE_NONE,                0,               NULL,             NULL },
 #ifdef __USE_LC_MATCHING__
-  [MEASURE_LC_MATH]     = {MESAURE_NONE,  MEASURE_UPD_ALL,      draw_lc_match, prepare_lc_match},
+  [MEASURE_LC_MATH]     = {MESAURE_NONE,  MEASURE_UPD_ALL,      draw_lc_match, prepare_lc_match },
 #endif
 #ifdef __S21_MEASURE__
-  [MEASURE_SHUNT_LC]    = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
-  [MEASURE_SERIES_LC]   = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
-  [MEASURE_SERIES_XTAL] = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series  },
+  [MEASURE_SHUNT_LC]    = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
+  [MEASURE_SERIES_LC]   = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
+  [MEASURE_SERIES_XTAL] = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
+#endif
+#ifdef __S11_CABLE_MEASURE__
+  [MEASURE_S11_CABLE]   = {MESAURE_S11, MEASURE_UPD_ALL,       draw_s11_cable, prepare_s11_cable},
 #endif
 };
 
@@ -880,7 +914,7 @@ static void measure_prepare(void) {
   measure_prepare_cb_t measure_cb = measure[current_props._measure].measure_prepare;
   // Do measure and cache data only if update flags some
   if (measure_cb && (data_update & measure[current_props._measure].update))
-    measure_cb(current_props._measure);
+    measure_cb(current_props._measure, data_update);
   data_update = 0;
 }
 
@@ -1453,13 +1487,8 @@ draw_cell(int m, int n)
   else if (trace_type & (1 << TRC_POLAR))
     cell_polar_grid(x0, y0, w, h, c);
 #if 0
-  else if (trace_type & (1 << TRC_ADMIT)) {
-    for (y = 0; y < h; y++)
-      for (x = 0; x < w; x++)
-        if (smith_grid3(x+x0, y+y0)
-         // smith_grid2(x+x0, y+y0, 0.5))
-           cell_buffer[y * CELLWIDTH + x] = c;
-  }
+  else if (trace_type & (1 << TRC_ADMIT))
+    cell_admit_grid(x0, y0, w, h, c);
 #endif
 #endif
 

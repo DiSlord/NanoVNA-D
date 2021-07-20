@@ -991,7 +991,8 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
       if (current_trace == TRACE_INVALID)
         break;
       float (*array)[2] = measured[trace[current_trace].channel];
-      float v = groupdelay_from_array(markers[active_marker].index, array);
+      int index = markers[active_marker].index;
+      float v = groupdelay_from_array(index, array[index]);
       set_electrical_delay(electrical_delay + (v / 1e-12));
     }
     break;
@@ -1507,6 +1508,7 @@ const menuitem_t menu_format[] = {
   { MT_ADV_CALLBACK, TRC_PHASE,  "PHASE", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_DELAY,  "DELAY", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SMITH,  "SMITH", menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_ADMIT,  "ADMIT", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SWR,    "SWR", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_R,      "RESISTANCE", menu_format_acb },
   { MT_ADV_CALLBACK, TRC_X,      "REACTANCE", menu_format_acb },
@@ -1688,14 +1690,17 @@ const menuitem_t menu_marker_smith[] = {
 
 #ifdef __VNA_MEASURE_MODULE__
 const menuitem_t menu_marker_measure[] = {
-  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",           menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
 #ifdef __USE_LC_MATCHING__
-  { MT_ADV_CALLBACK, MEASURE_LC_MATH,     "L/C MATCH",     menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_LC_MATH,     "L/C MATCH",          menu_measure_acb },
+#endif
+#ifdef __S11_CABLE_MEASURE__
+  { MT_ADV_CALLBACK, MEASURE_S11_CABLE,   "CABLE\n (S11)",      menu_measure_acb },
 #endif
 #ifdef __S21_MEASURE__
-  { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC",      menu_measure_acb },
-  { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC",     menu_measure_acb },
-  { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\n XTAL", menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
   { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\nRl = %b.4F"S_OHM, menu_keyboard_acb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
