@@ -1818,7 +1818,7 @@ cell_draw_marker_info(int x0, int y0)
 #ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) {
     xpos = 1 + 18 + CELLOFFSETX          - x0;
-    ypos = 0 + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
+    ypos = 1 + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
     cell_printf(xpos, ypos, "PORT-Z: 50 " S_RARROW " %F" S_OHM, current_props._portz);
   }
 #endif
