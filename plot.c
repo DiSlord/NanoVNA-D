@@ -543,7 +543,7 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
       format = "%F"S_OHM" %FF"; // Capacity
     else
       format = "%F"S_OHM" %FH"; // Inductive
-    zi = fabsf(zi);
+    zi = vna_fabsf(zi);
     break;
   default:
     return;
@@ -1513,7 +1513,7 @@ draw_cell(int m, int n)
     index_t *index = trace_index[t];
     i0 = i1 = 0;
     // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if ((1 << trace[t].type) & RECTANGULAR_GRID_MASK){
+    if ((1 << trace[t].type) & RECTANGULAR_GRID_MASK && !enabled_store_trace){
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
     }else{
       // draw polar plot (check all points)

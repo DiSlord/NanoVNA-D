@@ -71,6 +71,8 @@
 #ifdef __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
 #define __SD_CARD_LOAD__
+// Allow dump firmware to SD card
+#define __SD_CARD_DUMP_FIRMWARE__
 #endif
 
 // If measure module enabled, add submodules

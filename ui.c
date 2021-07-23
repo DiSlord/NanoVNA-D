@@ -1212,14 +1212,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #ifdef __USE_SD_CARD__
 // Save format enum
 enum {
-  SAVE_S1P_FILE=0, SAVE_S2P_FILE, SAVE_BMP_FILE
+  SAVE_S1P_FILE=0, SAVE_S2P_FILE, SAVE_BMP_FILE,
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  SAVE_BIN_FILE
+#endif
 };
 
 // Save file extension
 static const char *file_ext[] = {
   [SAVE_S1P_FILE] = "s1p",
   [SAVE_S2P_FILE] = "s2p",
-  [SAVE_BMP_FILE] = "bmp"
+  [SAVE_BMP_FILE] = "bmp",
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  [SAVE_BIN_FILE] = "bin",
+#endif
 };
 
 //*******************************************************************************************
@@ -1358,6 +1364,15 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 //        total_size+=size;
       }
       break;
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+      case SAVE_BIN_FILE:
+      {
+        const char *src = (const char*)FLASH_START_ADDRESS;
+        for (i = 0; i < FLASH_TOTAL_SIZE && res == FR_OK; i+=512)
+          res = f_write(fs_file, &src[i], 512, &size);
+      }
+      break;
+#endif
     }
     f_close(fs_file);
 //    shell_printf("Close = %d\r\n", res);
@@ -1776,6 +1791,9 @@ const menuitem_t menu_device[] = {
 #endif
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
+#endif
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  { MT_CALLBACK, SAVE_BIN_FILE,    "DUMP\nFIRMWARE",     menu_sdcard_cb },
 #endif
 #ifdef __SD_CARD_LOAD__
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
