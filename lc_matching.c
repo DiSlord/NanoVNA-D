@@ -173,8 +173,8 @@ static void prepare_lc_match(uint8_t mode, uint8_t update_mask)
   // Mark to redraw area under L/C match text
   int n = lc_match_array->num_matches;
   if (n < 0) n = 0;
-  invalidate_rect(STR_LC_MATH_X                        , STR_LC_MATH_Y,
-                  STR_LC_MATH_X + 3 * STR_LC_MATH_WIDTH, STR_LC_MATH_Y + (n + 2)*STR_LC_MATH_HEIGHT);
+  invalidate_rect(STR_MEASURE_X                        , STR_MEASURE_Y,
+                  STR_MEASURE_X + 3 * STR_MEASURE_WIDTH, STR_MEASURE_Y + (n + 2)*STR_MEASURE_HEIGHT);
 }
 
 //
@@ -199,14 +199,14 @@ static void lc_match_x_str(uint32_t FHz, float X, int xp, int yp)
 // Render L/C match to cell
 static void draw_lc_match(int x0, int y0)
 {
-  int xp = STR_LC_MATH_X - x0;
-  int yp = STR_LC_MATH_Y - y0;
+  int xp = STR_MEASURE_X - x0;
+  int yp = STR_MEASURE_Y - y0;
   cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array->R0);
 #if 0
-  yp += STR_LC_MATH_HEIGHT;
-  cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', fabsf(match_array->XL));
+  yp += STR_MEASURE_HEIGHT;
+  cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', vna_fabsf(match_array->XL));
 #endif
-  yp += STR_LC_MATH_HEIGHT;
+  yp += STR_MEASURE_HEIGHT;
   if (yp >= CELLHEIGHT) return;
   if (lc_match_array->num_matches < 0)
     cell_printf(xp, yp, "No LC match for this");
@@ -214,14 +214,14 @@ static void draw_lc_match(int x0, int y0)
     cell_printf(xp, yp, "No need for LC match");
   else {
     cell_printf(xp                      , yp, "Src shunt" );
-    cell_printf(xp +   STR_LC_MATH_WIDTH, yp, "Series"    );
-    cell_printf(xp + 2*STR_LC_MATH_WIDTH, yp, "Load shunt");
+    cell_printf(xp +   STR_MEASURE_WIDTH, yp, "Series"    );
+    cell_printf(xp + 2*STR_MEASURE_WIDTH, yp, "Load shunt");
     for (int i = 0; i < lc_match_array->num_matches; i++){
-      yp += STR_LC_MATH_HEIGHT;
+      yp += STR_MEASURE_HEIGHT;
       if (yp >= CELLHEIGHT) return;
       lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xps, xp                      , yp);
-      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xs , xp +   STR_LC_MATH_WIDTH, yp);
-      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xpl, xp + 2*STR_LC_MATH_WIDTH, yp);
+      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xs , xp +   STR_MEASURE_WIDTH, yp);
+      lc_match_x_str(lc_match_array->Hz, lc_match_array->matches[i].xpl, xp + 2*STR_MEASURE_WIDTH, yp);
     }
   }
 }

@@ -611,15 +611,15 @@ extern const uint8_t numfont16x22[];
 /*
  * LC match text output settings
  */
-#ifdef __USE_LC_MATCHING__
+#ifdef __VNA_MEASURE_MODULE__
 // X and Y offset to L/C match text
- #define STR_LC_MATH_X      (OFFSETX +  0)
-// Better be aligned by cell
- #define STR_LC_MATH_Y      (OFFSETY + ((MARKERS_MAX+1)/2+1)*FONT_STR_HEIGHT + 1)
-// 1/3 Width of text (need 3 column for data)
- #define STR_LC_MATH_WIDTH  (FONT_WIDTH * 10)
+ #define STR_MEASURE_X      (OFFSETX +  0)
+// Better be aligned by cell (cell height = 32)
+ #define STR_MEASURE_Y      (OFFSETY + 64)
+// 1/3 Width of text (use 3 column for data)
+ #define STR_MEASURE_WIDTH  (FONT_WIDTH * 10)
 // String Height (need 2 + 0..4 string)
- #define STR_LC_MATH_HEIGHT (FONT_STR_HEIGHT + 2)
+ #define STR_MEASURE_HEIGHT (FONT_STR_HEIGHT + 1)
 #endif
 
 #ifdef __USE_GRID_VALUES__
@@ -715,6 +715,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_DOT_GRID         0x20
 
+#ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
 enum {
   MEASURE_NONE = 0,
@@ -731,6 +732,7 @@ enum {
 #endif
   MEASURE_END
 };
+#endif
 
 #define STORED_TRACES  1
 #define TRACES_MAX     4
