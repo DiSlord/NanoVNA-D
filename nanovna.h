@@ -507,7 +507,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define NGRIDY 8
 
 #define FREQUENCIES_XPOS1 OFFSETX
-#define FREQUENCIES_XPOS2 320
+#define FREQUENCIES_XPOS2 330
 #define FREQUENCIES_XPOS3 200
 #define FREQUENCIES_YPOS  (LCD_HEIGHT-FONT_GET_HEIGHT)
 
@@ -638,10 +638,10 @@ extern const uint8_t numfont16x22[];
 #define S_DEGREE   "\037"  // hex 0x1F
 
 // Max palette indexes in config
-#define MAX_PALETTE     24
+#define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 14
+#define MAX_TRACE_TYPE 13
 enum trace_type {
   TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, /*TRC_ADMIT,*/ TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_Q, TRC_OFF
 };
@@ -952,6 +952,8 @@ typedef uint16_t pixel_t;
 #define LCD_INPUT_BG_COLOR      20
 #define LCD_LC_MATCH_COLOR      21
 #define LCD_GRID_VALUE_COLOR    22
+#define LCD_INTERP_CAL_COLOR    23
+#define LCD_DISABLE_CAL_COLOR   24
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -972,11 +974,13 @@ typedef uint16_t pixel_t;
 [LCD_RISE_EDGE_COLOR  ] = RGB565(255,255,255), \
 [LCD_FALLEN_EDGE_COLOR] = RGB565(128,128,128), \
 [LCD_SWEEP_LINE_COLOR ] = RGB565(  0,  0,255), \
-[LCD_BW_TEXT_COLOR    ] = RGB565(128,128,128), \
+[LCD_BW_TEXT_COLOR    ] = RGB565(196,196,196), \
 [LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
 [LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
 [LCD_LC_MATCH_COLOR   ] = RGB565(255,255,255), \
 [LCD_GRID_VALUE_COLOR ] = RGB565( 96, 96, 96), \
+[LCD_INTERP_CAL_COLOR ] = RGB565( 31,227,  0), \
+[LCD_DISABLE_CAL_COLOR] = RGB565(255,  0,  0), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config._lcd_palette[idx]

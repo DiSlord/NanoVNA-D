@@ -2170,7 +2170,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
-#if MAX_TRACE_TYPE != 14
+#if MAX_TRACE_TYPE != 13
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
   // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
@@ -3447,4 +3447,5 @@ void hard_fault_handler_c(uint32_t *sp)
 // For new compilers
 //void _exit(int x){(void)x;}
 //void _kill(void){}
+//int  _write (int file, char *data, int len) {(void)file; (void)data; return len;}
 //void _getpid(void){}

@@ -43,6 +43,13 @@
 #define FLOAT_PRECISION         9
 #define FLOAT_PREFIX_PRECISION  3
 
+//#define FREQUENCY_SIZE_64
+#ifdef FREQUENCY_SIZE_64
+typedef uint64_t pfreq_t;
+#else
+typedef uint32_t pfreq_t;
+#endif
+
 #pragma pack(push, 2)
 
 static const uint32_t pow10[FLOAT_PRECISION+1] = {
@@ -81,11 +88,10 @@ static char *long_to_string_with_divisor(char *p,
 // g.mmm kkk hhh
 #define MAX_FREQ_PRESCISION 13
 #define FREQ_PSET           1
-#define FREQ_NO_SPACE       2
-#define FREQ_PREFIX_SPACE   4
+#define FREQ_PREFIX_SPACE   2
 
 static char *
-ulong_freq(char *p, uint32_t freq, int precision)
+ulong_freq(char *p, pfreq_t freq, int precision)
 {
   uint8_t flag = FREQ_PSET;
   if (precision == 0)
@@ -97,16 +103,16 @@ ulong_freq(char *p, uint32_t freq, int precision)
   // Prefix counter
   uint32_t s = 0;
   // Set format (every 3 digits add ' ' up to GHz)
-  uint32_t format = 0b00100100100;
+  uint32_t format = 0b100100100100100;
   do {
-#if 0
-    uint8_t c = freq % 10;
+#ifdef ARM_MATH_CM4
+    uint32_t c = freq % 10;
     freq/= 10;
 #else
     // Fast and compact division uint32_t on 10, using shifts, result:
     // c = freq % 10
     // freq = freq / 10;
-    uint32_t c = freq;
+    pfreq_t c = freq;
     freq >>= 1;
     freq += freq >> 1;
     freq += freq >> 4;
@@ -133,13 +139,8 @@ ulong_freq(char *p, uint32_t freq, int precision)
 
   // Get string size
   int i = (b - q);
-  // Limit string size, max size is - precision
-  if (precision && i > precision) {
-    i = precision;
-    flag |= FREQ_NO_SPACE;
-  }
   // copy string
-  // Replace first ' ' by '.', remove ' ' if size too big
+  // Replace first ' ' by '.'
   do {
     char c = *q++;
     // replace first ' ' on '.'
@@ -147,13 +148,14 @@ ulong_freq(char *p, uint32_t freq, int precision)
       if (flag & FREQ_PSET) {
         c = '.';
         flag &= ~FREQ_PSET;
-      } else if (flag & FREQ_NO_SPACE)
+      } else if (!(flag & FREQ_PREFIX_SPACE))
         c = *q++;
     }
+    if (!(flag & FREQ_PSET) && precision-- < 0) break;
     *p++ = c;
   } while (--i);
   // Put pref (amd space before it if need)
-  if (flag & FREQ_PREFIX_SPACE && s != ' ') 
+  if ((flag & FREQ_PREFIX_SPACE) && s != ' ')
     *p++ = ' ';
   *p++ = s;
   return p;
@@ -387,8 +389,11 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       p = long_to_string_with_divisor(p, value.l, 10, 0);
       break;
     case 'q':
-      value.u = va_arg(ap, uint32_t);
-      p=ulong_freq(p, value.u, precision);
+#ifdef FREQUENCY_SIZE_64
+      p=ulong_freq(p, va_arg(ap, uint64_t), precision);
+#else
+      p=ulong_freq(p, va_arg(ap, uint32_t), precision);
+#endif
       break;
 #if CHPRINTF_USE_FLOAT
     case 'F':
