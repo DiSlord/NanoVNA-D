@@ -466,7 +466,8 @@ touch_draw_test(void)
   lcd_clear_screen();
   lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
 
-  do {
+  while (1) {
+    if (btn_check() & EVT_BUTTON_SINGLE_CLICK) break;
     if (touch_check() == EVT_TOUCH_PRESSED){
       touch_position(&x0, &y0);
       do {
@@ -477,7 +478,7 @@ touch_draw_test(void)
         y0 = y1;
       } while (touch_check() != EVT_TOUCH_RELEASED);
     }
-  }while (!(btn_check() & EVT_BUTTON_SINGLE_CLICK));
+  }
 }
 
 static void
@@ -607,7 +608,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb){
   bool calibrated = cal_status & (CALSTAT_ES|CALSTAT_ER|CALSTAT_ET|CALSTAT_ED|CALSTAT_EX|CALSTAT_OPEN|CALSTAT_SHORT|CALSTAT_THRU);
   if (b){
     if (calibrated){
-      b->bg = (cal_status&CALSTAT_INTERPOLATED) ? LCD_NORMAL_BAT_COLOR : LCD_MENU_COLOR;
+      b->bg = (cal_status&CALSTAT_INTERPOLATED) ? LCD_INTERP_CAL_COLOR : LCD_MENU_COLOR;
       plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6FHz\n %.6FHz", cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
     }
     else
@@ -798,7 +799,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   }
   props_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
-  request_to_redraw(REDRAW_FREQUENCY);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
@@ -909,7 +909,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
     switch(data){
 //    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
       case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
-      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n %.6qHz" : "JOG STEP\n AUTO", var_freq); break;
+      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n %.3qHz" : "JOG STEP\n AUTO", var_freq); break;
       case KM_XTAL:            b->p1.u = config._xtal_freq; break;
       case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
       case KM_VBAT:            b->p1.u = config._vbat_offset; break;
@@ -1312,7 +1312,6 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   // Redraw use spi_buffer so need do it before any file ops
   if (data == SAVE_BMP_FILE && ui_mode != UI_NORMAL){
     ui_mode_normal();
-    request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
     draw_all(true);
   }
 //  UINT total_size = 0;
@@ -1783,8 +1782,8 @@ const menuitem_t menu_offset[] = {
 #endif
 
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.10q",   menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.9q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.6q",    menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.6q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,            "IF OFFSET\n %dHz",   menu_offset_sel_acb },
@@ -2443,8 +2442,6 @@ ui_mode_numeric(int _keypad_mode)
 {
   if (ui_mode == UI_NUMERIC)
     return;
-
-  leave_ui_mode();
 
   // keypads array
   keypad_mode = _keypad_mode;

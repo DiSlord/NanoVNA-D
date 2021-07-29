@@ -13,6 +13,7 @@ endif
 ifeq ($(USE_OPT),)
  ifeq ($(TARGET),F303)
 USE_OPT = -O2 -fno-inline-small-functions -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nano.specs -fstack-usage -std=c11
+#USE_OPT+=-fstack-protector-strong
  else
 USE_OPT = -O2 -fno-inline-small-functions -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nano.specs -fstack-usage -std=c11
  endif

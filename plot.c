@@ -429,7 +429,7 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 14
+#if MAX_TRACE_TYPE != 13
 #error "Redefined trace_type list, need check format_list"
 #endif
 
@@ -1709,6 +1709,17 @@ static const struct {uint16_t x, y;} marker_pos[]={
   {1 + (WIDTH/2) + CELLOFFSETX, 1 + 3*FONT_STR_HEIGHT},
 };
 
+#ifdef LCD_320x240
+#define MARKER_FREQ       "%.6qHz"
+#define MARKER_FREQ_SIZE        67
+#define PORT_Z_OFFSET            1
+#endif
+#ifdef LCD_480x320
+#define MARKER_FREQ         "%qHz"
+#define MARKER_FREQ_SIZE       112
+#define PORT_Z_OFFSET            0
+#endif
+
 static void
 cell_draw_marker_info(int x0, int y0)
 {
@@ -1729,7 +1740,7 @@ cell_draw_marker_info(int x0, int y0)
       lcd_set_foreground(LCD_TRACE_1_COLOR + t);
       if (mk == active_marker)
         cell_printf(xpos, ypos, S_SARROW);
-      xpos += 5;
+      xpos += FONT_WIDTH;
       cell_printf(xpos, ypos, "M%d", mk+1);
       xpos += 3*FONT_WIDTH - 2;
       int32_t  delta_index = -1;
@@ -1739,11 +1750,11 @@ cell_draw_marker_info(int x0, int y0)
         freq_t freq1 = get_marker_frequency(active_marker);
         freq_t delta = freq > freq1 ? freq - freq1 : freq1 - freq;
         delta_index = active_marker_idx;
-        cell_printf(xpos, ypos, S_DELTA"%.9qHz", delta);
+        cell_printf(xpos, ypos, S_DELTA MARKER_FREQ, delta);
       } else {
-        cell_printf(xpos, ypos, "%.10qHz", freq);
+        cell_printf(xpos, ypos, MARKER_FREQ, freq);
       }
-      xpos += 67;
+      xpos += MARKER_FREQ_SIZE;
       lcd_set_foreground(LCD_FG_COLOR);
       trace_print_value_string(xpos, ypos, t, mk_index, delta_index);
     }
@@ -1818,7 +1829,7 @@ cell_draw_marker_info(int x0, int y0)
 #ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) {
     xpos = 1 + 18 + CELLOFFSETX          - x0;
-    ypos = 1 + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
+    ypos = PORT_Z_OFFSET + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
     cell_printf(xpos, ypos, "PORT-Z: 50 " S_RARROW " %F" S_OHM, current_props._portz);
   }
 #endif
@@ -1836,13 +1847,13 @@ draw_frequencies(void)
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
     if (FREQ_IS_CW()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %qHz", lm0, "CW", get_sweep_frequency(ST_CW));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0, "CW", get_sweep_frequency(ST_CW));
     } else if (FREQ_IS_STARTSTOP()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %qHz", lm0, "START", get_sweep_frequency(ST_START));
-      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %qHz", lm1,  "STOP", get_sweep_frequency(ST_STOP));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0, "START", get_sweep_frequency(ST_START));
+      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15qHz", lm1,  "STOP", get_sweep_frequency(ST_STOP));
     } else if (FREQ_IS_CENTERSPAN()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %qHz", lm0,"CENTER", get_sweep_frequency(ST_CENTER));
-      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %qHz", lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0,"CENTER", get_sweep_frequency(ST_CENTER));
+      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15qHz", lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
     lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s 0s",        lm0, "START");
@@ -1863,17 +1874,19 @@ draw_cal_status(void)
   int x = CALIBRATION_INFO_POSX;
   int y = CALIBRATION_INFO_POSY;
   lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
   lcd_fill(x, y, OFFSETX - x, 10*(FONT_STR_HEIGHT));
 
   if (cal_status & CALSTAT_APPLY) {
     // Set 'C' string for slot status
     char c[4] = {'C', '0' + lastsaveid, 0, 0};
     if (lastsaveid == NO_SAVE_SLOT) c[1] = '*';
-    if (cal_status & CALSTAT_INTERPOLATED){lcd_set_foreground(LCD_NORMAL_BAT_COLOR); c[0] = 'c';}
+    if (cal_status & CALSTAT_INTERPOLATED){lcd_set_foreground(LCD_INTERP_CAL_COLOR); c[0] = 'c';}
+    else  lcd_set_foreground(LCD_FG_COLOR);
     lcd_drawstring(x, y, c);
+    lcd_set_foreground(LCD_FG_COLOR);
   }
-  lcd_set_foreground(LCD_FG_COLOR);
+
   static const struct {char text, zero; uint16_t mask;} calibration_text[]={
     {'O', 0, CALSTAT_OPEN},
     {'S', 0, CALSTAT_SHORT},
@@ -1889,7 +1902,7 @@ draw_cal_status(void)
       lcd_drawstring(x, y+=FONT_STR_HEIGHT, &calibration_text[i].text);
 
   if ((cal_status & CALSTAT_APPLY) && cal_power != current_props._power)
-    lcd_set_foreground(LCD_LOW_BAT_COLOR);
+    lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
 
   // 2,4,6,8 mA power or auto
   lcd_printf(x, y+=FONT_STR_HEIGHT, "P%c", current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'));
@@ -1914,7 +1927,7 @@ static void draw_battery_status(void)
   int16_t vbat = adc_vbat_read();
   if (vbat <= 0)
     return;
-  uint8_t string_buf[16];
+  uint8_t string_buf[24];
   // Set battery color
   lcd_set_foreground(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
   lcd_set_background(LCD_BG_COLOR);
