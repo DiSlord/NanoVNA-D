@@ -750,7 +750,7 @@ VNA_SHELL_FUNCTION(cmd_time)
   rtc_set_time(dt_buf[1], dt_buf[0]);
   return;
 usage:
-  shell_printf("20%02X/%02X/%02X %02X:%02X:%02X\r\n"\
+  shell_printf("20%02x/%02x/%02x %02x:%02x:%02x\r\n"\
                "usage: time {[%s] 0-99} or {b 0xYYMMDD 0xHHMMSS}\r\n", time[6], time[5], time[4], time[2], time[1], time[0], time_cmd);
 }
 #endif
@@ -1929,6 +1929,7 @@ cal_done(void)
 
   cal_status|= CALSTAT_APPLY;
   lastsaveid = NO_SAVE_SLOT;
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){

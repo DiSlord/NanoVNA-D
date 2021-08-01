@@ -1292,9 +1292,9 @@ static FRESULT vna_create_file(char *fs_filename, const char *ext)
 #if FF_USE_LFN >= 1
   uint32_t tr = rtc_get_tr_bcd(); // TR read first
   uint32_t dr = rtc_get_dr_bcd(); // DR read second
-  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06X_%06X.%s", dr, tr, ext);
+  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06x_%06x.%s", dr, tr, ext);
 #else
-  plot_printf(fs_filename, FF_LFN_BUF, "%08X.%s", rtc_get_FAT(), ext);
+  plot_printf(fs_filename, FF_LFN_BUF, "%08x.%s", rtc_get_FAT(), ext);
 #endif
   res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
   //  shell_printf("Open %s, = %d\r\n", fs_filename, res);
@@ -1995,6 +1995,24 @@ static const keypads_t keypads_scale[] = {
   { 0, 0, KP_NONE }
 };
 
+static const keypads_t keypads_ref[] = {
+  { 1, 3, KP_PERIOD },
+  { 0, 3, KP_0 },
+  { 0, 2, KP_1 },
+  { 1, 2, KP_2 },
+  { 2, 2, KP_3 },
+  { 0, 1, KP_4 },
+  { 1, 1, KP_5 },
+  { 2, 1, KP_6 },
+  { 0, 0, KP_7 },
+  { 1, 0, KP_8 },
+  { 2, 0, KP_9 },
+  { 3, 2, KP_MINUS },
+  { 3, 3, KP_X1 },
+  { 2, 3, KP_BS },
+  { 0, 0, KP_NONE }
+};
+
 static const keypads_t keypads_time[] = {
   { 1, 3, KP_PERIOD },
   { 0, 3, KP_0 },
@@ -2022,7 +2040,7 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_CW]              = {keypads_freq , "CW FREQ"    }, // cw freq
 [KM_VAR]             = {keypads_freq , "JOG STEP"   }, // VAR freq step
 [KM_SCALE]           = {keypads_scale, "SCALE"      }, // scale
-[KM_REFPOS]          = {keypads_scale, "REFPOS"     }, // refpos
+[KM_REFPOS]          = {keypads_ref,   "REFPOS"     }, // refpos
 [KM_EDELAY]          = {keypads_time , "EDELAY"     }, // electrical delay
 [KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%" }, // velocity factor
 [KM_SCALEDELAY]      = {keypads_time , "DELAY"      }, // scale of delay
