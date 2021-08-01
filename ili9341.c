@@ -1447,7 +1447,7 @@ DSTATUS disk_initialize(BYTE pdrv) {
         if (cnt && SD_SendCmd(CMD58, 0) == 0)
         {
           DWORD ocr; spi_RxBuffer((uint8_t *)&ocr, 4);
-          DEBUG_PRINT(" CMD58 OCR = 0x%08X\r\n", _OCR(ocr));
+          DEBUG_PRINT(" CMD58 OCR = 0x%08x\r\n", _OCR(ocr));
           // Check CCS bit, SDv2 (HC or SC)
           type = (ocr & _OCR(SD_OCR_CAPACITY)) ? CT_SD2 | CT_BLOCK : CT_SD2;
         }
@@ -1526,10 +1526,10 @@ DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
 #if DEBUG == 1
   r_time+= chVTGetSystemTimeX();
   if (count)
-    DEBUG_PRINT(" err READ_BLOCK %d 0x%08X\r\n", count, sector);
+    DEBUG_PRINT(" err READ_BLOCK %d 0x%08x\r\n", count, sector);
 #if 0
   else{
-    DEBUG_PRINT("Sector read 0x%08X %d \r\n", sector, cnt);
+    DEBUG_PRINT("Sector read 0x%08x %d \r\n", sector, cnt);
     for (UINT j = 0; j < 32; j++){
       for (UINT i = 0; i < 16; i++)
         DEBUG_PRINT(" 0x%02x", buff[j*16 + i]);
@@ -1553,10 +1553,10 @@ DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
 
   #if DEBUG == 1
 #if 0
-    DEBUG_PRINT("Sector write 0x%08X, %d\r\n", sector, count);
+    DEBUG_PRINT("Sector write 0x%08x, %d\r\n", sector, count);
     for (UINT j = 0; j < 32; j++){
       for (UINT i = 0; i < 16; i++)
-        DEBUG_PRINT(" 0x%02X", buff[j*16 + i]);
+        DEBUG_PRINT(" 0x%02x", buff[j*16 + i]);
       DEBUG_PRINT("\r\n");
     }
 #endif
@@ -1578,7 +1578,7 @@ DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
 #if DEBUG == 1
   w_time+= chVTGetSystemTimeX();
   if (count)
-    DEBUG_PRINT(" WRITE_BLOCK %d 0x%08X\r\n", count, sector);
+    DEBUG_PRINT(" WRITE_BLOCK %d 0x%08x\r\n", count, sector);
 #endif
 
   return count ? RES_ERROR : RES_OK;

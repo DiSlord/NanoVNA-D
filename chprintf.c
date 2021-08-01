@@ -35,6 +35,8 @@
 // Enable [flags], support:
 // ' ' Prepends a space for positive signed-numeric types. positive = ' ', negative = '-'. This flag is ignored if the + flag exists.
 #define CHPRINTF_USE_SPACE_FLAG
+//#define CHPRINTF_FREQUENCY_SIZE_64
+//#define CHPRINTF_USE_INT_64
 
 // Force putting trailing zeros on float value
 #define CHPRINTF_FORCE_TRAILING_ZEROS
@@ -43,11 +45,18 @@
 #define FLOAT_PRECISION         9
 #define FLOAT_PREFIX_PRECISION  3
 
-//#define FREQUENCY_SIZE_64
-#ifdef FREQUENCY_SIZE_64
+#ifdef CHPRINTF_USE_INT_64
 typedef uint64_t pfreq_t;
 #else
 typedef uint32_t pfreq_t;
+#endif
+
+#ifdef CHPRINTF_FREQUENCY_SIZE_64
+typedef uint64_t ulongval_t;
+typedef int64_t longval_t;
+#else
+typedef uint32_t ulongval_t;
+typedef int32_t longval_t;
 #endif
 
 #pragma pack(push, 2)
@@ -65,7 +74,7 @@ static const char smallPrefix[] = { 'm', S_MICRO,  'n',   'p',   'f',   'a',   '
 #pragma pack(pop)
 
 static char *long_to_string_with_divisor(char *p,
-                                         uint32_t num,
+                                         longval_t num,
                                          uint32_t radix,
                                          int      precision) {
   char *q = p + MAX_FILLER;
@@ -227,15 +236,15 @@ static char *ftoaS(char *p, float num, int16_t precision) {
  *          with output on a @p BaseSequentialStream.
  *          The general parameters format is: %[-][width|*][.precision|*][l|L]p.
  *          The following parameter types (p) are supported:
- *          - <b>x</b> hexadecimal integer.
- *          - <b>X</b> hexadecimal long.
- *          - <b>o</b> octal integer.
- *          - <b>O</b> octal long.
- *          - <b>d</b> decimal signed integer.
- *          - <b>D</b> decimal signed long.
- *          - <b>u</b> decimal unsigned integer.
- *          - <b>U</b> decimal unsigned long.
- *          - <b>c</b> character.
+ *          - <b>x</b> hexadecimal int32.
+ *          - <b>X</b> hexadecimal int64.
+ *          - <b>o</b> octal int32.
+ *          - <b>O</b> octal int64.
+ *          - <b>d</b> decimal signed int32.
+ *          - <b>D</b> decimal signed int64.
+ *          - <b>u</b> decimal unsigned int32.
+ *          - <b>U</b> decimal unsigned int64.
+ *          - <b>c</b> char.
  *          - <b>s</b> string.
  *          .
  *
@@ -263,9 +272,9 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
   int n = 0;
   uint32_t  state;
   union {
-      uint32_t u;
-      int32_t  l;
-      float    f;
+    ulongval_t  u;
+    longval_t   l;
+    float       f;
   }value;
 #if CHPRINTF_USE_FLOAT
   char tmpbuf[2*MAX_FILLER + 1];
@@ -334,22 +343,22 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
         else if (c == '*')
           c = va_arg(ap, int);
         else
-           break;
+          break;
         precision = precision * 10 + c;
       }
     }
     else
       state|=DEFAULT_PRESCISION;
     //Get [length]
-    /*
+#ifdef CHPRINTF_FREQUENCY_SIZE_64
     if (c == 'l' || c == 'L') {
       state|=IS_LONG;
       if (*fmt)
         c = *fmt++;
     }
     else if ((c >= 'A') && (c <= 'Z'))
-        state|=IS_LONG;
-    */
+      state|=IS_LONG;
+#endif
     // Parse type
     switch (c) {
     case 'c':
@@ -359,7 +368,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
     case 's':
       state&=~PAD_ZERO;
       if ((s = va_arg(ap, char *)) == 0)
-        s = "(null)";
+        s = (char*)"(null)";
       if (state&DEFAULT_PRESCISION)
         precision = 32767;
       for (p = s; *p && (--precision >= 0); p++)
@@ -368,11 +377,13 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
     case 'D':
     case 'd':
     case 'I':
-    case 'i':/*
+    case 'i':
+#ifdef CHPRINTF_FREQUENCY_SIZE_64
       if (state & IS_LONG)
-        value.l = va_arg(ap, long);
-      else*/
-        value.l = va_arg(ap, uint32_t);
+        value.l = va_arg(ap, int64_t);
+      else
+#endif
+        value.l = va_arg(ap, int32_t);
       if (value.l < 0) {
         state|=NEGATIVE;
         *p++ = '-';
@@ -389,7 +400,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       p = long_to_string_with_divisor(p, value.l, 10, 0);
       break;
     case 'q':
-#ifdef FREQUENCY_SIZE_64
+#ifdef CHPRINTF_FREQUENCY_SIZE_64
       p=ulong_freq(p, va_arg(ap, uint64_t), precision);
 #else
       p=ulong_freq(p, va_arg(ap, uint32_t), precision);
@@ -436,10 +447,12 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
     case 'O':
     case 'o':
       c = 8;
-unsigned_common:/*
+unsigned_common:
+#ifdef CHPRINTF_FREQUENCY_SIZE_64
       if (state & IS_LONG)
-        value.u = va_arg(ap, unsigned long);
-      else*/
+        value.u = va_arg(ap, int64_t);
+      else
+#endif
         value.u = va_arg(ap, uint32_t);
       p = long_to_string_with_divisor(p, value.u, c, 0);
       break;
