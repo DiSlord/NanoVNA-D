@@ -1929,6 +1929,7 @@ cal_done(void)
 
   cal_status|= CALSTAT_APPLY;
   lastsaveid = NO_SAVE_SLOT;
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
