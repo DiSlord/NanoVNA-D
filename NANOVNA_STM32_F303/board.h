@@ -33,14 +33,10 @@
 #define STM32_LSECLK            32768
 #define STM32_HSECLK            8000000
 
-//#define STM32_HSE_BYPASS
-
 /*
  * MCU type, supported types are defined in ./os/hal/platforms/hal_lld.h.
  */
 #define STM32F303xC
-
-//#define STM32_HSE_BYPASS
 
 #define STM32F303xC_SYSTEM_MEMORY 0x1FFFD800
 #define BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS 0x20009FF0
@@ -120,14 +116,22 @@
 
 /*
  * GPIOA setup:
- *
- * PA8  - MCO                       (alternate 0).
+ * PA0 - free
+ * PA1 - button left                (input)
+ * PA2 - button right               (input)
+ * PA3 - button middle              (input)
+ * PA4 - usb vbus (free)
+ * PA5 - lcd backlight              (analog out)
+ * PA6 - touch XP                   (analog in)
+ * PA7 - touch YP                   (analog in)
+ * PA8  - MCO                       (analog).
  * PA9  - USART1_TX                 (alternate 7).
  * PA10 - USART1_RX	                (alternate 7).
  * PA11 - USB_DM                    (alternate 14).
  * PA12 - USB_DP                    (alternate 14).
  * PA13 - SWDIO                     (alternate 0).
  * PA14 - SWCLK                     (alternate 0).
+ * PA15 - LCD RESET                 (output)
  */
 #define VAL_GPIOA_MODER             (PIN_MODE_INPUT(0U) |           \
                                      PIN_MODE_INPUT(1U) |           \
@@ -150,9 +154,9 @@
                                      PIN_OTYPE_PUSHPULL(2U) |   \
                                      PIN_OTYPE_PUSHPULL(3U) |   \
                                      PIN_OTYPE_PUSHPULL(4U) |       \
-                                     PIN_OTYPE_PUSHPULL(5U) |       \
-                                     PIN_OTYPE_PUSHPULL(6U) |       \
-                                     PIN_OTYPE_PUSHPULL(7U) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOA_DAC2) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOA_XP) |       \
+                                     PIN_OTYPE_PUSHPULL(GPIOA_YP) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOA_MCO) |       \
                                      PIN_OTYPE_PUSHPULL(GPIOA_USART1_TX) | \
                                      PIN_OTYPE_PUSHPULL(GPIOA_USART1_RX) | \
@@ -166,9 +170,9 @@
                                      PIN_OSPEED_2M(2) |       \
                                      PIN_OSPEED_2M(3) |       \
                                      PIN_OSPEED_2M(4) |          \
-                                     PIN_OSPEED_2M(5) |           \
-                                     PIN_OSPEED_2M(6) |          \
-                                     PIN_OSPEED_2M(7) |          \
+                                     PIN_OSPEED_2M(GPIOA_DAC2) |           \
+                                     PIN_OSPEED_2M(GPIOA_XP) |          \
+                                     PIN_OSPEED_2M(GPIOA_YP) |          \
                                      PIN_OSPEED_100M(GPIOA_MCO) | \
                                      PIN_OSPEED_100M(GPIOA_USART1_TX) |  \
                                      PIN_OSPEED_100M(GPIOA_USART1_RX) |  \
@@ -182,9 +186,9 @@
                                      PIN_PUPDR_PULLDOWN(2) | \
                                      PIN_PUPDR_PULLDOWN(3) | \
                                      PIN_PUPDR_PULLUP(4) |         \
-                                     PIN_PUPDR_FLOATING(5) |         \
-                                     PIN_PUPDR_FLOATING(6) |         \
-                                     PIN_PUPDR_FLOATING(7) |         \
+                                     PIN_PUPDR_FLOATING(GPIOA_DAC2) |         \
+                                     PIN_PUPDR_FLOATING(GPIOA_XP) |         \
+                                     PIN_PUPDR_FLOATING(GPIOA_YP) |         \
                                      PIN_PUPDR_PULLUP(GPIOA_MCO) | \
                                      PIN_PUPDR_FLOATING(GPIOA_USART1_TX) | \
                                      PIN_PUPDR_FLOATING(GPIOA_USART1_RX) | \
@@ -198,9 +202,9 @@
                                      PIN_ODR_HIGH(2) |         \
                                      PIN_ODR_HIGH(3) |         \
                                      PIN_ODR_HIGH(4) |             \
-                                     PIN_ODR_LOW(5) |              \
-                                     PIN_ODR_HIGH(6) |             \
-                                     PIN_ODR_HIGH(7) |             \
+                                     PIN_ODR_LOW(GPIOA_DAC2) |              \
+                                     PIN_ODR_HIGH(GPIOA_XP) |             \
+                                     PIN_ODR_HIGH(GPIOA_YP) |             \
                                      PIN_ODR_HIGH(GPIOA_MCO) |     \
                                      PIN_ODR_LOW(GPIOA_USART1_TX) | \
                                      PIN_ODR_LOW(GPIOA_USART1_RX) | \
@@ -214,9 +218,9 @@
                                      PIN_AFIO_AF(2, 0) |       \
                                      PIN_AFIO_AF(3, 0) |       \
                                      PIN_AFIO_AF(4, 0) |           \
-                                     PIN_AFIO_AF(5, 0) |           \
-                                     PIN_AFIO_AF(6, 0) |           \
-                                     PIN_AFIO_AF(7, 0))
+                                     PIN_AFIO_AF(GPIOA_DAC2, 0) |           \
+                                     PIN_AFIO_AF(GPIOA_XP, 0) |           \
+                                     PIN_AFIO_AF(GPIOA_YP, 0))
 #define VAL_GPIOA_AFRH              (PIN_AFIO_AF(GPIOA_MCO, 0) |           \
                                      PIN_AFIO_AF(GPIOA_USART1_TX, 7) |    \
                                      PIN_AFIO_AF(GPIOA_USART1_RX, 7) |    \
@@ -228,16 +232,21 @@
 
 /*
  * GPIOB setup:
- *
  * PB0  - XN                        analog
  * PB1  - YN                        analog
  * PB3  - SPI1_SCLK                 (alternate 5).
+ * PB2  - free (SD GP1)
  * PB4  - SPI1_MISO                 (alternate 5).
  * PB5  - SPI1_MOSI                 (alternate 5).
+ * PB6  - LCD CS
+ * PB7  - LCD CD
  * PB8  - I2C1_SCL                  (alternate 4).
  * PB9  - I2C1_SDA                  (alternate 4).
+ * PB10 - free (SD GP2)
+ * PB11 - SD CS
  * PB12 - I2S2_WCLK                 (alternate 5).
  * PB13 - I2S2_BCLK                 (alternate 5).
+ * PB14 - free
  * PB15 - I2S2_MOSI                 (alternate 5).
  */
 #define VAL_GPIOB_MODER             (PIN_MODE_ANALOG(GPIOB_XN)          | \
@@ -772,8 +781,8 @@
 #endif
 
 #ifdef  USB_DP_R_VDD
-#define usb_lld_connect_bus(usbp)
-#define usb_lld_disconnect_bus(usbp)
+#define usb_lld_connect_bus(usbp)    {palSetPadMode(GPIOA, GPIOA_USB_DP, PAL_MODE_ALTERNATE(14));}
+#define usb_lld_disconnect_bus(usbp) {palSetPadMode(GPIOA, GPIOA_USB_DP, PAL_STM32_MODE_OUTPUT); palClearPad(GPIOA, GPIOA_USB_DP);}
 #else // USB_DP connect to VDD by 1.5K R, and USB_DP short with PA10
 #define usb_lld_connect_bus(usbp) palSetPadMode(GPIOA, GPIOA_USB_DISC, PAL_MODE_INPUT)
 #define usb_lld_disconnect_bus(usbp) palClearPad(GPIOA, GPIOA_USB_DISC)

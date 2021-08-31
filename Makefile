@@ -234,7 +234,7 @@ CPPWARN = -Wall -Wextra -Wundef
 
 # List all user C define here, like -D_DEBUG=1
 ifeq ($(TARGET),F303)
- UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303 -D__FPU_PRESENT -D__FPU_USED
+ UDEFS = -DARM_MATH_CM4 -DVERSION=\"$(VERSION)\" -DNANOVNA_F303
 else
  UDEFS = -DARM_MATH_CM0 -DVERSION=\"$(VERSION)\" 
 endif

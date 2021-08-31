@@ -21,11 +21,6 @@
 
 #include "nanovna.h"
 
-#ifdef ENABLED_DUMP
-int16_t samp_buf[SAMPLE_LEN];
-int16_t ref_buf[SAMPLE_LEN];
-#endif
-
 #ifdef USE_VARIABLE_OFFSET
 static int16_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
 void generate_DSP_Table(int offset){
@@ -156,10 +151,6 @@ dsp_process(int16_t *capture, size_t length)
   do{
     int16_t ref = capture[i+0];
     int16_t smp = capture[i+1];
-#ifdef ENABLED_DUMP
-    ref_buf[i] = ref;
-    samp_buf[i] = smp;
-#endif
     int32_t sin = ((int16_t *)sincos_tbl)[i+0];
     int32_t cos = ((int16_t *)sincos_tbl)[i+1];
     samp_s+= (smp * sin)/16;
