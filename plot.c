@@ -667,8 +667,21 @@ void storeCurrentTrace(int idx){
 void disableStoredTrace(int idx){
   enabled_store_trace&=~(1<<idx);
 }
+
+static bool needProcessTrace(uint16_t idx) {
+  if (idx < TRACES_MAX) {
+    if (trace[idx].enabled)
+      return true;
+  }
+  else if ((enabled_store_trace & (1<<(idx-TRACES_MAX))))
+    return true;
+  return false;
+}
 #else
 #define enabled_store_trace 0
+static bool needProcessTrace(uint16_t idx) {
+  return trace[idx].enabled;
+}
 #endif
 
 static void
@@ -678,11 +691,7 @@ mark_cells_from_index(void)
   /* mark cells between each neighbor points */
   map_t *map = &markmap[current_mappage][0];
   for (t = 0; t < TRACE_INDEX_COUNT; t++) {
-    if (t < TRACES_MAX){
-      if (!trace[t].enabled)
-        continue;
-    }
-    else if ((enabled_store_trace & (1<<(t-TRACES_MAX))) == 0)
+    if (!needProcessTrace(t))
       continue;
     index_t *index = trace_index[t];
     int m0 = index[0].x / CELLWIDTH;
@@ -1503,11 +1512,7 @@ draw_cell(int m, int n)
 // count and size)
 #if 1
   for (t = 0; t < TRACE_INDEX_COUNT; t++) {
-    if (t < TRACES_MAX){
-      if (!trace[t].enabled)
-        continue;
-    }
-    else if ((enabled_store_trace & (1<<(t-TRACES_MAX))) == 0)
+    if (!needProcessTrace(t))
       continue;
     c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     index_t *index = trace_index[t];
