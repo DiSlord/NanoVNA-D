@@ -488,23 +488,17 @@ static const uint8_t ST7796S_init_seq[] = {
 #endif
 
 #ifdef __LCD_BRIGHTNESS__
-#if HAL_USE_DAC == FALSE
-#error "Need set HAL_USE_DAC in halconf.h for use __LCD_BRIGHTNESS__"
+#if HAL_USE_DAC == TRUE
+#error "Need disable HAL_USE_DAC in halconf.h for use __LCD_BRIGHTNESS__"
 #endif
-
-static const DACConfig dac1cfg1 = {
-  init:         0,
-  datamode:     DAC_DHRM_12BIT_RIGHT
-};
-
 static void lcd_initBrightness(void){
-  dacStart(&DACD2, &dac1cfg1);
+  rccEnableDAC1(false); // Enable DAC1
+  DAC->CR|= DAC_CR_EN2; // Use DAC1 CH2
 }
-
 // Brightness control range 0 - 100
 void lcd_setBrightness(uint16_t b){
-  b = 700 + b*((3300-700)/100);
-  dacPutChannelX(&DACD2, 0, b);
+  uint32_t v = 700 + b*(4000-700)/100;
+  DAC->DHR12R2 = v;
 }
 #else
 #define lcd_initBrightness()
@@ -1461,7 +1455,7 @@ DSTATUS disk_initialize(BYTE pdrv) {
 //      if (SD_SendCmd(CMD9, 0) == 0 && SD_RxDataBlock(csd, 16, SD_TOKEN_START_BLOCK)){
 //        DEBUG_PRINT(" CSD =");
 //        for (int i = 0; i<16; i++)
-//          DEBUG_PRINT(" %02X", csd[i]);
+//          DEBUG_PRINT(" %02x", csd[i]);
 //        DEBUG_PRINT("\r\n");
 //      }
     } else {

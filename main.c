@@ -757,27 +757,23 @@ usage:
 
 #ifdef __VNA_ENABLE_DAC__
 // Check DAC enabled in ChibiOS
-#if HAL_USE_DAC == FALSE
-#error "Need set HAL_USE_DAC in halconf.h for use DAC"
+#if HAL_USE_DAC == TRUE
+#error "Need disable HAL_USE_DAC in halconf.h for use VNA_DAC"
 #endif
 
-static const DACConfig dac1cfg1 = {
-  //init:         1922U,
-  init:         0,
-  datamode:     DAC_DHRM_12BIT_RIGHT
-};
+static void dac_init(void) {
+  rccEnableDAC1(false); // Use DAC1
+  DAC->CR|= DAC_CR_EN2; // Enable DAC1 ch2
+}
 
 VNA_SHELL_FUNCTION(cmd_dac)
 {
-  int value;
   if (argc != 1) {
     shell_printf("usage: dac {value(0-4095)}\r\n"\
-                 "current value: %d\r\n", config.dac_value);
+                 "current value: %d\r\n", config._dac_value);
     return;
   }
-  value = my_atoui(argv[0]);
-  config.dac_value = value;
-  dacPutChannelX(&DACD2, 0, value);
+  DAC->DHR12R2 = my_atoui(argv[0])&0xFFF;
 }
 #endif
 
@@ -836,30 +832,6 @@ VNA_SHELL_FUNCTION(cmd_data)
 usage:
   shell_printf("usage: data [array]\r\n");
 }
-
-#ifdef ENABLED_DUMP_COMMAND
-VNA_SHELL_FUNCTION(cmd_dump)
-{
-  int i, j;
-  int len;
-
-  if (argc == 1)
-    dump_selection = my_atoi(argv[0]);
-
-  dsp_start(3);
-  dsp_wait();
-
-  len = AUDIO_BUFFER_LEN;
-  if (dump_selection == 1 || dump_selection == 2)
-    len /= 2;
-  for (i = 0; i < len; ) {
-    for (j = 0; j < 16; j++, i++) {
-      shell_printf("%04x ", 0xffff & (int)dump_buffer[i]);
-    }
-    shell_printf("\r\n");
-  }
-}
-#endif
 
 VNA_SHELL_FUNCTION(cmd_capture)
 {
@@ -1019,16 +991,20 @@ int load_properties(uint32_t id){
 }
 
 #ifdef ENABLED_DUMP_COMMAND
-int16_t dump_buffer[AUDIO_BUFFER_LEN];
+int16_t *dump_buffer;
+volatile int16_t dump_len = 0;
 int16_t dump_selection = 0;
 static void
-duplicate_buffer_to_dump(int16_t *p)
+duplicate_buffer_to_dump(int16_t *p, size_t n)
 {
-  if (dump_selection == 1)
-    p = samp_buf;
-  else if (dump_selection == 2)
-    p = ref_buf;
-  memcpy(dump_buffer, p, sizeof dump_buffer);
+  p+=dump_selection;
+  while (n) {
+    if (dump_len == 0) return;
+    dump_len--;
+    *dump_buffer++ = *p;
+    p+=2;
+    n-=2;
+  }
 }
 #endif
 
@@ -1047,7 +1023,7 @@ void i2s_end_callback(I2SDriver *i2sp, size_t offset, size_t n)
   else if (wait_count <= config._bandwidth+1) // Clean data ready, process it
     dsp_process(p, n);
 #ifdef ENABLED_DUMP_COMMAND
-  duplicate_buffer_to_dump(p);
+  duplicate_buffer_to_dump(p, n);
 #endif
   --wait_count;
 //  stat.callback_count++;
@@ -1216,6 +1192,30 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   palSetPad(GPIOC, GPIOC_LED);
   return p_sweep == sweep_points;
 }
+
+#ifdef ENABLED_DUMP_COMMAND
+VNA_SHELL_FUNCTION(cmd_dump)
+{
+  int i, j;
+  int16_t dump[96*2];
+  dump_buffer = dump;
+  dump_len = sizeof(dump) / sizeof(int16_t);
+  int len = dump_len;
+  if (argc == 1)
+    dump_selection = my_atoi(argv[0]) == 1 ? 0 : 1;
+
+  tlv320aic3204_select(0);
+  DSP_START(DELAY_SWEEP_START);
+  while (dump_len > 0) {__WFI();}
+  for (i = 0, j = 0; i < len; i++) {
+    shell_printf("%6d ", dump[i]);
+    if (++j == 12) {
+      shell_printf("\r\n");
+      j = 0;
+    }
+  }
+}
+#endif
 
 #ifdef ENABLE_GAIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_gain)
@@ -2857,7 +2857,7 @@ static const VNAShellCommand commands[] =
     {"saveconfig"  , cmd_saveconfig  , CMD_RUN_IN_LOAD},
     {"clearconfig" , cmd_clearconfig , CMD_RUN_IN_LOAD},
 #ifdef ENABLED_DUMP_COMMAND
-    {"dump"        , cmd_dump        , 0},
+    {"dump"        , cmd_dump        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
 #endif
 #ifdef ENABLE_PORT_COMMAND
     {"port"        , cmd_port        , CMD_RUN_IN_LOAD},
@@ -3349,8 +3349,7 @@ int main(void)
  * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
  */
 #ifdef  __VNA_ENABLE_DAC__
-  dacStart(&DACD2, &dac1cfg1);
-  dacPutChannelX(&DACD2, 0, config.dac_value);  // Set config DAC value
+  dac_init();
 #endif
 
 /*
