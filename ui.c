@@ -99,9 +99,7 @@ static int8_t  selection = -1;
 #define MT_NONE            0x00
 #define MT_SUBMENU         0x01
 #define MT_CALLBACK        0x02
-#define MT_CANCEL          0x03
-#define MT_CLOSE           0x04
-#define MT_ADV_CALLBACK    0x05
+#define MT_ADV_CALLBACK    0x03
 
 // Set for custom label
 #define MT_CUSTOM_LABEL    0
@@ -1184,9 +1182,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
   int16_t value = config._brightness;
   lcd_set_foreground(LCD_MENU_TEXT_COLOR);
   lcd_set_background(LCD_MENU_COLOR);
-  lcd_fill(LCD_WIDTH/2-80, LCD_HEIGHT/2-20, 160, 40);
-  lcd_printf(LCD_WIDTH/2-50, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
-  lcd_drawstring(LCD_WIDTH/2-72, LCD_HEIGHT/2+2, S_LARROW" USE LEVELER BUTTON "S_RARROW);
+  lcd_fill(LCD_WIDTH/2-12*FONT_WIDTH, LCD_HEIGHT/2-20, 23*FONT_WIDTH, 40);
+  lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
+  lcd_printf(LCD_WIDTH/2-11*FONT_WIDTH, LCD_HEIGHT/2+2, S_LARROW " USE LEVELER BUTTON " S_RARROW);
   while (TRUE) {
     uint16_t status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
@@ -1195,7 +1193,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
         if (status & EVT_DOWN) value-=5;
         if (value <   0) value =   0;
         if (value > 100) value = 100;
-        lcd_printf(LCD_WIDTH/2-50, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
+        lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
         lcd_setBrightness(value);
       } while ((status = btn_wait_release()) != 0);
     }
@@ -1408,9 +1406,15 @@ static UI_FUNCTION_CALLBACK(menu_stored_trace_cb)
 }
 #endif
 
+static UI_FUNCTION_CALLBACK(menu_back_cb)
+{
+  (void)data;
+  menu_move_back(false);
+}
+
 // Back button submenu list
 static const menuitem_t menu_back[] = {
-  { MT_CANCEL,   0, S_LARROW" BACK", NULL },
+  { MT_CALLBACK,   0, S_LARROW" BACK", menu_back_cb },
   { MT_NONE,     0, NULL, NULL } // sentinel
 };
 
@@ -1906,14 +1910,6 @@ menu_invoke(int item)
   const menuitem_t *menu = current_menu_item(item);
   if (menu == NULL) return;
   switch (menu->type) {
-  case MT_CLOSE:
-    ui_mode_normal();
-    break;
-
-  case MT_CANCEL:
-    menu_move_back(false);
-    break;
-
   case MT_CALLBACK:
     if (menu->reference) ((menuaction_cb_t)menu->reference)(menu->data);
     break;
