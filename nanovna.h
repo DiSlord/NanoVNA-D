@@ -80,9 +80,9 @@
 // Add LC match function
 #define __USE_LC_MATCHING__
 // Enable Series measure option
-//#define __S21_MEASURE__
+#define __S21_MEASURE__
 // Enable S11 cable measure option
-//#define __S11_CABLE_MEASURE__
+#define __S11_CABLE_MEASURE__
 #endif
 
 /*
