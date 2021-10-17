@@ -113,7 +113,7 @@
 */
 
 
-#define FF_USE_LFN		1
+#define FF_USE_LFN		0
 #define FF_MAX_LFN		32
 /* The FF_USE_LFN switches the support for LFN (long file name).
 /
@@ -231,7 +231,7 @@
 /  buffer in the filesystem object (FATFS) is used for the file data transfer. */
 
 
-#define FF_FS_EXFAT		1
+#define FF_FS_EXFAT		0
 /* This option switches support for exFAT filesystem. (0:Disable or 1:Enable)
 /  To enable exFAT, also LFN needs to be enabled. (FF_USE_LFN >= 1)
 /  Note that enabling exFAT discards ANSI C (C89) compatibility. */
@@ -296,8 +296,8 @@
 /  SemaphoreHandle_t and etc. A header file for O/S definitions needs to be
 /  included somewhere in the scope of ff.h. */
 
-
-#define _WORD_ACCESS	1	/* 0 or 1 */
+// STM32F0 processor (Cortex M0) not support read/write unaligned WORD or DWORD data
+#define _WORD_ACCESS	0	/* 0 or 1 */
 /* The _WORD_ACCESS option is an only platform dependent option. It defines
 /  which access method is used to the word data on the FAT volume.
 /
@@ -320,7 +320,7 @@
 /   PIC32       0           H8/300H     0           x86         0/1
 */
 
-#define FF_USE_STRINGLIB   0  /* 0 or 1 */
+#define FF_USE_STRINGLIB   1  /* 0 or 1 */
 /*
  * if 1 Use standard string.h for memcpy, memcmp, memset, strchr
  * if 0 use own
