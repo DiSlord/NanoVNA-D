@@ -1411,6 +1411,17 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 }
 #endif
 
+static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = config._band_mode == 0 ? "Si5351" : "MS5351";
+    return;
+  }
+  config._band_mode = config._band_mode == 0 ? 1 : 0;
+  si5351_set_band_mode(config._band_mode);
+}
+
 #ifdef __DIGIT_SEPARATOR__
 static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 {
@@ -1819,6 +1830,7 @@ const menuitem_t menu_device[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,            "IF OFFSET\n %dHz",   menu_offset_sel_acb },
 #endif
+  { MT_ADV_CALLBACK, 0,            "MODE\n %s",          menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
 #endif

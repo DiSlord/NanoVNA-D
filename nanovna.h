@@ -772,6 +772,7 @@ typedef struct config {
   float    _measure_r;
   uint8_t  _lever_mode;
   uint8_t  _digit_separator;
+  uint8_t  _band_mode;
   uint32_t checksum;
 } config_t;
 

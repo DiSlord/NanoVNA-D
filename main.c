@@ -910,6 +910,7 @@ config_t config = {
   ._measure_r = MEASURE_DEFAULT_R,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
+  ._band_mode = 0,
 };
 
 properties_t current_props;
