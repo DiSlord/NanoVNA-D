@@ -429,45 +429,39 @@ touch_wait_pressed(void)
 #define TOUCH_MARK_X        4
 #define TOUCH_MARK_Y        4
 static const uint8_t touch_bitmap[]={
-_BMP16(0b0000100000000000),
-_BMP16(0b0100100100000000),
-_BMP16(0b0010101000000000),
-_BMP16(0b0000100000000000),
-_BMP16(0b1111011110000000),
-_BMP16(0b0000100000000000),
-_BMP16(0b0010101000000000),
-_BMP16(0b0100100100000000),
-_BMP16(0b0000100000000000),
+  _BMP16(0b0000100000000000),
+  _BMP16(0b0100100100000000),
+  _BMP16(0b0010101000000000),
+  _BMP16(0b0000100000000000),
+  _BMP16(0b1111011110000000),
+  _BMP16(0b0000100000000000),
+  _BMP16(0b0010101000000000),
+  _BMP16(0b0100100100000000),
+  _BMP16(0b0000100000000000),
 };
+
+static void getTouchPoint(uint16_t x, uint16_t y, const char *name) {
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_clear_screen();
+  lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
+  lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
+  touch_wait_release();
+}
 
 void
 touch_cal_exec(void)
 {
-  int x1, x2, y1, y2;
-
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_clear_screen();
-
-  lcd_blitBitmap(CALIBRATION_OFFSET-TOUCH_MARK_X, CALIBRATION_OFFSET-TOUCH_MARK_Y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
-  lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH UPPER LEFT *");
-
-  touch_wait_release();
-  x1 = last_touch_x;
-  y1 = last_touch_y;
-
-  lcd_clear_screen();
-  lcd_blitBitmap(LCD_WIDTH-1-CALIBRATION_OFFSET-TOUCH_MARK_X, LCD_HEIGHT-1-CALIBRATION_OFFSET-TOUCH_MARK_Y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
-  lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH LOWER RIGHT *");
-
-  touch_wait_release();
-  x2 = last_touch_x;
-  y2 = last_touch_y;
-
-  config._touch_cal[0] = x1;
-  config._touch_cal[1] = y1;
-  config._touch_cal[2] = x2;
-  config._touch_cal[3] = y2;
+  const uint16_t x1 = CALIBRATION_OFFSET - TOUCH_MARK_X;
+  const uint16_t y1 = CALIBRATION_OFFSET - TOUCH_MARK_Y;
+  const uint16_t x2 = LCD_WIDTH  - 1 - CALIBRATION_OFFSET - TOUCH_MARK_X;
+  const uint16_t y2 = LCD_HEIGHT - 1 - CALIBRATION_OFFSET - TOUCH_MARK_Y;
+  getTouchPoint(x1, y1, "UPPER LEFT");
+  config._touch_cal[0] = last_touch_x;
+  config._touch_cal[1] = last_touch_y;
+  getTouchPoint(x2, y2, "LOWER RIGHT");
+  config._touch_cal[2] = last_touch_x;
+  config._touch_cal[3] = last_touch_y;
 }
 
 void
@@ -1417,6 +1411,17 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 }
 #endif
 
+static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = config._band_mode == 0 ? "Si5351" : "MS5351";
+    return;
+  }
+  config._band_mode = config._band_mode == 0 ? 1 : 0;
+  si5351_set_band_mode(config._band_mode);
+}
+
 #ifdef __DIGIT_SEPARATOR__
 static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 {
@@ -1825,6 +1830,7 @@ const menuitem_t menu_device[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,            "IF OFFSET\n %dHz",   menu_offset_sel_acb },
 #endif
+  { MT_ADV_CALLBACK, 0,            "MODE\n %s",          menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
 #endif
@@ -2085,8 +2091,10 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 };
 
 static void
-set_numeric_value(float f_val, freq_t u_val)
+set_numeric_value(void)
 {
+  float  f_val = my_atof(kp_buf);
+  freq_t u_val = my_atoui(kp_buf);
   switch (keypad_mode) {
     case KM_START:    set_sweep_frequency(ST_START,  u_val); break;
     case KM_STOP:     set_sweep_frequency(ST_STOP,   u_val); break;
@@ -2636,7 +2644,7 @@ keypad_click(int key)
       }
     }
     // numeric input done
-    set_numeric_value(my_atof(kp_buf),  my_atoui(kp_buf));
+    set_numeric_value();
     return KP_DONE;
   }
 
