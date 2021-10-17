@@ -117,7 +117,10 @@
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
 //#define USE_VARIABLE_OFFSET
-//#define USE_VARIABLE_OFFSET_MENU
+// Add IF select menu in expert settings
+#ifdef USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET_MENU
+#endif
 
 #if AUDIO_ADC_FREQ_K == 768
 #define FREQUENCY_OFFSET_STEP    16000
