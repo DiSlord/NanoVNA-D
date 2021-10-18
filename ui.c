@@ -1990,6 +1990,7 @@ menu_invoke(int item)
 #define KP_KEYPAD    20
 #define KP_N         21
 #define KP_P         22
+#define KP_ENTER     23
 // Stop
 #define KP_NONE      255
 
@@ -2025,7 +2026,7 @@ static const keypads_t keypads_scale[] = {
   { 0, 0, KP_7 },
   { 1, 0, KP_8 },
   { 2, 0, KP_9 },
-  { 3, 3, KP_X1 },
+  { 3, 3, KP_ENTER },
   { 2, 3, KP_BS },
   { 0, 0, KP_NONE }
 };
@@ -2043,7 +2044,7 @@ static const keypads_t keypads_ref[] = {
   { 1, 0, KP_8 },
   { 2, 0, KP_9 },
   { 3, 2, KP_MINUS },
-  { 3, 3, KP_X1 },
+  { 3, 3, KP_ENTER },
   { 2, 3, KP_BS },
   { 0, 0, KP_NONE }
 };
@@ -2627,6 +2628,7 @@ static int
 keypad_click(int key)
 {
   int c = keypads[key].c;
+  if (c == KP_ENTER) c = KP_X1;
   if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
     if (kp_index == 0)
       return KP_CANCEL;
