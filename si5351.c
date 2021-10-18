@@ -419,7 +419,6 @@ static const band_strategy_t *band_s;
  * Frequency generation divide on band
  */
 #define THRESHOLD 300000100U
-static
 // Mode for H board v3.3 and SI5351 installed
 CONST_BAND band_strategy_t band_strategy_33H_SI5351[] = {
   {           0U,                0, { 0}, 0, 0,                            -1,                            -1, -1, -1,       1}, // 0
