@@ -70,6 +70,10 @@ enum {
 #ifdef __VNA_Z_RENORMALIZATION__
   KM_Z_PORT,
 #endif
+#ifdef __USE_RTC__
+  KM_RTC_DATE,
+  KM_RTC_TIME,
+#endif
   KM_NONE
 };
 
@@ -1841,6 +1845,10 @@ const menuitem_t menu_device[] = {
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
   { MT_SUBMENU, 0,                 "CLEAR\nCONFIG",      menu_clear },
+#ifdef __USE_RTC__
+  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",           (const void *)menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",           (const void *)menu_keyboard_acb },
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2089,6 +2097,10 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __VNA_Z_RENORMALIZATION__
 [KM_Z_PORT]          = {keypads_scale, "PORT Z 50" S_RARROW }, // Port Z renormalization impedance
 #endif
+#ifdef __USE_RTC__
+[KM_RTC_DATE]        = {keypads_scale, "SET DATE\n YYMMDD"}, // Date
+[KM_RTC_TIME]        = {keypads_scale, "SET TIME\n HHMMSS"}, // Time
+#endif
 };
 
 static void
@@ -2116,6 +2128,34 @@ set_numeric_value(void)
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
     case KM_Z_PORT:   current_props._portz = f_val;          break;
+#endif
+#ifdef __USE_RTC__
+    case KM_RTC_DATE:
+    case KM_RTC_TIME:
+    {
+      int i = 0;
+      uint32_t  dt_buf[2];
+      dt_buf[0] = rtc_get_tr_bcd(); // TR should be read first for sync
+      dt_buf[1] = rtc_get_dr_bcd(); // DR should be read second
+      //            0    1   2       4      5     6
+      // time[] ={sec, min, hr, 0, day, month, year, 0}
+      uint8_t   *time = (uint8_t*)dt_buf;
+      for (; i < 6 && kp_buf[i]!=0; i++) kp_buf[i]-= '0';
+      for (; i < 6                ; i++) kp_buf[i] =   0;
+      for (i = 0; i < 3; i++) kp_buf[i] = (kp_buf[2*i]<<4) | kp_buf[2*i+1]; // BCD format
+      if (keypad_mode == KM_RTC_DATE) {
+        time[6] = kp_buf[0]; // year
+        time[5] = kp_buf[1]; // month
+        time[4] = kp_buf[2]; // day
+      }
+      else {
+        time[2] = kp_buf[0]; // hour
+        time[1] = kp_buf[1]; // min
+        time[0] = kp_buf[2]; // sec
+      }
+      rtc_set_time(dt_buf[1], dt_buf[0]);
+    }
+    break;
 #endif
   }
 }
@@ -2201,7 +2241,13 @@ draw_numeric_input(const char *buf)
   bool focused = FALSE;
   uint16_t x = 14 + 10 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
-  uint16_t xsim = (0b00100100100100100 >>(2-(period_pos()%3)))&(~1);
+  uint16_t xsim;
+#ifdef __USE_RTC__
+  if ((1<<keypad_mode)&((1<<KM_RTC_DATE)|(1<<KM_RTC_TIME)))
+    xsim = 0b01010100;
+  else
+#endif
+    xsim = (0b00100100100100100 >>(2-(period_pos()%3)))&(~1);
   int c;
   while(*buf) {
     c = *buf++;
