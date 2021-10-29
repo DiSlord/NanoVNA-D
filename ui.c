@@ -2144,11 +2144,22 @@ set_numeric_value(void)
       for (; i < 6                ; i++) kp_buf[i] =   0;
       for (i = 0; i < 3; i++) kp_buf[i] = (kp_buf[2*i]<<4) | kp_buf[2*i+1]; // BCD format
       if (keypad_mode == KM_RTC_DATE) {
+        // Month limit 1 - 12
+             if (kp_buf[1] <  1) kp_buf[1] =  1;
+        else if (kp_buf[1] > 12) kp_buf[1] = 12;
+        // Day limit (depend from month):
+        uint8_t day_max = 28 + ((0b11101110111110111011001100>>(kp_buf[1]<<1))&3);
+             if (kp_buf[2] <  1)      kp_buf[2] = 1;
+        else if (kp_buf[2] > day_max) kp_buf[2] = day_max;
         time[6] = kp_buf[0]; // year
         time[5] = kp_buf[1]; // month
         time[4] = kp_buf[2]; // day
       }
       else {
+        // Hour limit 0 - 23, min limit 0 - 59, sec limit 0 - 59
+        if (kp_buf[2] > 23) kp_buf[2] = 23;
+        if (kp_buf[1] > 59) kp_buf[1] = 59;
+        if (kp_buf[0] > 59) kp_buf[1] = 59;
         time[2] = kp_buf[0]; // hour
         time[1] = kp_buf[1]; // min
         time[0] = kp_buf[2]; // sec
