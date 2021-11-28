@@ -409,7 +409,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Used marker size settings
 #define _USE_BIG_MARKER_              0
 // Used font settings
-#define _USE_FONT_                    1
+#define _USE_FONT_                    0
 
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
@@ -604,6 +604,13 @@ extern const uint8_t numfont16x22[];
 #ifdef __USE_GRID_VALUES__
 #define GRID_X_TEXT   (WIDTH - 5*FONT_WIDTH)
 #endif
+
+// Render control chars
+#define R_BGCOLOR  "\001"  // hex 0x01 set background color
+#define R_FGCOLOR  "\002"  // hex 0x02 set foreground color
+
+#define R_TEXT_COLOR "\002\001" // set  1 color index as foreground
+#define R_LINK_COLOR "\002\031" // set 25 color index as foreground
 
 // Additional chars in fonts
 #define S_DELTA    "\027"  // hex 0x17
@@ -933,6 +940,7 @@ typedef uint16_t pixel_t;
 #define LCD_GRID_VALUE_COLOR    22
 #define LCD_INTERP_CAL_COLOR    23
 #define LCD_DISABLE_CAL_COLOR   24
+#define LCD_LINK_COLOR          25
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -960,6 +968,7 @@ typedef uint16_t pixel_t;
 [LCD_GRID_VALUE_COLOR ] = RGB565( 96, 96, 96), \
 [LCD_INTERP_CAL_COLOR ] = RGB565( 31,227,  0), \
 [LCD_DISABLE_CAL_COLOR] = RGB565(255,  0,  0), \
+[LCD_LINK_COLOR       ] = RGB565(  0,  0,192), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config._lcd_palette[idx]
@@ -1099,7 +1108,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
-#define CONFIG_MAGIC 0x434f4e53 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e54 /* 'CONF' */
 #define PROPS_MAGIC  0x434f4e51 /* 'CONF' */
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
