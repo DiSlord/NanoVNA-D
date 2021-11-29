@@ -2452,7 +2452,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
 #if _USE_FONT_ != _USE_SMALL_FONT_
     if (menu_button_height < lines*FONT_GET_HEIGHT + 2) {
       lcd_set_font(FONT_SMALL);
-      lcd_drawstring(text_offs, y+(menu_button_height-lines*sFONT_GET_HEIGHT)/2, text);
+      lcd_drawstring(text_offs, y+(menu_button_height-lines*sFONT_GET_HEIGHT - 1)/2, text);
     }
     else {
       lcd_set_font(FONT_NORMAL);
