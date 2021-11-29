@@ -788,7 +788,11 @@ static msg_t lcd_put(void *ip, uint8_t ch) {
     return MSG_OK;
   }
   uint16_t w = FONT_GET_WIDTH(ch);
+#if _USE_FONT_ < 3
   lcd_blitBitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#else
+  lcd_blitBitmap(ps->x, ps->y, w < 9 ? 9 : w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#endif
   ps->x+= w;
   return MSG_OK;
 }

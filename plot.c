@@ -834,7 +834,11 @@ static msg_t cellPut(void *ip, uint8_t ch) {
   cellPrintStream *ps = ip;
   if (ps->x < CELLWIDTH){
     uint16_t w = FONT_GET_WIDTH(ch);
+#if _USE_FONT_ < 3
     cell_blit_bitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#else
+    cell_blit_bitmap(ps->x, ps->y, w < 9 ? 9 : w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#endif
     ps->x+= w;
   }
   return MSG_OK;
@@ -860,8 +864,6 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
 }
 
 #ifdef __VNA_MEASURE_MODULE__
-
-
 typedef void (*measure_cell_cb_t)(int x0, int y0);
 typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 
