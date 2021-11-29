@@ -1848,7 +1848,7 @@ draw_frequencies(void)
   // Draw frequency string
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, FONT_GET_HEIGHT);
+  lcd_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, LCD_HEIGHT - FREQUENCIES_YPOS);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
     if (FREQ_IS_CW()) {

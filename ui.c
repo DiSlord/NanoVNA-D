@@ -807,6 +807,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   (void)data;
   if(b){
     if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK;
+    b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
     return;
   }
   props_mode ^= DOMAIN_TIME;
@@ -897,7 +898,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
     if (current_props._power == SI5351_CLK_DRIVE_STRENGTH_AUTO)
       plot_printf(b->label, sizeof(b->label), "POWER  AUTO");
     else
-      plot_printf(b->label, sizeof(b->label), "POWER  %umA", 2+current_props._power*2);
+      plot_printf(b->label, sizeof(b->label), "POWER" R_LINK_COLOR "  %umA", 2+current_props._power*2);
     return;
   }
   menu_push_submenu(menu_power);
@@ -921,7 +922,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
     switch(data){
 //    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
       case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
-      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n %.3qHz" : "JOG STEP\n AUTO", var_freq); break;
+      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3qHz" : "JOG STEP\n AUTO", var_freq); break;
       case KM_XTAL:            b->p1.u = config._xtal_freq; break;
       case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
       case KM_VBAT:            b->p1.u = config._vbat_offset; break;
@@ -1046,10 +1047,30 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
   props_mode^= TD_MARKER_TRACK;
 }
 
+extern const menuitem_t menu_marker_smith[];
+static const char *smith_format_names[] = {
+  [MS_LIN]  = "LIN",
+  [MS_LOG]  = "LOG",
+  [MS_REIM] = "Re + Im",
+  [MS_RX]   = "R + jX",
+  [MS_RLC]  = "R + L/C",
+};
+
+static UI_FUNCTION_ADV_CALLBACK(menu_smith_type_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.text = smith_format_names[marker_smith_format];
+    return;
+  }
+  menu_push_submenu(menu_marker_smith);
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 {
   if (b){
     b->icon = marker_smith_format == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.text = smith_format_names[data];
     return;
   }
   marker_smith_format = data;
@@ -1579,7 +1600,7 @@ const menuitem_t menu_format[] = {
 const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n %b.7Fs",    menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7Fs", menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
@@ -1597,12 +1618,12 @@ const menuitem_t menu_channel[] = {
 #endif
 
 const menuitem_t menu_transform[] = {
-  { MT_ADV_CALLBACK, 0,                       "TRANSFORM\n ON",     menu_transform_acb },
+  { MT_ADV_CALLBACK, 0,                       "TRANSFORM\n%s",      menu_transform_acb },
   { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
   { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
   { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, 0,                       "WINDOW\n  %s",       menu_transform_window_acb },
-  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR %d%%%%", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,                       "WINDOW\n" R_LINK_COLOR " %s", menu_transform_window_acb },
+  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR" R_LINK_COLOR " %d%%%%", menu_keyboard_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1636,7 +1657,7 @@ const menuitem_t menu_bandwidth[] = {
 
 #ifdef __USE_SMOOTH__
 const menuitem_t menu_smooth_count[] = {
-  { MT_ADV_CALLBACK, 0, "SMOOTH\n%s avg",menu_smooth_func_acb },
+  { MT_ADV_CALLBACK, 0, "SMOOTH\n" R_LINK_COLOR "%s avg",menu_smooth_func_acb },
   { MT_ADV_CALLBACK, 0, "SMOOTH\nOFF",menu_smooth_acb },
   { MT_ADV_CALLBACK, 1, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 2, "x%d", menu_smooth_acb },
@@ -1648,17 +1669,17 @@ const menuitem_t menu_smooth_count[] = {
 #endif
 
 const menuitem_t menu_display[] = {
-  { MT_SUBMENU,      0, "TRACE",             menu_trace },
-  { MT_SUBMENU,      0, "FORMAT",            menu_format },
-  { MT_SUBMENU,      0, "SCALE",             menu_scale },
-  { MT_ADV_CALLBACK, 0, "CHANNEL\n %s",      menu_channel_acb },
-  { MT_SUBMENU,      0, "TRANSFORM",         menu_transform },
-  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n  %uHz", menu_bandwidth_sel_acb },
+  { MT_SUBMENU,      0, "TRACE",                            menu_trace },
+  { MT_SUBMENU,      0, "FORMAT",                           menu_format },
+  { MT_SUBMENU,      0, "SCALE",                            menu_scale },
+  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",     menu_channel_acb },
+  { MT_SUBMENU,      0, "TRANSFORM",                        menu_transform },
+  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %uHz", menu_bandwidth_sel_acb },
 #ifdef __USE_SMOOTH__
-  { MT_SUBMENU,      0, "DATA\nSMOOTH",      menu_smooth_count },
+  { MT_SUBMENU,      0, "DATA SMOOTH",                      menu_smooth_count },
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
-  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n" R_LINK_COLOR " 50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1687,7 +1708,7 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
-  { MT_ADV_CALLBACK,      0,    "SWEEP\nPOINTS %u",  menu_points_sel_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
   { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1740,11 +1761,11 @@ const menuitem_t menu_marker_search[] = {
 };
 
 const menuitem_t menu_marker_smith[] = {
-  { MT_ADV_CALLBACK, MS_LIN, "LIN", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_LOG, "LOG", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_REIM,"Re+Im", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_RX,  "R+jX", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_RLC, "R+L/C", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_LIN, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_LOG, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_REIM,"%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_RX,  "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_RLC, "%s", menu_marker_smith_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1761,19 +1782,19 @@ const menuitem_t menu_marker_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
-  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\nRl = %b.4F"S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl =" R_LINK_COLOR " %b.4F"S_OHM, menu_keyboard_acb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
 const menuitem_t menu_marker[] = {
-  { MT_SUBMENU, 0, "SELECT\nMARKER", menu_marker_sel },
-  { MT_SUBMENU, 0, "SEARCH", menu_marker_search },
-  { MT_SUBMENU, 0, "OPERATIONS", menu_marker_ops },
-  { MT_SUBMENU, 0, "SMITH\nVALUE", menu_marker_smith },
+  { MT_SUBMENU,      0, "SELECT\nMARKER",   menu_marker_sel    },
+  { MT_SUBMENU,      0, "SEARCH",           menu_marker_search },
+  { MT_SUBMENU,      0, "OPERATIONS",       menu_marker_ops    },
+  { MT_ADV_CALLBACK, 0, "SMITH VALUE\n" R_LINK_COLOR " %s", menu_smith_type_acb},
 #ifdef __VNA_MEASURE_MODULE__
-  { MT_SUBMENU, 0, "MEASURE", menu_marker_measure },
+  { MT_SUBMENU,      0, "MEASURE",          menu_marker_measure },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1801,9 +1822,9 @@ const menuitem_t menu_serial_speed[] = {
 };
 
 const menuitem_t menu_connection[] = {
-  { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",    menu_connection_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL", menu_connection_acb },
-  { MT_SUBMENU,  0, "SERIAL\nSPEED", menu_serial_speed },
+  { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",          menu_connection_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL",       menu_connection_acb },
+  { MT_SUBMENU,                    0, "SERIAL SPEED", menu_serial_speed   },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -1828,15 +1849,15 @@ const menuitem_t menu_offset[] = {
 #endif
 
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n%.6q",    menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n%.6q",         menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n %umV", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",    menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %umV", menu_keyboard_acb },
 #ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n %dHz",   menu_offset_sel_acb },
+  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %dHz",   menu_offset_sel_acb },
 #endif
-  { MT_ADV_CALLBACK, 0,            "MODE\n %s",          menu_band_sel_acb },
+  { MT_ADV_CALLBACK, 0,            "MODE\n" R_LINK_COLOR " %s",          menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n%s",      menu_separator_acb },
+  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n" R_LINK_COLOR "%s",      menu_separator_acb },
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   { MT_CALLBACK, SAVE_BIN_FILE,    "DUMP\nFIRMWARE",     menu_sdcard_cb },
@@ -1844,7 +1865,7 @@ const menuitem_t menu_device[] = {
 #ifdef __SD_CARD_LOAD__
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
-  { MT_SUBMENU, 0,                 "CLEAR\nCONFIG",      menu_clear },
+  { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
 #ifdef __USE_RTC__
   { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",           (const void *)menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",           (const void *)menu_keyboard_acb },
@@ -1856,13 +1877,13 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
   { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
   { MT_SUBMENU,                       0, "EXPERT\nSETTINGS", menu_device },
-  { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
+  { MT_CALLBACK,                      0, "SAVE CONFIG",   menu_config_save_cb },
 #ifdef __USE_SERIAL_CONSOLE__
   { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
-  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n %d%%%%", menu_brightness_acb },
+  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n" R_LINK_COLOR " %d%%%%", menu_brightness_acb },
 #endif
 #ifdef __DFU_SOFTWARE_MODE__
   { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
@@ -2144,11 +2165,23 @@ set_numeric_value(void)
       for (; i < 6                ; i++) kp_buf[i] =   0;
       for (i = 0; i < 3; i++) kp_buf[i] = (kp_buf[2*i]<<4) | kp_buf[2*i+1]; // BCD format
       if (keypad_mode == KM_RTC_DATE) {
+        // Month limit 1 - 12 (in BCD)
+             if (kp_buf[1] <    1) kp_buf[1] =    1;
+        else if (kp_buf[1] > 0x12) kp_buf[1] = 0x12;
+        // Day limit (depend from month):
+        uint8_t day_max = 28 + ((0b11101100000000000010111110111011001100>>(kp_buf[1]<<1))&3);
+        day_max = ((day_max/10)<<4)|(day_max%10); // to BCD
+             if (kp_buf[2] <  1)      kp_buf[2] = 1;
+        else if (kp_buf[2] > day_max) kp_buf[2] = day_max;
         time[6] = kp_buf[0]; // year
         time[5] = kp_buf[1]; // month
         time[4] = kp_buf[2]; // day
       }
       else {
+        // Hour limit 0 - 23, min limit 0 - 59, sec limit 0 - 59 (in BCD)
+        if (kp_buf[0] > 0x23) kp_buf[0] = 0x23;
+        if (kp_buf[1] > 0x59) kp_buf[1] = 0x59;
+        if (kp_buf[2] > 0x59) kp_buf[2] = 0x59;
         time[2] = kp_buf[0]; // hour
         time[1] = kp_buf[1]; // min
         time[0] = kp_buf[2]; // sec
