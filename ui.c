@@ -1865,7 +1865,7 @@ const menuitem_t menu_device[] = {
 #ifdef __SD_CARD_LOAD__
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
-  { MT_SUBMENU, 0,                 "CLEAR\nCONFIG",      menu_clear },
+  { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
 #ifdef __USE_RTC__
   { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",           (const void *)menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",           (const void *)menu_keyboard_acb },
@@ -1877,7 +1877,7 @@ const menuitem_t menu_config[] = {
   { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
   { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
   { MT_SUBMENU,                       0, "EXPERT\nSETTINGS", menu_device },
-  { MT_CALLBACK,                      0, "SAVE",          menu_config_save_cb },
+  { MT_CALLBACK,                      0, "SAVE CONFIG",   menu_config_save_cb },
 #ifdef __USE_SERIAL_CONSOLE__
   { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif

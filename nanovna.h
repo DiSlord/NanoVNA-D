@@ -451,7 +451,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           206
 #define FREQUENCIES_XPOS3           135
-#define FREQUENCIES_YPOS            (LCD_HEIGHT-FONT_GET_HEIGHT)
+#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 1)
 #endif // end 320x240 display plot definitions
 
 #ifdef LCD_480x320 // 480x320 display definitions
@@ -505,7 +505,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           330
 #define FREQUENCIES_XPOS3           200
-#define FREQUENCIES_YPOS            (LCD_HEIGHT-FONT_GET_HEIGHT)
+#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2)
 #endif // end 480x320 display plot definitions
 
 // UI size defines

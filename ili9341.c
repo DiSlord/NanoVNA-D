@@ -792,6 +792,7 @@ static msg_t lcd_put(void *ip, uint8_t ch) {
   ps->x+= w;
   return MSG_OK;
 }
+
 // Simple print in buffer function
 int lcd_printf(int16_t x, int16_t y, const char *fmt, ...) {
   // Init small lcd print stream
