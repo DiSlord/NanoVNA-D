@@ -129,22 +129,24 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.0.71"
+#define VERSION "1.1"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
   "2019-2021 Copyright @DiSlord (based on @edy555 source)",
-  "Licensed under GPL. See: https://github.com/DiSlord/NanoVNA-D",
-  "Donate support: https://paypal.me/DiSlord",
+  "Licensed under GPL.",
+  "  https://github.com/DiSlord/NanoVNA-D",
+  "Donate support:",
+  "  https://paypal.me/DiSlord",
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
   "ADC:"define_to_STR(AUDIO_ADC_FREQ_K)"k, "\
   "Lcd:"define_to_STR(LCD_WIDTH)"x"define_to_STR(LCD_HEIGHT)\
   "]",  "Build Time: " __DATE__ " - " __TIME__,
-  "Kernel: " CH_KERNEL_VERSION,
-  "Compiler: " PORT_COMPILER_NAME,
+//  "Kernel: " CH_KERNEL_VERSION,
+//  "Compiler: " PORT_COMPILER_NAME,
   "Architecture: " PORT_ARCHITECTURE_NAME " Core Variant: " PORT_CORE_VARIANT_NAME,
   "Port Info: " PORT_INFO,
   "Platform: " PLATFORM_NAME,

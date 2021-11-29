@@ -830,13 +830,39 @@ typedef struct {
   int16_t y;
 } cellPrintStream;
 
+static void put_normal(cellPrintStream *ps, uint8_t ch) {
+  uint16_t w = FONT_GET_WIDTH(ch);
+#if _USE_FONT_ < 3
+  cell_blit_bitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#else
+  cell_blit_bitmap(ps->x, ps->y, w < 9 ? 9 : w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#endif
+  ps->x+= w;
+}
+
+#if _USE_FONT_ != _USE_SMALL_FONT_
+typedef void (*font_put_t)(cellPrintStream *ps, uint8_t ch);
+static font_put_t put_char = put_normal;
+static void put_small(cellPrintStream *ps, uint8_t ch) {
+  uint16_t w = sFONT_GET_WIDTH(ch);
+#if _USE_SMALL_FONT_ < 3
+  cell_blit_bitmap(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+#else
+  cell_blit_bitmap(ps->x, ps->y, w < 9 ? 9 : w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+#endif
+  ps->x+= w;
+}
+static inline void cell_set_font(int type) {put_char = type == FONT_SMALL ? put_small : put_normal;}
+
+#else
+#define cell_set_font(type) {}
+#define put_char  put_normal
+#endif
+
 static msg_t cellPut(void *ip, uint8_t ch) {
   cellPrintStream *ps = ip;
-  if (ps->x < CELLWIDTH){
-    uint16_t w = FONT_GET_WIDTH(ch);
-    cell_blit_bitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
-    ps->x+= w;
-  }
+  if (ps->x < CELLWIDTH)
+	  put_char(ps, ch);
   return MSG_OK;
 }
 
@@ -860,8 +886,6 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
 }
 
 #ifdef __VNA_MEASURE_MODULE__
-
-
 typedef void (*measure_cell_cb_t)(int x0, int y0);
 typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 
@@ -1384,6 +1408,8 @@ static void cell_grid_line_info(int x0, int y0)
   // Skip for SMITH/POLAR and off trace
   uint32_t trace_type = 1 << trace[current_trace].type;
   if (trace_type & (ROUND_GRID_MASK | (1 << TRC_OFF))) return;
+
+  cell_set_font(FONT_SMALL);
   // Render at right
   int16_t xpos = GRID_X_TEXT - x0;
   int16_t ypos = 0           - y0 + 2;
@@ -1397,6 +1423,7 @@ static void cell_grid_line_info(int x0, int y0)
   do {
     cell_printf(xpos, ypos, "% 6.3F", v); v-=scale;
   }while((ypos+=GRIDY) < CELLHEIGHT);
+  cell_set_font(FONT_NORMAL);
 }
 #endif
 
@@ -1715,7 +1742,11 @@ static const struct {uint16_t x, y;} marker_pos[]={
 };
 
 #ifdef LCD_320x240
+#if _USE_FONT_ < 1
 #define MARKER_FREQ       "%.6qHz"
+#else
+#define MARKER_FREQ       "%.3qHz"
+#endif
 #define MARKER_FREQ_SIZE        67
 #define PORT_Z_OFFSET            1
 #endif
@@ -1849,6 +1880,7 @@ draw_frequencies(void)
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
   lcd_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, LCD_HEIGHT - FREQUENCIES_YPOS);
+  lcd_set_font(FONT_SMALL);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
     if (FREQ_IS_CW()) {
@@ -1867,6 +1899,7 @@ draw_frequencies(void)
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
   lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"bw:%uHz %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
+  lcd_set_font(FONT_NORMAL);
 }
 
 /*
@@ -1880,8 +1913,8 @@ draw_cal_status(void)
   int y = CALIBRATION_INFO_POSY;
   lcd_set_background(LCD_BG_COLOR);
   lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
-  lcd_fill(x, y, OFFSETX - x, 10*(FONT_STR_HEIGHT));
-
+  lcd_fill(x, y, OFFSETX - x, 10*(sFONT_STR_HEIGHT));
+  lcd_set_font(FONT_SMALL);
   if (cal_status & CALSTAT_APPLY) {
     // Set 'C' string for slot status
     char c[4] = {'C', '0' + lastsaveid, 0, 0};
@@ -1904,21 +1937,22 @@ draw_cal_status(void)
   };
   for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
     if (cal_status & calibration_text[i].mask)
-      lcd_drawstring(x, y+=FONT_STR_HEIGHT, &calibration_text[i].text);
+      lcd_drawstring(x, y+=sFONT_STR_HEIGHT, &calibration_text[i].text);
 
   if ((cal_status & CALSTAT_APPLY) && cal_power != current_props._power)
     lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
 
   // 2,4,6,8 mA power or auto
-  lcd_printf(x, y+=FONT_STR_HEIGHT, "P%c", current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'));
+  lcd_printf(x, y+=sFONT_STR_HEIGHT, "P%c", current_props._power > 3 ? ('a') : (current_props._power * 2 + '2'));
 #ifdef __USE_SMOOTH__
   y+=FONT_STR_HEIGHT;
   uint8_t smooth = get_smooth_factor();
   if (smooth > 0){
     lcd_set_foreground(LCD_FG_COLOR);
-    lcd_printf(x, y+=FONT_STR_HEIGHT, "s%d", smooth);
+    lcd_printf(x, y+=sFONT_STR_HEIGHT, "s%d", smooth);
   }
 #endif
+  lcd_set_font(FONT_NORMAL);
 }
 
 /*

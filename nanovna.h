@@ -409,7 +409,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Used marker size settings
 #define _USE_BIG_MARKER_              0
 // Used font settings
-#define _USE_FONT_                    0
+#define _USE_FONT_                    1
+#define _USE_SMALL_FONT_              0
 
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
@@ -451,7 +452,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           206
 #define FREQUENCIES_XPOS3           135
-#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 1)
+#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL)
 #endif // end 320x240 display plot definitions
 
 #ifdef LCD_480x320 // 480x320 display definitions
@@ -464,6 +465,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define _USE_BIG_MARKER_              1
 // Used font settings
 #define _USE_FONT_                    2
+#define _USE_SMALL_FONT_              2
 
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
@@ -545,6 +547,9 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 /*
  * Font size defines
  */
+#define FONT_SMALL           0
+#define FONT_NORMAL          1
+
 #if _USE_FONT_ == 0
 extern const uint8_t x5x7_bits[];
 #define FONT_START_CHAR   0x17
@@ -580,6 +585,49 @@ extern const uint8_t x10x14_bits[];
 #define FONT_STR_HEIGHT     16
 #define FONT_GET_DATA(ch)   (   &x10x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT  ])
 #define FONT_GET_WIDTH(ch)  (14-(x10x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT+1]&0x7))
+#endif
+
+#if _USE_SMALL_FONT_ == 0
+extern const uint8_t x5x7_bits[];
+#define sFONT_START_CHAR   0x17
+#define sFONT_WIDTH           5
+#define sFONT_GET_HEIGHT      7
+#define sFONT_STR_HEIGHT      8
+#define sFONT_GET_DATA(ch)    (  &x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
+#define sFONT_GET_WIDTH(ch)   (8-(x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&0x7))
+
+#elif _USE_SMALL_FONT_ == 1
+extern const uint8_t x6x10_bits[];
+#define sFONT_START_CHAR   0x17
+#define sFONT_WIDTH           6
+#define sFONT_GET_HEIGHT     10
+#define sFONT_STR_HEIGHT     11
+#define sFONT_GET_DATA(ch)   (  &x6x10_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
+#define sFONT_GET_WIDTH(ch)  (8-(x6x10_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&0x7))
+
+#elif _USE_SMALL_FONT_ == 2
+extern const uint8_t x7x11b_bits[];
+#define sFONT_START_CHAR   0x17
+#define sFONT_WIDTH           7
+#define sFONT_GET_HEIGHT     11
+#define sFONT_STR_HEIGHT     11
+#define sFONT_GET_DATA(ch)   (  &x7x11b_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
+#define sFONT_GET_WIDTH(ch)  (8-(x7x11b_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&7))
+
+#elif _USE_SMALL_FONT_ == 3
+extern const uint8_t x10x14_bits[];
+#define sFONT_START_CHAR   0x17
+#define sFONT_WIDTH          11
+#define sFONT_GET_HEIGHT     14
+#define sFONT_STR_HEIGHT     16
+#define sFONT_GET_DATA(ch)   (   &x10x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT  ])
+#define sFONT_GET_WIDTH(ch)  (14-(x10x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT+1]&0x7))
+#endif
+
+#if _USE_FONT_ != _USE_SMALL_FONT_
+void    lcd_set_font(int type);
+#else
+#define lcd_set_font(type) {}
 #endif
 
 extern const uint8_t numfont16x22[];

@@ -508,20 +508,21 @@ static void
 show_version(void)
 {
   int x = 5, y = 5, i = 1;
+  int str_height = FONT_STR_HEIGHT + 2;
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
 
   lcd_clear_screen();
-  uint16_t shift = 0b00010101000;
+  uint16_t shift = 0b00010010000;
   lcd_drawstring_size(BOARD_NAME, x , y, 3);
   y+=FONT_GET_HEIGHT*3+3-5;
   while (info_about[i]) {
     do {shift>>=1; y+=5;} while (shift&1);
-    lcd_drawstring(x, y+=FONT_STR_HEIGHT+3-5, info_about[i++]);
+    lcd_drawstring(x, y+=str_height-5, info_about[i++]);
   }
-  lcd_printf(x, y+= FONT_STR_HEIGHT + 3, "TCXO = %qHz", config._xtal_freq);
+  lcd_printf(x, y+= str_height, "TCXO = %qHz", config._xtal_freq);
 
-  y+=3*FONT_STR_HEIGHT;
+  y+=str_height*2;
   // Update battery and time
   uint16_t cnt = 0;
   while (true) {
@@ -546,7 +547,7 @@ show_version(void)
 #endif
 #if 1
     uint32_t vbat=adc_vbat_read();
-    lcd_printf(x, y + FONT_STR_HEIGHT + 2, "Batt: %d.%03dV", vbat/1000, vbat%1000);
+    lcd_printf(x, y + str_height, "Batt: %d.%03dV", vbat/1000, vbat%1000);
 #endif
   }
 }
@@ -2448,13 +2449,25 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
       text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + 5;
     // Draw button text
     int lines = menu_is_multiline(text);
+#if _USE_FONT_ != _USE_SMALL_FONT_
+    if (menu_button_height < lines*FONT_GET_HEIGHT + 2) {
+      lcd_set_font(FONT_SMALL);
+      lcd_drawstring(text_offs, y+(menu_button_height-lines*sFONT_GET_HEIGHT - 1)/2, text);
+    }
+    else {
+      lcd_set_font(FONT_NORMAL);
+      lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
+    }
+#else
     lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
+#endif
   }
   // Erase empty buttons
   if (AREA_HEIGHT_NORMAL + OFFSETY > y){
     lcd_set_background(LCD_BG_COLOR);
     lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
   }
+  lcd_set_font(FONT_NORMAL);
 }
 
 static void
