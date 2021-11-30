@@ -62,7 +62,7 @@
 // Add measure module option (allow made some measure calculations on data)
 #define __VNA_MEASURE_MODULE__
 // Add Z normalization feature
-#define __VNA_Z_RENORMALIZATION__
+//#define __VNA_Z_RENORMALIZATION__
 
 /*
  * Submodules defines
