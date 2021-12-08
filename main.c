@@ -2583,6 +2583,12 @@ VNA_SHELL_FUNCTION(cmd_si5351reg)
 }
 #endif
 
+static void set_I2C_timings(uint32_t timings) {
+  I2CD1.i2c->CR1 &=~I2C_CR1_PE;
+  I2CD1.i2c->TIMINGR = timings;
+  I2CD1.i2c->CR1 |= I2C_CR1_PE;
+}
+
 #ifdef ENABLE_I2C_TIMINGS
 VNA_SHELL_FUNCTION(cmd_i2ctime)
 {
@@ -2590,10 +2596,7 @@ VNA_SHELL_FUNCTION(cmd_i2ctime)
   uint32_t tim =  STM32_TIMINGR_PRESC(0U)  |
                   STM32_TIMINGR_SCLDEL(my_atoui(argv[0])) | STM32_TIMINGR_SDADEL(my_atoui(argv[1])) |
                   STM32_TIMINGR_SCLH(my_atoui(argv[2])) | STM32_TIMINGR_SCLL(my_atoui(argv[3]));
-  I2CD1.i2c->CR1 &=~I2C_CR1_PE;
-  I2CD1.i2c->TIMINGR = tim;
-  I2CD1.i2c->CR1 |= I2C_CR1_PE;
-
+  set_I2C_timings(tim);
 }
 #endif
 
@@ -3134,7 +3137,7 @@ static int VNAShell_readLine(char *line, int max_size)
 //
 static void VNAShell_executeLine(char *line)
 {
-//  DEBUG_LOG(0, line); // debug console log
+  DEBUG_LOG(0, line); // debug console log
   // Execute line
   const VNAShellCommand *scp = VNAShell_parceLine(line);
   if (scp) {
@@ -3227,11 +3230,18 @@ THD_FUNCTION(myshellThread, p)
  */
 #if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
 #if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
+ #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(0U)  |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
  #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)  |\
                             STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
                             STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
 #endif
 #elif  STM32_I2C1_CLOCK == 48 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
+ #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(5U) |\
+                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
+                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+
  #if   STM32_I2C_SPEED == 400 // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
  #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(5U)  |\
                             STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
@@ -3246,6 +3256,10 @@ THD_FUNCTION(myshellThread, p)
                             STM32_TIMINGR_SCLH(23U)   | STM32_TIMINGR_SCLL(30U)
  #endif
 #elif  STM32_I2C1_CLOCK == 72 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 72MHz)
+ #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(0U)   |\
+                            STM32_TIMINGR_SCLDEL(20U) | STM32_TIMINGR_SDADEL(20U) |\
+                            STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U)
+
  #if   STM32_I2C_SPEED == 400 // ~400kHz @ SYSCLK 72MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
  #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
                             STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
@@ -3267,7 +3281,7 @@ THD_FUNCTION(myshellThread, p)
 
 // I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
 static const I2CConfig i2ccfg = {
-  .timingr = STM32_I2C_TIMINGR,  // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
+  .timingr = STM32_I2C_INIT_T,  // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
   .cr1 = 0,                      // CR1 register initialization.
   .cr2 = 0                       // CR2 register initialization.
 };
@@ -3355,6 +3369,11 @@ int main(void)
 #ifdef  __VNA_ENABLE_DAC__
   dac_init();
 #endif
+
+/*
+ * I2C bus run on work speed
+ */
+  set_I2C_timings(STM32_I2C_TIMINGR);
 
 /*
  * Startup sweep thread
