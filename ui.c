@@ -585,7 +585,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
      [CAL_LOAD] = {CALSTAT_LOAD,  3},
      [CAL_OPEN] = {CALSTAT_OPEN,  1},
      [CAL_SHORT]= {CALSTAT_SHORT, 2},
-     [CAL_THRU] = {CALSTAT_THRU,  5},
+     [CAL_THRU] = {CALSTAT_THRU,  6},
      [CAL_ISOLN]= {CALSTAT_ISOLN, 4},
   };
   if (b){
