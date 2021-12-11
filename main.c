@@ -148,7 +148,7 @@ const char *info_about[]={
 //  "Kernel: " CH_KERNEL_VERSION,
 //  "Compiler: " PORT_COMPILER_NAME,
   "Architecture: " PORT_ARCHITECTURE_NAME " Core Variant: " PORT_CORE_VARIANT_NAME,
-  "Port Info: " PORT_INFO,
+//  "Port Info: " PORT_INFO,
   "Platform: " PLATFORM_NAME,
   0 // sentinel
 };
@@ -1018,14 +1018,19 @@ void update_backup_data(void) {
 static void load_start_properties(void) {
   if (VNA_mode & VNA_MODE_BACKUP) {
     backup_0 bk = {.v = RTC->BKP0R};
-    if (!caldata_recall(bk.id) && bk.v != 0) { // if backup data valid
-      sweep_points = bk.points;
-      lever_mode   = bk.leveler;
-      set_bandwidth(bk.bw);
-      frequency0 = RTC->BKP1R;
-      frequency1 = RTC->BKP2R;
-      var_freq   = RTC->BKP3R;
+    if (bk.v != 0 && bk.id < SAVEAREA_MAX) { // if backup data valid, and slot valid
+      if (caldata_recall(bk.id) == 0) {      // Load ok
+        sweep_points = bk.points;            // Restore settings depend from calibration data
+        lever_mode   = bk.leveler;
+        set_bandwidth(bk.bw);
+        frequency0 = RTC->BKP1R;
+        frequency1 = RTC->BKP2R;
+        var_freq   = RTC->BKP3R;
+      }
+      // Here need restore settings not depend from cal data
     }
+    else
+      caldata_recall(0);
   }
   else
     caldata_recall(0);
@@ -1991,7 +1996,7 @@ cal_done(void)
 
   cal_status|= CALSTAT_APPLY;
   lastsaveid = NO_SAVE_SLOT;
-  request_to_redraw(REDRAW_CAL_STATUS);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS);
 }
 
 static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
