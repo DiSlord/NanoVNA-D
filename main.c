@@ -196,7 +196,7 @@ static void measurementDataSmooth(uint16_t ch_mask){
   int j;
 //  ch_mask = 2;
 //  memcpy(measured[0], measured[1], sizeof(measured[0]));
-  float (*smooth_func)(float v0, float v1, float v2) = (config._vna_mode&VNA_SMOOTH_FUNCTION) ? arifmetic_mean : geometry_mean;
+  float (*smooth_func)(float v0, float v1, float v2) = (VNA_mode & VNA_SMOOTH_FUNCTION) ? arifmetic_mean : geometry_mean;
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     int count = 1<<(smooth_factor-1), n;
@@ -984,6 +984,62 @@ void load_default_properties(void)
 //current_props.checksum = 0;
 }
 
+//
+// Backup registers support, allow save data on power off (while vbat power enabled)
+//
+#ifdef __USE_BACKUP__
+#if POINTS_COUNT > 511 || SAVEAREA_MAX > 15
+#error "Check backup data limits!!"
+#endif
+// backup_0 bitfield
+typedef union {
+  struct {
+    uint32_t points   : 9; //  9 !! limit 511 points!!
+    uint32_t bw       : 9; // 18 !! limit 511
+    uint32_t id       : 4; // 22 !! 15 save slots
+    uint32_t leveler  : 3; // 25
+  };
+  uint32_t v;
+} backup_0;
+
+void update_backup_data(void) {
+  backup_0 bk = {
+    .points   = sweep_points,
+    .bw       = config._bandwidth,
+    .id       = lastsaveid,
+    .leveler  = lever_mode,
+  };
+  RTC->BKP0R = bk.v;
+  RTC->BKP1R = frequency0;
+  RTC->BKP2R = frequency1;
+  RTC->BKP3R = var_freq;
+}
+
+static void load_start_properties(void) {
+  if (VNA_mode & VNA_MODE_BACKUP) {
+    backup_0 bk = {.v = RTC->BKP0R};
+    if (!caldata_recall(bk.id) && bk.v != 0) { // if backup data valid
+      sweep_points = bk.points;
+      lever_mode   = bk.leveler;
+      set_bandwidth(bk.bw);
+      frequency0 = RTC->BKP1R;
+      frequency1 = RTC->BKP2R;
+      var_freq   = RTC->BKP3R;
+    }
+  }
+  else
+    caldata_recall(0);
+  update_frequencies();
+#ifdef __VNA_MEASURE_MODULE__
+  plot_set_measure_mode(current_props._measure);
+#endif
+}
+#else
+static void load_start_properties(void) {
+  load_properties(0);
+}
+#endif
+
 int load_properties(uint32_t id){
   int r = caldata_recall(id);
   update_frequencies();
@@ -1243,7 +1299,7 @@ static int set_frequency(freq_t freq)
 
 void set_bandwidth(uint16_t bw_count){
   config._bandwidth = bw_count&0x1FF;
-  request_to_redraw(REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
 }
 
 uint32_t get_bandwidth_frequency(uint16_t bw_freq){
@@ -1473,6 +1529,7 @@ update_frequencies(void)
   freq_t stop  = get_sweep_frequency(ST_STOP);
 
   set_frequencies(start, stop, sweep_points);
+
   update_marker_index();
   // set grid layout
   update_grid();
@@ -1483,7 +1540,7 @@ update_frequencies(void)
     cal_status&= ~CALSTAT_INTERPOLATED;
 
   request_to_redraw(REDRAW_CAL_STATUS);
-  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY | REDRAW_AREA);
   RESET_SWEEP;
 }
 
@@ -1491,7 +1548,7 @@ void
 set_sweep_frequency(int type, freq_t freq)
 {
   // Check frequency for out of bounds (minimum SPAN can be any value)
-  if (type != ST_SPAN && freq < START_MIN)
+  if (type < ST_SPAN && freq < START_MIN)
     freq = START_MIN;
   if (freq > STOP_MAX)
     freq = STOP_MAX;
@@ -1536,6 +1593,10 @@ set_sweep_frequency(int type, freq_t freq)
       frequency0 = freq;
       frequency1 = freq;
       break;
+    case ST_VAR:
+      var_freq = freq;
+      request_to_redraw(REDRAW_BACKUP);
+      return;
   }
   update_frequencies();
 }
@@ -1550,8 +1611,6 @@ void reset_sweep_frequency(void){
 freq_t
 get_sweep_frequency(int type)
 {
-// Obsolete, ensure correct start/stop, start always must be < stop
-//  if (frequency0 > frequency1) SWAP(freq_t, frequency0, frequency1);
   switch (type) {
     case ST_START:  return frequency0;
     case ST_STOP:   return frequency1;
@@ -3309,9 +3368,9 @@ int main(void)
   config_recall();
 
 /*
- * restore frequencies and calibration 0 slot properties from flash memory
+ * restore frequencies and calibration 0 slot / backup id properties from flash memory
  */
-  load_properties(0);
+  load_start_properties();
 
 /*
  * Set frequency offset
