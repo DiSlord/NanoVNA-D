@@ -1685,6 +1685,10 @@ draw_all_cells(bool flush_markmap)
 void
 draw_all(bool flush)
 {
+#ifdef __USE_BACKUP__
+  if (redraw_request & REDRAW_BACKUP)
+    update_backup_data();
+#endif
   if (area_width == 0) {redraw_request = 0; return;}
   if (redraw_request & REDRAW_CLRSCR){
     lcd_set_background(LCD_BG_COLOR);

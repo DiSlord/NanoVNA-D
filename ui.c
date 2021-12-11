@@ -575,7 +575,7 @@ select_lever_mode(int mode)
 {
   if (lever_mode == mode) return false;
   lever_mode = mode;
-  request_to_redraw(REDRAW_FREQUENCY | REDRAW_MARKER);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY | REDRAW_MARKER);
   return true;
 }
 
@@ -585,7 +585,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
      [CAL_LOAD] = {CALSTAT_LOAD,  3},
      [CAL_OPEN] = {CALSTAT_OPEN,  1},
      [CAL_SHORT]= {CALSTAT_SHORT, 2},
-     [CAL_THRU] = {CALSTAT_THRU,  5},
+     [CAL_THRU] = {CALSTAT_THRU,  6},
      [CAL_ISOLN]= {CALSTAT_ISOLN, 4},
   };
   if (b){
@@ -851,10 +851,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smooth_func_acb)
 {
   (void)data;
   if (b){
-    b->p1.text = (config._vna_mode&VNA_SMOOTH_FUNCTION) ? "Arith" : "Geom";
+    b->p1.text = (VNA_mode & VNA_SMOOTH_FUNCTION) ? "Arith" : "Geom";
     return;
   }
-  config._vna_mode^=VNA_SMOOTH_FUNCTION;
+  VNA_mode^= VNA_SMOOTH_FUNCTION;
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
@@ -865,6 +865,19 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
     return;
   }
   set_smooth_factor(data);
+}
+#endif
+
+#ifdef __USE_BACKUP__
+static UI_FUNCTION_ADV_CALLBACK(menu_backup_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = (VNA_mode & VNA_MODE_BACKUP) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  VNA_mode^= VNA_MODE_BACKUP;
+  request_to_redraw(REDRAW_BACKUP);
 }
 #endif
 
@@ -969,7 +982,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
   toggle_sweep();
 }
 
-#define UI_MARKER_EDELAY 4
+#define UI_MARKER_EDELAY 6
 static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
 {
   freq_t freq = get_marker_frequency(active_marker);
@@ -1014,15 +1027,14 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
   ui_mode_normal();
 }
 
-#define MENU_MARKER_S_MAX    0
-#define MENU_MARKER_S_MIN    VNA_MODE_SEARCH_MIN
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
 {
+  (void)data;
   if (b){
-    b->icon = ((VNA_mode & VNA_MODE_SEARCH_MASK) == data) ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.text = (VNA_mode & VNA_MODE_SEARCH_MIN) ? "MINIMUM" : "MAXIMUM";
     return;
   }
-  VNA_mode = (VNA_mode & ~VNA_MODE_SEARCH_MASK) | data;
+  VNA_mode^= VNA_MODE_SEARCH_MIN;
   marker_search(true);
 #ifdef UI_USE_LEVELER_SEARCH_MODE
   select_lever_mode(LM_SEARCH);
@@ -1497,6 +1509,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_LOAD,  "LOAD",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7Fs", menu_keyboard_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
@@ -1743,20 +1756,19 @@ const menuitem_t menu_marker_sel[] = {
 };
 
 const menuitem_t menu_marker_ops[] = {
-  { MT_CALLBACK, ST_START,         S_RARROW"START",  menu_marker_op_cb },
-  { MT_CALLBACK, ST_STOP,          S_RARROW"STOP",   menu_marker_op_cb },
-  { MT_CALLBACK, ST_CENTER,        S_RARROW"CENTER", menu_marker_op_cb },
-  { MT_CALLBACK, ST_SPAN,          S_RARROW"SPAN",   menu_marker_op_cb },
-  { MT_CALLBACK, UI_MARKER_EDELAY, S_RARROW"EDELAY", menu_marker_op_cb },
+  { MT_CALLBACK, ST_START,         S_RARROW" START",   menu_marker_op_cb },
+  { MT_CALLBACK, ST_STOP,          S_RARROW" STOP",    menu_marker_op_cb },
+  { MT_CALLBACK, ST_CENTER,        S_RARROW" CENTER",  menu_marker_op_cb },
+  { MT_CALLBACK, ST_SPAN,          S_RARROW" SPAN",    menu_marker_op_cb },
+  { MT_CALLBACK, UI_MARKER_EDELAY, S_RARROW" E-DELAY", menu_marker_op_cb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_marker_search[] = {
   //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
-  { MT_ADV_CALLBACK, MENU_MARKER_S_MAX,  "MAXIMUM", menu_marker_search_mode_acb },
-  { MT_ADV_CALLBACK, MENU_MARKER_S_MIN,  "MINIMUM", menu_marker_search_mode_acb },
-  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n" S_LARROW" LEFT",  menu_marker_search_dir_cb },
-  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n" S_RARROW" RIGHT", menu_marker_search_dir_cb },
+  { MT_ADV_CALLBACK, 0,           "SEARCH\n" R_LINK_COLOR " %s", menu_marker_search_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
   { MT_ADV_CALLBACK, 0, "TRACKING", menu_marker_tracking_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1849,13 +1861,7 @@ const menuitem_t menu_offset[] = {
 };
 #endif
 
-const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",    menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",         menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %umV", menu_keyboard_acb },
-#ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %dHz",   menu_offset_sel_acb },
-#endif
+const menuitem_t menu_device1[] = {
   { MT_ADV_CALLBACK, 0,            "MODE\n" R_LINK_COLOR " %s",          menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n" R_LINK_COLOR "%s",      menu_separator_acb },
@@ -1867,10 +1873,24 @@ const menuitem_t menu_device[] = {
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
 #endif
   { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
-#ifdef __USE_RTC__
-  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",           (const void *)menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",           (const void *)menu_keyboard_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+const menuitem_t menu_device[] = {
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",   menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",        menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %umV", menu_keyboard_acb },
+#ifdef USE_VARIABLE_OFFSET_MENU
+  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %dHz",   menu_offset_sel_acb },
 #endif
+#ifdef __USE_BACKUP__
+  { MT_ADV_CALLBACK, 0,            "REMEMBER\nSTATE",                    menu_backup_acb },
+#endif
+#ifdef __USE_RTC__
+  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                           menu_keyboard_acb },
+#endif
+  { MT_SUBMENU, 0, S_RARROW" MORE", menu_device1 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2107,7 +2127,7 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_VAR]             = {keypads_freq , "JOG STEP"   }, // VAR freq step
 [KM_SCALE]           = {keypads_scale, "SCALE"      }, // scale
 [KM_REFPOS]          = {keypads_ref,   "REFPOS"     }, // refpos
-[KM_EDELAY]          = {keypads_time , "EDELAY"     }, // electrical delay
+[KM_EDELAY]          = {keypads_time , "E-DELAY"    }, // electrical delay
 [KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%" }, // velocity factor
 [KM_SCALEDELAY]      = {keypads_time , "DELAY"      }, // scale of delay
 [KM_XTAL]            = {keypads_freq , "TCXO 26MHz" }, // XTAL frequency
@@ -2136,7 +2156,7 @@ set_numeric_value(void)
     case KM_CENTER:   set_sweep_frequency(ST_CENTER, u_val); break;
     case KM_SPAN:     set_sweep_frequency(ST_SPAN,   u_val); break;
     case KM_CW:       set_sweep_frequency(ST_CW,     u_val); break;
-    case KM_VAR:      var_freq = u_val;                      break;
+    case KM_VAR:      set_sweep_frequency(ST_VAR,    u_val); break;
     case KM_SCALE:    set_trace_scale(current_trace, f_val); break;
     case KM_REFPOS:   set_trace_refpos(current_trace, f_val);break;
     case KM_EDELAY:   set_electrical_delay(f_val);           break; // pico seconds
