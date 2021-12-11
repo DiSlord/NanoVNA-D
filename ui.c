@@ -1184,6 +1184,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
   shell_update_speed();
 }
 
+extern const menuitem_t menu_serial_speed[];
+static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.u = config._serial_speed;
+    return;
+  }
+  menu_push_submenu(menu_serial_speed);
+}
+
+
 static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
 {
   if (b){
@@ -1837,7 +1849,7 @@ const menuitem_t menu_serial_speed[] = {
 const menuitem_t menu_connection[] = {
   { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",          menu_connection_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL",       menu_connection_acb },
-  { MT_SUBMENU,                    0, "SERIAL SPEED", menu_serial_speed   },
+  { MT_ADV_CALLBACK,               0, "SERIAL SPEED\n " R_LINK_COLOR "%u", menu_serial_speed_sel_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
