@@ -35,7 +35,7 @@
 
 #define BUTTON_DOWN_LONG_TICKS      MS2ST(500)   // 500ms
 #define BUTTON_DOUBLE_TICKS         MS2ST(250)   // 250ms
-#define BUTTON_REPEAT_TICKS         MS2ST( 40)   //  40ms
+#define BUTTON_REPEAT_TICKS         MS2ST( 30)   //  30ms
 #define BUTTON_DEBOUNCE_TICKS       MS2ST( 20)   //  20ms
 
 /* lever switch assignment */
@@ -1776,15 +1776,6 @@ const menuitem_t menu_marker_ops[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
-const menuitem_t menu_marker_search[] = {
-  //{ MT_CALLBACK, "OFF", menu_marker_search_cb },
-  { MT_ADV_CALLBACK, 0,           "SEARCH\n" R_LINK_COLOR " %s", menu_marker_search_mode_acb },
-  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
-  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
-  { MT_ADV_CALLBACK, 0, "TRACKING", menu_marker_tracking_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
 const menuitem_t menu_marker_smith[] = {
   { MT_ADV_CALLBACK, MS_LIN, "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_LOG, "%s", menu_marker_smith_acb },
@@ -1814,13 +1805,13 @@ const menuitem_t menu_marker_measure[] = {
 #endif
 
 const menuitem_t menu_marker[] = {
-  { MT_SUBMENU,      0, "SELECT\nMARKER",   menu_marker_sel    },
-  { MT_SUBMENU,      0, "SEARCH",           menu_marker_search },
-  { MT_SUBMENU,      0, "OPERATIONS",       menu_marker_ops    },
-  { MT_ADV_CALLBACK, 0, "SMITH VALUE\n" R_LINK_COLOR " %s", menu_smith_type_acb},
-#ifdef __VNA_MEASURE_MODULE__
-  { MT_SUBMENU,      0, "MEASURE",          menu_marker_measure },
-#endif
+  { MT_SUBMENU,                0, "SELECT\nMARKER",              menu_marker_sel    },
+  { MT_ADV_CALLBACK,           0, "SEARCH\n" R_LINK_COLOR " %s", menu_marker_search_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
+  { MT_SUBMENU,                0, "OPERATIONS",                  menu_marker_ops    },
+  { MT_ADV_CALLBACK,           0, "SMITH VALUE\n" R_LINK_COLOR " %s", menu_smith_type_acb},
+  { MT_ADV_CALLBACK,           0, "TRACKING",                    menu_marker_tracking_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1925,11 +1916,14 @@ const menuitem_t menu_config[] = {
 };
 
 const menuitem_t menu_top[] = {
-  { MT_SUBMENU, 0, "DISPLAY", menu_display },
-  { MT_SUBMENU, 0, "MARKER", menu_marker },
-  { MT_SUBMENU, 0, "STIMULUS", menu_stimulus },
+  { MT_SUBMENU, 0, "DISPLAY",  menu_display },
+  { MT_SUBMENU, 0, "MARKER",    menu_marker },
+  { MT_SUBMENU, 0, "STIMULUS",  menu_stimulus },
   { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
-  { MT_SUBMENU, 0, "RECALL", menu_recall },
+  { MT_SUBMENU, 0, "RECALL",    menu_recall },
+#ifdef __VNA_MEASURE_MODULE__
+  { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },
+#endif
 #ifdef __USE_SD_CARD__
   { MT_SUBMENU, 0, "SD CARD", menu_sdcard },
 #endif
@@ -2867,7 +2861,7 @@ ui_mode_normal(void)
   ui_mode = UI_NORMAL;
 }
 
-#define MARKER_SPEEDUP  (808 / POINTS_COUNT)
+#define MARKER_SPEEDUP  3
 static void
 lever_move_marker(uint16_t status)
 {
