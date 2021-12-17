@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1"
+#define VERSION "1.1.00"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1544,8 +1544,7 @@ update_frequencies(void)
   else
     cal_status&= ~CALSTAT_INTERPOLATED;
 
-  request_to_redraw(REDRAW_CAL_STATUS);
-  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY | REDRAW_AREA);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS | REDRAW_FREQUENCY | REDRAW_AREA);
   RESET_SWEEP;
 }
 
@@ -2360,9 +2359,9 @@ VNA_SHELL_FUNCTION(cmd_touchcal)
   touch_cal_exec();
   shell_printf("done\r\n");
 
-  shell_printf("touch cal params: ");
+  shell_printf("touch cal params:");
   for (i = 0; i < 4; i++) {
-    shell_printf("%d ", config._touch_cal[i]);
+    shell_printf(" %d", config._touch_cal[i]);
   }
   shell_printf("\r\n");
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);

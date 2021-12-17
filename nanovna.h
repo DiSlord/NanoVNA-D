@@ -85,6 +85,8 @@
 #define __S21_MEASURE__
 // Enable S11 cable measure option
 #define __S11_CABLE_MEASURE__
+// Enable S11 resonance search option
+#define __S11_RESONANCE_MEASURE__
 #endif
 
 /*
@@ -413,8 +415,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 // Define maximum distance in pixel for pickup marker (can be bigger for big displays)
 #define MARKER_PICKUP_DISTANCE       20
-// Used marker size settings
-#define _USE_BIG_MARKER_              0
+// Used marker image settings
+#define _USE_MARKER_SET_              1
 // Used font settings
 #define _USE_FONT_                    1
 #define _USE_SMALL_FONT_              0
@@ -468,8 +470,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 // Define maximum distance in pixel for pickup marker (can be bigger for big displays)
 #define MARKER_PICKUP_DISTANCE       30
-// Used marker size settings
-#define _USE_BIG_MARKER_              1
+// Used marker image settings
+#define _USE_MARKER_SET_              2
 // Used font settings
 #define _USE_FONT_                    2
 #define _USE_SMALL_FONT_              2
@@ -771,6 +773,9 @@ enum {
 #endif
 #ifdef __S11_CABLE_MEASURE__
   MEASURE_S11_CABLE,
+#endif
+#ifdef __S11_RESONANCE_MEASURE__
+  MEASURE_S11_RESONANCE,
 #endif
   MEASURE_END
 };
