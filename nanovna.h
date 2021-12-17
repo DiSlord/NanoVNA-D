@@ -85,6 +85,8 @@
 #define __S21_MEASURE__
 // Enable S11 cable measure option
 #define __S11_CABLE_MEASURE__
+// Enable S11 resonance search option
+#define __S11_RESONANCE_MEASURE__
 #endif
 
 /*
@@ -771,6 +773,9 @@ enum {
 #endif
 #ifdef __S11_CABLE_MEASURE__
   MEASURE_S11_CABLE,
+#endif
+#ifdef __S11_RESONANCE_MEASURE__
+  MEASURE_S11_RESONANCE,
 #endif
   MEASURE_END
 };

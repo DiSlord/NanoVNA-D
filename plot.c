@@ -924,6 +924,9 @@ static const struct {
 #ifdef __S11_CABLE_MEASURE__
   [MEASURE_S11_CABLE]   = {MESAURE_S11, MEASURE_UPD_ALL,       draw_s11_cable, prepare_s11_cable},
 #endif
+#ifdef __S11_RESONANCE_MEASURE__
+  [MEASURE_S11_RESONANCE]= {MESAURE_S11, MEASURE_UPD_ALL,  draw_s11_resonance, prepare_s11_resonance},
+#endif
 };
 
 static inline void measure_set_flag(uint8_t flag) {
