@@ -1794,6 +1794,9 @@ const menuitem_t menu_marker_measure[] = {
 #ifdef __S11_CABLE_MEASURE__
   { MT_ADV_CALLBACK, MEASURE_S11_CABLE,   "CABLE\n (S11)",      menu_measure_acb },
 #endif
+#ifdef __S11_RESONANCE_MEASURE__
+  { MT_ADV_CALLBACK, MEASURE_S11_RESONANCE,"RESONANCE\n (S11)", menu_measure_acb },
+#endif
 #ifdef __S21_MEASURE__
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
