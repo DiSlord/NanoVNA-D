@@ -174,9 +174,9 @@ static uint8_t last_touch_status = EVT_TOUCH_NONE;
 static int16_t last_touch_x;
 static int16_t last_touch_y;
 
-#define KP_CONTINUE 0
-#define KP_DONE 1
-#define KP_CANCEL 2
+#define KP_CONTINUE        0
+#define KP_DONE            1
+#define KP_CANCEL          2
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
@@ -346,12 +346,25 @@ touch_prepare_sense(void)
 //  chThdSleepMilliseconds(10); // Wait 10ms for denounce touch
 }
 
+#ifdef __REMOTE_DESKTOP__
+static uint8_t touch_remote = REMOTE_NONE;
+void remote_touch_set(uint16_t state, int16_t x, int16_t y) {
+  touch_remote = state;
+  if (x!=-1) last_touch_x = x;
+  if (y!=-1) last_touch_y = y;
+  handle_touch_interrupt();
+}
+#endif
+
 static void
 touch_start_watchdog(void)
 {
   if (touch_status_flag&TOUCH_INTERRUPT_ENABLED) return;
   touch_status_flag^=TOUCH_INTERRUPT_ENABLED;
   adc_start_analog_watchdog();
+#ifdef __REMOTE_DESKTOP__
+  touch_remote = REMOTE_NONE;
+#endif
 }
 
 static void
@@ -400,6 +413,11 @@ touch_check(void)
       last_touch_x = x;
       last_touch_y = y;
     }
+#ifdef __REMOTE_DESKTOP__
+    touch_remote = REMOTE_NONE;
+  } else {
+    stat = touch_remote == REMOTE_PRESS;
+#endif
   }
 
   if (stat != last_touch_status) {
@@ -444,13 +462,17 @@ static const uint8_t touch_bitmap[]={
   _BMP16(0b0000100000000000),
 };
 
-static void getTouchPoint(uint16_t x, uint16_t y, const char *name) {
+static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *data) {
+  // Clear screen and ask for press
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
   lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
+  // Wait release, and fill data
   touch_wait_release();
+  data[0] = last_touch_x;
+  data[1] = last_touch_y;
 }
 
 void
@@ -460,12 +482,8 @@ touch_cal_exec(void)
   const uint16_t y1 = CALIBRATION_OFFSET - TOUCH_MARK_Y;
   const uint16_t x2 = LCD_WIDTH  - 1 - CALIBRATION_OFFSET - TOUCH_MARK_X;
   const uint16_t y2 = LCD_HEIGHT - 1 - CALIBRATION_OFFSET - TOUCH_MARK_Y;
-  getTouchPoint(x1, y1, "UPPER LEFT");
-  config._touch_cal[0] = last_touch_x;
-  config._touch_cal[1] = last_touch_y;
-  getTouchPoint(x2, y2, "LOWER RIGHT");
-  config._touch_cal[2] = last_touch_x;
-  config._touch_cal[3] = last_touch_y;
+  getTouchPoint(x1, y1, "UPPER LEFT", &config._touch_cal[0]);
+  getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[2]);
 }
 
 void
@@ -496,6 +514,13 @@ touch_draw_test(void)
 static void
 touch_position(int *x, int *y)
 {
+#ifdef __REMOTE_DESKTOP__
+  if (touch_remote != REMOTE_NONE) {
+    *x = last_touch_x;
+    *y = last_touch_y;
+    return;
+  }
+#endif
   int tx = ((LCD_WIDTH-1-CALIBRATION_OFFSET)*(last_touch_x - config._touch_cal[0]) + CALIBRATION_OFFSET * (config._touch_cal[2] - last_touch_x)) / (config._touch_cal[2] - config._touch_cal[0]);
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
   int ty = ((LCD_HEIGHT-1-CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) + CALIBRATION_OFFSET * (config._touch_cal[3] - last_touch_y)) / (config._touch_cal[3] - config._touch_cal[1]);

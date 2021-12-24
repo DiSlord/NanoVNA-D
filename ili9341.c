@@ -549,6 +549,12 @@ void lcd_fill(int x, int y, int w, int h)
     SPI_WRITE_8BIT(LCD_SPI, background_color);
 #endif
   }while(--len);
+#ifdef __REMOTE_DESKTOP__
+  if (sweep_mode & SWEEP_REMOTE) {
+     remote_region_t rd = {"fill\r\n", x, y, w, h};
+     send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
+  }
+#endif
 }
 
 void lcd_bulk(int x, int y, int w, int h)
@@ -556,6 +562,12 @@ void lcd_bulk(int x, int y, int w, int h)
   ili9341_setWindow(x, y, w, h);
   ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
   spi_TxBuffer((uint8_t *)spi_buffer, w * h * sizeof(pixel_t));
+#ifdef __REMOTE_DESKTOP__
+  if (sweep_mode & SWEEP_REMOTE) {
+     remote_region_t rd = {"bulk\r\n", x, y, w, h};
+     send_region(&rd, (uint8_t *)buffer, w * h * sizeof(pixel_t));
+  }
+#endif
 }
 
 #else
@@ -572,6 +584,12 @@ void lcd_fill(int x, int y, int w, int h)
   dmaStreamSetMemory0(dmatx, &background_color);
   dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE);
   dmaStreamFlush(w * h);
+#ifdef __REMOTE_DESKTOP__
+  if (sweep_mode & SWEEP_REMOTE) {
+     remote_region_t rd = {"fill\r\n", x, y, w, h};
+     send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
+  }
+#endif
 }
 
 static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
@@ -582,6 +600,12 @@ static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC);
   dmaStreamSetTransactionSize(dmatx, w * h);
   dmaStreamEnable(dmatx);
+#ifdef __REMOTE_DESKTOP__
+  if (sweep_mode & SWEEP_REMOTE) {
+     remote_region_t rd = {"bulk\r\n", x, y, w, h};
+     send_region(&rd, (uint8_t *)buffer, w * h * sizeof(pixel_t));
+  }
+#endif
 }
 
 // Copy spi_buffer to region, wait completion after

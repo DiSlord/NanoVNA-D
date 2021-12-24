@@ -2795,6 +2795,46 @@ VNA_SHELL_FUNCTION(cmd_usart)
 #endif
 #endif
 
+#ifdef __REMOTE_DESKTOP__
+void send_region(remote_region_t *rd, uint8_t * buf, uint16_t size)
+{
+  if (SDU1.config->usbp->state == USB_ACTIVE) {
+    streamWrite(shell_stream, (void*) rd, sizeof(remote_region_t));
+    streamWrite(shell_stream, (void*) buf, size);
+    streamWrite(shell_stream, (void*)"ch> \r\n", 6);
+  }
+  else
+    sweep_mode&=~SWEEP_REMOTE;
+}
+
+VNA_SHELL_FUNCTION(cmd_refresh)
+{
+  static const char cmd_enable_list[] = "on|off";
+  if (argc != 1) return;
+  int enable = get_str_index(argv[0], cmd_enable_list);
+       if (enable == 0) sweep_mode|= SWEEP_REMOTE;
+  else if (enable == 1) sweep_mode&=~SWEEP_REMOTE;
+  // redraw all on screen
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_CAL_STATUS | REDRAW_AREA | REDRAW_BATTERY);
+}
+
+VNA_SHELL_FUNCTION(cmd_touch)
+{
+  if (argc != 2) return;
+  remote_touch_set(REMOTE_PRESS, my_atoi(argv[0]), my_atoi(argv[1]));
+}
+
+VNA_SHELL_FUNCTION(cmd_release)
+{
+  int16_t x = -1, y = -1;
+  if (argc == 2) {
+    x = my_atoi(argv[0]);
+    y = my_atoi(argv[1]);
+  }
+  remote_touch_set(REMOTE_RELEASE, x, y);
+}
+#endif
+
 #ifdef ENABLE_SD_CARD_CMD
 #ifndef __USE_SD_CARD__
 #error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
@@ -2956,6 +2996,11 @@ static const VNAShellCommand commands[] =
 //  {"grid"        , cmd_grid        , CMD_RUN_IN_LOAD},
     {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+#ifdef __REMOTE_DESKTOP__
+    {"refresh"     , cmd_refresh     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"touch"       , cmd_touch       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"release"     , cmd_release     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+#endif
     {"vbat"        , cmd_vbat        , CMD_RUN_IN_LOAD},
     {"tcxo"        , cmd_tcxo        , CMD_RUN_IN_LOAD},
     {"reset"       , cmd_reset       , CMD_RUN_IN_LOAD},
