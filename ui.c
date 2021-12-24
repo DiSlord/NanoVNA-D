@@ -545,7 +545,7 @@ show_version(void)
     do {shift>>=1; y+=5;} while (shift&1);
     lcd_drawstring(x, y+=str_height-5, info_about[i++]);
   }
-  lcd_printf(x, y+= str_height, "TCXO = %qHz", config._xtal_freq);
+  lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
 
   y+=str_height*2;
   // Update battery and time
@@ -572,7 +572,7 @@ show_version(void)
 #endif
 #if 1
     uint32_t vbat=adc_vbat_read();
-    lcd_printf(x, y + str_height, "Batt: %d.%03dV", vbat/1000, vbat%1000);
+    lcd_printf(x, y + str_height, "Batt: %d.%03d" S_VOLT, vbat/1000, vbat%1000);
 #endif
   }
 }
@@ -647,7 +647,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb){
   if (b){
     if (calibrated){
       b->bg = (cal_status&CALSTAT_INTERPOLATED) ? LCD_INTERP_CAL_COLOR : LCD_MENU_COLOR;
-      plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6FHz\n %.6FHz", cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
+      plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6F" S_Hz "\n %.6F" S_Hz, cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
     }
     else
       plot_printf(b->label, sizeof(b->label), "RESET\nCAL RANGE");
@@ -677,7 +677,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6FHz\n%.6FHz", (float)p->_frequency0, (float)p->_frequency1, data);
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
@@ -937,7 +937,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
     if (current_props._power == SI5351_CLK_DRIVE_STRENGTH_AUTO)
       plot_printf(b->label, sizeof(b->label), "POWER  AUTO");
     else
-      plot_printf(b->label, sizeof(b->label), "POWER" R_LINK_COLOR "  %umA", 2+current_props._power*2);
+      plot_printf(b->label, sizeof(b->label), "POWER" R_LINK_COLOR "  %um" S_AMPER, 2+current_props._power*2);
     return;
   }
   menu_push_submenu(menu_power);
@@ -961,7 +961,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
     switch(data){
 //    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
       case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
-      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3qHz" : "JOG STEP\n AUTO", var_freq); break;
+      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq); break;
       case KM_XTAL:            b->p1.u = config._xtal_freq; break;
       case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
       case KM_VBAT:            b->p1.u = config._vbat_offset; break;
@@ -1546,7 +1546,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_LOAD,  "LOAD",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7Fs", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
@@ -1592,10 +1592,10 @@ const menuitem_t menu_recall[] = {
 
 const menuitem_t menu_power[] = {
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_AUTO, "AUTO",  menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_2MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u mA", menu_power_acb },
-  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u mA", menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_2MA, "%u m" S_AMPER, menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u m" S_AMPER, menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u m" S_AMPER, menu_power_acb },
+  { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u m" S_AMPER, menu_power_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1651,7 +1651,7 @@ const menuitem_t menu_format[] = {
 const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7Fs", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
@@ -1680,28 +1680,28 @@ const menuitem_t menu_transform[] = {
 
 const menuitem_t menu_bandwidth[] = {
 #ifdef BANDWIDTH_8000
-  { MT_ADV_CALLBACK, BANDWIDTH_8000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_8000, "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_4000
-  { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_2000
-  { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_1000
-  { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_333
-  { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_100
-  { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_30
-  { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u " S_Hz, menu_bandwidth_acb },
 #endif
 #ifdef BANDWIDTH_10
-  { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u Hz", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u " S_Hz, menu_bandwidth_acb },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1720,14 +1720,14 @@ const menuitem_t menu_smooth_count[] = {
 #endif
 
 const menuitem_t menu_display[] = {
-  { MT_SUBMENU,      0, "TRACE",                            menu_trace },
-  { MT_SUBMENU,      0, "FORMAT",                           menu_format },
-  { MT_SUBMENU,      0, "SCALE",                            menu_scale },
-  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",     menu_channel_acb },
-  { MT_SUBMENU,      0, "TRANSFORM",                        menu_transform },
-  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %uHz", menu_bandwidth_sel_acb },
+  { MT_SUBMENU,      0, "TRACE",                               menu_trace },
+  { MT_SUBMENU,      0, "FORMAT",                              menu_format },
+  { MT_SUBMENU,      0, "SCALE",                               menu_scale },
+  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
+  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
+  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %u" S_Hz, menu_bandwidth_sel_acb },
 #ifdef __USE_SMOOTH__
-  { MT_SUBMENU,      0, "DATA SMOOTH",                      menu_smooth_count },
+  { MT_SUBMENU,      0, "DATA SMOOTH",                         menu_smooth_count },
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
   { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n" R_LINK_COLOR " 50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
@@ -1880,14 +1880,14 @@ const menuitem_t menu_clear[] = {
 
 #ifdef USE_VARIABLE_OFFSET_MENU
 const menuitem_t menu_offset[] = {
-  { MT_ADV_CALLBACK, 0, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 1, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 2, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 3, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 4, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 5, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 6, "%dHz", menu_offset_acb },
-  { MT_ADV_CALLBACK, 7, "%dHz", menu_offset_acb },
+  { MT_ADV_CALLBACK, 0, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 1, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 2, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 3, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 4, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 5, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 6, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 7, "%d" S_Hz, menu_offset_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -1908,18 +1908,18 @@ const menuitem_t menu_device1[] = {
 };
 
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",   menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %umV", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",              menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %um" S_VOLT, menu_keyboard_acb },
 #ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %dHz",   menu_offset_sel_acb },
+  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
 #endif
 #ifdef __USE_BACKUP__
-  { MT_ADV_CALLBACK, 0,            "REMEMBER\nSTATE",                    menu_backup_acb },
+  { MT_ADV_CALLBACK, 0,            "REMEMBER\nSTATE",                          menu_backup_acb },
 #endif
 #ifdef __USE_RTC__
-  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                           menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                                 menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                                 menu_keyboard_acb },
 #endif
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_device1 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
@@ -2153,20 +2153,20 @@ static const keypads_t keypads_time[] = {
 };
 
 static const keypads_list keypads_mode_tbl[KM_NONE] = {
-[KM_START]           = {keypads_freq , "START"      }, // start
-[KM_STOP]            = {keypads_freq , "STOP"       }, // stop
-[KM_CENTER]          = {keypads_freq , "CENTER"     }, // center
-[KM_SPAN]            = {keypads_freq , "SPAN"       }, // span
-[KM_CW]              = {keypads_freq , "CW FREQ"    }, // cw freq
-[KM_VAR]             = {keypads_freq , "JOG STEP"   }, // VAR freq step
-[KM_SCALE]           = {keypads_scale, "SCALE"      }, // scale
-[KM_REFPOS]          = {keypads_ref,   "REFPOS"     }, // refpos
-[KM_EDELAY]          = {keypads_time , "E-DELAY"    }, // electrical delay
-[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%" }, // velocity factor
-[KM_SCALEDELAY]      = {keypads_time , "DELAY"      }, // scale of delay
-[KM_XTAL]            = {keypads_freq , "TCXO 26MHz" }, // XTAL frequency
-[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD"  }, // Harmonic threshold frequency
-[KM_VBAT]            = {keypads_scale, "BAT OFFSET" }, // Vbat offset input in mV
+[KM_START]           = {keypads_freq , "START"         }, // start
+[KM_STOP]            = {keypads_freq , "STOP"          }, // stop
+[KM_CENTER]          = {keypads_freq , "CENTER"        }, // center
+[KM_SPAN]            = {keypads_freq , "SPAN"          }, // span
+[KM_CW]              = {keypads_freq , "CW FREQ"       }, // cw freq
+[KM_VAR]             = {keypads_freq , "JOG STEP"      }, // VAR freq step
+[KM_SCALE]           = {keypads_scale, "SCALE"         }, // scale
+[KM_REFPOS]          = {keypads_ref,   "REFPOS"        }, // refpos
+[KM_EDELAY]          = {keypads_time , "E-DELAY"       }, // electrical delay
+[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%"    }, // velocity factor
+[KM_SCALEDELAY]      = {keypads_time , "DELAY"         }, // scale of delay
+[KM_XTAL]            = {keypads_freq , "TCXO 26M" S_Hz }, // XTAL frequency
+[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD"     }, // Harmonic threshold frequency
+[KM_VBAT]            = {keypads_scale, "BAT OFFSET"    }, // Vbat offset input in mV
 #ifdef __S21_MEASURE__
 [KM_MEASURE_R]       = {keypads_scale, "MEASURE Rl" }, // CH0 port impedance in Om
 #endif
