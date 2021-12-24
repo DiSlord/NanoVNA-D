@@ -45,6 +45,8 @@
 #define __USE_SERIAL_CONSOLE__
 // Add show y grid line values option
 #define __USE_GRID_VALUES__
+// Add remote desktop option
+#define __REMOTE_DESKTOP__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
 // Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
@@ -288,9 +290,26 @@ void set_sweep_points(uint16_t points);
 
 bool sd_card_load_config(void);
 
+#ifdef __REMOTE_DESKTOP__
+// State flags for remote touch state
+#define REMOTE_NONE     0
+#define REMOTE_PRESS    1
+#define REMOTE_RELEASE  2
+typedef struct {
+  char new_str[6];
+  int16_t x;
+  int16_t y;
+  int16_t w;
+  int16_t h;
+} remote_region_t;
+void remote_touch_set(uint16_t state, int16_t x, int16_t y);
+void send_region(remote_region_t *rd, uint8_t * buf, uint16_t size);
+#endif
+
 #define SWEEP_ENABLE  0x01
 #define SWEEP_ONCE    0x02
 #define SWEEP_BINARY  0x08
+#define SWEEP_REMOTE  0x40
 #define SWEEP_UI_MODE 0x80
 
 extern  uint8_t sweep_mode;
