@@ -429,26 +429,26 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 13
+#if MAX_TRACE_TYPE != 22
 #error "Redefined trace_type list, need check format_list"
 #endif
 
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
-// Type             name    format           delta format             ref  scale  get value
-[TRC_LOGMAG] = {"LOGMAG", "%.2fdB",       S_DELTA"%.2fdB",       NGRIDY-1,  10.0, logmag               },
-[TRC_PHASE]  = {"PHASE",  "%.1f"S_DEGREE, S_DELTA"%.2f"S_DEGREE, NGRIDY/2,  90.0, phase                },
-[TRC_DELAY]  = {"DELAY",  "%.4Fs",        "%.4Fs",               NGRIDY/2,  1e-9, groupdelay_from_array},
-[TRC_SMITH]  = {"SMITH",  NULL,           NULL,                         0,  1.00, NULL                 }, // Custom
-[TRC_POLAR]  = {"POLAR",  "%.2f%+j.2f",   "%.2f%+j.2f",                 0,  1.00, NULL                 }, // Custom
-//[TRC_ADMIT]= {"ADMIT",  "%.2f%+j.2f",   "%.2f%+j.2f",                 0,  1.00, NULL                 }, // Custom
-[TRC_LINEAR] = {"LINEAR", "%.4f",         S_DELTA"%.3f",                0, 0.125, linear               },
-[TRC_SWR]    = {"SWR",    "%.3f",         S_DELTA"%.3f",                0,  0.25, swr                  },
-[TRC_REAL]   = {"REAL",   "%.4f",         S_DELTA"%.3f",         NGRIDY/2,  0.25, real                 },
-[TRC_IMAG]   = {"IMAG",   "%.4fj",        S_DELTA"%.4fj",        NGRIDY/2,  0.25, imag                 },
-[TRC_R]      = {"R",      "%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,           0, 100.0, resistance           },
-[TRC_X]      = {"X",      "%.4F"S_OHM,    S_DELTA"%.4F"S_OHM,    NGRIDY/2, 100.0, reactance            },
-[TRC_Z]      = {"|Z|",    "%.3f",         S_DELTA"%.3f",                0,  50.0, mod_z                },
-[TRC_Q]      = { "Q",     "%.3f",         S_DELTA"%.3f",                0,  10.0, qualityfactor        },
+// Type          name      format            delta format                ref   scale  get value
+[TRC_LOGMAG] = {"LOGMAG", "%.2f" S_dB,     S_DELTA "%.2f" S_dB,     NGRIDY-1,  10.0f, logmag               },
+[TRC_PHASE]  = {"PHASE",  "%.1f" S_DEGREE, S_DELTA "%.2f" S_DEGREE, NGRIDY/2,  90.0f, phase                },
+[TRC_DELAY]  = {"DELAY",  "%.4F" S_SECOND,         "%.4F" S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
+[TRC_SMITH]  = {"SMITH",  NULL,            NULL,                           0,  1.00f, NULL                 }, // Custom
+[TRC_POLAR]  = {"POLAR",  "%.2f%+j.2f",   "%.2f%+j.2f",                    0,  1.00f, NULL                 }, // Custom
+//[TRC_ADMIT]= {"ADMIT",  "%.2f%+j.2f",   "%.2f%+j.2f",                    0,  1.00f, NULL                 }, // Custom
+[TRC_LINEAR] = {"LINEAR", "%.4f",          S_DELTA "%.3f",                 0, 0.125f, linear               },
+[TRC_SWR]    = {"SWR",    "%.3f",          S_DELTA "%.3f",                 0,  0.25f, swr                  },
+[TRC_REAL]   = {"REAL",   "%.4f",          S_DELTA "%.4f",          NGRIDY/2,  0.25f, real                 },
+[TRC_IMAG]   = {"IMAG",   "%.4fj",         S_DELTA "%.4fj",         NGRIDY/2,  0.25f, imag                 },
+[TRC_R]      = {"R",      "%.3F" S_OHM,    S_DELTA "%.3F" S_OHM,           0, 100.0f, resistance           },
+[TRC_X]      = {"X",      "%.3F" S_OHM,    S_DELTA "%.3F" S_OHM,    NGRIDY/2, 100.0f, reactance            },
+[TRC_Z]      = {"|Z|",    "%.3f" S_OHM,    S_DELTA "%.3f" S_OHM,           0,  50.0f, mod_z                },
+[TRC_Q]      = {"Q",      "%.4f",          S_DELTA "%.3f",                 0,  10.0f, qualityfactor        },
 };
 
 // Calculate and cache point coordinates for trace
@@ -485,7 +485,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     return;
   }
   // Smith/Polar grid
-  if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))){ // Need custom calculations
+  if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))) { // Need custom calculations
     const float rscale = P_RADIUS / scale;
     int16_t y, x, i;
     for (i = 0; i <= point_count; i++){
@@ -598,7 +598,7 @@ trace_print_info(int xpos, int ypos, int t)
   float scale = get_trace_scale(t);
   char *format;
   switch (trace[t].type) {
-    case TRC_LOGMAG: format = "%s %.0fdB/"; break;
+    case TRC_LOGMAG: format = "%s %.0f" S_dB "/"; break;
     case TRC_PHASE:  format = "%s %.0f" S_DEGREE "/"; break;
     case TRC_SMITH:
     //case TRC_ADMIT:
@@ -1686,7 +1686,7 @@ draw_cell(int m, int n)
     index_t *index = trace_index[t];
     i0 = i1 = 0;
     // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if ((1 << trace[t].type) & RECTANGULAR_GRID_MASK && !enabled_store_trace){
+    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace){
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
     }else{
       // draw polar plot (check all points)
@@ -1888,15 +1888,15 @@ static const struct {uint16_t x, y;} marker_pos[]={
 
 #ifdef LCD_320x240
 #if _USE_FONT_ < 1
-#define MARKER_FREQ       "%.6qHz"
+#define MARKER_FREQ       "%.6q" S_Hz
 #else
-#define MARKER_FREQ       "%.3qHz"
+#define MARKER_FREQ       "%.3q" S_Hz
 #endif
 #define MARKER_FREQ_SIZE        67
 #define PORT_Z_OFFSET            1
 #endif
 #ifdef LCD_480x320
-#define MARKER_FREQ         "%qHz"
+#define MARKER_FREQ         "%q" S_Hz
 #define MARKER_FREQ_SIZE       112
 #define PORT_Z_OFFSET            0
 #endif
@@ -1974,10 +1974,10 @@ cell_draw_marker_info(int x0, int y0)
         freq_t freq  = get_marker_frequency(active_marker);
         freq_t freq1 = get_marker_frequency(previous_marker);
         freq_t delta = freq >= freq1 ? freq - freq1 : freq1 - freq;
-        cell_printf(xpos, ypos, "%c%qHz", freq >= freq1 ? '+' : '-', delta);
+        cell_printf(xpos, ypos, "%c%q" S_Hz, freq >= freq1 ? '+' : '-', delta);
       } else {
-        cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx) - time_of_index(previous_marker_idx),
-                                             distance_of_index(active_marker_idx) - distance_of_index(previous_marker_idx));
+        cell_printf(xpos, ypos, "%F" S_SECOND " (%F" S_METRE ")", time_of_index(active_marker_idx) - time_of_index(previous_marker_idx),
+                                                                  distance_of_index(active_marker_idx) - distance_of_index(previous_marker_idx));
       }
     }
   }
@@ -1990,9 +1990,9 @@ cell_draw_marker_info(int x0, int y0)
     //cell_drawstring(buf, xpos, ypos);
     xpos += 3*FONT_WIDTH + 4;
     if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ)
-      cell_printf(xpos, ypos, "%qHz", get_marker_frequency(active_marker));
+      cell_printf(xpos, ypos, "%q" S_Hz, get_marker_frequency(active_marker));
     else
-      cell_printf(xpos, ypos, "%Fs (%Fm)", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
+      cell_printf(xpos, ypos, "%F" S_SECOND " (%F" S_METRE ")", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
   }
 
   if (electrical_delay != 0.0f) {
@@ -2005,7 +2005,7 @@ cell_draw_marker_info(int x0, int y0)
     xpos += 5;
 
     float edelay = electrical_delay * 1e-12; // to seconds
-    cell_printf(xpos, ypos, "Edelay: %Fs (%Fm)", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
+    cell_printf(xpos, ypos, "Edelay: %F" S_SECOND " (%F" S_METRE ")", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
   }
 #ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) {
@@ -2029,21 +2029,21 @@ draw_frequencies(void)
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
     if (FREQ_IS_CW()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0, "CW", get_sweep_frequency(ST_CW));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm0, "CW", get_sweep_frequency(ST_CW));
     } else if (FREQ_IS_STARTSTOP()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0, "START", get_sweep_frequency(ST_START));
-      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15qHz", lm1,  "STOP", get_sweep_frequency(ST_STOP));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm0, "START", get_sweep_frequency(ST_START));
+      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "STOP", get_sweep_frequency(ST_STOP));
     } else if (FREQ_IS_CENTERSPAN()) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15qHz", lm0,"CENTER", get_sweep_frequency(ST_CENTER));
-      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15qHz", lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm0,"CENTER", get_sweep_frequency(ST_CENTER));
+      lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
     lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s 0s",        lm0, "START");
-    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %Fs (%Fm)", lm1, "STOP", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
+    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %F" S_SECOND " (%F" S_METRE ")", lm1, "STOP", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
-  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"bw:%uHz %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
+  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"bw:%u" S_Hz " %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
   lcd_set_font(FONT_NORMAL);
 }
 

@@ -698,6 +698,15 @@ extern const uint8_t numfont16x22[];
 #define S_MICRO    '\035'  // hex 0x1D
 #define S_OHM      "\036"  // hex 0x1E
 #define S_DEGREE   "\037"  // hex 0x1F
+#define S_SIEMENS  "S"     //
+#define S_dB       "dB"    //
+#define S_Hz       "Hz"    //
+#define S_FARAD    "F"     //
+#define S_HENRY    "H"     //
+#define S_SECOND   "s"     //
+#define S_METRE    "m"     //
+#define S_VOLT     "V"     //
+#define S_AMPER    "A"     //
 
 // Max palette indexes in config
 #define MAX_PALETTE     32
