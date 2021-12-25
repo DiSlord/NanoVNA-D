@@ -712,13 +712,24 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 13
+#define MAX_TRACE_TYPE 22
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, /*TRC_ADMIT,*/ TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_Q, TRC_OFF
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
+  TRC_R, TRC_X, TRC_Z,
+  TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
+  TRC_sC, TRC_sL,
+  TRC_pC, TRC_pL,
+  TRC_Q, TRC_OFF
 };
 // Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_Q))
-#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH)/*|(1<<TRC_ADMIT)*/)
+#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
+                              |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)\
+                              |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
+                              |(1<<TRC_sC)|(1<<TRC_sL)\
+                              |(1<<TRC_pC)|(1<<TRC_pL)\
+                              |(1<<TRC_Q))
+
+#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))
 
 // Trace info description structure
 typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback
@@ -726,6 +737,7 @@ typedef struct trace_info {
   const char *name;            // Trace name
   const char *format;          // trace value printf format for marker output
   const char *dformat;         // delta value printf format
+  const char *symbol;          // value symbol
   float refpos;                // default refpos
   float scale_unit;            // default scale
   get_value_cb_t get_value_cb; // get value callback (can be NULL, in this case need add custom calculations)
@@ -734,9 +746,17 @@ typedef struct trace_info {
 extern const trace_info_t trace_info_list[MAX_TRACE_TYPE];
 
 // marker smith value format
-enum marker_smithvalue {
-  MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC
-};
+enum {MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC, MS_GB, MS_GLC, MS_RpXp, MS_RpLC, MS_END};
+#define ADMIT_MARKER_VALUE(v)    ((1<<(v))&((1<<MS_GB)|(1<<MS_GLC)|(1<<MS_RpXp)|(1<<MS_RpLC)))
+#define LC_MARKER_VALUE(v)       ((1<<(v))&((1<<MS_RLC)|(1<<MS_GLC)|(1<<MS_RpLC)))
+
+typedef struct {
+  const char *name;         // Trace name
+  const char *format;       // trace value printf format for marker output
+  get_value_cb_t get_re_cb; // get real value callback
+  get_value_cb_t get_im_cb; // get imag value callback (can be NULL, in this case need add custom calculations)
+} marker_info_t;
+extern const marker_info_t marker_info_list[MS_END];
 
 // lever_mode
 enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
@@ -885,7 +905,6 @@ void set_trace_type(int t, int type);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
-const char *get_trace_typename(int t);
 const char *get_trace_chname(int t);
 
 //
@@ -913,6 +932,9 @@ int search_nearest_index(int x, int y, int t);
 
 void storeCurrentTrace(int idx);
 void disableStoredTrace(int idx);
+
+const char *get_trace_typename(int t);
+const char *get_smith_format_names(int m);
 
 // Marker search functions
 #define MK_SEARCH_LEFT    -1

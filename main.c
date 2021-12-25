@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1.00"
+#define VERSION "1.1.01"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2141,11 +2141,6 @@ static const char * const trc_channel_name[] = {
   "S11", "S21"
 };
 
-const char *get_trace_typename(int t)
-{
-  return trace_info_list[trace[t].type].name;
-}
-
 const char *get_trace_chname(int t)
 {
   return trc_channel_name[trace[t].channel];
@@ -2211,7 +2206,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (argc == 0) {
     for (t = 0; t < TRACES_MAX; t++) {
       if (trace[t].enabled) {
-        const char *type = get_trace_typename(t);
+        const char *type = get_trace_typename(trace[t].type);
         const char *channel = get_trace_chname(t);
         float scale = get_trace_scale(t);
         float refpos = get_trace_refpos(t);
@@ -2232,16 +2227,16 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (t < 0 || t >= TRACES_MAX)
     goto usage;
   if (argc == 1) {
-    const char *type = get_trace_typename(t);
+    const char *type = get_trace_typename(trace[t].type);
     const char *channel = get_trace_chname(t);
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
-#if MAX_TRACE_TYPE != 13
+#if MAX_TRACE_TYPE != 22
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
-  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Q, TRC_OFF
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|q|off";
+  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q, TRC_OFF
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q|off";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     if (argc > 2) {
@@ -2282,7 +2277,7 @@ VNA_SHELL_FUNCTION(cmd_edelay)
 VNA_SHELL_FUNCTION(cmd_marker)
 {
   static const char cmd_marker_list[] = "on|off";
-  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc";
+  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc|gb|glc|rpxp|rplc";
   int t;
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
@@ -2292,7 +2287,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
     }
     return;
   }
-  request_to_redraw(REDRAW_MARKER);
+  request_to_redraw(REDRAW_MARKER|REDRAW_AREA);
   // Marker on|off command
   int enable = get_str_index(argv[0], cmd_marker_list);
   if (enable >= 0) { // string found: 0 - on, 1 - off

@@ -775,16 +775,36 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   request_to_redraw(REDRAW_AREA);
 }
 
+extern const menuitem_t menu_marker_smith[];
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
+{
+  if (b){
+    b->icon = marker_smith_format == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.text = get_smith_format_names(data);
+    return;
+  }
+  marker_smith_format = data;
+  request_to_redraw(REDRAW_AREA | REDRAW_MARKER);
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
   if (current_trace == TRACE_INVALID) return;
   if (b){
     if (trace[current_trace].type == data)
       b->icon = BUTTON_ICON_CHECK;
+    const char *name = get_trace_typename(data);
+    if (data == TRC_SMITH)
+      plot_printf(b->label, sizeof(b->label), "%s\n" R_LINK_COLOR " %s", name, get_smith_format_names(marker_smith_format));
+    else
+      b->p1.text = name;
     return;
   }
-  set_trace_type(current_trace, data);
-  ui_mode_normal();
+  if (trace[current_trace].type == data && data == TRC_SMITH)
+    menu_push_submenu(menu_marker_smith);
+  else
+    set_trace_type(current_trace, data);
+//  ui_mode_normal();
 }
 
 #if 0
@@ -955,10 +975,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
-  if (data == KM_SCALE && current_trace != TRACE_INVALID && trace[current_trace].type == TRC_DELAY)
-    data = KM_SCALEDELAY;
+  if (data == KM_SCALE && current_trace != TRACE_INVALID) {
+    if ((1<<trace[current_trace].type) & ((1<<TRC_DELAY)|(1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
+      data = KM_SCALEDELAY;
+  }
   if (b){
-    switch(data){
+    switch(data) {
 //    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
       case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
       case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq); break;
@@ -1083,36 +1105,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
     return;
   }
   props_mode^= TD_MARKER_TRACK;
-}
-
-extern const menuitem_t menu_marker_smith[];
-static const char *smith_format_names[] = {
-  [MS_LIN]  = "LIN",
-  [MS_LOG]  = "LOG",
-  [MS_REIM] = "Re + Im",
-  [MS_RX]   = "R + jX",
-  [MS_RLC]  = "R + L/C",
-};
-
-static UI_FUNCTION_ADV_CALLBACK(menu_smith_type_acb)
-{
-  (void)data;
-  if (b){
-    b->p1.text = smith_format_names[marker_smith_format];
-    return;
-  }
-  menu_push_submenu(menu_marker_smith);
-}
-
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
-{
-  if (b){
-    b->icon = marker_smith_format == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.text = smith_format_names[data];
-    return;
-  }
-  marker_smith_format = data;
-  request_to_redraw(REDRAW_MARKER);
 }
 
 #ifdef __VNA_MEASURE_MODULE__
@@ -1625,26 +1617,39 @@ const menuitem_t menu_trace[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
+const menuitem_t menu_format3[] = {
+  { MT_ADV_CALLBACK, TRC_sC,     "SERIES C",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_sL,     "SERIES L",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Rp,     "PARALLEL R", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Xp,     "PARALLEL X", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_pC,     "PARALLEL C", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_pL,     "PARALLEL L", menu_format_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
 const menuitem_t menu_format2[] = {
-  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_REAL,   "REAL", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Z,      "|Z|", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_REAL,   "REAL",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG",     menu_format_acb },
   { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_G,      "CONDUCT",  menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_B,      "SUSCEPT",  menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Y,      "|Y|",      menu_format_acb },
+  { MT_SUBMENU,         0, S_RARROW " MORE", menu_format3 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_format[] = {
-  { MT_ADV_CALLBACK, TRC_LOGMAG, "LOGMAG", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_PHASE,  "PHASE", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_DELAY,  "DELAY", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_SMITH,  "SMITH", menu_format_acb },
-//  { MT_ADV_CALLBACK, TRC_ADMIT,  "ADMIT", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_SWR,    "SWR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_R,      "RESISTANCE", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_X,      "REACTANCE", menu_format_acb },
-  { MT_SUBMENU, 0, S_RARROW" MORE", menu_format2 },
+  { MT_ADV_CALLBACK, TRC_LOGMAG, "LOGMAG",        menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_PHASE,  "PHASE",         menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_DELAY,  "DELAY",         menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SMITH,  MT_CUSTOM_LABEL, menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SWR,    "SWR",           menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_R,      "RESISTANCE",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_X,      "REACTANCE",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Z,      "|Z|",           menu_format_acb },
+  { MT_SUBMENU,          0, S_RARROW " MORE",     menu_format2 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1807,6 +1812,10 @@ const menuitem_t menu_marker_smith[] = {
   { MT_ADV_CALLBACK, MS_REIM,"%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RX,  "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RLC, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_GB,  "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_GLC, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_RpXp,"%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_RpLC,"%s", menu_marker_smith_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1838,7 +1847,6 @@ const menuitem_t menu_marker[] = {
   { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
   { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
   { MT_SUBMENU,                0, "OPERATIONS",                  menu_marker_ops    },
-  { MT_ADV_CALLBACK,           0, "SMITH VALUE\n" R_LINK_COLOR " %s", menu_smith_type_acb},
   { MT_ADV_CALLBACK,           0, "TRACKING",                    menu_marker_tracking_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1959,9 +1967,9 @@ const menuitem_t menu_top[] = {
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
-#define MENU_STACK_DEPTH_MAX 4
+#define MENU_STACK_DEPTH_MAX 5
 const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
-  menu_top, NULL, NULL, NULL
+  menu_top, NULL, NULL, NULL, NULL
 };
 
 static const menuitem_t *menu_next_item(const menuitem_t *m){
