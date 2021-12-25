@@ -224,7 +224,6 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
-#if 0
 static void
 cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
 {
@@ -236,7 +235,6 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
     for (x = 0; x < w; x++)
       if (smith_grid(-(x + x0), y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
-#endif
 
 void update_grid(void)
 {
@@ -280,9 +278,22 @@ rectangular_grid_y(int y)
   return 1;
 }
 
-/*
- * calculate log10(abs(gamma))
- */ 
+//**************************************************************************************
+// NanoVNA measures
+// This functions used for plot traces, and markers data output
+// Also can used in measure calculations
+//**************************************************************************************
+// LINEAR = |S|
+//**************************************************************************************
+static float
+linear(int i, const float *v)
+{
+  (void) i;
+  return vna_sqrtf(v[0]*v[0] + v[1]*v[1]);
+}
+//**************************************************************************************
+// LOGMAG = 20*log10f(|S|)
+//**************************************************************************************
 static float
 logmag(int i, const float *v)
 {
@@ -293,9 +304,9 @@ logmag(int i, const float *v)
   return vna_log10f_x_10(x);
 }
 
-/*
- * calculate phase[-2:2] of coefficient
- */ 
+//**************************************************************************************
+// PHASE angle in degree = atan2(im, re) * 180 / PI
+//**************************************************************************************
 static float
 phase(int i, const float *v)
 {
@@ -303,9 +314,9 @@ phase(int i, const float *v)
   return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
 }
 
-/*
- * calculate groupdelay
- */
+//**************************************************************************************
+// Group delay
+//**************************************************************************************
 static float
 groupdelay(const float *v, const float *w, uint32_t deltaf)
 {
@@ -319,19 +330,29 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
 #endif
 }
 
-/*
- * calculate abs(gamma)
- */
+//**************************************************************************************
+// REAL
+//**************************************************************************************
 static float
-linear(int i, const float *v)
+real(int i, const float *v)
 {
   (void) i;
-  return vna_sqrtf(v[0]*v[0] + v[1]*v[1]);
+  return v[0];
 }
 
-/*
- * calculate vswr; (1+gamma)/(1-gamma)
- */ 
+//**************************************************************************************
+// IMAG
+//**************************************************************************************
+static float
+imag(int i, const float *v)
+{
+  (void) i;
+  return v[1];
+}
+
+//**************************************************************************************
+// SWR = (1 + |S|)/(1 - |S|)
+//**************************************************************************************
 static float
 swr(int i, const float *v)
 {
@@ -348,13 +369,32 @@ swr(int i, const float *v)
 #define PORT_Z 50.0f
 #endif
 
+static float get_d(float re, float im) {return (1.0f - re)*(1.0f - re) + im*im;}
+static float get_r(float re, float im) {return (1.0f - re*re - im*im);}
+static float get_x(float im) {return 2.0f * im;}
+static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
+
+//**************************************************************************************
+// Z parameters calculations from complex gamma
+// Z = R_ref * (1 + gamma) / (1 - gamma) = R + jX
+// Resolve this in complex give:
+//  R = z0 * (1 - re*re - im*im) / ((1-re)*(1-re) + im*im))
+//  X = z0 *               2*im  / ((1-re)*(1-re) + im*im))
+// |Z| = sqrtf(R*R+X*X)
+//
+//  replace r = (1 - re*re - im*im); x = 2*im; d = ((1-re)*(1-re) + im*im))
+// R = z0 * r / d
+// X = z0 * x / d
+// |Z| = z0 * sqrt(4 * re / d + 1)
+//**************************************************************************************
 static float
 resistance(int i, const float *v)
 {
   (void) i;
   const float z0 = PORT_Z;
-  const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
-  return z0 * (1 - v[0]*v[0] - v[1]*v[1]) / d;
+  const float d = get_d(v[0], v[1]);
+  const float r = get_r(v[0], v[1]);
+  return /* d == 0 ? INFINITY : */ z0 * r / d;
 }
 
 static float
@@ -362,8 +402,9 @@ reactance(int i, const float *v)
 {
   (void) i;
   const float z0 = PORT_Z;
-  const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
-  return 2 * z0 * v[1] / d;
+  const float d = get_d(v[0], v[1]);
+  const float x = get_x(v[1]);
+  return /* d == 0 ? INFINITY :*/ z0 * x / d;
 }
 
 static float
@@ -371,42 +412,143 @@ mod_z(int i, const float *v)
 {
   (void) i;
   const float z0 = PORT_Z;
-  const float d = (1 - v[0])*(1 - v[0]) + v[1]*v[1];
+  const float d = get_d(v[0], v[1]);
   return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
 }
 
+//**************************************************************************************
+// Use w = 2 * pi * frequency
+// Get Series L and C from X
+//  C = -1 / (w * X)
+//  L =  X / w
+//**************************************************************************************
 static float
-imag_lc(int i, const float *v)
+series_c(int i, const float *v)
 {
   const float zi = reactance(i, v);
-  float w = 2 * VNA_PI * getFrequency(i);
-  if (zi < 0) return 1 / (w * zi); // Capacity
-  return            zi / (w     ); // Inductive
+  const float w = get_w(i);
+  return -1.0f / (w * zi);
 }
 
+static float
+series_l(int i, const float *v)
+{
+  const float zi = reactance(i, v);
+  const float w = get_w(i);
+  return zi / w;
+}
+
+//**************************************************************************************
+// Q factor = abs(X / R)
+//**************************************************************************************
 static float
 qualityfactor(int i, const float *v)
 {
   (void) i;
-  const float im = 2 * v[1];
-  const float re = 1 - v[0]*v[0] - v[1]*v[1];
-  return vna_fabsf(im / re);
+  const float x = get_x(v[1]);
+  const float r = get_r(v[0], v[1]);
+  return vna_fabsf(x / r);
+}
+
+//**************************************************************************************
+// Y parameters (conductance and susceptance) calculations from complex Z
+// Y = 1 / Z = 1 / (R + jX) = B + jG
+//  G =  R / (R*R + X*X)
+//  B = -X / (R*R + X*X)
+// |Y| = 1 / |Z|
+//**************************************************************************************
+static float
+conductance(int i, const float *v)
+{
+  (void) i;
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  const float r = get_r(v[0], v[1]);
+  const float x = get_x(v[1]);
+  const float rx = z0 * (r*r + x*x);
+  return /* rx == 0 ? INFINITY :*/ r * d / rx;
 }
 
 static float
-real(int i, const float *v)
+susceptance(int i, const float *v)
 {
   (void) i;
-  return v[0];
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  const float r = get_r(v[0], v[1]);
+  const float x = get_x(v[1]);
+  const float rx = z0 * (r*r + x*x);
+  return /* rx == 0 ? INFINITY :*/ -x * d / rx;
+}
+
+//**************************************************************************************
+// Use w = 2 * pi * frequency
+// Get Parallel L and C from B
+//  C =  B / w
+//  L = -1 / (w * B)
+//**************************************************************************************
+static float
+parallel_c(int i, const float *v)
+{
+  const float zi = susceptance(i, v);
+  const float w = get_w(i);
+  return zi / w;
 }
 
 static float
-imag(int i, const float *v)
+parallel_l(int i, const float *v)
 {
-  (void) i;
-  return v[1];
+  const float zi = susceptance(i, v);
+  const float w = get_w(i);
+  return -1.0f / (w * zi);
 }
 
+static float
+mod_y(int i, const float *v)
+{
+  return 1.0f / mod_z(i, v); // always >= 0
+}
+
+//**************************************************************************************
+// Parallel R and X calculations from Y
+// Rp = 1 / G
+// Xp =-1 / B
+//**************************************************************************************
+static float
+parallel_r(int i, const float *v)
+{
+#if 1
+  return 1.0f / conductance(i, v);
+#else
+  (void) i;
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  const float r = get_r(v[0], v[1]);
+  const float x = get_x(v[1]);
+  const float rx = z0 * (r*r + x*x);
+  return rx / (r * d);
+#endif
+}
+
+static float
+parallel_x(int i, const float *v)
+{
+#if 1
+  return -1.0f / susceptance(i, v);
+#else
+  (void) i;
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  const float r = get_r(v[0], v[1]);
+  const float x = get_x(v[1]);
+  const float rx = z0 * (r*r + x*x);
+  return  rx / (x * d);
+#endif
+}
+
+//**************************************************************************************
+// Group delay
+//**************************************************************************************
 float
 groupdelay_from_array(int i, const float *v)
 {
@@ -434,22 +576,54 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
 #endif
 
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
-// Type          name      format            delta format                ref   scale  get value
-[TRC_LOGMAG] = {"LOGMAG", "%.2f" S_dB,     S_DELTA "%.2f" S_dB,     NGRIDY-1,  10.0f, logmag               },
-[TRC_PHASE]  = {"PHASE",  "%.1f" S_DEGREE, S_DELTA "%.2f" S_DEGREE, NGRIDY/2,  90.0f, phase                },
-[TRC_DELAY]  = {"DELAY",  "%.4F" S_SECOND,         "%.4F" S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
-[TRC_SMITH]  = {"SMITH",  NULL,            NULL,                           0,  1.00f, NULL                 }, // Custom
-[TRC_POLAR]  = {"POLAR",  "%.2f%+j.2f",   "%.2f%+j.2f",                    0,  1.00f, NULL                 }, // Custom
-//[TRC_ADMIT]= {"ADMIT",  "%.2f%+j.2f",   "%.2f%+j.2f",                    0,  1.00f, NULL                 }, // Custom
-[TRC_LINEAR] = {"LINEAR", "%.4f",          S_DELTA "%.3f",                 0, 0.125f, linear               },
-[TRC_SWR]    = {"SWR",    "%.3f",          S_DELTA "%.3f",                 0,  0.25f, swr                  },
-[TRC_REAL]   = {"REAL",   "%.4f",          S_DELTA "%.4f",          NGRIDY/2,  0.25f, real                 },
-[TRC_IMAG]   = {"IMAG",   "%.4fj",         S_DELTA "%.4fj",         NGRIDY/2,  0.25f, imag                 },
-[TRC_R]      = {"R",      "%.3F" S_OHM,    S_DELTA "%.3F" S_OHM,           0, 100.0f, resistance           },
-[TRC_X]      = {"X",      "%.3F" S_OHM,    S_DELTA "%.3F" S_OHM,    NGRIDY/2, 100.0f, reactance            },
-[TRC_Z]      = {"|Z|",    "%.3f" S_OHM,    S_DELTA "%.3f" S_OHM,           0,  50.0f, mod_z                },
-[TRC_Q]      = {"Q",      "%.4f",          S_DELTA "%.3f",                 0,  10.0f, qualityfactor        },
+// Type          name      format   delta format      symbol         ref   scale  get value
+[TRC_LOGMAG] = {"LOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag               },
+[TRC_PHASE]  = {"PHASE",  "%.1f%s", S_DELTA "%.2f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
+[TRC_DELAY]  = {"DELAY",  "%.4F%s",         "%.4F%s", S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
+[TRC_SMITH]  = {"SMITH",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
+[TRC_POLAR]  = {"POLAR",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
+[TRC_LINEAR] = {"LINEAR", "%.4f%s", S_DELTA "%.3f%s", "",              0, 0.125f, linear               },
+[TRC_SWR]    = {"SWR",    "%.3f%s", S_DELTA "%.3f%s", "",              0,  0.25f, swr                  },
+[TRC_REAL]   = {"REAL",   "%.4f%s", S_DELTA "%.4f%s", "",       NGRIDY/2,  0.25f, real                 },
+[TRC_IMAG]   = {"IMAG",   "%.4fj%s",S_DELTA "%.4fj%s","",       NGRIDY/2,  0.25f, imag                 },
+[TRC_R]      = {"R",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0, 100.0f, resistance           },
+[TRC_X]      = {"X",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, reactance            },
+[TRC_Z]      = {"|Z|",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0,  50.0f, mod_z                },
+[TRC_G]      = {"G",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.01f, conductance          },
+[TRC_B]      = {"B",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,NGRIDY/2,  0.01f, susceptance          },
+[TRC_Y]      = {"|Y|",    "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.02f, mod_y                },
+[TRC_Rp]     = {"Rp",     "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0, 100.0f, parallel_r           },
+[TRC_Xp]     = {"Xp",     "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, parallel_x           },
+[TRC_sC]     = {"sC",     "%.4F%s", S_DELTA "%.4F%s", S_FARAD,  NGRIDY/2,  1e-8f, series_c             },
+[TRC_sL]     = {"sL" ,    "%.4F%s", S_DELTA "%.4F%s", S_HENRY,  NGRIDY/2,  1e-8f, series_l             },
+[TRC_pC]     = {"pC",     "%.4F%s", S_DELTA "%.4F%s", S_FARAD,  NGRIDY/2,  1e-8f, parallel_c           },
+[TRC_pL]     = {"pL" ,    "%.4F%s", S_DELTA "%.4F%s", S_HENRY,  NGRIDY/2,  1e-8f, parallel_l           },
+[TRC_Q]      = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, qualityfactor        },
 };
+
+const marker_info_t marker_info_list[MS_END] = {
+// Type       name        format                        get real     get imag
+[MS_LIN]  = {"LIN",      "%.2f %+.1f" S_DEGREE,         linear,      phase      },
+[MS_LOG]  = {"LOG",      "%.1f" S_dB " %+.1f" S_DEGREE, logmag,      phase      },
+[MS_REIM] = {"Re + Im",  "%F%+jF",                      real,        imag       },
+[MS_RX]   = {"R + jX",   "%F%+jF" S_OHM,                resistance,  reactance  },
+[MS_RLC]  = {"R + L/C",  "%F" S_OHM " %F%c",            resistance,  reactance  }, // use LC calc for imag
+[MS_GB]   = {"G + jB",   "%F%+jF" S_SIEMENS,            conductance, susceptance},
+[MS_GLC]  = {"G + L/C",  "%F" S_SIEMENS " %F%c",        conductance, parallel_x }, // use LC calc for imag
+[MS_RpXp] = {"Rp + jXp", "%F%+jF" S_OHM,                parallel_r,  parallel_x },
+[MS_RpLC] = {"Rp + L/C", "%F" S_OHM " %F%c",            parallel_r,  parallel_x }, // use LC calc for imag
+};
+
+const char *get_trace_typename(int t)
+{
+  if (t == TRC_SMITH && ADMIT_MARKER_VALUE(marker_smith_format)) return "ADMIT";
+  return trace_info_list[t].name;
+}
+
+const char *get_smith_format_names(int m)
+{
+  return marker_info_list[m].name;
+}
 
 // Calculate and cache point coordinates for trace
 static void
@@ -495,117 +669,61 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     }
     return;
   }
-#if 0
-  // Admit grid
-  if (type & (1<<TRC_ADMIT)){ // Need custom calculations
-    const float rscale = P_RADIUS / scale;
-    int16_t y, x, i;
-    for (i = 0; i <= point_count; i++){
-      cartesian_scale(array[i], &x, &y, rscale);
-      index[i].x = x;
-      index[i].y = y;
-    }
-    return;
-  }
-#endif
 }
 
 static void
-format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx)
+format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx, uint16_t m)
 {
-  char *format;
-  float zr, zi;
-  switch (marker_smith_format) {
-  case MS_LIN:
-    zr = linear(idx, coeff);
-    zi = phase(idx, coeff);
-    format = "%.2f %.1f" S_DEGREE;
-    break;
-  case MS_LOG:
-    zr = logmag(idx, coeff);
-    zi = phase(idx, coeff);
-    format = (zr == -INFINITY) ? "-"S_INFINITY" dB" : "%.1fdB %.1f" S_DEGREE;
-    break;
-  case MS_REIM:
-    zr = real(idx, coeff);
-    zi = imag(idx, coeff);
-    format = "%F%+jF";
-    break;
-  case MS_RX:
-    zr = resistance(idx, coeff);
-    zi = reactance(idx, coeff);
-    format = "%F%+jF"S_OHM;
-    break;
-  case MS_RLC:
-    zr = resistance(idx, coeff);
-    zi = imag_lc(idx, coeff);
-    if (zi < 0)
-      format = "%F"S_OHM" %FF"; // Capacity
-    else
-      format = "%F"S_OHM" %FH"; // Inductive
-    zi = vna_fabsf(zi);
-    break;
-  default:
-    return;
+  char value = 0;
+  if (m >= MS_END) return;
+  get_value_cb_t re  = marker_info_list[m].get_re_cb;
+  get_value_cb_t im  = marker_info_list[m].get_im_cb;
+  const char *format = marker_info_list[m].format;
+  float zr = re(idx, coeff);
+  float zi = im(idx, coeff);
+  // Additional convert to L or C from zi for LC markers
+  if (LC_MARKER_VALUE(m)) {
+    float w = get_w(idx);
+    if (zi < 0) {zi =-1.0f / (w * zi); value = S_FARAD[0];} // Capacity
+    else        {zi =   zi / (w     ); value = S_HENRY[0];} // Inductive
   }
-  cell_printf(xpos, ypos, format, zr, zi);
+  cell_printf(xpos, ypos, format, zr, zi, value);
 }
 
 static void
 trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 {
   // Check correct input
-  int type = trace[t].type;
+  uint8_t type = trace[t].type;
   if (type >= MAX_TRACE_TYPE) return;
   float (*array)[2] = measured[trace[t].channel];
-  float v = 0.0f;
   float *coeff = array[index];
-  float *coeff_ref = NULL;
-  const char *format;
-  // Get format data
-  if (index_ref >=0){                           // Delta value
-    coeff_ref = array[index_ref];
-    format = trace_info_list[type].dformat;
-  }
-  else{                                         // No delta
-    format = trace_info_list[type].format;
-  }
-
+  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   get_value_cb_t c = trace_info_list[type].get_value_cb;
-  if (c){                                                   // Run standard get value function from table
-    v = c(index, coeff);                                    // Get value
-    if (coeff_ref && v != INFINITY) v-=c(index, coeff_ref); // Calculate delta value
+  if (c){                                                               // Run standard get value function from table
+    float v = c(index, coeff);                                          // Get value
+    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
+    cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
-  else { // Need custom calculations
-    switch (type) {
-    case TRC_SMITH:
-      format_smith_value(xpos, ypos, coeff, index);
-      return;
-    //case TRC_ADMIT:
-    case TRC_POLAR:
-      cell_printf(xpos, ypos, format, coeff[0], coeff[1]);
-      return;
-    default:
-      return;
-    }
+  else { // Need custom marker format for SMITH / POLAR
+    format_smith_value(xpos, ypos, coeff, index, type == TRC_SMITH ? marker_smith_format : MS_REIM);
   }
-  cell_printf(xpos, ypos, format, v);
 }
 
 static int
 trace_print_info(int xpos, int ypos, int t)
 {
   float scale = get_trace_scale(t);
-  char *format;
-  switch (trace[t].type) {
+  const char *format;
+  int type = trace[t].type;
+  switch (type) {
     case TRC_LOGMAG: format = "%s %.0f" S_dB "/"; break;
     case TRC_PHASE:  format = "%s %.0f" S_DEGREE "/"; break;
     case TRC_SMITH:
-    //case TRC_ADMIT:
-    case TRC_POLAR:  format = (scale != 1.0) ? "%s %.1fFS" : "%s "; break;
+    case TRC_POLAR:  format = (scale != 1.0f) ? "%s %.1fFS" : "%s "; break;
     default:         format = "%s %F/"; break;
   }
-  return cell_printf(xpos, ypos, format, get_trace_typename(t), scale);
+  return cell_printf(xpos, ypos, format, get_trace_typename(type), scale);
 }
 
 static float time_of_index(int idx)
@@ -1658,15 +1776,15 @@ draw_cell(int m, int n)
     }
   }
   // Smith greed line (1000 system ticks for all screen calls)
-  if (trace_type & (1 << TRC_SMITH))
-    cell_smith_grid(x0, y0, w, h, c);
+  if (trace_type & (1 << TRC_SMITH)) {
+    if (ADMIT_MARKER_VALUE(marker_smith_format)) // Only if select parallel R
+      cell_admit_grid(x0, y0, w, h, c);
+    else
+      cell_smith_grid(x0, y0, w, h, c);
+  }
   // Polar greed line (800 system ticks for all screen calls)
   else if (trace_type & (1 << TRC_POLAR))
     cell_polar_grid(x0, y0, w, h, c);
-#if 0
-  else if (trace_type & (1 << TRC_ADMIT))
-    cell_admit_grid(x0, y0, w, h, c);
-#endif
 #endif
 
 #ifdef __USE_GRID_VALUES__
