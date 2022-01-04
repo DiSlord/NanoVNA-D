@@ -62,7 +62,7 @@ enum {
 // Enum for keypads_list
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR,
-  KM_SCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY,
+  KM_SCALE, KM_nSCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
@@ -789,17 +789,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
-  if (current_trace == TRACE_INVALID) return;
   if (b){
-    if (trace[current_trace].type == data)
-      b->icon = BUTTON_ICON_CHECK;
     const char *name = get_trace_typename(data);
     if (data == TRC_SMITH)
       plot_printf(b->label, sizeof(b->label), "%s\n" R_LINK_COLOR " %s", name, get_smith_format_names(marker_smith_format));
     else
       b->p1.text = name;
+    if (current_trace != TRACE_INVALID && trace[current_trace].type == data)
+      b->icon = BUTTON_ICON_CHECK;
     return;
   }
+  if (current_trace == TRACE_INVALID) return;
   if (trace[current_trace].type == data && data == TRC_SMITH)
     menu_push_submenu(menu_marker_smith);
   else
@@ -976,8 +976,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
   if (data == KM_SCALE && current_trace != TRACE_INVALID) {
-    if ((1<<trace[current_trace].type) & ((1<<TRC_DELAY)|(1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
+    if ((1<<trace[current_trace].type) & (1<<TRC_DELAY))
       data = KM_SCALEDELAY;
+    else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
+      data = KM_nSCALE;
   }
   if (b){
     switch(data) {
@@ -2168,6 +2170,7 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_CW]              = {keypads_freq , "CW FREQ"       }, // cw freq
 [KM_VAR]             = {keypads_freq , "JOG STEP"      }, // VAR freq step
 [KM_SCALE]           = {keypads_scale, "SCALE"         }, // scale
+[KM_nSCALE]          = {keypads_time,  "SCALE"         }, // nano and pico value scale
 [KM_REFPOS]          = {keypads_ref,   "REFPOS"        }, // refpos
 [KM_EDELAY]          = {keypads_time , "E-DELAY"       }, // electrical delay
 [KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%"    }, // velocity factor
@@ -2200,6 +2203,7 @@ set_numeric_value(void)
     case KM_CW:       set_sweep_frequency(ST_CW,     u_val); break;
     case KM_VAR:      set_sweep_frequency(ST_VAR,    u_val); break;
     case KM_SCALE:    set_trace_scale(current_trace, f_val); break;
+    case KM_nSCALE:   set_trace_scale(current_trace, f_val * 1e-12); break;
     case KM_REFPOS:   set_trace_refpos(current_trace, f_val);break;
     case KM_EDELAY:   set_electrical_delay(f_val);           break; // pico seconds
     case KM_VELOCITY_FACTOR: velocity_factor = u_val;        break;
