@@ -717,10 +717,10 @@ trace_print_info(int xpos, int ypos, int t)
   const char *format;
   int type = trace[t].type;
   switch (type) {
-    case TRC_LOGMAG: format = "%s %.0f" S_dB "/"; break;
-    case TRC_PHASE:  format = "%s %.0f" S_DEGREE "/"; break;
+    case TRC_LOGMAG: format = "%s %0.2f" S_dB "/"; break;
+    case TRC_PHASE:  format = "%s %0.2f" S_DEGREE "/"; break;
     case TRC_SMITH:
-    case TRC_POLAR:  format = (scale != 1.0f) ? "%s %.1fFS" : "%s "; break;
+    case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
     default:         format = "%s %F/"; break;
   }
   return cell_printf(xpos, ypos, format, get_trace_typename(type), scale);
