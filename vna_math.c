@@ -513,7 +513,7 @@ float vna_logf(float x)
   // Give up to 0.006 error (2.5x faster original code)
   union {float f; int32_t i;} u = {x};
   const int      log_2 = ((u.i >> 23) & 255) - 128;
-  if (u.i <=0) return (x-x)/0.0f;             // if <=0 return NAN
+  if (u.i <=0) return -1/(x*x);                 // if <=0 return -inf
   u.i = (u.i&0x007FFFFF) + 0x3F800000;
   u.f = ((-1.0f/3) * u.f + 2) * u.f - (2.0f/3); // (1)
   return (u.f + log_2) * MULTIPLIER;
@@ -523,7 +523,7 @@ float vna_logf(float x)
   union { float f; uint32_t i; } vx = { x };
   union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
   // if <=0 return NAN
-  if (vx.i <=0) return (x-x)/0.0f;
+  if (vx.i <=0) return -1/(x*x);
   return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
 #else
   // use original code (20% faster default)
@@ -584,7 +584,7 @@ float vna_log10f_x_10(float x)
   // Give up to 0.006 error (2.5x faster original code)
   union {float f; int32_t i;} u = {x};
   const int      log_2 = ((u.i >> 23) & 255) - 128;
-  if (u.i <=0) return (x-x)/0.0f;             // if <=0 return NAN
+  if (u.i <=0) return -1/(x*x);                 // if <=0 return -inf
   u.i = (u.i&0x007FFFFF) + 0x3F800000;
   u.f = ((-1.0f/3) * u.f + 2) * u.f - (2.0f/3); // (1)
   return (u.f + log_2) * MULTIPLIER;
@@ -594,7 +594,7 @@ float vna_log10f_x_10(float x)
   union { float f; uint32_t i; } vx = { x };
   union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
   // if <=0 return NAN
-  if (vx.i <=0) return (x-x)/0.0f;
+  if (vx.i <=0) return -1/(x*x);
   return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
 #endif
 }
