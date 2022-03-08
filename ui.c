@@ -3088,7 +3088,7 @@ normal_apply_ref_scale(int touch_x, int touch_y){
 
   trace[t].scale  = scale;
   trace[t].refpos =   ref;
-  plot_into_index(measured);
+  plot_into_index();
   request_to_redraw(REDRAW_AREA);
   chThdSleepMilliseconds(100);
   return TRUE;

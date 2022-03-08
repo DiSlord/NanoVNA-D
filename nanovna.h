@@ -921,7 +921,7 @@ void request_to_redraw(uint8_t mask);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
 void redraw_marker(int8_t marker);
-void plot_into_index(float array[2][POINTS_COUNT][2]);
+void plot_into_index(void);
 void draw_all(bool flush);
 void set_area_size(uint16_t w, uint16_t h);
 void plot_set_measure_mode(uint8_t mode);
