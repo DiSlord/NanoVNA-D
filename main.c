@@ -274,7 +274,7 @@ static THD_FUNCTION(Thread1, arg)
       if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
-      plot_into_index(measured);
+      plot_into_index();
     }
     request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
@@ -1682,33 +1682,6 @@ eterm_copy(int dst, int src)
   memcpy(cal_data[dst], cal_data[src], sizeof cal_data[dst]);
 }
 
-#if 0
-const struct open_model {
-  float c0;
-  float c1;
-  float c2;
-  float c3;
-} open_model = { 50, 0, -300, 27 };
-#endif
-
-#if 0
-static void
-adjust_ed(void)
-{
-  int i;
-  for (i = 0; i < sweep_points; i++) {
-    // z=1/(jwc*z0) = 1/(2*pi*f*c*z0)  Note: normalized with Z0
-    // s11ao = (z-1)/(z+1) = (1-1/z)/(1+1/z) = (1-jwcz0)/(1+jwcz0)
-    // prepare 1/s11ao to avoid dividing complex
-    float c = 1000e-15;
-    float z0 = 50;
-    //float z = 2 * VNA_PI * frequencies[i] * c * z0;
-    float z = 0.02;
-    cal_data[ETERM_ED][i][0] += z;
-  }
-}
-#endif
-
 static void
 eterm_calc_es(void)
 {
@@ -1966,7 +1939,6 @@ cal_done(void)
   if (!(cal_status & CALSTAT_ISOLN))
     eterm_set(ETERM_EX, 0.0, 0.0);
 
-  //adjust_ed();
   // Precalculate Es and Er from Short and Open (and use Load/Ed data)
   if ((cal_status & CALSTAT_SHORT) && (cal_status & CALSTAT_OPEN)) {
     eterm_calc_es();
@@ -2164,7 +2136,7 @@ void set_trace_type(int t, int type)
     force = TRUE;
   }
   if (force)
-    plot_into_index(measured);
+    plot_into_index();
   request_to_redraw(REDRAW_AREA);
 }
 
@@ -2172,7 +2144,7 @@ void set_trace_channel(int t, int channel)
 {
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
-    plot_into_index(measured);
+    plot_into_index();
   }
 }
 
@@ -2180,7 +2152,7 @@ void set_trace_scale(int t, float scale)
 {
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
-    plot_into_index(measured);
+    plot_into_index();
   }
 }
 
@@ -2188,7 +2160,7 @@ void set_trace_refpos(int t, float refpos)
 {
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
-    plot_into_index(measured);
+    plot_into_index();
   }
 }
 

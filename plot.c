@@ -627,8 +627,9 @@ const char *get_smith_format_names(int m)
 
 // Calculate and cache point coordinates for trace
 static void
-trace_into_index(int t, float array[POINTS_COUNT][2])
+trace_into_index(int t)
 {
+  float *array = &measured[trace[t].channel][0][0];
   uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
@@ -644,7 +645,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     int32_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
     for (i = 0; i <= point_count; i++, x+=delta) {
       float v = 0;
-      if (c) v = c(i, array[i]);         // Get value
+      if (c) v = c(i, &array[2*i]);         // Get value
       if (v == INFINITY) {
         y = 0;
       } else {
@@ -663,7 +664,7 @@ trace_into_index(int t, float array[POINTS_COUNT][2])
     const float rscale = P_RADIUS / scale;
     int16_t y, x, i;
     for (i = 0; i <= point_count; i++){
-      cartesian_scale(array[i], &x, &y, rscale);
+      cartesian_scale(&array[2*i], &x, &y, rscale);
       index[i].x = x;
       index[i].y = y;
     }
@@ -717,10 +718,10 @@ trace_print_info(int xpos, int ypos, int t)
   const char *format;
   int type = trace[t].type;
   switch (type) {
-    case TRC_LOGMAG: format = "%s %.0f" S_dB "/"; break;
-    case TRC_PHASE:  format = "%s %.0f" S_DEGREE "/"; break;
+    case TRC_LOGMAG: format = "%s %0.2f" S_dB "/"; break;
+    case TRC_PHASE:  format = "%s %0.2f" S_DEGREE "/"; break;
     case TRC_SMITH:
-    case TRC_POLAR:  format = (scale != 1.0f) ? "%s %.1fFS" : "%s "; break;
+    case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
     default:         format = "%s %F/"; break;
   }
   return cell_printf(xpos, ypos, format, get_trace_typename(type), scale);
@@ -1635,14 +1636,14 @@ search_nearest_index(int x, int y, int t)
 // Build graph data and cache it for output
 //
 void
-plot_into_index(float array[2][POINTS_COUNT][2])
+plot_into_index(void)
 {
   int t;
 //  START_PROFILE;
   // Cache trace data indexes
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled)
-      trace_into_index(t, array[trace[t].channel]);
+      trace_into_index(t);
   }
 //  STOP_PROFILE;
   // Marker track on data update
