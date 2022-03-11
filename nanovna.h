@@ -719,7 +719,7 @@ enum trace_type {
   TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
   TRC_sC, TRC_sL,
   TRC_pC, TRC_pL,
-  TRC_Q, TRC_OFF
+  TRC_Q
 };
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\

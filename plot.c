@@ -1667,7 +1667,7 @@ static void cell_grid_line_info(int x0, int y0)
   if (current_trace == TRACE_INVALID) return;
   // Skip for SMITH/POLAR and off trace
   uint32_t trace_type = 1 << trace[current_trace].type;
-  if (trace_type & (ROUND_GRID_MASK | (1 << TRC_OFF))) return;
+  if (trace_type & ROUND_GRID_MASK) return;
 
   cell_set_font(FONT_SMALL);
   // Render at right
@@ -1879,7 +1879,7 @@ draw_cell(int m, int n)
 // Draw reference position (<10 system ticks for all screen calls)
   for (t = 0; t < TRACES_MAX; t++) {
     // Skip draw reference position for disabled/smith/polar traces
-    if (!trace[t].enabled || ((1 << trace[t].type) & (ROUND_GRID_MASK | (1 << TRC_OFF))))
+    if (!trace[t].enabled || ((1 << trace[t].type) & (ROUND_GRID_MASK)))
       continue;
     int x = 0 - x0 + CELLOFFSETX - REFERENCE_X_OFFSET;
     if ((uint32_t)(x + REFERENCE_WIDTH) < CELLWIDTH + REFERENCE_WIDTH) {
