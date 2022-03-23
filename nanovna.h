@@ -556,20 +556,24 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Height of numerical input field (at bottom)
 #define NUM_INPUT_HEIGHT             32
 // On screen keyboard button size
-// Use full screen keyboard
-#if 1
-#define KP_WIDTH                    ((LCD_WIDTH) / 4)                     // numeric keypad button width
-#define KP_HEIGHT                   ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4) // numeric keypad button height
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx)              ((posx) * KP_WIDTH)                   // numeric keypad left
-#define KP_GET_Y(posy)              ((posy) * KP_HEIGHT)                  // numeric keypad top
-#else
-// Use less size keyboard
-#define KP_WIDTH                     64
-#define KP_HEIGHT                    64
-// Key x, y position (0 - 15) on screen
-#define KP_GET_X(posx)              ((posx)*KP_WIDTH  + (LCD_WIDTH-128-KP_WIDTH*4))
-#define KP_GET_Y(posy)              ((posy)*KP_HEIGHT + 20 )
+#if 1 // Full screen keyboard
+#define KP_WIDTH                  (LCD_WIDTH / 4)                                  // numeric keypad button width
+#define KP_HEIGHT                 ((LCD_HEIGHT - NUM_INPUT_HEIGHT) / 4)            // numeric keypad button height
+#define KP_X_OFFSET               0                                                // numeric keypad X offset
+#define KP_Y_OFFSET               0                                                // numeric keypad Y offset
+#define KPF_WIDTH                 (LCD_WIDTH / 10)                                 // text keypad button width
+#define KPF_HEIGHT                KPF_WIDTH                                        // text keypad button height
+#define KPF_X_OFFSET              0                                                // text keypad X offset
+#define KPF_Y_OFFSET              (LCD_HEIGHT - NUM_INPUT_HEIGHT - 4 * KPF_HEIGHT) // text keypad Y offset
+#else // 64 pixel size keyboard
+#define KP_WIDTH                 64                                                // numeric keypad button width
+#define KP_HEIGHT                64                                                // numeric keypad button height
+#define KP_X_OFFSET              (LCD_WIDTH-MENU_BUTTON_WIDTH-16-KP_WIDTH*4)       // numeric keypad X offset
+#define KP_Y_OFFSET              20                                                // numeric keypad Y offset
+#define KPF_WIDTH                (LCD_WIDTH / 10)                                  // text keypad button width
+#define KPF_HEIGHT               KPF_WIDTH                                         // text keypad button height
+#define KPF_X_OFFSET              0                                                // text keypad X offset
+#define KPF_Y_OFFSET             (LCD_HEIGHT - NUM_INPUT_HEIGHT - 4 * KPF_HEIGHT)  // text keypad Y offset
 #endif
 
 /*
@@ -790,8 +794,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 //#define TD_MARKER_LOCK          (1<<9) // reserved
 
 // config._mode flags
-// Made x4 average on calibration data
-//#define VNA_AVG_CALIBRATION       0x01 // reserved
+// Auto name for files
+#define VNA_MODE_AUTO_NAME        0x01
 // Smooth function
 #define VNA_SMOOTH_FUNCTION       0x02
 // Connection flag

@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1.01"
+#define VERSION "1.1.02"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
