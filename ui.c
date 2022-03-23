@@ -758,20 +758,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     return;
   }
 
-  if (trace[data].enabled) {
-    if (data == current_trace) {
-      trace[data].enabled = FALSE;          // disable if active trace is selected
-      current_trace = TRACE_INVALID;        // invalidate current
-      for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
-        if (trace[i].enabled) {current_trace = i; break;}
-    } else {
-      // make active selected trace
-      current_trace = data;
-    }
-  } else {
-    trace[data].enabled = TRUE;
-    current_trace = data;
-  }
+  if (trace[data].enabled && data != current_trace) // for enabled trace and not current trace
+    current_trace = data;                           // make active
+  else                                              //
+    set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
   request_to_redraw(REDRAW_AREA);
 }
 
