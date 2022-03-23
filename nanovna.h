@@ -580,7 +580,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 #if _USE_FONT_ == 0
 extern const uint8_t x5x7_bits[];
-#define FONT_START_CHAR   0x17
+#define FONT_START_CHAR   0x16
 #define FONT_WIDTH           5
 #define FONT_GET_HEIGHT      7
 #define FONT_STR_HEIGHT      8
@@ -589,7 +589,7 @@ extern const uint8_t x5x7_bits[];
 
 #elif _USE_FONT_ == 1
 extern const uint8_t x6x10_bits[];
-#define FONT_START_CHAR   0x17
+#define FONT_START_CHAR   0x16
 #define FONT_WIDTH           6
 #define FONT_GET_HEIGHT     10
 #define FONT_STR_HEIGHT     11
@@ -598,7 +598,7 @@ extern const uint8_t x6x10_bits[];
 
 #elif _USE_FONT_ == 2
 extern const uint8_t x7x11b_bits[];
-#define FONT_START_CHAR   0x17
+#define FONT_START_CHAR   0x16
 #define FONT_WIDTH           7
 #define FONT_GET_HEIGHT     11
 #define FONT_STR_HEIGHT     11
@@ -607,7 +607,7 @@ extern const uint8_t x7x11b_bits[];
 
 #elif _USE_FONT_ == 3
 extern const uint8_t x10x14_bits[];
-#define FONT_START_CHAR   0x17
+#define FONT_START_CHAR   0x16
 #define FONT_WIDTH          11
 #define FONT_GET_HEIGHT     14
 #define FONT_STR_HEIGHT     16
@@ -617,7 +617,7 @@ extern const uint8_t x10x14_bits[];
 
 #if _USE_SMALL_FONT_ == 0
 extern const uint8_t x5x7_bits[];
-#define sFONT_START_CHAR   0x17
+#define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           5
 #define sFONT_GET_HEIGHT      7
 #define sFONT_STR_HEIGHT      8
@@ -626,7 +626,7 @@ extern const uint8_t x5x7_bits[];
 
 #elif _USE_SMALL_FONT_ == 1
 extern const uint8_t x6x10_bits[];
-#define sFONT_START_CHAR   0x17
+#define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           6
 #define sFONT_GET_HEIGHT     10
 #define sFONT_STR_HEIGHT     11
@@ -635,7 +635,7 @@ extern const uint8_t x6x10_bits[];
 
 #elif _USE_SMALL_FONT_ == 2
 extern const uint8_t x7x11b_bits[];
-#define sFONT_START_CHAR   0x17
+#define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           7
 #define sFONT_GET_HEIGHT     11
 #define sFONT_STR_HEIGHT     11
@@ -644,7 +644,7 @@ extern const uint8_t x7x11b_bits[];
 
 #elif _USE_SMALL_FONT_ == 3
 extern const uint8_t x10x14_bits[];
-#define sFONT_START_CHAR   0x17
+#define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH          11
 #define sFONT_GET_HEIGHT     14
 #define sFONT_STR_HEIGHT     16
@@ -689,6 +689,7 @@ extern const uint8_t numfont16x22[];
 #define R_LINK_COLOR "\002\031" // set 25 color index as foreground
 
 // Additional chars in fonts
+#define S_ENTER    "\026"  // hex 0x16
 #define S_DELTA    "\027"  // hex 0x17
 #define S_SARROW   "\030"  // hex 0x18
 #define S_INFINITY "\031"  // hex 0x19
@@ -905,6 +906,7 @@ void set_trace_type(int t, int type);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
+void set_trace_enable(int t, bool enable);
 const char *get_trace_chname(int t);
 
 //
