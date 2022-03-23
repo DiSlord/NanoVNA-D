@@ -2120,24 +2120,15 @@ const char *get_trace_chname(int t)
 
 void set_trace_type(int t, int type)
 {
-  int enabled = type != TRC_OFF;
-  int force = FALSE;
-
-  if (trace[t].enabled != enabled) {
-    trace[t].enabled = enabled;
-    force = TRUE;
-  }
-  if (trace[t].type != type && enabled) {
+  if (trace[t].type != type) {
     trace[t].type = type;
     // Set default trace refpos
     trace[t].refpos = trace_info_list[type].refpos;
     // Set default trace scale
     trace[t].scale  = trace_info_list[type].scale_unit;
-    force = TRUE;
-  }
-  if (force)
     plot_into_index();
-  request_to_redraw(REDRAW_AREA);
+    request_to_redraw(REDRAW_AREA);
+  }
 }
 
 void set_trace_channel(int t, int channel)
@@ -2191,7 +2182,8 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (get_str_index(argv[0], "all") == 0 &&
       argc > 1 && get_str_index(argv[1], "off") == 0) {
     for (t = 0; t < TRACES_MAX; t++)
-      set_trace_type(t, TRC_OFF);
+      trace[t].enabled = FALSE;
+    request_to_redraw(REDRAW_AREA);
     return;
   }
 
