@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1.01"
+#define VERSION "1.1.02"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2155,6 +2155,21 @@ void set_trace_refpos(int t, float refpos)
   }
 }
 
+void set_trace_enable(int t, bool enable)
+{
+  if (enable) {
+    trace[t].enabled = TRUE;
+    current_trace = t;
+  }
+  else {
+    trace[t].enabled = FALSE;             // disable if active trace is selected
+    current_trace = TRACE_INVALID;        // invalidate current
+    for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
+      if (trace[i].enabled) {current_trace = i; break;}
+  }
+  request_to_redraw(REDRAW_AREA);
+}
+
 void set_electrical_delay(float picoseconds)
 {
   if (electrical_delay != picoseconds) {
@@ -2165,7 +2180,7 @@ void set_electrical_delay(float picoseconds)
 
 VNA_SHELL_FUNCTION(cmd_trace)
 {
-  int t;
+  uint32_t t;
   if (argc == 0) {
     for (t = 0; t < TRACES_MAX; t++) {
       if (trace[t].enabled) {
@@ -2182,13 +2197,12 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (get_str_index(argv[0], "all") == 0 &&
       argc > 1 && get_str_index(argv[1], "off") == 0) {
     for (t = 0; t < TRACES_MAX; t++)
-      trace[t].enabled = FALSE;
-    request_to_redraw(REDRAW_AREA);
+      set_trace_enable(t, false);
     return;
   }
 
-  t = my_atoi(argv[0]);
-  if (t < 0 || t >= TRACES_MAX)
+  t = (uint32_t)my_atoi(argv[0]);
+  if (t >= TRACES_MAX)
     goto usage;
   if (argc == 1) {
     const char *type = get_trace_typename(trace[t].type);
@@ -2196,11 +2210,15 @@ VNA_SHELL_FUNCTION(cmd_trace)
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
   }
+  if (get_str_index(argv[1], "off") == 0) {
+    set_trace_enable(t, false);
+    return;
+  }
 #if MAX_TRACE_TYPE != 22
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
-  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q, TRC_OFF
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q|off";
+  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     if (argc > 2) {

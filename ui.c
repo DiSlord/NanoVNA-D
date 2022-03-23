@@ -74,13 +74,27 @@ enum {
   KM_RTC_DATE,
   KM_RTC_TIME,
 #endif
+#ifdef __USE_SD_CARD__
+  KM_S1P_NAME,
+  KM_S2P_NAME,
+  KM_BMP_NAME,
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  KM_BIN_NAME,
+#endif
+#endif
   KM_NONE
 };
 
 typedef struct {
-  uint8_t x:4;
-  uint8_t y:4;
-  uint8_t c;
+  uint16_t x_offs;
+  uint16_t y_offs;
+  uint16_t width;
+  uint16_t height;
+} keypad_pos_t;
+
+typedef struct {
+  uint8_t pos;
+  int8_t  c;
 } keypads_t;
 
 typedef struct {
@@ -758,20 +772,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     return;
   }
 
-  if (trace[data].enabled) {
-    if (data == current_trace) {
-      trace[data].enabled = FALSE;          // disable if active trace is selected
-      current_trace = TRACE_INVALID;        // invalidate current
-      for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
-        if (trace[i].enabled) {current_trace = i; break;}
-    } else {
-      // make active selected trace
-      current_trace = data;
-    }
-  } else {
-    trace[data].enabled = TRUE;
-    current_trace = data;
-  }
+  if (trace[data].enabled && data != current_trace) // for enabled trace and not current trace
+    current_trace = data;                           // make active
+  else                                              //
+    set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
   request_to_redraw(REDRAW_AREA);
 }
 
@@ -1045,21 +1049,19 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     set_sweep_frequency(data, freq);
     break;
   case ST_SPAN:
-    {
-      if (previous_marker == MARKER_INVALID || active_marker == previous_marker) {
-        // if only 1 marker is active, keep center freq and make span the marker comes to the edge
-        freq_t center = get_sweep_frequency(ST_CENTER);
-        freq_t span = center > freq ? center - freq : freq - center;
-        set_sweep_frequency(ST_SPAN, span * 2);
-      } else {
-        // if 2 or more marker active, set start and stop freq to each marker
-        freq_t freq2 = get_marker_frequency(previous_marker);
-        if (freq2 == 0)
-          return;
-        if (freq > freq2) SWAP(freq_t, freq2, freq);
-        set_sweep_frequency(ST_START, freq);
-        set_sweep_frequency(ST_STOP, freq2);
-      }
+    if (previous_marker == MARKER_INVALID || active_marker == previous_marker) {
+      // if only 1 marker is active, keep center freq and make span the marker comes to the edge
+      freq_t center = get_sweep_frequency(ST_CENTER);
+      freq_t span = center > freq ? center - freq : freq - center;
+      set_sweep_frequency(ST_SPAN, span * 2);
+    } else {
+      // if 2 or more marker active, set start and stop freq to each marker
+      freq_t freq2 = get_marker_frequency(previous_marker);
+      if (freq2 == 0)
+        return;
+      if (freq > freq2) SWAP(freq_t, freq2, freq);
+      set_sweep_frequency(ST_START, freq);
+      set_sweep_frequency(ST_STOP, freq2);
     }
     break;
   case UI_MARKER_EDELAY:
@@ -1372,46 +1374,52 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
 };
 
 // Create file name from current time
-static FRESULT vna_create_file(char *fs_filename, const char *ext)
+static FRESULT vna_create_file(char *fs_filename)
 {
 //  shell_printf("S file\r\n");
   FRESULT res = f_mount(fs_volume, "", 1);
 //  shell_printf("Mount = %d\r\n", res);
   if (res != FR_OK)
     return res;
-  // Prepare filename and open for write
-#if FF_USE_LFN >= 1
-  uint32_t tr = rtc_get_tr_bcd(); // TR read first
-  uint32_t dr = rtc_get_dr_bcd(); // DR read second
-  plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06x_%06x.%s", dr, tr, ext);
-#else
-  plot_printf(fs_filename, FF_LFN_BUF, "%08x.%s", rtc_get_FAT(), ext);
-#endif
   res = f_open(fs_file, fs_filename, FA_CREATE_ALWAYS | FA_READ | FA_WRITE);
-  //  shell_printf("Open %s, = %d\r\n", fs_filename, res);
+//  shell_printf("Open %s, = %d\r\n", fs_filename, res);
   return res;
 }
 
-static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
+static void vna_save_file(char *name, uint8_t format)
 {
   char *buf_8;
   uint16_t *buf_16;
-  char filename[32];
   int i, y;
   UINT size;
+  char fs_filename[FF_LFN_BUF];
   // For screenshot need back to normal mode and redraw screen before capture!!
   // Redraw use spi_buffer so need do it before any file ops
-  if (data == SAVE_BMP_FILE && ui_mode != UI_NORMAL){
+  if (format == SAVE_BMP_FILE && ui_mode != UI_NORMAL){
     ui_mode_normal();
     draw_all(true);
   }
+
+  // Prepare filename and open for write
+  if (name == NULL) {   // Auto name, use date / time
+#if FF_USE_LFN >= 1
+    uint32_t tr = rtc_get_tr_bcd(); // TR read first
+    uint32_t dr = rtc_get_dr_bcd(); // DR read second
+    plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06x_%06x.%s", dr, tr, file_ext[format]);
+#else
+    plot_printf(fs_filename, FF_LFN_BUF, "%08x.%s", rtc_get_FAT(), file_ext[format]);
+#endif
+  }
+  else
+    plot_printf(fs_filename, FF_LFN_BUF, "%s.%s", name, file_ext[format]);
+
 //  UINT total_size = 0;
 //  systime_t time = chVTGetSystemTimeX();
   // Prepare filename = .s1p / .s2p / .bmp and open for write
-  FRESULT res = vna_create_file(filename, file_ext[data]);
+  FRESULT res = vna_create_file(fs_filename);
   if (res == FR_OK){
     const char *s_file_format;
-    switch(data) {
+    switch(format) {
       /*
        *  Save touchstone file for VNA (use rev 1.1 format)
        *  https://en.wikipedia.org/wiki/Touchstone_file
@@ -1420,7 +1428,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
       case SAVE_S2P_FILE:
       buf_8  = (char *)spi_buffer;
       // Write SxP file
-      if (data == SAVE_S1P_FILE){
+      if (format == SAVE_S1P_FILE){
         s_file_format = s1_file_param;
         // write sxp header (not write NULL terminate at end)
         res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
@@ -1474,9 +1482,27 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
 
-  drawMessageBox("SD CARD SAVE", res == FR_OK ? filename : "  Fail write  ", 2000);
+  drawMessageBox("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
+}
+//94967
+static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
+{
+  if (VNA_mode & VNA_MODE_AUTO_NAME)
+    vna_save_file(NULL, data);
+  else
+    ui_mode_keypad(data + KM_S1P_NAME); // If no auto name, call text keyboard input
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_sdcard_auto_acb)
+{
+  (void)data;
+  if (b){
+    b->icon = (VNA_mode & VNA_MODE_AUTO_NAME) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  VNA_mode^= VNA_MODE_AUTO_NAME;
 }
 #endif
 
@@ -1530,6 +1556,7 @@ static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
   { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
   { MT_CALLBACK, SAVE_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
+  { MT_ADV_CALLBACK,         0, "AUTO NAME",  menu_sdcard_auto_acb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2085,81 +2112,93 @@ menu_invoke(int item)
 #define KP_N         21
 #define KP_P         22
 #define KP_ENTER     23
-// Stop
-#define KP_NONE      255
+#define NUM_KEYBOARD 0
+#define TXT_KEYBOARD 1
+static const keypad_pos_t key_pos[] = {
+  [NUM_KEYBOARD] =  {KP_X_OFFSET, KP_Y_OFFSET, KP_WIDTH, KP_HEIGHT},
+  [TXT_KEYBOARD] =  {KPF_X_OFFSET, KPF_Y_OFFSET, KPF_WIDTH, KPF_HEIGHT}
+};
 
 static const keypads_t keypads_freq[] = {
-  { 1, 3, KP_PERIOD },
-  { 0, 3, KP_0 },
-  { 0, 2, KP_1 },
-  { 1, 2, KP_2 },
-  { 2, 2, KP_3 },
-  { 0, 1, KP_4 },
-  { 1, 1, KP_5 },
-  { 2, 1, KP_6 },
-  { 0, 0, KP_7 },
-  { 1, 0, KP_8 },
-  { 2, 0, KP_9 },
-  { 3, 0, KP_G },
-  { 3, 1, KP_M },
-  { 3, 2, KP_K },
-  { 3, 3, KP_X1 },
-  { 2, 3, KP_BS },
-  { 0, 0, KP_NONE}
+  { 16 ,  NUM_KEYBOARD },   // size and position
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },
+  { 0x02, KP_1 },
+  { 0x12, KP_2 },
+  { 0x22, KP_3 },
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x30, KP_G },
+  { 0x31, KP_M },
+  { 0x32, KP_K },
+  { 0x33, KP_X1 },
+  { 0x23, KP_BS }
 };
 
 static const keypads_t keypads_scale[] = {
-  { 1, 3, KP_PERIOD },
-  { 0, 3, KP_0 },
-  { 0, 2, KP_1 },
-  { 1, 2, KP_2 },
-  { 2, 2, KP_3 },
-  { 0, 1, KP_4 },
-  { 1, 1, KP_5 },
-  { 2, 1, KP_6 },
-  { 0, 0, KP_7 },
-  { 1, 0, KP_8 },
-  { 2, 0, KP_9 },
-  { 3, 3, KP_ENTER },
-  { 2, 3, KP_BS },
-  { 0, 0, KP_NONE }
+  { 13, NUM_KEYBOARD },   // size and position
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },
+  { 0x02, KP_1 },
+  { 0x12, KP_2 },
+  { 0x22, KP_3 },
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x33, KP_ENTER },
+  { 0x23, KP_BS }
 };
 
 static const keypads_t keypads_ref[] = {
-  { 1, 3, KP_PERIOD },
-  { 0, 3, KP_0 },
-  { 0, 2, KP_1 },
-  { 1, 2, KP_2 },
-  { 2, 2, KP_3 },
-  { 0, 1, KP_4 },
-  { 1, 1, KP_5 },
-  { 2, 1, KP_6 },
-  { 0, 0, KP_7 },
-  { 1, 0, KP_8 },
-  { 2, 0, KP_9 },
-  { 3, 2, KP_MINUS },
-  { 3, 3, KP_ENTER },
-  { 2, 3, KP_BS },
-  { 0, 0, KP_NONE }
+  { 14, NUM_KEYBOARD },   // size and position
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },
+  { 0x02, KP_1 },
+  { 0x12, KP_2 },
+  { 0x22, KP_3 },
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x32, KP_MINUS },
+  { 0x33, KP_ENTER },
+  { 0x23, KP_BS }
 };
 
 static const keypads_t keypads_time[] = {
-  { 1, 3, KP_PERIOD },
-  { 0, 3, KP_0 },
-  { 0, 2, KP_1 },
-  { 1, 2, KP_2 },
-  { 2, 2, KP_3 },
-  { 0, 1, KP_4 },
-  { 1, 1, KP_5 },
-  { 2, 1, KP_6 },
-  { 0, 0, KP_7 },
-  { 1, 0, KP_8 },
-  { 2, 0, KP_9 },
-  { 3, 1, KP_N },
-  { 3, 2, KP_P },
-  { 3, 3, KP_MINUS },
-  { 2, 3, KP_BS },
-  { 0, 0, KP_NONE }
+  { 15, NUM_KEYBOARD },   // size and position
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },
+  { 0x02, KP_1 },
+  { 0x12, KP_2 },
+  { 0x22, KP_3 },
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x31, KP_N },
+  { 0x32, KP_P },
+  { 0x33, KP_MINUS },
+  { 0x23, KP_BS }
+};
+
+static const keypads_t keypads_text[] = {
+  {40, TXT_KEYBOARD },   // size and position
+  {0x00, '0'}, {0x10, '1'}, {0x20, '2'}, {0x30, '3'}, {0x40, '4'}, {0x50, '5'}, {0x60, '6'}, {0x70, '7'}, {0x80, '8'}, {0x90, '9'},
+  {0x01, 'A'}, {0x11, 'B'}, {0x21, 'C'}, {0x31, 'D'}, {0x41, 'E'}, {0x51, 'F'}, {0x61, 'G'}, {0x71, 'H'}, {0x81, 'I'}, {0x91, 'J'},
+  {0x02, 'K'}, {0x12, 'L'}, {0x22, 'M'}, {0x32, 'N'}, {0x42, 'O'}, {0x52, 'P'}, {0x62, 'Q'}, {0x72, 'R'}, {0x82, 'S'}, {0x92, 'T'},
+  {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, S_ENTER[0]},
 };
 
 static const keypads_list keypads_mode_tbl[KM_NONE] = {
@@ -2187,6 +2226,14 @@ static const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __USE_RTC__
 [KM_RTC_DATE]        = {keypads_scale, "SET DATE\n YYMMDD"}, // Date
 [KM_RTC_TIME]        = {keypads_scale, "SET TIME\n HHMMSS"}, // Time
+#endif
+#ifdef __USE_SD_CARD__
+[KM_S1P_NAME]       = {keypads_text , "S1P"         }, // s1p filename
+[KM_S2P_NAME]       = {keypads_text , "S2P"         }, // s2p filename
+[KM_BMP_NAME]       = {keypads_text , "BMP"         }, // bmp filename
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+[KM_BIN_NAME]       = {keypads_text , "BIN"         }, // bin filename
+#endif
 #endif
 };
 
@@ -2261,21 +2308,42 @@ set_numeric_value(void)
 }
 
 static void
+set_text_value(void)
+{
+  switch (keypad_mode) {
+#ifdef __USE_SD_CARD__
+    case KM_S1P_NAME:  // save filenames
+    case KM_S2P_NAME:
+    case KM_BMP_NAME:
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+    case KM_BIN_NAME:
+#endif
+      vna_save_file(kp_buf, keypad_mode - KM_S1P_NAME);
+    break;
+#endif
+    default:
+    break;
+  }
+}
+
+static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
   uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
+  // Draw border if width > 0
+  if (bw) {
+    uint16_t br = LCD_RISE_EDGE_COLOR;
+    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
+    uint16_t type = b->border;
+    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
+    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
+    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
+    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
+  }
+  // Set colors for button and text
   lcd_set_foreground(b->fg);
-  lcd_set_background(b->bg);lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
-  if (bw==0) return;
-  uint16_t br = LCD_RISE_EDGE_COLOR;
-  uint16_t bd = LCD_FALLEN_EDGE_COLOR;
-  uint16_t type = b->border;
-  lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
-  lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
-  lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
-  lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
-  // Set colors for button text after
   lcd_set_background(b->bg);
+  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
 }
 
 void drawMessageBox(char *header, char *text, uint32_t delay){
@@ -2299,14 +2367,15 @@ void drawMessageBox(char *header, char *text, uint32_t delay){
 }
 
 static void
-draw_keypad(uint32_t mask)
+draw_keypad(uint64_t mask)
 {
   int i;
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
-  for(i = 0; keypads[i].c != KP_NONE; i++) {
-    if ((mask&(1<<i)) == 0) continue;
-    if (i == selection){
+  const keypad_pos_t *p = &key_pos[keypads[0].c];
+  for(i = 0; i < keypads[0].pos; i++, mask>>=1) {
+    if ((mask&1) == 0) continue;
+    if (i == selection) {
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
     }
@@ -2314,12 +2383,18 @@ draw_keypad(uint32_t mask)
       button.bg = LCD_MENU_COLOR;
       button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
-    int x = KP_GET_X(keypads[i].x);
-    int y = KP_GET_Y(keypads[i].y);
-    draw_button(x, y, KP_WIDTH, KP_HEIGHT, &button);
-    lcd_drawfont(keypads[i].c,
-                     x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
-                     y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
+    int x = p->x_offs + (keypads[i+1].pos>> 4) * p->width;
+    int y = p->y_offs + (keypads[i+1].pos&0xF) * p->height;
+    draw_button(x, y, p->width, p->height, &button);
+    if (keypads[0].c == NUM_KEYBOARD) {
+      lcd_drawfont(keypads[i+1].c,
+                       x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
+                       y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
+    } else {
+      lcd_drawchar(keypads[i+1].c,
+                       x + (KPF_WIDTH - FONT_WIDTH) / 2,
+                       y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
+    }
   }
 }
 
@@ -2381,6 +2456,18 @@ draw_numeric_input(const char *buf)
   }
   lcd_set_background(LCD_INPUT_BG_COLOR);
   lcd_fill(x, y, NUM_FONT_GET_WIDTH+2+10, NUM_FONT_GET_HEIGHT);
+}
+
+static void
+draw_text_input(const char *buf)
+{
+  uint16_t x = 14 + 10 * FONT_WIDTH;
+  uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
+
+  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
+  lcd_set_background(LCD_INPUT_BG_COLOR);
+  lcd_fill(x, y, FONT_WIDTH * 20, FONT_GET_HEIGHT);
+  lcd_printf(x, y, buf);
 }
 
 static int
@@ -2783,7 +2870,7 @@ ui_mode_keypad(int _keypad_mode)
 }
 
 static int
-keypad_click(int key)
+num_keypad_click(int key)
 {
   int c = keypads[key].c;
   if (c == KP_ENTER) c = KP_X1;
@@ -2827,28 +2914,60 @@ keypad_click(int key)
   return KP_CONTINUE;
 }
 
+static int
+full_keypad_click(int key)
+{
+  int c = keypads[key].c;
+  if (c == S_ENTER[0]) { // Enter
+    if (kp_index == 0)
+      return KP_CANCEL;
+    set_text_value();
+    return KP_DONE;
+  }
+  if (c == S_LARROW[0]) { // Backspace
+    if (kp_index == 0)
+      return KP_CANCEL;
+    --kp_index;
+  }
+  else if (kp_index < NUMINPUT_LEN) { // any other text input
+    kp_buf[kp_index++] = c;
+  }
+  kp_buf[kp_index] = '\0';
+  draw_text_input(kp_buf);
+  return KP_CONTINUE;
+}
+
+static int
+keypad_click(int key) {
+  // !!! Use key + 1 (zero key index used or size define)
+  return keypads[0].c == NUM_KEYBOARD ? num_keypad_click(key+1) : full_keypad_click(key+1);
+}
+
 static void
 keypad_apply_touch(int touch_x, int touch_y)
 {
-  int i = 0;
-  do {
-    int x = KP_GET_X(keypads[i].x);
-    int y = KP_GET_Y(keypads[i].y);
-    if (x < touch_x && touch_x < x+KP_WIDTH && y < touch_y && touch_y < y+KP_HEIGHT) {
-      // draw focus
-      uint32_t mask = (1<<i)|(1<<selection);
-      selection = i;
-      draw_keypad(mask);
-      touch_wait_release();
-      // erase focus
-      selection = -1;
-      draw_keypad(1<<i);
-      // Exit loop on done or cancel
-      if (keypad_click(i) != KP_CONTINUE)
-        ui_mode_normal();
-      return;
-    }
-  }while (keypads[++i].c != KP_NONE);
+  const keypad_pos_t *p = &key_pos[keypads[0].c];
+  if (touch_x < p->x_offs || touch_y < p->y_offs) return;
+  // Calculate key position from touch x and y
+  touch_x-= p->x_offs; touch_x/= p->width;
+  touch_y-= p->y_offs; touch_y/= p->height;
+  uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
+  for (int i = 0; i < keypads[0].pos; i++) {
+    if (keypads[i+1].pos != pos) continue;
+    // draw focus
+    uint64_t old_mask = 1; old_mask<<=i;
+    uint64_t new_mask = 1; new_mask<<=(1<<selection);
+    selection = i;
+    draw_keypad(old_mask|new_mask);
+    touch_wait_release();
+    // erase focus
+    selection = -1;
+    draw_keypad(old_mask);
+    // Exit loop on done or cancel
+    if (keypad_click(i) != KP_CONTINUE)
+      ui_mode_normal();
+    return;
+  }
   return;
 }
 
@@ -2863,16 +2982,15 @@ ui_process_keypad_lever(uint16_t status)
       ui_mode_normal();
     return;
   }
-  int keypads_last_index;
-  for (keypads_last_index = 0; keypads[keypads_last_index+1].c != KP_NONE; keypads_last_index++)
-    ;
+  int keypads_last_index = keypads[0].pos - 1;
   do {
-    uint32_t mask = 1<<selection;
+    uint64_t old_mask = 1; old_mask<<= selection;
     if ((status & EVT_DOWN) && --selection < 0)
       selection = keypads_last_index;
     if ((status & EVT_UP)   && ++selection > keypads_last_index)
         selection = 0;
-    draw_keypad(mask|(1<<selection));
+    uint64_t new_mask = 1; new_mask<<= selection;
+    draw_keypad(old_mask|new_mask);
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
