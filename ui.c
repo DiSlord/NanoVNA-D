@@ -1657,15 +1657,15 @@ const menuitem_t menu_format3[] = {
 };
 
 const menuitem_t menu_format2[] = {
-  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR",    menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR",   menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_REAL,   "REAL",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_G,      "CONDUCT",  menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_B,      "SUSCEPT",  menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Y,      "|Y|",      menu_format_acb },
-  { MT_SUBMENU,         0, S_RARROW " MORE", menu_format3 },
+  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR",       menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR",      menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_REAL,   "REAL",        menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG",        menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_G,      "CONDUCTANCE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_B,      "SUSCEPTANCE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Y,      "|Y|",         menu_format_acb },
+  { MT_SUBMENU,         0, S_RARROW " MORE",    menu_format3 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2367,35 +2367,41 @@ void drawMessageBox(char *header, char *text, uint32_t delay){
 }
 
 static void
-draw_keypad(uint64_t mask)
-{
-  int i;
+draw_keypad_button(int id) {
+  if (id < 0) return;
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
-  const keypad_pos_t *p = &key_pos[keypads[0].c];
-  for(i = 0; i < keypads[0].pos; i++, mask>>=1) {
-    if ((mask&1) == 0) continue;
-    if (i == selection) {
-      button.bg = LCD_MENU_ACTIVE_COLOR;
-      button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-    }
-    else{
-      button.bg = LCD_MENU_COLOR;
-      button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
-    }
-    int x = p->x_offs + (keypads[i+1].pos>> 4) * p->width;
-    int y = p->y_offs + (keypads[i+1].pos&0xF) * p->height;
-    draw_button(x, y, p->width, p->height, &button);
-    if (keypads[0].c == NUM_KEYBOARD) {
-      lcd_drawfont(keypads[i+1].c,
-                       x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
-                       y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
-    } else {
-      lcd_drawchar(keypads[i+1].c,
-                       x + (KPF_WIDTH - FONT_WIDTH) / 2,
-                       y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
-    }
+
+  if (id == selection) {
+    button.bg = LCD_MENU_ACTIVE_COLOR;
+    button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
   }
+  else{
+    button.bg = LCD_MENU_COLOR;
+    button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
+  }
+
+  const keypad_pos_t *p = &key_pos[keypads[0].c];
+  int x = p->x_offs + (keypads[id+1].pos>> 4) * p->width;
+  int y = p->y_offs + (keypads[id+1].pos&0xF) * p->height;
+  draw_button(x, y, p->width, p->height, &button);
+  if (keypads[0].c == NUM_KEYBOARD) {
+    lcd_drawfont(keypads[id+1].c,
+                     x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
+                     y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
+  } else {
+    lcd_drawchar(keypads[id+1].c,
+                     x + (KPF_WIDTH - FONT_WIDTH) / 2,
+                     y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
+  }
+}
+
+static void
+draw_keypad(void)
+{
+  int i;
+  for(i = 0; i < keypads[0].pos; i++)
+    draw_keypad_button(i);
 }
 
 static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
@@ -2865,7 +2871,7 @@ ui_mode_keypad(int _keypad_mode)
   kp_index = 0;
   ui_mode = UI_KEYPAD;
   draw_menu(-1);
-  draw_keypad(-1);
+  draw_keypad();
   draw_numeric_area_frame();
 }
 
@@ -2954,15 +2960,12 @@ keypad_apply_touch(int touch_x, int touch_y)
   uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
   for (int i = 0; i < keypads[0].pos; i++) {
     if (keypads[i+1].pos != pos) continue;
-    // draw focus
-    uint64_t old_mask = 1; old_mask<<=i;
-    uint64_t new_mask = 1; new_mask<<=(1<<selection);
-    selection = i;
-    draw_keypad(old_mask|new_mask);
+    int old = selection;
+    draw_keypad_button(selection = i);  // draw new focus
+    draw_keypad_button(old);            // Erase old focus
     touch_wait_release();
-    // erase focus
     selection = -1;
-    draw_keypad(old_mask);
+    draw_keypad_button(i);              // erase new focus
     // Exit loop on done or cancel
     if (keypad_click(i) != KP_CONTINUE)
       ui_mode_normal();
@@ -2974,7 +2977,8 @@ keypad_apply_touch(int touch_x, int touch_y)
 static void
 ui_process_keypad_lever(uint16_t status)
 {
-  if (status == EVT_BUTTON_SINGLE_CLICK){
+  if (status == EVT_BUTTON_SINGLE_CLICK) {
+    if (selection < 0) return;
     // Process input
     int result = keypad_click(selection);
     // Exit loop on done or cancel
@@ -2984,13 +2988,13 @@ ui_process_keypad_lever(uint16_t status)
   }
   int keypads_last_index = keypads[0].pos - 1;
   do {
-    uint64_t old_mask = 1; old_mask<<= selection;
+    int old = selection;
     if ((status & EVT_DOWN) && --selection < 0)
       selection = keypads_last_index;
     if ((status & EVT_UP)   && ++selection > keypads_last_index)
         selection = 0;
-    uint64_t new_mask = 1; new_mask<<= selection;
-    draw_keypad(old_mask|new_mask);
+    draw_keypad_button(old);
+    draw_keypad_button(selection);
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
