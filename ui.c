@@ -1657,15 +1657,15 @@ const menuitem_t menu_format3[] = {
 };
 
 const menuitem_t menu_format2[] = {
-  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR",    menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR",   menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_REAL,   "REAL",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR", menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_G,      "CONDUCT",  menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_B,      "SUSCEPT",  menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Y,      "|Y|",      menu_format_acb },
-  { MT_SUBMENU,         0, S_RARROW " MORE", menu_format3 },
+  { MT_ADV_CALLBACK, TRC_POLAR,  "POLAR",       menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_LINEAR, "LINEAR",      menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_REAL,   "REAL",        menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_IMAG,   "IMAG",        menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Q,      "Q FACTOR",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_G,      "CONDUCTANCE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_B,      "SUSCEPTANCE", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Y,      "|Y|",         menu_format_acb },
+  { MT_SUBMENU,         0, S_RARROW " MORE",    menu_format3 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
