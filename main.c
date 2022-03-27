@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1.02"
+#define VERSION "1.1.03"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -918,11 +918,11 @@ config_t config = {
 properties_t current_props;
 
 // NanoVNA Default settings
-static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, reserved, scale, refpos
-  { 1, TRC_LOGMAG, 0, 0, 10.0, NGRIDY-1 },
-  { 1, TRC_LOGMAG, 1, 0, 10.0, NGRIDY-1 },
-  { 1, TRC_SMITH,  0, 0, 1.0, 0 },
-  { 1, TRC_PHASE,  1, 0, 90.0, NGRIDY/2 }
+static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
+  { 1, TRC_LOGMAG, 0, MS_REIM, 10.0, NGRIDY-1 },
+  { 1, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
+  { 1, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
+  { 1, TRC_PHASE,  1, MS_REIM, 90.0, NGRIDY/2 }
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
@@ -974,7 +974,7 @@ void load_default_properties(void)
   current_props._active_marker   = 0;
   current_props._previous_marker = MARKER_INVALID;
   current_props._mode            = 0;
-  current_props._marker_smith_format = MS_RLC;
+  current_props._reserved = 0;
   current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._measure   = MEASURE_NONE;
@@ -2184,7 +2184,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (argc == 0) {
     for (t = 0; t < TRACES_MAX; t++) {
       if (trace[t].enabled) {
-        const char *type = get_trace_typename(trace[t].type);
+        const char *type = get_trace_typename(trace[t].type, 0);
         const char *channel = get_trace_chname(t);
         float scale = get_trace_scale(t);
         float refpos = get_trace_refpos(t);
@@ -2205,7 +2205,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
   if (t >= TRACES_MAX)
     goto usage;
   if (argc == 1) {
-    const char *type = get_trace_typename(trace[t].type);
+    const char *type = get_trace_typename(trace[t].type, 0);
     const char *channel = get_trace_chname(t);
     shell_printf("%d %s %s\r\n", t, type, channel);
     return;
@@ -2214,11 +2214,11 @@ VNA_SHELL_FUNCTION(cmd_trace)
     set_trace_enable(t, false);
     return;
   }
-#if MAX_TRACE_TYPE != 22
+#if MAX_TRACE_TYPE != 27
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
-  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q";
+  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q, TRC_Rser, TRC_Xser,TRC_Rsh, TRC_Xsh, TRC_Qs21
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q|rser|xser|rsh|xsh|q21";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     if (argc > 2) {
@@ -2228,6 +2228,14 @@ VNA_SHELL_FUNCTION(cmd_trace)
       set_trace_channel(t, src);
     }
     set_trace_type(t, type);
+    return;
+  }
+
+  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc|gb|glc|rpxp|rplc|rxsh|rxser";
+  // Set marker smith format
+  int format = get_str_index(argv[1], cmd_marker_smith);
+  if (format >=0) {
+    trace[t].smith_format = format;
     return;
   }
   //                                            0      1
@@ -2243,7 +2251,8 @@ VNA_SHELL_FUNCTION(cmd_trace)
   return;
 usage:
   shell_printf("trace {0|1|2|3|all} [%s] [src]\r\n"\
-               "trace {0|1|2|3} {%s} {value}\r\n", cmd_type_list, cmd_scale_ref_list);
+               "trace {0|1|2|3|all} [%s]\r\n"\
+               "trace {0|1|2|3} {%s} {value}\r\n", cmd_type_list, cmd_marker_smith, cmd_scale_ref_list);
 }
 
 VNA_SHELL_FUNCTION(cmd_edelay)
@@ -2259,7 +2268,6 @@ VNA_SHELL_FUNCTION(cmd_edelay)
 VNA_SHELL_FUNCTION(cmd_marker)
 {
   static const char cmd_marker_list[] = "on|off";
-  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc|gb|glc|rpxp|rplc";
   int t;
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
@@ -2278,12 +2286,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
       markers[t].enabled = enable == 0;
     return;
   }
-  // Set marker smith format
-  int format = get_str_index(argv[0], cmd_marker_smith);
-  if (format >=0){
-    marker_smith_format = format;
-    return;
-  }
+
   t = my_atoi(argv[0])-1;
   if (t < 0 || t >= MARKERS_MAX)
     goto usage;
@@ -2307,8 +2310,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
       return;
   }
  usage:
-  shell_printf("marker [n] [%s|{index}]\r\n"
-               "marker [%s]\r\n", cmd_marker_list, cmd_marker_smith);
+  shell_printf("marker [n] [%s|{index}]\r\n", cmd_marker_list);
 }
 
 #if 0

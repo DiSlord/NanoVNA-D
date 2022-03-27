@@ -371,6 +371,8 @@ swr(int i, const float *v)
 
 static float get_d(float re, float im) {return (1.0f - re)*(1.0f - re) + im*im;}
 static float get_r(float re, float im) {return (1.0f - re*re - im*im);}
+static float get_l(float re, float im) {return (re*re + im*im);}
+static float get_a(float re, float im) {return (re - re*re - im*im);}
 static float get_x(float im) {return 2.0f * im;}
 static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
 
@@ -547,6 +549,46 @@ parallel_x(int i, const float *v)
 }
 
 //**************************************************************************************
+// S21 series and shunt
+// S21 shunt  Z = 0.5f * z0 * z / (1 - z)
+// S21 series Z = 2.0f * z0 * (1 - z) / z
+//**************************************************************************************
+static float s21shunt_r(int i, const float *v) {
+  (void) i;
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  const float a = get_a(v[0], v[1]);
+  return 0.5f * z0 * a / d;
+}
+
+static float s21shunt_x(int i, const float *v) {
+  (void) i;
+  const float z0 = PORT_Z;
+  const float d = get_d(v[0], v[1]);
+  return 0.5f * z0 * v[1] / d;
+}
+
+static float s21series_r(int i, const float *v) {
+  (void) i;
+  const float z0 = PORT_Z;
+  const float l = get_l(v[0], v[1]);
+  return 2.0f * z0 * (v[0] - l) / l;
+}
+
+static float s21series_x(int i, const float *v) {
+  (void) i;
+  const float z0 = PORT_Z;
+  const float l = get_l(v[0], v[1]);
+  return -2.0f * z0 * v[1] / l;
+}
+
+static float s21_qualityfactor(int i, const float *v) {
+  (void) i;
+  const float a = get_a(v[0], v[1]);
+  return vna_fabsf(v[1] / a);
+}
+
+//**************************************************************************************
 // Group delay
 //**************************************************************************************
 float
@@ -571,7 +613,7 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 22
+#if MAX_TRACE_TYPE != 27
 #error "Redefined trace_type list, need check format_list"
 #endif
 
@@ -599,22 +641,29 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 [TRC_pC]     = {"pC",     "%.4F%s", S_DELTA "%.4F%s", S_FARAD,  NGRIDY/2,  1e-8f, parallel_c           },
 [TRC_pL]     = {"pL" ,    "%.4F%s", S_DELTA "%.4F%s", S_HENRY,  NGRIDY/2,  1e-8f, parallel_l           },
 [TRC_Q]      = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, qualityfactor        },
+[TRC_Rser]   = {"Rser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_r          },
+[TRC_Xser]   = {"Xser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_x          },
+[TRC_Rsh]    = {"Rsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_r           },
+[TRC_Xsh]    = {"Xsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_x           },
+[TRC_Qs21]   = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, s21_qualityfactor    },
 };
 
 const marker_info_t marker_info_list[MS_END] = {
-// Type       name        format                        get real     get imag
-[MS_LIN]  = {"LIN",      "%.2f %+.1f" S_DEGREE,         linear,      phase      },
-[MS_LOG]  = {"LOG",      "%.1f" S_dB " %+.1f" S_DEGREE, logmag,      phase      },
-[MS_REIM] = {"Re + Im",  "%F%+jF",                      real,        imag       },
-[MS_RX]   = {"R + jX",   "%F%+jF" S_OHM,                resistance,  reactance  },
-[MS_RLC]  = {"R + L/C",  "%F" S_OHM " %F%c",            resistance,  reactance  }, // use LC calc for imag
-[MS_GB]   = {"G + jB",   "%F%+jF" S_SIEMENS,            conductance, susceptance},
-[MS_GLC]  = {"G + L/C",  "%F" S_SIEMENS " %F%c",        conductance, parallel_x }, // use LC calc for imag
-[MS_RpXp] = {"Rp + jXp", "%F%+jF" S_OHM,                parallel_r,  parallel_x },
-[MS_RpLC] = {"Rp + L/C", "%F" S_OHM " %F%c",            parallel_r,  parallel_x }, // use LC calc for imag
+// Type            name          format                        get real     get imag
+[MS_LIN]       = {"LIN",        "%.2f %+.1f" S_DEGREE,         linear,      phase       },
+[MS_LOG]       = {"LOG",        "%.1f" S_dB " %+.1f" S_DEGREE, logmag,      phase       },
+[MS_REIM]      = {"Re + Im",    "%F%+jF",                      real,        imag        },
+[MS_RX]        = {"R + jX",     "%F%+jF" S_OHM,                resistance,  reactance   },
+[MS_RLC]       = {"R + L/C",    "%F" S_OHM " %F%c",            resistance,  reactance   }, // use LC calc for imag
+[MS_GB]        = {"G + jB",     "%F%+jF" S_SIEMENS,            conductance, susceptance },
+[MS_GLC]       = {"G + L/C",    "%F" S_SIEMENS " %F%c",        conductance, parallel_x  }, // use LC calc for imag
+[MS_RpXp]      = {"Rp + jXp",   "%F%+jF" S_OHM,                parallel_r,  parallel_x  },
+[MS_RpLC]      = {"Rp + L/C",   "%F" S_OHM " %F%c",            parallel_r,  parallel_x  }, // use LC calc for imag
+[MS_SHUNT_RX]  = {"R+jX SHUNT", "%F%+jF" S_OHM,                s21shunt_r,  s21shunt_x  },
+[MS_SERIES_RX] = {"R+jX SERIES","%F%+jF" S_OHM,                s21series_r, s21series_x },
 };
 
-const char *get_trace_typename(int t)
+const char *get_trace_typename(int t, int marker_smith_format)
 {
   if (t == TRC_SMITH && ADMIT_MARKER_VALUE(marker_smith_format)) return "ADMIT";
   return trace_info_list[t].name;
@@ -707,7 +756,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
   else { // Need custom marker format for SMITH / POLAR
-    format_smith_value(xpos, ypos, coeff, index, type == TRC_SMITH ? marker_smith_format : MS_REIM);
+    format_smith_value(xpos, ypos, coeff, index, type == TRC_SMITH ? trace[t].smith_format : MS_REIM);
   }
 }
 
@@ -717,6 +766,7 @@ trace_print_info(int xpos, int ypos, int t)
   float scale = get_trace_scale(t);
   const char *format;
   int type = trace[t].type;
+  int smith = trace[t].smith_format;
   switch (type) {
     case TRC_LOGMAG: format = "%s %0.2f" S_dB "/"; break;
     case TRC_PHASE:  format = "%s %0.2f" S_DEGREE "/"; break;
@@ -724,7 +774,7 @@ trace_print_info(int xpos, int ypos, int t)
     case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
     default:         format = "%s %F/"; break;
   }
-  return cell_printf(xpos, ypos, format, get_trace_typename(type), scale);
+  return cell_printf(xpos, ypos, format, get_trace_typename(type, smith), scale);
 }
 
 static float time_of_index(int idx)
@@ -1754,10 +1804,12 @@ draw_cell(int m, int n)
   // Generate grid type list
   uint32_t trace_type = 0;
   int t_count = 0;
+  bool use_smith = false;
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
       t_count++;
+      if (!ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
     }
   }
   const int step = (VNA_mode & VNA_MODE_DOT_GRID) ? 2 : 1;
@@ -1778,10 +1830,10 @@ draw_cell(int m, int n)
   }
   // Smith greed line (1000 system ticks for all screen calls)
   if (trace_type & (1 << TRC_SMITH)) {
-    if (ADMIT_MARKER_VALUE(marker_smith_format)) // Only if select parallel R
-      cell_admit_grid(x0, y0, w, h, c);
-    else
+    if (use_smith)
       cell_smith_grid(x0, y0, w, h, c);
+    else
+      cell_admit_grid(x0, y0, w, h, c);
   }
   // Polar greed line (800 system ticks for all screen calls)
   else if (trace_type & (1 << TRC_POLAR))
