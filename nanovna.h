@@ -717,14 +717,17 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 22
+#define MAX_TRACE_TYPE 27
 enum trace_type {
   TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
   TRC_R, TRC_X, TRC_Z,
   TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
   TRC_sC, TRC_sL,
   TRC_pC, TRC_pL,
-  TRC_Q
+  TRC_Q,
+  TRC_Rser, TRC_Xser,
+  TRC_Rsh, TRC_Xsh,
+  TRC_Qs21
 };
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
@@ -732,7 +735,10 @@ enum trace_type {
                               |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
                               |(1<<TRC_sC)|(1<<TRC_sL)\
                               |(1<<TRC_pC)|(1<<TRC_pL)\
-                              |(1<<TRC_Q))
+                              |(1<<TRC_Q)\
+                              |(1<<TRC_Rser)|(1<<TRC_Xser)\
+                              |(1<<TRC_Rsh)|(1<<TRC_Xsh)\
+                              |(1<<TRC_Qs21))
 
 #define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))
 
@@ -751,9 +757,12 @@ typedef struct trace_info {
 extern const trace_info_t trace_info_list[MAX_TRACE_TYPE];
 
 // marker smith value format
-enum {MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC, MS_GB, MS_GLC, MS_RpXp, MS_RpLC, MS_END};
+enum {MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC, MS_GB, MS_GLC, MS_RpXp, MS_RpLC, MS_SHUNT_RX, MS_SERIES_RX, MS_END};
 #define ADMIT_MARKER_VALUE(v)    ((1<<(v))&((1<<MS_GB)|(1<<MS_GLC)|(1<<MS_RpXp)|(1<<MS_RpLC)))
 #define LC_MARKER_VALUE(v)       ((1<<(v))&((1<<MS_RLC)|(1<<MS_GLC)|(1<<MS_RpLC)))
+
+#define S11_SMITH_VALUE(v)       ((1<<(v))&((1<<MS_LIN)|(1<<MS_LOG)|(1<<MS_REIM)|(1<<MS_RX)|(1<<MS_RLC)|(1<<MS_GB)|(1<<MS_GLC)|(1<<MS_RpXp)|(1<<MS_RpLC)))
+#define S21_SMITH_VALUE(v)       ((1<<(v))&((1<<MS_LIN)|(1<<MS_LOG)|(1<<MS_REIM)|(1<<MS_SHUNT_RX)|(1<<MS_SERIES_RX)))
 
 typedef struct {
   const char *name;         // Trace name
@@ -842,7 +851,7 @@ typedef struct trace {
   uint8_t enabled;
   uint8_t type;
   uint8_t channel;
-  uint8_t reserved;
+  uint8_t smith_format;
   float scale;
   float refpos;
 } trace_t;
@@ -895,7 +904,7 @@ typedef struct properties {
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
-  uint8_t  _marker_smith_format;
+  uint8_t  _reserved;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
   float    _portz;
@@ -939,7 +948,7 @@ int search_nearest_index(int x, int y, int t);
 void storeCurrentTrace(int idx);
 void disableStoredTrace(int idx);
 
-const char *get_trace_typename(int t);
+const char *get_trace_typename(int t, int marker_smith_format);
 const char *get_smith_format_names(int m);
 
 // Marker search functions
@@ -1244,7 +1253,6 @@ extern uint16_t lastsaveid;
 #define cal_data            current_props._cal_data
 #define electrical_delay    current_props._electrical_delay
 #define velocity_factor     current_props._velocity_factor
-#define marker_smith_format current_props._marker_smith_format
 #define trace               current_props._trace
 #define current_trace       current_props._current_trace
 #define markers             current_props._markers
