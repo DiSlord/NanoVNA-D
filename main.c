@@ -2251,7 +2251,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
   return;
 usage:
   shell_printf("trace {0|1|2|3|all} [%s] [src]\r\n"\
-               "trace {0|1|2|3|all} [%s]\r\n"\
+               "trace {0|1|2|3} [%s]\r\n"\
                "trace {0|1|2|3} {%s} {value}\r\n", cmd_type_list, cmd_marker_smith, cmd_scale_ref_list);
 }
 

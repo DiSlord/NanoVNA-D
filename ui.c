@@ -779,29 +779,29 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   request_to_redraw(REDRAW_AREA);
 }
 
-extern const menuitem_t menu_marker_smith[];
+extern const menuitem_t menu_marker_s11smith[];
 extern const menuitem_t menu_marker_s21smith[];
 #define SMITH_S11_FORMAT  0
 #define SMITH_S21_FORMAT  1
 
+static uint8_t get_smith_format(void) {return (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 {
-  if (b){
-    int marker_smith_format = (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : -1;
-    b->icon = marker_smith_format == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+  if (b) {
+    b->icon = get_smith_format() == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.text = get_smith_format_names(data);
     return;
   }
-  if (current_trace != TRACE_INVALID) {
-    trace[current_trace].smith_format = data;
-    request_to_redraw(REDRAW_AREA | REDRAW_MARKER);
-  }
+  if (current_trace == TRACE_INVALID) return;
+  trace[current_trace].smith_format = data;
+  request_to_redraw(REDRAW_AREA | REDRAW_MARKER);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_smitch_format_acb) {
- int marker_smith_format = (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;
- if (b){
-    const char *name = get_trace_typename(TRC_SMITH, trace[current_trace].smith_format);
+ if (b) {
+    uint8_t marker_smith_format = get_smith_format();
+    const char *name = get_trace_typename(TRC_SMITH, marker_smith_format);
     const char *format;
          if (data == SMITH_S11_FORMAT && !S11_SMITH_VALUE(marker_smith_format)) format = "%s";
     else if (data == SMITH_S21_FORMAT && !S21_SMITH_VALUE(marker_smith_format)) format = "%s";
@@ -813,16 +813,15 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smitch_format_acb) {
   }
   if (current_trace == TRACE_INVALID) return;
   if (trace[current_trace].type == TRC_SMITH)
-    menu_push_submenu(data == SMITH_S11_FORMAT ? menu_marker_smith : menu_marker_s21smith);
+    menu_push_submenu(data == SMITH_S11_FORMAT ? menu_marker_s11smith : menu_marker_s21smith);
   else
     set_trace_type(current_trace, TRC_SMITH);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
-  if (b){
-    int marker_smith_format = (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;
-    b->p1.text = get_trace_typename(data, marker_smith_format);
+  if (b) {
+    b->p1.text = get_trace_typename(data, -1);
     if (current_trace != TRACE_INVALID && trace[current_trace].type == data)
       b->icon = BUTTON_ICON_CHECK;
     return;
@@ -1147,31 +1146,27 @@ active_marker_check(void)
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
 {
+  //if (data >= MARKERS_MAX) return;
+  int mk = data;
   if (b){
-    if (data < MARKERS_MAX){
-           if (data == active_marker) b->icon = BUTTON_ICON_CHECK_AUTO;
-      else if (markers[data].enabled) b->icon = BUTTON_ICON_CHECK;
-      b->p1.u = data + 1;
-    }
+         if (mk == active_marker) b->icon = BUTTON_ICON_CHECK_AUTO;
+    else if (markers[mk].enabled) b->icon = BUTTON_ICON_CHECK;
+    b->p1.u = mk + 1;
     return;
   }
   // Marker select click
-  if (data < MARKERS_MAX) {
-    int mk = data;
-    if (markers[mk].enabled) {            // Marker enabled
-      if (mk == active_marker) {          // If active marker:
-        markers[mk].enabled = FALSE;      //  disable it
-        mk = previous_marker;             //  set select from previous marker
-        active_marker = MARKER_INVALID;   //  invalidate active
-      }
-    } else {
-      markers[mk].enabled = TRUE;         // Enable marker
-
+  if (markers[mk].enabled) {            // Marker enabled
+    if (mk == active_marker) {          // If active marker:
+      markers[mk].enabled = FALSE;      //  disable it
+      mk = previous_marker;             //  set select from previous marker
+      active_marker = MARKER_INVALID;   //  invalidate active
     }
-    previous_marker = active_marker;      // set previous marker as current active
-    active_marker = mk;                   // set new active marker
-    active_marker_check();
+  } else {
+    markers[mk].enabled = TRUE;         // Enable marker
   }
+  previous_marker = active_marker;      // set previous marker as current active
+  active_marker = mk;                   // set new active marker
+  active_marker_check();
   request_to_redraw(REDRAW_MARKER);
 }
 
@@ -1282,13 +1277,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
         if (value > 100) value = 100;
         lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
         lcd_setBrightness(value);
+        chThdSleepMilliseconds(200);
       } while ((status = btn_wait_release()) != 0);
     }
     if (status == EVT_BUTTON_SINGLE_CLICK)
       break;
   }
   config._brightness = (uint8_t)value;
-  lcd_setBrightness(value);
   request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
@@ -1423,7 +1418,7 @@ static void vna_save_file(char *name, uint8_t format)
 //  systime_t time = chVTGetSystemTimeX();
   // Prepare filename = .s1p / .s2p / .bmp and open for write
   FRESULT res = vna_create_file(fs_filename);
-  if (res == FR_OK){
+  if (res == FR_OK) {
     const char *s_file_format;
     switch(format) {
       /*
@@ -1492,7 +1487,7 @@ static void vna_save_file(char *name, uint8_t format)
   request_to_redraw(REDRAW_AREA);
   ui_mode_normal();
 }
-//94967
+
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
   if (VNA_mode & VNA_MODE_AUTO_NAME)
@@ -1653,11 +1648,11 @@ const menuitem_t menu_trace[] = {
 };
 
 const menuitem_t menu_format4[] = {
-  { MT_ADV_CALLBACK, TRC_Rser,     "SERIES R",   menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Xser,     "SERIES X",   menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Rsh,      "SHUNT R",    menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Xsh,      "SHUNT X",    menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_Qs21,     "Q FACTOR",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Rser,   "SERIES R",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Xser,   "SERIES X",   menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Rsh,    "SHUNT R",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Xsh,    "SHUNT X",    menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_Qs21,   "Q FACTOR",   menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1864,7 +1859,7 @@ const menuitem_t menu_marker_s21smith[] = {
   { MT_NONE, 0, NULL, (const void *)menu_back } // next-> menu_back
 };
 
-const menuitem_t menu_marker_smith[] = {
+const menuitem_t menu_marker_s11smith[] = {
   { MT_ADV_CALLBACK, MS_LIN, "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_LOG, "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_REIM,"%s", menu_marker_smith_acb },
@@ -2141,6 +2136,7 @@ menu_invoke(int item)
 #define KP_N         21
 #define KP_P         22
 #define KP_ENTER     23
+
 #define NUM_KEYBOARD 0
 #define TXT_KEYBOARD 1
 static const keypad_pos_t key_pos[] = {
