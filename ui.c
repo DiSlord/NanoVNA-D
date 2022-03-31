@@ -202,10 +202,6 @@ static void menu_push_submenu(const menuitem_t *submenu);
 
 void drawMessageBox(char *header, char *text, uint32_t delay);
 
-#ifdef UI_USE_NUMERIC_INPUT
-static void ui_mode_numeric(int _keypad_mode);
-#endif
-
 static uint16_t btn_check(void)
 {
   systime_t ticks;
@@ -1008,12 +1004,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
     }
     return;
   }
-#ifdef UI_USE_NUMERIC_INPUT
-  if (btn_wait_release() & EVT_BUTTON_DOWN_LONG) {
-    ui_mode_numeric(data);
-    return;
-  }
-#endif
   ui_mode_keypad(data);
 }
 
@@ -2463,16 +2453,6 @@ draw_numeric_input(const char *buf)
       c = c - '0';
     uint16_t fg = LCD_INPUT_TEXT_COLOR;
     uint16_t bg = LCD_INPUT_BG_COLOR;
-#ifdef UI_USE_NUMERIC_INPUT
-    if (ui_mode == UI_NUMERIC && uistat.digit == 8-i) {
-      fg = LCD_SPEC_INPUT_COLOR;
-        focused = true;
-      if (uistat.digit_mode){
-        bg = LCD_SPEC_INPUT_COLOR;
-        fg = LCD_INPUT_TEXT_COLOR;
-      }
-    }
-#endif
     lcd_set_foreground(fg);
     lcd_set_background(bg);
     if (c < 0 && focused) c = 0;
@@ -2728,158 +2708,6 @@ menu_apply_touch(int touch_x, int touch_y)
 }
 //================== end menu processing =================================
 
-#ifdef UI_USE_NUMERIC_INPUT
-static void
-erase_numeric_input(void)
-{
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
-}
-
-static void
-fetch_numeric_target(void)
-{
-  switch (keypad_mode) {
-  case KM_START:     uistat.value = get_sweep_frequency(ST_START ); break;
-  case KM_STOP:      uistat.value = get_sweep_frequency(ST_STOP  ); break;
-  case KM_CENTER:    uistat.value = get_sweep_frequency(ST_CENTER); break;
-  case KM_SPAN:      uistat.value = get_sweep_frequency(ST_SPAN  ); break;
-  case KM_CW:        uistat.value = get_sweep_frequency(ST_CW    ); break;
-  case KM_VAR:       uistat.value = var_freq;                       break;
-  case KM_SCALE:     uistat.value = get_trace_scale(current_trace) * 1000; break;
-  case KM_REFPOS:    uistat.value = get_trace_refpos(current_trace) * 1000;break;
-  case KM_EDELAY:    uistat.value = get_electrical_delay(); break;
-  case KM_VELOCITY_FACTOR: uistat.value = velocity_factor; break;
-  case KM_SCALEDELAY: uistat.value = get_trace_scale(current_trace) * 1e12; break;
-  case KM_XTAL:      uistat.value = config._xtal_freq;              break;
-  case KM_THRESHOLD: uistat.value = config._harmonic_freq_threshold;break;
-  case KM_VBAT:      uistat.value = config._vbat_offset;            break;
-  }
-
-  uint32_t x = uistat.value;
-  for (uistat.digit = 0; x >= 10 && uistat.digit < 9; uistat.digit++)
-    x /= 10;
-}
-
-static void
-draw_numeric_area(void)
-{
-  char buf[10];
-  plot_printf(buf, sizeof buf, "%9d", uistat.value);
-  draw_numeric_input(buf);
-}
-
-static void
-ui_mode_numeric(int _keypad_mode)
-{
-  if (ui_mode == UI_NUMERIC)
-    return;
-
-  // keypads array
-  keypad_mode = _keypad_mode;
-  ui_mode = UI_NUMERIC;
-  area_width = AREA_WIDTH_NORMAL;
-  area_height = LCD_HEIGHT-NUM_INPUT_HEIGHT;//AREA_HEIGHT_NORMAL - 32;
-
-  draw_numeric_area_frame();
-  fetch_numeric_target();
-  draw_numeric_area();
-}
-
-static void
-ui_process_numeric_lever(uint16_t status)
-{
-  if (status == EVT_BUTTON_SINGLE_CLICK) {
-    status = btn_wait_release();
-    if (uistat.digit_mode) {
-      if (status & (EVT_BUTTON_SINGLE_CLICK | EVT_BUTTON_DOWN_LONG)) {
-        uistat.digit_mode = FALSE;
-        draw_numeric_area();
-      }
-    } else {
-      if (status & EVT_BUTTON_DOWN_LONG) {
-        uistat.digit_mode = TRUE;
-        draw_numeric_area();
-      } else if (status & EVT_BUTTON_SINGLE_CLICK) {
-        set_numeric_value();
-        goto exit;
-      }
-    }
-    return;
-  }
-
-  do {
-    if (uistat.digit_mode) {
-      if (status & EVT_DOWN) {
-        if (uistat.digit < 8)
-          uistat.digit++;
-        else
-          goto exit;
-      }
-      if (status & EVT_UP) {
-        if (uistat.digit > 0)
-          uistat.digit--;
-        else
-          goto exit;
-      }
-    } else {
-      int32_t step = 1;
-      int n;
-      for (n = uistat.digit; n > 0; n--)
-        step *= 10;
-      if (status & EVT_DOWN)
-        uistat.value += step;
-      if (status & EVT_UP)
-        uistat.value -= step;
-    }
-    draw_numeric_area();
-  } while ((status = btn_wait_release()) != 0);
-  return;
-
- exit:
-  // cancel operation
-  ui_mode_normal();
-}
-
-static void
-numeric_apply_touch(int touch_x, int touch_y)
-{
-  if (touch_x < 64) {
-    ui_mode_normal();
-    return;
-  }
-  if (touch_x > 64+9*20+8+8) {
-    ui_mode_keypad(keypad_mode);
-    ui_process_keypad();
-    return;
-  }
-
-  if (touch_y > LCD_HEIGHT-40) {
-    int n = 9 - (touch_x - 64) / 20;
-    uistat.digit = n;
-    uistat.digit_mode = TRUE;
-  } else {
-    int step, n;
-    if (touch_y < 100) {
-      step = 1;
-    } else {
-      step = -1;
-    }
-
-    for (n = uistat.digit; n > 0; n--)
-      step *= 10;
-    uistat.value += step;
-  }
-  draw_numeric_area();
-
-  touch_wait_release();
-  uistat.digit_mode = FALSE;
-  draw_numeric_area();
-
-  return;
-}
-#endif
-
 /*
  * Keyboard processing
  */
@@ -3034,12 +2862,6 @@ ui_mode_normal(void)
   if (ui_mode == UI_NORMAL)
     return;
   set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
-#ifdef UI_USE_NUMERIC_INPUT
-  if (ui_mode == UI_NUMERIC) {
-    request_to_draw_cells_behind_numeric_input();
-    erase_numeric_input();
-  }
-#endif
   if (ui_mode == UI_MENU)
     request_to_draw_cells_behind_menu();
   if (ui_mode == UI_KEYPAD)
@@ -3283,9 +3105,6 @@ ui_process_lever(void)
   switch (ui_mode) {
     case UI_NORMAL: ui_process_normal_lever(status);  break;
     case UI_MENU:   ui_process_menu_lever(status);    break;
-#ifdef UI_USE_NUMERIC_INPUT
-    case UI_NUMERIC:ui_process_numeric_lever(status); break;
-#endif
     case UI_KEYPAD: ui_process_keypad_lever(status);  break;
   }
 }
@@ -3300,9 +3119,6 @@ void ui_process_touch(void)
     switch (ui_mode) {
       case UI_NORMAL: normal_apply_touch(touch_x, touch_y); break;
       case UI_MENU:   menu_apply_touch(touch_x, touch_y);   break;
-#ifdef UI_USE_NUMERIC_INPUT
-      case UI_NUMERIC:numeric_apply_touch(touch_x, touch_y);break;
-#endif
       case UI_KEYPAD: keypad_apply_touch(touch_x, touch_y); break;
     }
   }
