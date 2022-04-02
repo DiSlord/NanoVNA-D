@@ -1674,10 +1674,9 @@ search_nearest_index(int x, int y, int t)
   int i;
   for (i = 0; i < sweep_points; i++) {
     int d = distance_to_index(t, i, x , y);
-    if (d < min_d) {
-      min_d = d;
-      min_i = i;
-    }
+    if (d >= min_d) continue;
+    min_d = d;
+    min_i = i;
   }
   return min_i;
 }

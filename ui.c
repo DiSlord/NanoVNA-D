@@ -55,14 +55,29 @@ uint8_t operation_requested = OP_NONE;
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
 enum {
-  UI_NORMAL, UI_MENU, UI_NUMERIC, UI_KEYPAD
+  UI_NORMAL, UI_MENU, UI_KEYPAD
 };
+
+typedef struct {
+  uint16_t bg;
+  uint16_t fg;
+  uint8_t  border;
+  int8_t   icon;
+  union {
+    int32_t  i;
+    uint32_t u;
+    float    f;
+    const char *text;
+  } p1;        // void data for label printf
+  char label[32];
+} button_t;
 
 // Keypad structures
 // Enum for keypads_list
 enum {
-  KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR,
-  KM_SCALE, KM_nSCALE, KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR, KM_SCALEDELAY,
+  KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
+  KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
+  KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
@@ -97,10 +112,18 @@ typedef struct {
   int8_t  c;
 } keypads_t;
 
+typedef void (*keyboard_cb_t)(uint16_t data, button_t *b);
+#define UI_KEYBOARD_CALLBACK(ui_kb_function_name) void ui_kb_function_name(uint16_t data, button_t *b)
+
+#pragma pack(push, 2)
 typedef struct {
-  const keypads_t *keypad_type;
+  uint8_t keypad_type;
+  uint8_t data;
   const char *name;
+  const keyboard_cb_t cb;
 } keypads_list;
+#pragma pack(pop)
+
 // Max keyboard input length
 #define NUMINPUT_LEN 12
 
@@ -144,20 +167,6 @@ static int8_t  selection = -1;
 #define BUTTON_BORDER_FLAT           0x00
 #define BUTTON_BORDER_RISE           (BUTTON_BORDER_TOP|BUTTON_BORDER_RIGHT)
 #define BUTTON_BORDER_FALLING        (BUTTON_BORDER_BOTTOM|BUTTON_BORDER_LEFT)
-
-typedef struct {
-  uint16_t bg;
-  uint16_t fg;
-  uint8_t  border;
-  int8_t   icon;
-  union {
-    int32_t  i;
-    uint32_t u;
-    float    f;
-    const char *text;
-  } p1;        // void data for label printf
-  char label[32];
-} button_t;
 
 // Call back functions for MT_CALLBACK type
 typedef void (*menuaction_cb_t)(uint16_t data);
@@ -978,30 +987,19 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
   set_power(data);
 }
 
+extern const keypads_list keypads_mode_tbl[];
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
-  if (data == KM_SCALE && current_trace != TRACE_INVALID) {
+  if ((data == KM_SCALE || data == KM_REFPOS) && current_trace == TRACE_INVALID) return;
+  if (data == KM_SCALE) {   // Scale button type auto set
     if ((1<<trace[current_trace].type) & (1<<TRC_DELAY))
       data = KM_SCALEDELAY;
     else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
       data = KM_nSCALE;
   }
   if (b){
-    switch(data) {
-//    case KM_SCALE:           b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0; break;
-      case KM_VELOCITY_FACTOR: b->p1.u = velocity_factor; break;
-      case KM_VAR:             plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq); break;
-      case KM_XTAL:            b->p1.u = config._xtal_freq; break;
-      case KM_THRESHOLD:       b->p1.u = config._harmonic_freq_threshold; break;
-      case KM_VBAT:            b->p1.u = config._vbat_offset; break;
-      case KM_EDELAY:          b->p1.f = electrical_delay * 1E-12; break;
-#ifdef __S21_MEASURE__
-      case KM_MEASURE_R:       b->p1.f = config._measure_r; break;
-#endif
-#ifdef __VNA_Z_RENORMALIZATION__
-      case KM_Z_PORT:          b->p1.f = current_props._portz; break;
-#endif
-    }
+    const keyboard_cb_t cb = keypads_mode_tbl[data].cb;
+    if (cb) cb(keypads_mode_tbl[data].data, b);
     return;
   }
   ui_mode_keypad(data);
@@ -2101,6 +2099,9 @@ menu_invoke(int item)
     draw_menu(-1);
 }
 
+//
+// KEYBOARD input functions
+//
 // Key names (use numfont16x22.c glyph)
 #define KP_0          0
 #define KP_1          1
@@ -2127,11 +2128,11 @@ menu_invoke(int item)
 #define KP_P         22
 #define KP_ENTER     23
 
-#define NUM_KEYBOARD 0
-#define TXT_KEYBOARD 1
+enum {NUM_KEYBOARD, TXT_KEYBOARD};
+// Keyboard size and position data
 static const keypad_pos_t key_pos[] = {
-  [NUM_KEYBOARD] =  {KP_X_OFFSET, KP_Y_OFFSET, KP_WIDTH, KP_HEIGHT},
-  [TXT_KEYBOARD] =  {KPF_X_OFFSET, KPF_Y_OFFSET, KPF_WIDTH, KPF_HEIGHT}
+  [NUM_KEYBOARD] = {KP_X_OFFSET, KP_Y_OFFSET, KP_WIDTH, KP_HEIGHT},
+  [TXT_KEYBOARD] = {KPF_X_OFFSET, KPF_Y_OFFSET, KPF_WIDTH, KPF_HEIGHT}
 };
 
 static const keypads_t keypads_freq[] = {
@@ -2154,7 +2155,7 @@ static const keypads_t keypads_freq[] = {
   { 0x23, KP_BS }
 };
 
-static const keypads_t keypads_scale[] = {
+static const keypads_t keypads_ufloat[] = { //
   { 13, NUM_KEYBOARD },   // size and position
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },
@@ -2171,7 +2172,7 @@ static const keypads_t keypads_scale[] = {
   { 0x23, KP_BS }
 };
 
-static const keypads_t keypads_ref[] = {
+static const keypads_t keypads_float[] = {
   { 14, NUM_KEYBOARD },   // size and position
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },
@@ -2189,7 +2190,7 @@ static const keypads_t keypads_ref[] = {
   { 0x23, KP_BS }
 };
 
-static const keypads_t keypads_time[] = {
+static const keypads_t keypads_nfloat[] = {
   { 15, NUM_KEYBOARD },   // size and position
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },
@@ -2216,129 +2217,175 @@ static const keypads_t keypads_text[] = {
   {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, S_ENTER[0]},
 };
 
-static const keypads_list keypads_mode_tbl[KM_NONE] = {
-[KM_START]           = {keypads_freq , "START"         }, // start
-[KM_STOP]            = {keypads_freq , "STOP"          }, // stop
-[KM_CENTER]          = {keypads_freq , "CENTER"        }, // center
-[KM_SPAN]            = {keypads_freq , "SPAN"          }, // span
-[KM_CW]              = {keypads_freq , "CW FREQ"       }, // cw freq
-[KM_VAR]             = {keypads_freq , "JOG STEP"      }, // VAR freq step
-[KM_SCALE]           = {keypads_scale, "SCALE"         }, // scale
-[KM_nSCALE]          = {keypads_time,  "SCALE"         }, // nano and pico value scale
-[KM_REFPOS]          = {keypads_ref,   "REFPOS"        }, // refpos
-[KM_EDELAY]          = {keypads_time , "E-DELAY"       }, // electrical delay
-[KM_VELOCITY_FACTOR] = {keypads_scale, "VELOCITY%%"    }, // velocity factor
-[KM_SCALEDELAY]      = {keypads_time , "DELAY"         }, // scale of delay
-[KM_XTAL]            = {keypads_freq , "TCXO 26M" S_Hz }, // XTAL frequency
-[KM_THRESHOLD]       = {keypads_freq , "THRESHOLD"     }, // Harmonic threshold frequency
-[KM_VBAT]            = {keypads_scale, "BAT OFFSET"    }, // Vbat offset input in mV
+enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
+static const keypads_t *keypad_type_list[] = {
+  [KEYPAD_FREQ]   = keypads_freq,   // frequency input
+  [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
+  [KEYPAD_FLOAT]  = keypads_float,  // signed float input
+  [KEYPAD_NFLOAT] = keypads_nfloat, // signed pico/nano float input
+  [KEYPAD_TEXT]   = keypads_text    // text input
+};
+
+static float keyboard_get_float(void) {return my_atof(kp_buf);}
+static freq_t keyboard_get_freq(void)  {return my_atoui(kp_buf);}
+static uint32_t keyboard_get_uint(void)  {return my_atoui(kp_buf);}
+
+// Call back functions for MT_CALLBACK type
+UI_KEYBOARD_CALLBACK(input_freq) {
+  if (b) {
+    if (data == ST_VAR)
+      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
+    return;
+  }
+  set_sweep_frequency(data, keyboard_get_freq());
+}
+
+UI_KEYBOARD_CALLBACK(input_scale) {
+  if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
+  float scale = keyboard_get_float();
+  if (data != KM_SCALE) scale*= 1e-12;
+  set_trace_scale(current_trace, scale);
+}
+
+UI_KEYBOARD_CALLBACK(input_ref) {
+  (void)data;
+  if (b) return;
+  set_trace_refpos(current_trace, keyboard_get_float());
+}
+
+UI_KEYBOARD_CALLBACK(input_edelay) {
+  (void)data;
+  if (b) {b->p1.f = electrical_delay * 1e-12; return;}
+  set_electrical_delay(keyboard_get_float());
+}
+
+UI_KEYBOARD_CALLBACK(input_velocity) {
+  (void)data;
+  if (b) {b->p1.u = velocity_factor; return;}
+  velocity_factor = keyboard_get_uint();
+}
+
+UI_KEYBOARD_CALLBACK(input_xtal) {
+  (void)data;
+  if (b) {b->p1.u = config._xtal_freq; return;}
+  si5351_set_tcxo(keyboard_get_uint());
+}
+
+UI_KEYBOARD_CALLBACK(input_harmonic) {
+  (void)data;
+  if (b) {b->p1.u = config._harmonic_freq_threshold; return;}
+  config._harmonic_freq_threshold = keyboard_get_uint();
+}
+
+UI_KEYBOARD_CALLBACK(input_vbat) {
+  (void)data;
+  if (b) {b->p1.u = config._vbat_offset; return;}
+  config._vbat_offset = keyboard_get_uint();
+}
+
 #ifdef __S21_MEASURE__
-[KM_MEASURE_R]       = {keypads_scale, "MEASURE Rl" }, // CH0 port impedance in Om
+UI_KEYBOARD_CALLBACK(input_measure_r) {
+  (void)data;
+  if (b) {b->p1.f = config._measure_r; return;}
+  config._measure_r = keyboard_get_float();
+}
+#endif
+
+#ifdef __VNA_Z_RENORMALIZATION__
+UI_KEYBOARD_CALLBACK(input_portz) {
+  (void)data;
+  if (b) {b->p1.f = current_props._portz; return;}
+  current_props._portz = keyboard_get_float();
+}
+#endif
+
+#ifdef __USE_RTC__
+UI_KEYBOARD_CALLBACK(input_date_time) {
+  if (b) return;
+  int i = 0;
+  uint32_t  dt_buf[2];
+  dt_buf[0] = rtc_get_tr_bcd(); // TR should be read first for sync
+  dt_buf[1] = rtc_get_dr_bcd(); // DR should be read second
+  //            0    1   2       4      5     6
+  // time[] ={sec, min, hr, 0, day, month, year, 0}
+  uint8_t   *time = (uint8_t*)dt_buf;
+  for (; i < 6 && kp_buf[i]!=0; i++) kp_buf[i]-= '0';
+  for (; i < 6                ; i++) kp_buf[i] =   0;
+  for (i = 0; i < 3; i++) kp_buf[i] = (kp_buf[2*i]<<4) | kp_buf[2*i+1]; // BCD format
+  if (data == KM_RTC_DATE) {
+    // Month limit 1 - 12 (in BCD)
+         if (kp_buf[1] <    1) kp_buf[1] =    1;
+    else if (kp_buf[1] > 0x12) kp_buf[1] = 0x12;
+    // Day limit (depend from month):
+    uint8_t day_max = 28 + ((0b11101100000000000010111110111011001100>>(kp_buf[1]<<1))&3);
+    day_max = ((day_max/10)<<4)|(day_max%10); // to BCD
+         if (kp_buf[2] <  1)      kp_buf[2] = 1;
+    else if (kp_buf[2] > day_max) kp_buf[2] = day_max;
+    time[6] = kp_buf[0]; // year
+    time[5] = kp_buf[1]; // month
+    time[4] = kp_buf[2]; // day
+  }
+  else {
+    // Hour limit 0 - 23, min limit 0 - 59, sec limit 0 - 59 (in BCD)
+    if (kp_buf[0] > 0x23) kp_buf[0] = 0x23;
+    if (kp_buf[1] > 0x59) kp_buf[1] = 0x59;
+    if (kp_buf[2] > 0x59) kp_buf[2] = 0x59;
+    time[2] = kp_buf[0]; // hour
+    time[1] = kp_buf[1]; // min
+    time[0] = kp_buf[2]; // sec
+  }
+  rtc_set_time(dt_buf[1], dt_buf[0]);
+}
+#endif
+
+#ifdef __USE_SD_CARD__
+UI_KEYBOARD_CALLBACK(input_filename) {
+  if (b) return;
+  vna_save_file(kp_buf, data);
+}
+#endif
+
+const keypads_list keypads_mode_tbl[KM_NONE] = {
+[KM_START]           = {KEYPAD_FREQ,   ST_START,      "START",              input_freq     }, // start
+[KM_STOP]            = {KEYPAD_FREQ,   ST_STOP,       "STOP",               input_freq     }, // stop
+[KM_CENTER]          = {KEYPAD_FREQ,   ST_CENTER,     "CENTER",             input_freq     }, // center
+[KM_SPAN]            = {KEYPAD_FREQ,   ST_SPAN,       "SPAN",               input_freq     }, // span
+[KM_CW]              = {KEYPAD_FREQ,   ST_CW,         "CW FREQ",            input_freq     }, // cw freq
+[KM_VAR]             = {KEYPAD_FREQ,   ST_VAR,        "JOG STEP",           input_freq     }, // VAR freq step
+[KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale
+[KM_nSCALE]          = {KEYPAD_NFLOAT, KM_nSCALE,     "SCALE",              input_scale    }, // nano / pico scale value
+[KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value
+[KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REFPOS",             input_ref      }, // refpos
+[KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
+[KM_VELOCITY_FACTOR] = {KEYPAD_UFLOAT, 0,             "VELOCITY%%",         input_velocity }, // velocity factor
+[KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
+[KM_THRESHOLD]       = {KEYPAD_FREQ,   0,             "THRESHOLD",          input_harmonic }, // Harmonic threshold frequency
+[KM_VBAT]            = {KEYPAD_UFLOAT, 0,             "BAT OFFSET",         input_vbat     }, // Vbat offset input in mV
+#ifdef __S21_MEASURE__
+[KM_MEASURE_R]       = {KEYPAD_UFLOAT, 0,             "MEASURE Rl",         input_measure_r}, // CH0 port impedance in Om
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
-[KM_Z_PORT]          = {keypads_scale, "PORT Z 50" S_RARROW }, // Port Z renormalization impedance
+[KM_Z_PORT]          = {KEYPAD_UFLOAT, 0,             "PORT Z 50" S_RARROW, input_portz    }, // Port Z renormalization impedance
 #endif
 #ifdef __USE_RTC__
-[KM_RTC_DATE]        = {keypads_scale, "SET DATE\n YYMMDD"}, // Date
-[KM_RTC_TIME]        = {keypads_scale, "SET TIME\n HHMMSS"}, // Time
+[KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\n YYMMDD",  input_date_time}, // Date
+[KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\n HHMMSS",  input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
-[KM_S1P_NAME]       = {keypads_text , "S1P"         }, // s1p filename
-[KM_S2P_NAME]       = {keypads_text , "S2P"         }, // s2p filename
-[KM_BMP_NAME]       = {keypads_text , "BMP"         }, // bmp filename
+[KM_S1P_NAME]       = {KEYPAD_TEXT,    SAVE_S1P_FILE, "S1P",                input_filename },  // s1p filename
+[KM_S2P_NAME]       = {KEYPAD_TEXT,    SAVE_S2P_FILE, "S2P",                input_filename },  // s2p filename
+[KM_BMP_NAME]       = {KEYPAD_TEXT,    SAVE_BMP_FILE, "BMP",                input_filename },  // bmp filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-[KM_BIN_NAME]       = {keypads_text , "BIN"         }, // bin filename
+[KM_BIN_NAME]       = {KEYPAD_TEXT,   SAVE_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
 #endif
 };
 
 static void
-set_numeric_value(void)
+keypad_set_value(void)
 {
-  float  f_val = my_atof(kp_buf);
-  freq_t u_val = my_atoui(kp_buf);
-  switch (keypad_mode) {
-    case KM_START:    set_sweep_frequency(ST_START,  u_val); break;
-    case KM_STOP:     set_sweep_frequency(ST_STOP,   u_val); break;
-    case KM_CENTER:   set_sweep_frequency(ST_CENTER, u_val); break;
-    case KM_SPAN:     set_sweep_frequency(ST_SPAN,   u_val); break;
-    case KM_CW:       set_sweep_frequency(ST_CW,     u_val); break;
-    case KM_VAR:      set_sweep_frequency(ST_VAR,    u_val); break;
-    case KM_SCALE:    set_trace_scale(current_trace, f_val); break;
-    case KM_nSCALE:   set_trace_scale(current_trace, f_val * 1e-12); break;
-    case KM_REFPOS:   set_trace_refpos(current_trace, f_val);break;
-    case KM_EDELAY:   set_electrical_delay(f_val);           break; // pico seconds
-    case KM_VELOCITY_FACTOR: velocity_factor = u_val;        break;
-    case KM_SCALEDELAY: set_trace_scale(current_trace, f_val * 1e-12); break;// pico second
-    case KM_XTAL:     si5351_set_tcxo(u_val);                break;
-    case KM_THRESHOLD:config._harmonic_freq_threshold= u_val;break;
-    case KM_VBAT:     config._vbat_offset = u_val;           break;
-#ifdef __S21_MEASURE__
-    case KM_MEASURE_R:config._measure_r = f_val;             break;
-#endif
-#ifdef __VNA_Z_RENORMALIZATION__
-    case KM_Z_PORT:   current_props._portz = f_val;          break;
-#endif
-#ifdef __USE_RTC__
-    case KM_RTC_DATE:
-    case KM_RTC_TIME:
-    {
-      int i = 0;
-      uint32_t  dt_buf[2];
-      dt_buf[0] = rtc_get_tr_bcd(); // TR should be read first for sync
-      dt_buf[1] = rtc_get_dr_bcd(); // DR should be read second
-      //            0    1   2       4      5     6
-      // time[] ={sec, min, hr, 0, day, month, year, 0}
-      uint8_t   *time = (uint8_t*)dt_buf;
-      for (; i < 6 && kp_buf[i]!=0; i++) kp_buf[i]-= '0';
-      for (; i < 6                ; i++) kp_buf[i] =   0;
-      for (i = 0; i < 3; i++) kp_buf[i] = (kp_buf[2*i]<<4) | kp_buf[2*i+1]; // BCD format
-      if (keypad_mode == KM_RTC_DATE) {
-        // Month limit 1 - 12 (in BCD)
-             if (kp_buf[1] <    1) kp_buf[1] =    1;
-        else if (kp_buf[1] > 0x12) kp_buf[1] = 0x12;
-        // Day limit (depend from month):
-        uint8_t day_max = 28 + ((0b11101100000000000010111110111011001100>>(kp_buf[1]<<1))&3);
-        day_max = ((day_max/10)<<4)|(day_max%10); // to BCD
-             if (kp_buf[2] <  1)      kp_buf[2] = 1;
-        else if (kp_buf[2] > day_max) kp_buf[2] = day_max;
-        time[6] = kp_buf[0]; // year
-        time[5] = kp_buf[1]; // month
-        time[4] = kp_buf[2]; // day
-      }
-      else {
-        // Hour limit 0 - 23, min limit 0 - 59, sec limit 0 - 59 (in BCD)
-        if (kp_buf[0] > 0x23) kp_buf[0] = 0x23;
-        if (kp_buf[1] > 0x59) kp_buf[1] = 0x59;
-        if (kp_buf[2] > 0x59) kp_buf[2] = 0x59;
-        time[2] = kp_buf[0]; // hour
-        time[1] = kp_buf[1]; // min
-        time[0] = kp_buf[2]; // sec
-      }
-      rtc_set_time(dt_buf[1], dt_buf[0]);
-    }
-    break;
-#endif
-  }
-}
-
-static void
-set_text_value(void)
-{
-  switch (keypad_mode) {
-#ifdef __USE_SD_CARD__
-    case KM_S1P_NAME:  // save filenames
-    case KM_S2P_NAME:
-    case KM_BMP_NAME:
-#ifdef __SD_CARD_DUMP_FIRMWARE__
-    case KM_BIN_NAME:
-#endif
-      vna_save_file(kp_buf, keypad_mode - KM_S1P_NAME);
-    break;
-#endif
-    default:
-    break;
-  }
+  const keyboard_cb_t cb = keypads_mode_tbl[keypad_mode].cb;
+  if (cb) cb(keypads_mode_tbl[keypad_mode].data, NULL);
 }
 
 static void
@@ -2719,7 +2766,7 @@ ui_mode_keypad(int _keypad_mode)
   set_area_size(0, 0);
   // keypads array
   keypad_mode = _keypad_mode;
-  keypads = keypads_mode_tbl[keypad_mode].keypad_type;
+  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
   selection = -1;
   kp_index = 0;
   ui_mode = UI_KEYPAD;
@@ -2749,8 +2796,6 @@ num_keypad_click(int key)
         i++;
       }
     }
-    // numeric input done
-    set_numeric_value();
     return KP_DONE;
   }
 
@@ -2778,10 +2823,7 @@ full_keypad_click(int key)
 {
   int c = keypads[key].c;
   if (c == S_ENTER[0]) { // Enter
-    if (kp_index == 0)
-      return KP_CANCEL;
-    set_text_value();
-    return KP_DONE;
+    return kp_index == 0 ? KP_CANCEL : KP_DONE;
   }
   if (c == S_LARROW[0]) { // Backspace
     if (kp_index == 0)
@@ -2796,10 +2838,14 @@ full_keypad_click(int key)
   return KP_CONTINUE;
 }
 
-static int
+static void
 keypad_click(int key) {
   // !!! Use key + 1 (zero key index used or size define)
-  return keypads[0].c == NUM_KEYBOARD ? num_keypad_click(key+1) : full_keypad_click(key+1);
+  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(key+1) : full_keypad_click(key+1);
+  if (result == KP_DONE) keypad_set_value(); // apply input done
+  // Exit loop on done or cancel
+  if (result != KP_CONTINUE)
+    ui_mode_normal();
 }
 
 static void
@@ -2819,9 +2865,7 @@ keypad_apply_touch(int touch_x, int touch_y)
     touch_wait_release();
     selection = -1;
     draw_keypad_button(i);              // erase new focus
-    // Exit loop on done or cancel
-    if (keypad_click(i) != KP_CONTINUE)
-      ui_mode_normal();
+    keypad_click(i);                    // Process input
     return;
   }
   return;
@@ -2831,12 +2875,8 @@ static void
 ui_process_keypad_lever(uint16_t status)
 {
   if (status == EVT_BUTTON_SINGLE_CLICK) {
-    if (selection < 0) return;
-    // Process input
-    int result = keypad_click(selection);
-    // Exit loop on done or cancel
-    if (result != KP_CONTINUE)
-      ui_mode_normal();
+    if (selection >= 0) // Process input
+      keypad_click(selection);
     return;
   }
   int keypads_last_index = keypads[0].pos - 1;
