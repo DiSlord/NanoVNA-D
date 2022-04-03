@@ -263,8 +263,7 @@ void   set_marker_index(int m, int idx);
 freq_t get_marker_frequency(int marker);
 
 void   reset_sweep_frequency(void);
-void   set_sweep_frequency(int type, freq_t frequency);
-freq_t get_sweep_frequency(int type);
+void   set_sweep_frequency(uint16_t type, freq_t frequency);
 
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
@@ -924,7 +923,7 @@ const char *get_trace_chname(int t);
 
 //
 // Shell config functions and macros for Serial connect, not used if Serial mode disabled
-void shell_update_speed(void);
+void shell_update_speed(uint32_t speed);
 void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
@@ -1281,6 +1280,19 @@ extern uint16_t lastsaveid;
 #define DIGIT_SEPARATOR      '.'
 #endif
 
+inline freq_t
+get_sweep_frequency(uint16_t type)
+{
+  switch (type) {
+    case ST_START:  return frequency0;
+    case ST_STOP:   return frequency1;
+    case ST_CENTER: return frequency0/2 + frequency1/2;
+    case ST_SPAN:   return frequency1 - frequency0;
+    case ST_CW:     return frequency0;
+  }
+  return 0;
+}
+
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);
 const properties_t *caldata_reference(void);
@@ -1295,8 +1307,6 @@ void clear_all_config_prop_data(void);
  * ui.c
  */
 
-// Obsolete value input variant
-//#define UI_USE_NUMERIC_INPUT
 // Enter in leveler search mode after search click
 //#define UI_USE_LEVELER_SEARCH_MODE
 
