@@ -2451,9 +2451,15 @@ draw_keypad_button(int id) {
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
   } else {
+#if 0
     lcd_drawchar(keypads[id+1].c,
                      x + (KPF_WIDTH - FONT_WIDTH) / 2,
                      y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
+#else
+    lcd_drawchar_size(keypads[id+1].c,
+                     x + KPF_WIDTH/2 - FONT_WIDTH,
+                     y + KPF_HEIGHT/2 - FONT_GET_HEIGHT, 2);
+#endif
   }
 }
 
@@ -2517,13 +2523,20 @@ draw_numeric_input(const char *buf)
 static void
 draw_text_input(const char *buf)
 {
-  uint16_t x = 14 + 10 * FONT_WIDTH;
-  uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
-
   lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
   lcd_set_background(LCD_INPUT_BG_COLOR);
+#if 0
+  uint16_t x = 14 + 5 * FONT_WIDTH;
+  uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
   lcd_fill(x, y, FONT_WIDTH * 20, FONT_GET_HEIGHT);
   lcd_printf(x, y, buf);
+#else
+  int n = 2;
+  uint16_t x = 14 + 5 * FONT_WIDTH;
+  uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT*n + NUM_INPUT_HEIGHT)/2;
+  lcd_fill(x, y, FONT_WIDTH * 20 * n, FONT_GET_HEIGHT*n);
+  lcd_drawstring_size(buf, x, y, n);
+#endif
 }
 
 static int
