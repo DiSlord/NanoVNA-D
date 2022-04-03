@@ -1549,7 +1549,7 @@ update_frequencies(void)
 }
 
 void
-set_sweep_frequency(int type, freq_t freq)
+set_sweep_frequency(uint16_t type, freq_t freq)
 {
   // Check frequency for out of bounds (minimum SPAN can be any value)
   if (type < ST_SPAN && freq < START_MIN)
@@ -1610,19 +1610,6 @@ void reset_sweep_frequency(void){
   frequency1 = cal_frequency1;
   sweep_points = cal_sweep_points;
   update_frequencies();
-}
-
-freq_t
-get_sweep_frequency(int type)
-{
-  switch (type) {
-    case ST_START:  return frequency0;
-    case ST_STOP:   return frequency1;
-    case ST_CENTER: return frequency0/2 + frequency1/2;
-    case ST_SPAN:   return frequency1 - frequency0;
-    case ST_CW:     return frequency0;
-  }
-  return 0;
 }
 
 VNA_SHELL_FUNCTION(cmd_sweep)
@@ -2753,8 +2740,7 @@ VNA_SHELL_FUNCTION(cmd_usart_cfg)
   if (argc != 1) goto result;
   uint32_t speed = my_atoui(argv[0]);
   if (speed < 300) speed = 300;
-  config._serial_speed = speed;
-  shell_update_speed();
+  shell_update_speed(speed);
 result:
   shell_printf("Serial: %u baud\r\n", config._serial_speed);
 }
@@ -2936,9 +2922,9 @@ static const VNAShellCommand commands[] =
     {"time"        , cmd_time        , CMD_RUN_IN_UI},
 #endif
 #ifdef ENABLE_SD_CARD_CMD
-    { "sd_list",   cmd_sd_list,   CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    { "sd_read",   cmd_sd_read,   CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    { "sd_delete", cmd_sd_delete, CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_list",   cmd_sd_list       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_read",   cmd_sd_read       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    { "sd_delete", cmd_sd_delete     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , CMD_RUN_IN_LOAD},
@@ -3059,7 +3045,8 @@ VNA_SHELL_FUNCTION(cmd_help)
 #define PREPARE_STREAM shell_stream = (VNA_mode & VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
 
 // Update Serial connection speed and settings
-void shell_update_speed(void){
+void shell_update_speed(uint32_t speed){
+  config._serial_speed = speed;
   // Update Serial speed settings
   SerialConfig s_config = {config._serial_speed, 0, USART_CR2_STOP1_BITS, 0 };
   sdStop(&SD1);
@@ -3104,7 +3091,7 @@ static void shell_init_connection(void){
 /*
  * Set Serial speed settings for SD1
  */
-  shell_update_speed();
+  shell_update_speed(config._serial_speed);
 
 /*
  * Activates the USB driver and then the USB bus pull-up on D+.

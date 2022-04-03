@@ -59,10 +59,10 @@ enum {
 };
 
 typedef struct {
-  uint16_t bg;
-  uint16_t fg;
-  uint8_t  border;
-  int8_t   icon;
+  uint8_t bg;
+  uint8_t fg;
+  uint8_t border;
+  int8_t  icon;
   union {
     int32_t  i;
     uint32_t u;
@@ -1190,8 +1190,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
     b->p1.u = speed;
     return;
   }
-  config._serial_speed = speed;
-  shell_update_speed();
+  shell_update_speed(speed);
 }
 
 extern const menuitem_t menu_serial_speed[];
@@ -2376,7 +2375,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_S2P_NAME]       = {KEYPAD_TEXT,    SAVE_S2P_FILE, "S2P",                input_filename },  // s2p filename
 [KM_BMP_NAME]       = {KEYPAD_TEXT,    SAVE_BMP_FILE, "BMP",                input_filename },  // bmp filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-[KM_BIN_NAME]       = {KEYPAD_TEXT,   SAVE_BIN_FILE, "BIN",                input_filename },  // bin filename
+[KM_BIN_NAME]       = {KEYPAD_TEXT,    SAVE_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
 #endif
 };
@@ -2475,7 +2474,6 @@ draw_numeric_area_frame(void)
   lcd_set_background(LCD_INPUT_BG_COLOR);
   lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
   lcd_drawstring(10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2, keypads_mode_tbl[keypad_mode].name);
-  //lcd_drawfont(KP_KEYPAD, 300, 216);
 }
 
 static void
@@ -2776,9 +2774,8 @@ ui_mode_keypad(int _keypad_mode)
 }
 
 static int
-num_keypad_click(int key)
+num_keypad_click(int c)
 {
-  int c = keypads[key].c;
   if (c == KP_ENTER) c = KP_X1;
   if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
     if (kp_index == 0)
@@ -2799,29 +2796,27 @@ num_keypad_click(int key)
     return KP_DONE;
   }
 
-  if (c <= KP_9 && kp_index < NUMINPUT_LEN) {
-    kp_buf[kp_index++] = '0' + c;
-  } else if (c == KP_PERIOD && kp_index < NUMINPUT_LEN) {
-    // append period if there are no period
-    if (kp_index == period_pos())
-      kp_buf[kp_index++] = '.';
+  if (c == KP_BS) {
+    if (kp_index == 0) return KP_CANCEL;
+      --kp_index;
   } else if (c == KP_MINUS) {
     if (kp_index == 0)
       kp_buf[kp_index++] = '-';
-  } else if (c == KP_BS) {
-    if (kp_index == 0)
-      return KP_CANCEL;
-    --kp_index;
+  } else if (kp_index < NUMINPUT_LEN) {
+    if (c <= KP_9)
+      kp_buf[kp_index++] = '0' + c;
+    else if (c == KP_PERIOD && kp_index == period_pos()) // append period if there are no period
+      kp_buf[kp_index++] = '.';
   }
+
   kp_buf[kp_index] = '\0';
   draw_numeric_input(kp_buf);
   return KP_CONTINUE;
 }
 
 static int
-full_keypad_click(int key)
+full_keypad_click(int c)
 {
-  int c = keypads[key].c;
   if (c == S_ENTER[0]) { // Enter
     return kp_index == 0 ? KP_CANCEL : KP_DONE;
   }
@@ -2840,8 +2835,8 @@ full_keypad_click(int key)
 
 static void
 keypad_click(int key) {
-  // !!! Use key + 1 (zero key index used or size define)
-  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(key+1) : full_keypad_click(key+1);
+  int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
+  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c) : full_keypad_click(c);
   if (result == KP_DONE) keypad_set_value(); // apply input done
   // Exit loop on done or cancel
   if (result != KP_CONTINUE)
