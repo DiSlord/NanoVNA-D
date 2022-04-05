@@ -810,8 +810,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     if (format == TRC_SMITH) {
       const char *txt;
       uint8_t marker_smith_format = get_smith_format();
-           if (channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) {txt = "%s"; marker_smith_format = 0;}
-      else if (channel == 1 && !S21_SMITH_VALUE(marker_smith_format)) {txt = "%s"; marker_smith_format = 0;}
+      if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
+          (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) {txt = "%s"; marker_smith_format = 0;}
       else txt = "%s\n" R_LINK_COLOR "%s";
       plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
@@ -823,12 +823,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     return;
   }
   if (current_trace == TRACE_INVALID) return;
-  set_trace_channel(current_trace, channel);
 
-  if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH/* && trace[current_trace].channel == channel*/)
+  if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
   else
     set_trace_type(current_trace, format);
+  set_trace_channel(current_trace, channel);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)

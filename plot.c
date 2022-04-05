@@ -1807,8 +1807,8 @@ draw_cell(int m, int n)
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
+      if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
       t_count++;
-      if (!ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
     }
   }
   const int step = (VNA_mode & VNA_MODE_DOT_GRID) ? 2 : 1;
