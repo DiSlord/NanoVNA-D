@@ -810,8 +810,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     if (format == TRC_SMITH) {
       const char *txt;
       uint8_t marker_smith_format = get_smith_format();
-           if (channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) {txt = "%s"; marker_smith_format = 0;}
-      else if (channel == 1 && !S21_SMITH_VALUE(marker_smith_format)) {txt = "%s"; marker_smith_format = 0;}
+      if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
+          (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) {txt = "%s"; marker_smith_format = 0;}
       else txt = "%s\n" R_LINK_COLOR "%s";
       plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
@@ -823,12 +823,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     return;
   }
   if (current_trace == TRACE_INVALID) return;
-  set_trace_channel(current_trace, channel);
 
-  if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH/* && trace[current_trace].channel == channel*/)
+  if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
   else
     set_trace_type(current_trace, format);
+  set_trace_channel(current_trace, channel);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
@@ -1438,12 +1438,14 @@ static void vna_save_file(char *name, uint8_t format)
       buf_16 = spi_buffer;
       res = f_write(fs_file, bmp_header_v4, BMP_HEAD_SIZE, &size); // Write header struct
 //      total_size+=size;
+      lcd_set_background(LCD_SWEEP_LINE_COLOR);
       for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
         lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
         for (i = 0; i < LCD_WIDTH; i++)
           buf_16[i] = __REVSH(buf_16[i]); // swap byte order (example 0x10FF to 0xFF10)
         res = f_write(fs_file, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
 //        total_size+=size;
+        lcd_fill(LCD_WIDTH-1, y-1, 1, 1);
       }
       break;
 #ifdef __SD_CARD_DUMP_FIRMWARE__
@@ -1467,7 +1469,7 @@ static void vna_save_file(char *name, uint8_t format)
   }
 
   drawMessageBox("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
-  request_to_redraw(REDRAW_AREA);
+  request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
   ui_mode_normal();
 }
 
@@ -2481,7 +2483,6 @@ draw_numeric_area_frame(void)
 static void
 draw_numeric_input(const char *buf)
 {
-  bool focused = FALSE;
   uint16_t x = 14 + 10 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
   uint16_t xsim;
@@ -2498,11 +2499,10 @@ draw_numeric_input(const char *buf)
     else if (c == '-'){c = KP_MINUS; xsim&=~3;}
     else// if (c >= '0' && c <= '9')
       c = c - '0';
-    uint16_t fg = LCD_INPUT_TEXT_COLOR;
-    uint16_t bg = LCD_INPUT_BG_COLOR;
-    lcd_set_foreground(fg);
-    lcd_set_background(bg);
-    if (c < 0 && focused) c = 0;
+    if (c < 0) c = 0;
+    lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
+    lcd_set_background(LCD_INPUT_BG_COLOR);
+
     // Add space before char
     uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
