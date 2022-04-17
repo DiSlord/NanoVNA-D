@@ -1104,6 +1104,12 @@ extern pixel_t background_color;
 
 extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 
+typedef struct {
+  uint8_t transparent : 1;
+  int8_t shift_x : 7;
+  int8_t shift_y : 8;
+} vector_data;
+
 // Used for easy define big Bitmap as 0bXXXXXXXXX image
 #define _BMP8(d)                                                        ((d)&0xFF)
 #define _BMP16(d)                                      (((d)>>8)&0xFF), ((d)&0xFF)
@@ -1142,6 +1148,7 @@ void lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
 void lcd_drawfont(uint8_t ch, int x, int y);
 void lcd_read_memory(int x, int y, int w, int h, uint16_t* out);
 void lcd_line(int x0, int y0, int x1, int y1);
+void lcd_vector_draw(int x, int y, const vector_data *v);
 
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
 void     lcd_setBrightness(uint16_t b);
