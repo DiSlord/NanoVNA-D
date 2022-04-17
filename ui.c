@@ -868,6 +868,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   }
   props_mode ^= DOMAIN_TIME;
   select_lever_mode(LM_MARKER);
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
@@ -1754,8 +1755,8 @@ const menuitem_t menu_smooth_count[] = {
 
 const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "TRACE",                               menu_trace },
-  { MT_SUBMENU,      0, "FORMAT S11",                          menu_formatS11 },
-  { MT_SUBMENU,      0, "FORMAT S21",                          menu_formatS21 },
+  { MT_SUBMENU,      0, "FORMAT REFL",                         menu_formatS11 },
+  { MT_SUBMENU,      0, "FORMAT THRU",                         menu_formatS21 },
   { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
   { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
