@@ -2215,6 +2215,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
       set_trace_channel(t, src);
     }
     set_trace_type(t, type);
+    set_trace_enable(t, true);
     return;
   }
 
