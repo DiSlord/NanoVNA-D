@@ -903,14 +903,14 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
   if (x0 >= CELLWIDTH && x1 >= CELLWIDTH) return;
   if (y0 >= CELLHEIGHT && y1 >= CELLHEIGHT) return;
 
-  // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
+  // Modified Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
   // Draw from top to bottom (most graph contain vertical lines)
   if (y1 < y0) { SWAP(int, x0, x1); SWAP(int, y0, y1); }
-  int dx =-(x1 - x0), sx = 1; if (dx > 0) { dx = -dx; sx = -sx; }
+  int dx = (x0 - x1), sx = 1; if (dx > 0) { dx = -dx; sx = -sx; }
   int dy = (y1 - y0);
   int err = ((dy + dx) < 0 ? -dx : -dy) / 2;
   // Fast skip points while y0 < 0
-  if (y0 < 0){
+  if (y0 < 0) {
     while(1){
       int e2 = err;
       if (e2 > dx) { err-= dy; x0+=sx;}
@@ -923,7 +923,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
   while (1) {
     if ((uint32_t)x0 < CELLWIDTH)
       cell_buffer[y0 + x0]|= c;
-    if (x0 == x1 && y0 == y1)
+    if (x0 + y0 == y1 + x1)
       return;
     int e2 = err;
     if (e2 > dx) { err-= dy; x0+=sx;}
