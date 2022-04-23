@@ -523,7 +523,7 @@ void lcd_init(void)
   lcd_clear_screen();
 }
 
-static void ili9341_setWindow(int x, int y, int w, int h){
+static void ili9341_setWindow(uint8_t cmd, int x, int y, int w, int h){
 // Any LCD exchange start from this
   dmaWaitCompletionRxTx();
 //uint8_t xx[4] = { x >> 8, x, (x+w-1) >> 8, (x+w-1) };
@@ -532,13 +532,13 @@ static void ili9341_setWindow(int x, int y, int w, int h){
   uint32_t yy = __REV16(y | ((y + h - 1) << 16));
   ili9341_send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t *)&xx);
   ili9341_send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t *)&yy);
+  ili9341_send_command(cmd, 0, NULL);
 }
 
 #ifndef __USE_DISPLAY_DMA__
 void lcd_fill(int x, int y, int w, int h)
 {
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   uint32_t len = w * h;
   do {
     while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
@@ -559,8 +559,7 @@ void lcd_fill(int x, int y, int w, int h)
 
 void lcd_bulk(int x, int y, int w, int h)
 {
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   spi_TxBuffer((uint8_t *)spi_buffer, w * h * sizeof(pixel_t));
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
@@ -579,8 +578,7 @@ void lcd_bulk(int x, int y, int w, int h)
 // Fill region by some color
 void lcd_fill(int x, int y, int w, int h)
 {
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
+  ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   dmaStreamSetMemory0(dmatx, &background_color);
   dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE);
   dmaStreamFlush(w * h);
@@ -593,9 +591,7 @@ void lcd_fill(int x, int y, int w, int h)
 }
 
 static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_WRITE, 0, NULL);
-
+  ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   dmaStreamSetMemory0(dmatx, buffer);
   dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC);
   dmaStreamSetTransactionSize(dmatx, w * h);
@@ -651,8 +647,7 @@ void lcd_bulk_continue(int x, int y, int w, int h)
 void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_READ, 0, NULL);
+  ili9341_setWindow(ILI9341_MEMORY_READ, x, y, w, h);
   // Skip data from rx buffer
   spi_DropRx();
   // Set read speed (if need different)
@@ -710,8 +705,7 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
 void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
 {
   uint16_t len = w * h;
-  ili9341_setWindow(x, y, w, h);
-  ili9341_send_command(ILI9341_MEMORY_READ, 0, NULL);
+  ili9341_setWindow(ILI9341_MEMORY_READ, x, y, w, h);
   // Skip data from rx buffer
   spi_DropRx();
   // Set read speed (if need different)
@@ -733,6 +727,36 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t *out)
   LCD_CS_HIGH;
 }
 #endif
+
+#if 0
+static void lcd_pixel(int x, int y, uint16_t color)
+{
+  ili9341_setWindow(ILI9341_MEMORY_WRITE, x0, y0, 1, 1);
+  while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
+  SPI_WRITE_16BIT(LCD_SPI, color);
+}
+#endif
+
+void lcd_line(int x0, int y0, int x1, int y1)
+{
+  // Modified Bresenham's line algorithm
+  if (x1 < x0) { SWAP(int, x0, x1); SWAP(int, y0, y1); }      // Need draw from left to right
+  int dx =-(x1 - x0), sx = 1;
+  int dy = (y1 - y0), sy = 1; if (dy < 0) {dy = -dy; sy = -1;}
+  int err = -((dx + dy) < 0 ? dx : dy) / 2;
+  while (1) {
+    ili9341_setWindow(ILI9341_MEMORY_WRITE, x0, y0, LCD_WIDTH-x0, 1); // prepare send Horizontal line
+    while (1) {
+      while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
+      SPI_WRITE_16BIT(LCD_SPI, foreground_color);             // Send color
+      if (x0 == x1 && y0 == y1)
+        return;
+      int e2 = err;
+      if (e2 > dx) { err-= dy; x0+= sx; }
+      if (e2 < dy) { err-= dx; y0+= sy; break;}               // Y coordinate change, next horizontal line
+    }
+  }
+}
 
 void lcd_clear_screen(void)
 {
@@ -894,65 +918,16 @@ void lcd_drawstring_size(const char *str, int x, int y, uint8_t size)
   while (*str)
     x += lcd_drawchar_size(*str++, x, y, size);
 }
-#if 0
-static void lcd_pixel(int x, int y, uint16_t color)
-{
-  uint32_t xx = __REV16(x|((x)<<16));
-  uint32_t yy = __REV16(y|((y)<<16));
-  ili9341_send_command(ILI9341_COLUMN_ADDRESS_SET, 4, (uint8_t*)&xx);
-  ili9341_send_command(ILI9341_PAGE_ADDRESS_SET, 4, (uint8_t*)&yy);
-  ili9341_send_command(ILI9341_MEMORY_WRITE, 2, &color);
-}
-#endif
 
-void lcd_line(int x0, int y0, int x1, int y1)
-{
-#if 0
-  // modifed Bresenham's line algorithm, see https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-  int dx = x1 - x0, sx = 1; if (dx < 0) {dx = -dx; sx = -1;}
-  int dy = y1 - y0, sy = 1; if (dy < 0) {dy = -dy; sy = -1;}
-  int err = (dx > dy ? dx : -dy) / 2;
-  while (1) {
-    ili9341_pixel(x0, y0, RGB565(255,255,255));
-    if (x0 == x1 && y0 == y1)
-      break;
-    int e2 = err;
-    if (e2 > -dx) { err -= dy; x0 += sx; }
-    if (e2 <  dy) { err += dx; y0 += sy; }
+void lcd_vector_draw(int x, int y, const vector_data *v) {
+  while (v->shift_x || v->shift_y) {
+    int x1 = x + (int)v->shift_x;
+    int y1 = y + (int)v->shift_y;
+    if (!v->transparent)
+      lcd_line(x, y, x1, y1);
+    x = x1; y = y1;
+    v++;
   }
-#endif
-  SWAP(uint16_t, foreground_color, background_color);
-  if (x0 > x1) {
-    SWAP(int, x0, x1);
-    SWAP(int, y0, y1);
-  }
-
-  while (x0 <= x1) {
-    int dx = x1 - x0 + 1;
-    int dy = y1 - y0;
-    if (dy >= 0) {
-      dy++;
-      if (dy > dx) {
-        dy /= dx; dx = 1;
-      } else {
-        dx /= dy; dy = 1;
-      }
-    } else {
-      dy--;
-      if (-dy > dx) {
-        dy /= dx; dx = 1;
-      } else {
-        dx /= -dy;dy = -1;
-      }
-    }
-    if (dy > 0)
-      lcd_fill(x0, y0, dx, dy);
-    else
-      lcd_fill(x0, y0+dy, dx, -dy);
-    x0 += dx;
-    y0 += dy;
-  }
-  SWAP(uint16_t, foreground_color, background_color);
 }
 
 #if 0

@@ -2039,7 +2039,7 @@ redraw_marker(int8_t marker)
   // mark cells on marker info
   markmap_upperarea();
 
-  draw_all_cells(TRUE);
+  draw_all_cells(true);
   // Force redraw all area after (disable artifacts after fast marker update area)
   request_to_redraw(REDRAW_AREA);
 }
