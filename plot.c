@@ -980,13 +980,14 @@ cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bm
 {
   if (x <= -w)
     return;
-  uint8_t bits = 0;
-  int c = h+y, r;
-  for (; y < c; y++) {
-    for (r = 0; r < w; r++, bits<<=1) {
+  int c = h + y;
+  if (c < 0 || y >= CELLHEIGHT) return;
+  if (c >= CELLHEIGHT) c = CELLHEIGHT;    // clip bottom if need
+  if (y < 0) {bmp-= y*((w+7)>>3); y = 0;} // Clip top if need
+  for (uint8_t bits = 0; y < c; y++) {
+    for (int r = 0; r < w; r++, bits<<=1) {
       if ((r&7)==0) bits = *bmp++;
-      if ((0x80 & bits) == 0) continue;    // no pixel
-      if ((uint32_t)(y+0) >= CELLHEIGHT) continue; // y   < 0 || y   >= CELLHEIGHT
+      if ((0x80 & bits) == 0) continue;            // no pixel
       if ((uint32_t)(x+r) >= CELLWIDTH ) continue; // x+r < 0 || x+r >= CELLWIDTH
       cell_buffer[y*CELLWIDTH + x + r] = foreground_color;
     }
