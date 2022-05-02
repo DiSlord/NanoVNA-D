@@ -316,14 +316,14 @@ void vna_sincosf(float angle, float * pSinVal, float * pCosVal)
   *pSinVal = sinf(angle);
   *pCosVal = cosf(angle);
 #else
-  const float Dn = 2 * VNA_PI / FAST_MATH_TABLE_SIZE; // delta between the two points in table (fixed);
   uint16_t indexS, indexC;  // Index variable
   float f1, f2, d1, d2;     // Two nearest output values
-  float Df, fract, temp;
+  float fract, temp;
 
   // Round angle to range 0.0 to 1.0
   temp = vna_fabsf(angle);
-  temp-= (uint32_t)temp;//floorf(temp);
+  temp-= (uint32_t)temp;
+
   // Scale input from range 0.0 to 1.0 to table size
   temp*= FAST_MATH_TABLE_SIZE;
 
@@ -348,19 +348,28 @@ void vna_sincosf(float angle, float * pSinVal, float * pCosVal)
   else             {d1 =-sin_table_512[indexS-256+0];d2 =-sin_table_512[indexS-256+1];}
 #endif
 
-  // Calculation of cosine value
-  Df = f2 - f1;          // delta between the values of the functions
+#if 1
+  // 1e-7 error on 512 size table
+  const float Dn = 2 * VNA_PI / FAST_MATH_TABLE_SIZE; // delta between the two points in table (fixed);
+  float Df;
+  // Calculation of cos value
+  Df = f2 - f1; // delta between the values of the functions
   temp = Dn * (d1 + d2) + 2 * Df;
-  temp = (3 * Df + (d2 + 2 * d1) * Dn) - fract * temp;
+  temp = Df + (d1 * Dn + temp - fract * temp);
   temp = fract * temp - d1 * Dn;
-  *pCosVal = fract * temp + f1;
-
-  // Calculation of sine value
-  Df = d2 - d1; // delta between the values of the functions
-  temp = Dn * (f1 + f2) - 2 * Df;
-  temp = fract * temp + (3 * Df - (f2 + 2 * f1) * Dn);
-  temp = fract * temp + f1 * Dn;
-  *pSinVal = fract * temp + d1;
+  *pCosVal = f1 + fract * temp;
+  // Calculation of sin value
+  Df = d1 - d2; // delta between the values of the functions
+  temp = Dn * (f1 + f2) + 2 * Df;
+  temp = Df + (f1 * Dn + temp - fract * temp);
+  temp = fract * temp - f1 * Dn;
+  *pSinVal = d1 - fract * temp;
+#else
+  // 1e-5 error  on 512 size table
+  // Calculation of sin and cos value, use simple linear interpolation
+  *pCosVal = fract * (f2 - f1) + f1;
+  *pSinVal = fract * (d2 - d1) + d1;
+#endif
   if (angle < 0)
     *pSinVal = -*pSinVal;
 #endif
@@ -375,6 +384,28 @@ void vna_sincosf(float angle, float * pSinVal, float * pCosVal)
 #undef vna_logf
 #undef vna_atanf
 #undef vna_atan2f
+#undef vna_modff
+
+//**********************************************************************************
+// modff function - return fractional part and integer from float value x
+//**********************************************************************************
+float vna_modff(float x, float *iptr)
+{
+  union {float f; uint32_t i;} u = {x};
+  int e = (int)((u.i>>23)&0xff) - 0x7f; // get exponent
+  if (e <   0) {                        // no integral part
+    if (iptr) *iptr = 0;
+    return u.f;
+  }
+  if (e >= 23) x = 0;                   // no fractional part
+  else {
+    x = u.f; u.i&= ~(0x007fffff>>e);    // remove fractional part from u
+    x-= u.f;                            // calc fractional part
+  }
+//if (iptr) *iptr = ((u.i&0x007fffff)|0x00800000)>>(23-e); // cut integer part from float as integer
+  if (iptr) *iptr = u.f;                // cut integer part from float as float
+  return x;
+}
 
 //**********************************************************************************
 // square root
@@ -759,13 +790,16 @@ float vna_atan2f (float y, float x)
   // Polynomial approximation to atan(a) on [0,1]
 #if 0
   // give 0.31 degree error
-  r = 0.970562748477141f - 0.189514164974601f * s;
+  //r = 0.970562748477141f - 0.189514164974601f * s;
+  r = vna_fmaf(-s, 0.189514164974601f, 0.970562748477141f);
 #elif 1
   // give 0.04 degree error
-  r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
+  //r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
+  r = vna_fmaf(-s, vna_fmaf(-s, 0.078037176446441f, 0.287060635532652f), 0.994949366116654f);
 #else
   // give 0.005 degree error
-  r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
+  //r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
+  r = vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
 #endif
   // Map to full circle
   r*=a;

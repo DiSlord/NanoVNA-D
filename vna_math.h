@@ -51,6 +51,8 @@ float vna_log10f_x_10(float x);
 // atan
 float vna_atanf(float x);
 float vna_atan2f(float x, float y);
+// modff
+float vna_modff(float x, float *iptr);
 #else
 // Use defaults math functions
 #define vna_fabsf        fabsf
@@ -59,6 +61,7 @@ float vna_atan2f(float x, float y);
 #define vna_log10f_x_10 (logf(x) * (10.0f / logf(10.0f)))
 #define vna_atanf        atanf
 #define vna_atan2f       atan2f
+#define vna_modff        modff
 #endif
 
 // fft
