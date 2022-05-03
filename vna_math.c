@@ -250,6 +250,7 @@ static const float sin_table_512[] = {
 
 #endif // __VNA_USE_MATH_TABLES__
 
+#if 1
 static uint16_t reverse_bits(uint16_t x, int n) {
 	uint16_t result = 0;
 	int i;
@@ -257,6 +258,13 @@ static uint16_t reverse_bits(uint16_t x, int n) {
 		result = (result << 1) | (x & 1U);
 	return result;
 }
+#else
+static uint32_t reverse_bits(uint32_t x, int n) {
+	uint32_t result;
+	 __asm volatile ("rbit %0, %1" : "=r" (result) : "r" (x) );
+	return result>>(32-n);
+}
+#endif
 
 /***
  * dir = forward: 0, inverse: 1
@@ -273,35 +281,28 @@ void fft(float array[][2], const uint8_t dir) {
 #endif
 	const uint16_t n = FFT_SIZE;
 	const uint8_t levels = FFT_N; // log2(n)
-
-	const uint8_t real =   dir & 1;
-	const uint8_t imag = ~real & 1;
-	uint16_t i;
-
+	uint16_t i, j, k;
 	for (i = 0; i < n; i++) {
-		uint16_t j = reverse_bits(i, levels);
-		if (j > i) {
-			SWAP(float, array[i][real], array[j][real]);
-			SWAP(float, array[i][imag], array[j][imag]);
-		}
+		if ((j = reverse_bits(i, levels)) <= i) continue;
+		SWAP(float, array[i][0], array[j][0]);
+		SWAP(float, array[i][1], array[j][1]);
 	}
 	const uint16_t size = 2;
 	uint16_t halfsize = size / 2;
 	uint16_t tablestep = n / size;
-	uint16_t j, k;
 	// Cooley-Tukey decimation-in-time radix-2 FFT
 	for (;tablestep; tablestep>>=1, halfsize<<=1) {
-		for (i = 0; i < n; i+=2*halfsize) {
+		for (i = 0; i < n; i+= 2 * halfsize) {
 			for (j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
-				uint16_t l = j + halfsize;
-				float s = FFT_SIN(k);
-				float c = FFT_COS(k);
-				float tpre =  array[l][real] * c + array[l][imag] * s;
-				float tpim = -array[l][real] * s + array[l][imag] * c;
-				array[l][real] = array[j][real] - tpre;
-				array[l][imag] = array[j][imag] - tpim;
-				array[j][real] += tpre;
-				array[j][imag] += tpim;
+				const uint16_t l = j + halfsize;
+				const float s = dir ? FFT_SIN(k) : -FFT_SIN(k);
+				const float c = FFT_COS(k);
+				const float tpre = array[l][0] * c - array[l][1] * s;
+				const float tpim = array[l][0] * s + array[l][1] * c;
+				array[l][0] = array[j][0] - tpre;
+				array[l][1] = array[j][1] - tpim;
+				array[j][0]+= tpre;
+				array[j][1]+= tpim;
 			}
 		}
 	}
