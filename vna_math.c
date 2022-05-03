@@ -250,19 +250,20 @@ static const float sin_table_512[] = {
 
 #endif // __VNA_USE_MATH_TABLES__
 
-#if 1
+#ifdef ARM_MATH_CM4
+// Use CORTEX M4 rbit instruction (reverse bit order in 32bit value)
+static uint32_t reverse_bits(uint32_t x, int n) {
+	uint32_t result;
+	 __asm volatile ("rbit %0, %1" : "=r" (result) : "r" (x) );
+	return result>>(32-n); // made shift for correct result
+}
+#else
 static uint16_t reverse_bits(uint16_t x, int n) {
 	uint16_t result = 0;
 	int i;
 	for (i = 0; i < n; i++, x >>= 1)
 		result = (result << 1) | (x & 1U);
 	return result;
-}
-#else
-static uint32_t reverse_bits(uint32_t x, int n) {
-	uint32_t result;
-	 __asm volatile ("rbit %0, %1" : "=r" (result) : "r" (x) );
-	return result>>(32-n);
 }
 #endif
 
