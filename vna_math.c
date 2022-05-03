@@ -294,7 +294,7 @@ void fft(float array[][2], const uint8_t dir) {
   // Cooley-Tukey decimation-in-time radix-2 FFT
   for (;tablestep; tablestep>>=1, halfsize<<=1) {
     for (i = 0; i < n; i+= 2 * halfsize) {
-      for (j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
+      for (j = i, k = 0; j < i + halfsize; j++, k+= tablestep) {
         const uint16_t l = j + halfsize;
         const float s = dir ? FFT_SIN(k) : -FFT_SIN(k);
         const float c = FFT_COS(k);
