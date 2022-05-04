@@ -341,8 +341,8 @@ kaiser_window(float k, float n, float beta)
 //     (n!)^2          1        4       36       576    14400
 // first 2 (0 and 1) precalculated as simple.
 
-// Precalculated multiplier step for (n!)^2  max SIZE 16 (first 2 use as init)
-static const float div[] = {/*0, 1,*/ 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144, 169, 196, 225, 256};
+// Precalculated multiplier step for 1 / ((n!)^2)  max SIZE 16 (first 2 use as init)
+static const float div[] = {/*0, 1,*/ 1/4.0f, 1/9.0f, 1/16.0f, 1/25.0f, 1/36.0f, 1/49.0f, 1/64.0f, 1/81.0f, 1/100.0f, 1/121.0f, 1/144.0f, 1/169.0f, 1/196.0f, 1/225.0f, 1/256.0f};
 float bessel0_ext(float x_pow_2)
 {
 // set calculated count, more SIZE - less error but longer (bigger beta also need more size for less error)
@@ -353,7 +353,7 @@ float bessel0_ext(float x_pow_2)
   float term = x_pow_2;
   float ret = 1.0f + term;
   do {
-    term*= x_pow_2 / div[SIZE - i];
+    term*= x_pow_2 * div[SIZE - i];
     ret += term;
   }while(--i);
   return ret;

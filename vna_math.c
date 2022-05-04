@@ -284,9 +284,10 @@ void fft(float array[][2], const uint8_t dir) {
   const uint8_t levels = FFT_N; // log2(n)
   uint16_t i, j, k;
   for (i = 0; i < n; i++) {
-    if ((j = reverse_bits(i, levels)) <= i) continue;
-    SWAP(float, array[i][0], array[j][0]);
-    SWAP(float, array[i][1], array[j][1]);
+    if ((j = reverse_bits(i, levels)) > i) {
+      SWAP(float, array[i][0], array[j][0]);
+      SWAP(float, array[i][1], array[j][1]);
+    }
   }
   const uint16_t size = 2;
   uint16_t halfsize = size / 2;
@@ -298,8 +299,8 @@ void fft(float array[][2], const uint8_t dir) {
         const uint16_t l = j + halfsize;
         const float s = dir ? FFT_SIN(k) : -FFT_SIN(k);
         const float c = FFT_COS(k);
-        const float tpre = array[l][0] * c - array[l][1] * s;
-        const float tpim = array[l][0] * s + array[l][1] * c;
+        const float tpre = vna_fmaf(array[l][0], c, -array[l][1] * s); // array[l][0] * c - array[l][1] * s;
+        const float tpim = vna_fmaf(array[l][0], s,  array[l][1] * c); // array[l][0] * s + array[l][1] * c;
         array[l][0] = array[j][0] - tpre;
         array[l][1] = array[j][1] - tpim;
         array[j][0]+= tpre;
