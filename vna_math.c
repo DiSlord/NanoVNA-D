@@ -294,17 +294,15 @@ void fft(float array[][2], const uint8_t dir) {
   uint16_t tablestep = n / size;
   // Cooley-Tukey decimation-in-time radix-2 FFT
   for (;tablestep; tablestep>>=1, halfsize<<=1) {
-    for (i = 0; i < n; i+= 2 * halfsize) {
-      for (j = i, k = 0; j < i + halfsize; j++, k+= tablestep) {
+    for (j = 0; j < n; j+= halfsize) {
+      for (k = 0; k < n / size; j++, k+= tablestep) {
         const uint16_t l = j + halfsize;
         const float s = dir ? FFT_SIN(k) : -FFT_SIN(k);
         const float c = FFT_COS(k);
         const float tpre = vna_fmaf(array[l][0], c, -array[l][1] * s); // array[l][0] * c - array[l][1] * s;
         const float tpim = vna_fmaf(array[l][0], s,  array[l][1] * c); // array[l][0] * s + array[l][1] * c;
-        array[l][0] = array[j][0] - tpre;
-        array[l][1] = array[j][1] - tpim;
-        array[j][0]+= tpre;
-        array[j][1]+= tpim;
+        array[l][0] = array[j][0] - tpre; array[j][0]+= tpre;
+        array[l][1] = array[j][1] - tpim; array[j][1]+= tpim;
       }
     }
   }
