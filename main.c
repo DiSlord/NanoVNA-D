@@ -241,7 +241,10 @@ static THD_FUNCTION(Thread1, arg)
 #ifdef  __LCD_BRIGHTNESS__
   lcd_setBrightness(config._brightness);
 #endif
-
+#ifdef __FLIP_DISPLAY__
+  if(VNA_mode & VNA_MODE_FLIP_DISPLAY)
+    lcd_set_flip(true);
+#endif
   while (1) {
     bool completed = false;
     uint16_t mask = get_sweep_mask();

@@ -47,6 +47,8 @@
 #define __USE_GRID_VALUES__
 // Add remote desktop option
 #define __REMOTE_DESKTOP__
+// Allow flip display
+#define __FLIP_DISPLAY__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
 // Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
@@ -819,6 +821,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_DOT_GRID         0x20
 // Made backup settings (save some settings after power off)
 #define VNA_MODE_BACKUP           0x40
+// Flip display
+#define VNA_MODE_FLIP_DISPLAY     0x80
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1152,6 +1156,7 @@ void lcd_vector_draw(int x, int y, const vector_data *v);
 
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
 void     lcd_setBrightness(uint16_t b);
+void     lcd_set_flip(bool flip);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
 #ifdef  __USE_SD_CARD__

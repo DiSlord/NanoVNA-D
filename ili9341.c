@@ -773,6 +773,12 @@ void lcd_set_background(uint16_t bg_idx)
   background_color = GET_PALTETTE_COLOR(bg_idx);
 }
 
+void lcd_set_flip(bool flip) {
+  dmaWaitCompletionRxTx();
+  uint8_t memAcc = flip ? DISPLAY_ROTATION_180 : DISPLAY_ROTATION_0;
+  lcd_send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &memAcc);
+}
+
 void ili9341_set_rotation(uint8_t r)
 {
   //  static const uint8_t rotation_const[]={DISPLAY_ROTATION_0, DISPLAY_ROTATION_90,
