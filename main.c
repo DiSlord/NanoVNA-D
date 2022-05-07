@@ -129,7 +129,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.1.07"
+#define VERSION "1.1.08"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -229,6 +229,10 @@ static THD_FUNCTION(Thread1, arg)
 {
   (void)arg;
   chRegSetThreadName("sweep");
+#ifdef __FLIP_DISPLAY__
+  if(VNA_mode & VNA_MODE_FLIP_DISPLAY)
+    lcd_set_flip(true);
+#endif
 /*
  * UI (menu, touch, buttons) and plot initialize
  */
@@ -240,10 +244,6 @@ static THD_FUNCTION(Thread1, arg)
  */
 #ifdef  __LCD_BRIGHTNESS__
   lcd_setBrightness(config._brightness);
-#endif
-#ifdef __FLIP_DISPLAY__
-  if(VNA_mode & VNA_MODE_FLIP_DISPLAY)
-    lcd_set_flip(true);
 #endif
   while (1) {
     bool completed = false;
