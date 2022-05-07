@@ -299,8 +299,8 @@ void fft(float array[][2], const uint8_t dir) {
         const uint16_t l = i + halfsize;
         const float s = dir ? FFT_SIN(j) : -FFT_SIN(j);
         const float c = FFT_COS(j);
-        const float tpre = vna_fmaf(array[l][0], c, -array[l][1] * s); // array[l][0] * c - array[l][1] * s;
-        const float tpim = vna_fmaf(array[l][0], s,  array[l][1] * c); // array[l][0] * s + array[l][1] * c;
+        const float tpre = array[l][0] * c - array[l][1] * s;
+        const float tpim = array[l][0] * s + array[l][1] * c;
         array[l][0] = array[i][0] - tpre; array[i][0]+= tpre;
         array[l][1] = array[i][1] - tpim; array[i][1]+= tpim;
       }
@@ -776,7 +776,7 @@ float vna_atan2f(float y, float x)
 }
 #else
 // Polynomial approximation to atan2f
-float vna_atan2f (float y, float x)
+float vna_atan2f(float y, float x)
 {
   union {float f; int32_t i;} ux = {x};
   union {float f; int32_t i;} uy = {y};
@@ -791,16 +791,16 @@ float vna_atan2f (float y, float x)
   // Polynomial approximation to atan(a) on [0,1]
 #if 0
   // give 0.31 degree error
-  //r = 0.970562748477141f - 0.189514164974601f * s;
-  r = vna_fmaf(-s, 0.189514164974601f, 0.970562748477141f);
+  r = 0.970562748477141f - 0.189514164974601f * s;
+  //r = vna_fmaf(-s, 0.189514164974601f, 0.970562748477141f);
 #elif 1
   // give 0.04 degree error
-  //r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
-  r = vna_fmaf(-s, vna_fmaf(-s, 0.078037176446441f, 0.287060635532652f), 0.994949366116654f);
+  r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
+  //r = vna_fmaf(-s, vna_fmaf(-s, 0.078037176446441f, 0.287060635532652f), 0.994949366116654f);
 #else
   // give 0.005 degree error
-  //r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
-  r = vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
+  r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
+  //r = vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
 #endif
   // Map to full circle
   r*= a;

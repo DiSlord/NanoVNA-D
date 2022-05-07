@@ -18,6 +18,8 @@ USE_OPT = -O2 -fno-inline-small-functions -ggdb -fomit-frame-pointer -falign-fun
 USE_OPT = -O2 -fno-inline-small-functions -ggdb -fomit-frame-pointer -falign-functions=16 --specs=nano.specs -fstack-usage -std=c11
  endif
 endif
+# additional options, use math optimisations
+USE_OPT+= -ffast-math -fsingle-precision-constant
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
