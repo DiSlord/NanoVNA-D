@@ -501,8 +501,12 @@ touch_cal_exec(void)
   const uint16_t y1 = CALIBRATION_OFFSET - TOUCH_MARK_Y;
   const uint16_t x2 = LCD_WIDTH  - 1 - CALIBRATION_OFFSET - TOUCH_MARK_X;
   const uint16_t y2 = LCD_HEIGHT - 1 - CALIBRATION_OFFSET - TOUCH_MARK_Y;
-  getTouchPoint(x1, y1, "UPPER LEFT", &config._touch_cal[0]);
-  getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[2]);
+  uint16_t p1 = 0, p2 = 2;
+#ifdef __FLIP_DISPLAY__
+  if(VNA_mode & VNA_MODE_FLIP_DISPLAY) {p1 = 2, p2 = 0;}
+#endif
+  getTouchPoint(x1, y1, "UPPER LEFT", &config._touch_cal[p1]);
+  getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[p2]);
 }
 
 void
@@ -544,6 +548,10 @@ touch_position(int *x, int *y)
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
   int ty = ((LCD_HEIGHT-1-CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) + CALIBRATION_OFFSET * (config._touch_cal[3] - last_touch_y)) / (config._touch_cal[3] - config._touch_cal[1]);
   if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
+  if(VNA_mode & VNA_MODE_FLIP_DISPLAY) {
+    tx = LCD_WIDTH - 1 - tx;
+    ty = LCD_HEIGHT - 1 - ty;
+  }
   *x = tx;
   *y = ty;
 }
@@ -983,6 +991,21 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
   }
   set_power(data);
 }
+
+#ifdef __FLIP_DISPLAY__
+static UI_FUNCTION_ADV_CALLBACK(menu_display_acb)
+{
+  (void)data;
+  if(b){
+    b->icon = VNA_mode & VNA_MODE_FLIP_DISPLAY ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  VNA_mode ^= VNA_MODE_FLIP_DISPLAY;
+  lcd_set_flip(VNA_mode & VNA_MODE_FLIP_DISPLAY);
+  request_to_redraw(0xff);
+  draw_all(true);
+}
+#endif
 
 extern const keypads_list keypads_mode_tbl[];
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
@@ -1963,6 +1986,9 @@ const menuitem_t menu_device[] = {
 #endif
 #ifdef __USE_BACKUP__
   { MT_ADV_CALLBACK, 0,            "REMEMBER\nSTATE",                          menu_backup_acb },
+#endif
+#ifdef __FLIP_DISPLAY__
+  { MT_ADV_CALLBACK, 0,            "FLIP\nDISPLAY",                            menu_display_acb },
 #endif
 #ifdef __USE_RTC__
   { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                                 menu_keyboard_acb },
