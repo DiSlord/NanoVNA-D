@@ -282,7 +282,7 @@ void fft(float array[][2], const uint8_t dir) {
 #endif
   const uint16_t n = FFT_SIZE;
   const uint8_t levels = FFT_N; // log2(n)
-  uint16_t i, j, k;
+  uint16_t i, j;
   for (i = 0; i < n; i++) {
     if ((j = reverse_bits(i, levels)) > i) {
       SWAP(float, array[i][0], array[j][0]);
@@ -294,15 +294,15 @@ void fft(float array[][2], const uint8_t dir) {
   uint16_t tablestep = n / size;
   // Cooley-Tukey decimation-in-time radix-2 FFT
   for (;tablestep; tablestep>>=1, halfsize<<=1) {
-    for (j = 0; j < n; j+= halfsize) {
-      for (k = 0; k < n / size; j++, k+= tablestep) {
-        const uint16_t l = j + halfsize;
-        const float s = dir ? FFT_SIN(k) : -FFT_SIN(k);
-        const float c = FFT_COS(k);
+    for (i = 0; i < n; i+= halfsize) {
+      for (j = 0; j < n / size; i++, j+= tablestep) {
+        const uint16_t l = i + halfsize;
+        const float s = dir ? FFT_SIN(j) : -FFT_SIN(j);
+        const float c = FFT_COS(j);
         const float tpre = vna_fmaf(array[l][0], c, -array[l][1] * s); // array[l][0] * c - array[l][1] * s;
         const float tpim = vna_fmaf(array[l][0], s,  array[l][1] * c); // array[l][0] * s + array[l][1] * c;
-        array[l][0] = array[j][0] - tpre; array[j][0]+= tpre;
-        array[l][1] = array[j][1] - tpim; array[j][1]+= tpim;
+        array[l][0] = array[i][0] - tpre; array[i][0]+= tpre;
+        array[l][1] = array[i][1] - tpim; array[i][1]+= tpim;
       }
     }
   }
@@ -803,9 +803,9 @@ float vna_atan2f (float y, float x)
   r = vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
 #endif
   // Map to full circle
-  r*=a;
-  if (ay  > ax) r = 1.57079637f - r;
-  if (ux.i < 0) r = 3.14159274f - r;
+  r*= a;
+  if (ay  > ax) r = VNA_PI/2.0f - r;
+  if (ux.i < 0) r = VNA_PI      - r;
   if (uy.i < 0) r = -r;
   return r;
 }
