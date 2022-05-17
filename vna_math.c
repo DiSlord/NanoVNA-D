@@ -550,13 +550,13 @@ float vna_logf(float x)
   u.f = ((-1.0f/3) * u.f + 2) * u.f - (2.0f/3); // (1)
   return (u.f + log_2) * MULTIPLIER;
 #elif 1
-  // Give up to 0.0001 error (2x faster original code)
-  // fast log2f approximation, give 0.0004 error
+  // Give up to 0.00005 error (2x faster original code)
+  // fast log2f approximation, give 0.0002 error
   union { float f; uint32_t i; } vx = { x };
   union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
   // if <=0 return NAN
   if (vx.i <=0) return -1/(x*x);
-  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
+  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22544637f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
 #else
   // use original code (20% faster default)
   static const float
@@ -627,7 +627,7 @@ float vna_log10f_x_10(float x)
   union { uint32_t i; float f; } mx = { (vx.i & 0x007FFFFF) | 0x3f000000 };
   // if <=0 return NAN
   if (vx.i <=0) return -1/(x*x);
-  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22551499f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
+  return vx.i * (MULTIPLIER / (1 << 23)) - (124.22544637f * MULTIPLIER) - (1.498030302f * MULTIPLIER) * mx.f - (1.72587999f * MULTIPLIER) / (0.3520887068f + mx.f);
 #endif
 }
 //**********************************************************************************
@@ -783,27 +783,27 @@ float vna_atan2f(float y, float x)
   if (ux.i == 0 && uy.i == 0)
     return 0.0f;
 
-  float ax, ay, r, a, s;
+  float ax, ay, r, s;
   ax = vna_fabsf(x);
   ay = vna_fabsf(y);
-  a = (ay < ax) ? ay / ax : ax / ay;
-  s = a * a;
+  r = (ay < ax) ? ay / ax : ax / ay;
+  s = r * r;
   // Polynomial approximation to atan(a) on [0,1]
 #if 0
   // give 0.31 degree error
-  r = 0.970562748477141f - 0.189514164974601f * s;
-  //r = vna_fmaf(-s, 0.189514164974601f, 0.970562748477141f);
+  r*= 0.970562748477141f - 0.189514164974601f * s;
+  //r*= vna_fmaf(-s, 0.189514164974601f, 0.970562748477141f);
 #elif 1
   // give 0.04 degree error
-  r = 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
-  //r = vna_fmaf(-s, vna_fmaf(-s, 0.078037176446441f, 0.287060635532652f), 0.994949366116654f);
+  r*= 0.994949366116654f - s * (0.287060635532652f - 0.078037176446441f * s);
+  //r*= vna_fmaf(-s, vna_fmaf(-s, 0.078037176446441f, 0.287060635532652f), 0.994949366116654f);
+  //r*= 0.995354f − s * (0.288679f + 0.079331f * s);
 #else
   // give 0.005 degree error
-  r = 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
-  //r = vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
+  r*= 0.999133448222780f - s * (0.320533292381664f - s * (0.144982490144465f - s * 0.038254464970299f));
+  //r*= vna_fmaf(-s, vna_fmaf(-s, vna_fmaf(-s, 0.038254464970299f, 0.144982490144465f), 0.320533292381664f), 0.999133448222780f);
 #endif
   // Map to full circle
-  r*= a;
   if (ay  > ax) r = VNA_PI/2.0f - r;
   if (ux.i < 0) r = VNA_PI      - r;
   if (uy.i < 0) r = -r;
