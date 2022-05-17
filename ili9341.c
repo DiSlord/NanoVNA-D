@@ -1141,8 +1141,7 @@ void ili9341_test(int mode)
 
 // Define SD SPI speed on initialization (100-400kHz need)
 #define SD_INIT_SPI_SPEED   SPI_BR_DIV256
-// Set number of try read or write sector data (1 only one try)
-#define SD_READ_WRITE_REPEAT 1
+
 // Local values for SD card state
 static DSTATUS Stat = STA_NOINIT;  // Disk Status
 static uint8_t CardType  = 0;      // Type 0:MMC, 1:SDC, 2:Block addressing
@@ -1323,7 +1322,7 @@ static bool SD_RxDataBlock(uint8_t *buff, uint16_t len, uint8_t token) {
 }
 
 // Transmit data block to SD
-static bool SD_TxDataBlock(const uint8_t *buff, uint8_t token) {
+static bool SD_TxDataBlock(const uint8_t *buff, uint16_t len, uint8_t token) {
   uint8_t resp;
   // Transmit token
   spi_TxByte(token);
@@ -1333,13 +1332,13 @@ static bool SD_TxDataBlock(const uint8_t *buff, uint8_t token) {
 #endif
 
 #ifdef __USE_SDCARD_DMA__
-  spi_DMATxBuffer((uint8_t*)buff, SD_SECTOR_SIZE);
+  spi_DMATxBuffer((uint8_t*)buff, len);
 #else
-  spi_TxBuffer((uint8_t*)buff, SD_SECTOR_SIZE);
+  spi_TxBuffer((uint8_t*)buff, len);
 #endif
   // Send CRC
 #ifdef  SD_USE_DATA_CRC
-  uint16_t bcrc = crc16(buff, SD_SECTOR_SIZE);
+  uint16_t bcrc = crc16(buff, len);
   spi_TxWord(bcrc);
 #else
   spi_TxWord(0xFFFF);
@@ -1390,7 +1389,7 @@ static uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg) {
 #endif
   spi_TxBuffer(buf, 6);
 // Skip a stuff byte when STOP_TRANSMISSION
-//if (cmd == CMD12) SPI_RxByte();
+  if (cmd == CMD12) spi_RxByte();
   // Receive response register r1
   r1 = SD_ReadR1(100);
 #if 1
@@ -1541,26 +1540,25 @@ DSTATUS disk_status(BYTE pdrv) {
 // diskio.c - Read sector
 DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
   // No disk or wrong block count
-  if (pdrv != 0 || count != 1 || (Stat & STA_NOINIT)) return RES_NOTRDY;
-  // convert to byte address
-  if (!(CardType & CT_BLOCK)) sector *= SD_SECTOR_SIZE;
-
+  if (pdrv != 0 || (Stat & STA_NOINIT)) return RES_NOTRDY;
 #if DEBUG == 1
   r_cnt++;
   r_time-= chVTGetSystemTimeX();
 #endif
-
   SD_Select_SPI(SD_SPI_RX_SPEED);
-  // READ_SINGLE_BLOCK
-  uint8_t cnt = SD_READ_WRITE_REPEAT; // read repeat count
-  do{
-    if ((SD_SendCmd(CMD17, sector) == 0) && SD_RxDataBlock(buff, SD_SECTOR_SIZE, SD_TOKEN_START_BLOCK)){
-      count = 0;
-      break;
-    }
-  }while (--cnt);
+  uint8_t cmd = count == 1 ? CMD17 : CMD18;
+    // convert to byte address
+  if (!(CardType & CT_BLOCK)) sector*= SD_SECTOR_SIZE;
+  // Read single / multiple block
+  if (SD_SendCmd(cmd, sector) == 0) {
+    do {
+      if (SD_RxDataBlock(buff, SD_SECTOR_SIZE, SD_TOKEN_START_BLOCK))
+        buff+= SD_SECTOR_SIZE;
+      else break;
+    } while(--count);
+  }
+  if (cmd == CMD18) SD_SendCmd(CMD12, 0);  // Finish multiple block transfer
   SD_Unselect_SPI();
-
 #if DEBUG == 1
   r_time+= chVTGetSystemTimeX();
   if (count)
@@ -1583,12 +1581,9 @@ DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
 // diskio.c - Write sector
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
   // No disk or wrong count
-  if (pdrv != 0 || count != 1 || (Stat & STA_NOINIT)) return RES_NOTRDY;
+  if (pdrv != 0 || (Stat & STA_NOINIT)) return RES_NOTRDY;
   // Write protection
   if (Stat & STA_PROTECT) return RES_WRPRT;
-  // Convert to byte address if no Block mode
-  if (!(CardType & CT_BLOCK)) sector*= SD_SECTOR_SIZE;
-
   #if DEBUG == 1
 #if 0
     DEBUG_PRINT("Sector write 0x%08x, %d\r\n", sector, count);
@@ -1603,14 +1598,14 @@ DRESULT disk_write(BYTE pdrv, const BYTE* buff, DWORD sector, UINT count) {
 #endif
 
   SD_Select_SPI(SD_SPI_SPEED);
-  // WRITE_SINGLE_BLOCK
-  uint8_t cnt = SD_READ_WRITE_REPEAT; // write repeat count
-  do{
-    if ((SD_SendCmd(CMD24, sector) == 0) && SD_TxDataBlock(buff, SD_TOKEN_START_BLOCK)){
-      count = 0;
-      break;
-    }
-  } while (--cnt);
+  do {
+    // WRITE_SINGLE_BLOCK * count
+    uint32_t sect = (CardType & CT_BLOCK) ? sector : sector * SD_SECTOR_SIZE;
+    if ((SD_SendCmd(CMD24, sect) == 0) && SD_TxDataBlock(buff, SD_SECTOR_SIZE, SD_TOKEN_START_BLOCK)) {
+      sector++;
+      buff+= SD_SECTOR_SIZE;
+    } else break;
+  } while (--count);
   SD_Unselect_SPI();
 
 #if DEBUG == 1
