@@ -93,6 +93,7 @@ enum {
   KM_S1P_NAME,
   KM_S2P_NAME,
   KM_BMP_NAME,
+  KM_CAL_NAME,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   KM_BIN_NAME,
 #endif
@@ -209,7 +210,7 @@ static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 
-void drawMessageBox(char *header, char *text, uint32_t delay);
+void drawMessageBox(const char *header, const char *text, uint32_t delay);
 
 static uint16_t btn_check(void)
 {
@@ -1299,19 +1300,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #ifdef __USE_SD_CARD__
 // Save format enum
 enum {
-  SAVE_S1P_FILE=0, SAVE_S2P_FILE, SAVE_BMP_FILE,
+  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  SAVE_BIN_FILE
+  FMT_BIN_FILE
 #endif
 };
 
 // Save file extension
 static const char *file_ext[] = {
-  [SAVE_S1P_FILE] = "s1p",
-  [SAVE_S2P_FILE] = "s2p",
-  [SAVE_BMP_FILE] = "bmp",
+  [FMT_S1P_FILE] = "s1p",
+  [FMT_S2P_FILE] = "s2p",
+  [FMT_BMP_FILE] = "bmp",
+  [FMT_CAL_FILE] = "cal",
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  [SAVE_BIN_FILE] = "bin",
+  [FMT_BIN_FILE] = "bin",
 #endif
 };
 
@@ -1403,7 +1405,7 @@ static void vna_save_file(char *name, uint8_t format)
   char fs_filename[FF_LFN_BUF];
   // For screenshot need back to normal mode and redraw screen before capture!!
   // Redraw use spi_buffer so need do it before any file ops
-  if (format == SAVE_BMP_FILE && ui_mode != UI_NORMAL){
+  if (format == FMT_BMP_FILE && ui_mode != UI_NORMAL){
     ui_mode_normal();
     draw_all(true);
   }
@@ -1432,11 +1434,11 @@ static void vna_save_file(char *name, uint8_t format)
        *  Save touchstone file for VNA (use rev 1.1 format)
        *  https://en.wikipedia.org/wiki/Touchstone_file
        */
-      case SAVE_S1P_FILE:
-      case SAVE_S2P_FILE:
+      case FMT_S1P_FILE:
+      case FMT_S2P_FILE:
       buf_8  = (char *)spi_buffer;
       // Write SxP file
-      if (format == SAVE_S1P_FILE){
+      if (format == FMT_S1P_FILE){
         s_file_format = s1_file_param;
         // write sxp header (not write NULL terminate at end)
         res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
@@ -1458,7 +1460,7 @@ static void vna_save_file(char *name, uint8_t format)
       /*
        *  Save bitmap file (use v4 format allow set RGB mask)
        */
-      case SAVE_BMP_FILE:
+      case FMT_BMP_FILE:
       buf_16 = spi_buffer;
       res = f_write(fs_file, bmp_header_v4, BMP_HEAD_SIZE, &size); // Write header struct
 //      total_size+=size;
@@ -1469,18 +1471,28 @@ static void vna_save_file(char *name, uint8_t format)
           buf_16[i] = __REVSH(buf_16[i]); // swap byte order (example 0x10FF to 0xFF10)
         res = f_write(fs_file, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
 //        total_size+=size;
-        lcd_fill(LCD_WIDTH-1, y-1, 1, 1);
+        lcd_fill(LCD_WIDTH-1, y, 1, 1);
+      }
+      break;
+      /*
+       *  Save calibration
+       */
+      case FMT_CAL_FILE:
+      {
+        const char *src = (char*)&current_props;
+        const uint32_t total = sizeof(current_props);
+        res = f_write(fs_file, src, total, &size);
       }
       break;
 #ifdef __SD_CARD_DUMP_FIRMWARE__
       /*
        * Dump firmware to SD card as bin file image
        */
-      case SAVE_BIN_FILE:
+      case FMT_BIN_FILE:
       {
         const char *src = (const char*)FLASH_START_ADDRESS;
-        for (i = 0; i < FLASH_TOTAL_SIZE && res == FR_OK; i+=512)
-          res = f_write(fs_file, &src[i], 512, &size);
+        const uint32_t total = FLASH_TOTAL_SIZE;
+        res = f_write(fs_file, src, total, &size);
       }
       break;
 #endif
@@ -1563,9 +1575,10 @@ static const menuitem_t menu_back[] = {
 
 #ifdef __USE_SD_CARD__
 static const menuitem_t menu_sdcard[] = {
-  { MT_CALLBACK, SAVE_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
-  { MT_CALLBACK, SAVE_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
-  { MT_CALLBACK, SAVE_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
+  { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
+  { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
+  { MT_CALLBACK, FMT_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
+  { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
   { MT_ADV_CALLBACK,         0, "AUTO NAME",  menu_sdcard_auto_acb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
@@ -1818,7 +1831,6 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
-  { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1968,7 +1980,7 @@ const menuitem_t menu_device1[] = {
   { MT_ADV_CALLBACK, 0,            "SEPARATOR\n" R_LINK_COLOR "%s",      menu_separator_acb },
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  { MT_CALLBACK, SAVE_BIN_FILE,    "DUMP\nFIRMWARE",     menu_sdcard_cb },
+  { MT_CALLBACK, FMT_BIN_FILE,     "DUMP\nFIRMWARE",     menu_sdcard_cb },
 #endif
 #ifdef __SD_CARD_LOAD__
   { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
@@ -2017,7 +2029,7 @@ const menuitem_t menu_config[] = {
 };
 
 const menuitem_t menu_top[] = {
-  { MT_SUBMENU, 0, "DISPLAY",  menu_display },
+  { MT_SUBMENU, 0, "DISPLAY",   menu_display },
   { MT_SUBMENU, 0, "MARKER",    menu_marker },
   { MT_SUBMENU, 0, "STIMULUS",  menu_stimulus },
   { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
@@ -2026,9 +2038,10 @@ const menuitem_t menu_top[] = {
   { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },
 #endif
 #ifdef __USE_SD_CARD__
-  { MT_SUBMENU, 0, "SD CARD", menu_sdcard },
+  { MT_SUBMENU, 0, "SD CARD",   menu_sdcard },
 #endif
-  { MT_SUBMENU, 0, "CONFIG", menu_config },
+  { MT_SUBMENU, 0, "CONFIG",    menu_config },
+  { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
@@ -2406,11 +2419,12 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\n HHMMSS",  input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
-[KM_S1P_NAME]       = {KEYPAD_TEXT,    SAVE_S1P_FILE, "S1P",                input_filename },  // s1p filename
-[KM_S2P_NAME]       = {KEYPAD_TEXT,    SAVE_S2P_FILE, "S2P",                input_filename },  // s2p filename
-[KM_BMP_NAME]       = {KEYPAD_TEXT,    SAVE_BMP_FILE, "BMP",                input_filename },  // bmp filename
+[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
+[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
+[KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
+[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // bmp filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-[KM_BIN_NAME]       = {KEYPAD_TEXT,    SAVE_BIN_FILE, "BIN",                input_filename },  // bin filename
+[KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
 #endif
 };
@@ -2442,7 +2456,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
   lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
 }
 
-void drawMessageBox(char *header, char *text, uint32_t delay){
+void drawMessageBox(const char *header, const char *text, uint32_t delay){
   button_t b;
   int x , y;
   b.bg = LCD_MENU_COLOR;
@@ -3151,7 +3165,7 @@ made_screenshot(int touch_x, int touch_y)
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
   touch_wait_release();
-  menu_sdcard_cb(SAVE_BMP_FILE);
+  menu_sdcard_cb(FMT_BMP_FILE);
   return TRUE;
 }
 #endif
