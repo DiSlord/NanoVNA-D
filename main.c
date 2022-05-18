@@ -224,7 +224,7 @@ static void measurementDataSmooth(uint16_t ch_mask){
 }
 #endif
 
-static THD_WORKING_AREA(waThread1, 768);
+static THD_WORKING_AREA(waThread1, 1024);
 static THD_FUNCTION(Thread1, arg)
 {
   (void)arg;
@@ -287,7 +287,7 @@ static THD_FUNCTION(Thread1, arg)
   }
 }
 
-static inline void
+void
 pause_sweep(void)
 {
   sweep_mode &= ~SWEEP_ENABLE;
@@ -1049,7 +1049,7 @@ static void load_start_properties(void) {
 #endif
 
 int load_properties(uint32_t id){
-  int r = caldata_recall(id);
+  int r = id == NO_SAVE_SLOT ? 0 : caldata_recall(id);
   update_frequencies();
 #ifdef __VNA_MEASURE_MODULE__
   plot_set_measure_mode(current_props._measure);
@@ -3147,10 +3147,10 @@ static void shell_init_connection(void){
 }
 #endif
 
-static const VNAShellCommand *VNAShell_parceLine(char *line){
+int parse_line(char *line, char* args[], int max_cnt) {
   // Parse and execute line
   char *lp = line, *ep;
-  shell_nargs = 0;
+  int nargs = 0;
   while (*lp != 0) {
     // Skipping white space and tabs at string begin.
     while (*lp == ' ' || *lp == '\t') lp++;
@@ -3158,23 +3158,29 @@ static const VNAShellCommand *VNAShell_parceLine(char *line){
     // delimiter is white space.
     ep = (*lp == '"') ? strpbrk(++lp, "\"") : strpbrk(lp, " \t");
     // Store in args string
-    shell_args[shell_nargs++] = lp;
+    args[nargs++] = lp;
     // Stop, end of input string
     if ((lp = ep) == NULL) break;
     // Argument limits check
-    if (shell_nargs > VNA_SHELL_MAX_ARGUMENTS) {
-      shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
-      return NULL;
-    }
+    if (nargs >= max_cnt) // !! error
+      break;
     // Set zero at the end of string and continue check
     *lp++ = 0;
   }
-  if (shell_nargs){
-    const VNAShellCommand *scp;
-    for (scp = commands; scp->sc_name != NULL; scp++)
-      if (get_str_index(scp->sc_name, shell_args[0]) == 0)
-        return scp;
+  return nargs;
+}
+
+static const VNAShellCommand *VNAShell_parceLine(char *line){
+  // Parse and execute line
+  shell_nargs = parse_line(line, shell_args, VNA_SHELL_MAX_ARGUMENTS);
+  if (shell_nargs <= 0) {
+    shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
+    return NULL;
   }
+  const VNAShellCommand *scp;
+  for (scp = commands; scp->sc_name != NULL; scp++)
+    if (get_str_index(scp->sc_name, shell_args[0]) == 0)
+      return scp;
   return NULL;
 }
 
