@@ -278,7 +278,9 @@ uint8_t get_smooth_factor(void);
 int32_t  my_atoi(const char *p);
 uint32_t my_atoui(const char *p);
 float    my_atof(const char *p);
+int parse_line(char *line, char* args[], int max_cnt);
 
+void pause_sweep(void);
 void toggle_sweep(void);
 void load_default_properties(void);
 int  load_properties(uint32_t id);
