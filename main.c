@@ -3172,7 +3172,7 @@ int parse_line(char *line, char* args[], int max_cnt) {
 
 static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
-  shell_nargs = parse_line(line, shell_args, VNA_SHELL_MAX_ARGUMENTS);
+  shell_nargs = parse_line(line, shell_args, ARRAY_COUNT(shell_args));
   if (shell_nargs <= 0) {
     shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
     return NULL;
