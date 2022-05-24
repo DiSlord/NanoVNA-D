@@ -158,6 +158,7 @@ int
 caldata_recall(uint32_t id)
 {
   lastsaveid = NO_SAVE_SLOT;
+  if (id == NO_SAVE_SLOT) return 2;
   // point to saved area on the flash memory
   const properties_t *src = get_properties(id);
   if (src == NULL){

@@ -156,7 +156,8 @@ static int8_t  selection = -1;
 #define BUTTON_ICON_CHECK_MANUAL     5
 
 #define BUTTON_BORDER_NONE           0x00
-#define BUTTON_BORDER_WIDTH_MASK     0x0F
+#define BUTTON_BORDER_WIDTH_MASK     0x07
+#define BUTTON_BORDER_NO_FILL        0x08
 
 // Define mask for draw border (if 1 use light color, if 0 dark)
 #define BUTTON_BORDER_TYPE_MASK      0xF0
@@ -205,6 +206,7 @@ static int16_t last_touch_y;
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
 static void draw_menu(uint32_t mask);
+static void draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b);
 static void ui_mode_keypad(int _keypad_mode);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
@@ -1383,6 +1385,11 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
   BMP_UINT32(0),             // GammaBlue
 };
 
+static void swap_bytes(uint16_t *buf, int size) {
+  for (int i = 0; i < size; i++)
+    buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
+}
+
 // Create file name from current time
 static FRESULT vna_create_file(char *fs_filename)
 {
@@ -1467,8 +1474,7 @@ static void vna_save_file(char *name, uint8_t format)
       lcd_set_background(LCD_SWEEP_LINE_COLOR);
       for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
         lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
-        for (i = 0; i < LCD_WIDTH; i++)
-          buf_16[i] = __REVSH(buf_16[i]); // swap byte order (example 0x10FF to 0xFF10)
+        swap_bytes(buf_16, LCD_WIDTH);
         res = f_write(fs_file, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
 //        total_size+=size;
         lcd_fill(LCD_WIDTH-1, y, 1, 1);
@@ -2422,7 +2428,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
 [KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
 [KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
-[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // bmp filename
+[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
@@ -2439,12 +2445,12 @@ keypad_set_value(void)
 static void
 draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
 {
-  uint16_t bw = b->border&BUTTON_BORDER_WIDTH_MASK;
+  uint16_t type = b->border;
+  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
   // Draw border if width > 0
   if (bw) {
     uint16_t br = LCD_RISE_EDGE_COLOR;
     uint16_t bd = LCD_FALLEN_EDGE_COLOR;
-    uint16_t type = b->border;
     lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
     lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
     lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
@@ -2453,6 +2459,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
   // Set colors for button and text
   lcd_set_foreground(b->fg);
   lcd_set_background(b->bg);
+  if (type & BUTTON_BORDER_NO_FILL) return;
   lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
 }
 
