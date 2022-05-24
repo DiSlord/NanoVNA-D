@@ -1048,8 +1048,8 @@ static void load_start_properties(void) {
 }
 #endif
 
-int load_properties(uint32_t id){
-  int r = id == NO_SAVE_SLOT ? 0 : caldata_recall(id);
+int load_properties(uint32_t id) {
+  int r = caldata_recall(id);
   update_frequencies();
 #ifdef __VNA_MEASURE_MODULE__
   plot_set_measure_mode(current_props._measure);
