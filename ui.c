@@ -838,8 +838,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
   if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
   else
-    set_trace_type(current_trace, format);
-  set_trace_channel(current_trace, channel);
+    set_trace_type(current_trace, format, channel);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)

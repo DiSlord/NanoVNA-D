@@ -922,34 +922,34 @@ properties_t current_props;
 
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
-  { 1, TRC_LOGMAG, 0, MS_REIM, 10.0, NGRIDY-1 },
-  { 1, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
-  { 1, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
-  { 1, TRC_PHASE,  1, MS_REIM, 90.0, NGRIDY/2 }
+  { TRUE, TRC_LOGMAG, 0, MS_REIM, 10.0, NGRIDY-1 },
+  { TRUE, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
+  { TRUE, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
+  { TRUE, TRC_PHASE,  1, MS_REIM, 90.0, NGRIDY/2 }
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
-  { 1, 0, 30*POINTS_COUNT/100-1, 0 },
+  { TRUE, 0, 30*POINTS_COUNT/100-1, 0 },
 #if MARKERS_MAX > 1
-  { 0, 0, 40*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 40*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 2
-  { 0, 0, 50*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 50*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 3
-  { 0, 0, 60*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 60*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 4
-  { 0, 0, 70*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 70*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 5
-  { 0, 0, 80*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 80*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 6
-  { 0, 0, 90*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 90*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 7
-  { 0, 0,100*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0,100*POINTS_COUNT/100-1, 0 },
 #endif
 };
 
@@ -1118,22 +1118,23 @@ extern uint16_t timings[16];
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
-#define SWEEP_CH0_MEASURE           1
-#define SWEEP_CH1_MEASURE           2
-#define SWEEP_APPLY_EDELAY          4
-#define SWEEP_APPLY_CALIBRATION     8
-#define SWEEP_USE_INTERPOLATION    16
-#define SWEEP_USE_RENORMALIZATION  32
+#define SWEEP_CH0_MEASURE           0x01
+#define SWEEP_CH1_MEASURE           0x02
+#define SWEEP_APPLY_EDELAY          0x04
+#define SWEEP_APPLY_CALIBRATION     0x08
+#define SWEEP_USE_INTERPOLATION     0x10
+#define SWEEP_USE_RENORMALIZATION   0x20
 
 static uint16_t get_sweep_mask(void){
   uint16_t ch_mask = 0;
-  int t;
-  for (t = 0; t < TRACES_MAX; t++) {
-    if (!trace[t].enabled)
-      continue;
-    if (trace[t].channel == 0) ch_mask|=SWEEP_CH0_MEASURE;
-    if (trace[t].channel == 1) ch_mask|=SWEEP_CH1_MEASURE;
-  }
+//  int t;
+//  for (t = 0; t < TRACES_MAX; t++) {
+//    if (!trace[t].enabled)
+//      continue;
+//    if ((trace[t].channel&1) == 0) ch_mask|= SWEEP_CH0_MEASURE;
+//    else/*if (trace[t].channel == 1)*/ ch_mask|= SWEEP_CH1_MEASURE;
+//  }
+  ch_mask|= SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE;
 #ifdef __VNA_MEASURE_MODULE__
   // For measure calculations need data
   ch_mask|= plot_get_measure_channels();
@@ -2105,24 +2106,30 @@ static const char * const trc_channel_name[] = {
 
 const char *get_trace_chname(int t)
 {
-  return trc_channel_name[trace[t].channel];
+  return trc_channel_name[trace[t].channel&1];
 }
 
-void set_trace_type(int t, int type)
+void set_trace_type(int t, int type, int channel)
 {
+  channel&= 1;
+  bool update = trace[t].type != type || trace[t].channel != channel;
+  if (!update) return;
   if (trace[t].type != type) {
     trace[t].type = type;
     // Set default trace refpos
     trace[t].refpos = trace_info_list[type].refpos;
     // Set default trace scale
     trace[t].scale  = trace_info_list[type].scale_unit;
-    plot_into_index();
-    request_to_redraw(REDRAW_AREA);
+
   }
+  trace[t].channel = channel;
+  plot_into_index();
+  request_to_redraw(REDRAW_AREA);
 }
 
 void set_trace_channel(int t, int channel)
 {
+  channel&= 1;
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
     plot_into_index();
@@ -2211,13 +2218,13 @@ VNA_SHELL_FUNCTION(cmd_trace)
   static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|g|b|y|rp|xp|sc|sl|pc|pl|q|rser|xser|rsh|xsh|q21";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
+    int src = trace[t].channel;
     if (argc > 2) {
-      int src = my_atoi(argv[2]);
-      if (src != 0 && src != 1)
+      src = my_atoi(argv[2]);
+      if ((uint32_t)src > 1)
         goto usage;
-      set_trace_channel(t, src);
     }
-    set_trace_type(t, type);
+    set_trace_type(t, type, src);
     set_trace_enable(t, true);
     return;
   }

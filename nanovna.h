@@ -920,7 +920,7 @@ typedef struct properties {
 extern config_t config;
 extern properties_t current_props;
 
-void set_trace_type(int t, int type);
+void set_trace_type(int t, int type, int channel);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
 void set_trace_refpos(int t, float refpos);
