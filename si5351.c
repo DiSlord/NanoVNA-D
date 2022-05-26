@@ -305,6 +305,7 @@ si5351_setupMultisynth(uint8_t   channel,
 #define MAX_DENOMINATOR ((1 << 20) - 1)
 static inline void approximate_fraction(uint32_t *n, uint32_t *d)
 {
+#if 1
   // cf. https://github.com/python/cpython/blob/master/Lib/fractions.py#L227
   uint32_t denom = *d;
   if (denom > MAX_DENOMINATOR) {
@@ -323,6 +324,12 @@ static inline void approximate_fraction(uint32_t *n, uint32_t *d)
     *n = p1;
     *d = q1;
   }
+#else
+  while (*d >= MAX_DENOMINATOR) {
+    *n >>= 1;
+    *d >>= 1;
+  }
+#endif
 }
 
 // Setup Multisynth divider for get correct output freq if fixed PLL = pllfreq
