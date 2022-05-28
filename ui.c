@@ -55,8 +55,17 @@ uint8_t operation_requested = OP_NONE;
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
 enum {
-  UI_NORMAL, UI_MENU, UI_KEYPAD, UI_BROWSER
+  UI_NORMAL, UI_MENU, UI_KEYPAD,
+#ifdef __SD_FILE_BROWSER__
+  UI_BROWSER,
+#endif
+  UI_END
 };
+
+typedef void (*ui_button_cb_t)(uint16_t status);
+#define UI_BUTTON_CALLBACK(ui_button_function_name) void ui_button_function_name(uint16_t status)
+typedef void (*ui_touch_cb_t)(int touch_x, int touch_y);
+#define UI_TOUCH_CALLBACK(ui_touch_function_name) void ui_touch_function_name(int touch_x, int touch_y)
 
 typedef struct {
   uint8_t bg;
@@ -3228,6 +3237,17 @@ normal_apply_touch(int touch_x, int touch_y){
   ui_mode_menu();
 }
 //========================== end normal plot input =======================
+static const struct {
+  ui_button_cb_t button;
+  ui_touch_cb_t touch;
+} ui_handler[UI_END] = {
+  [UI_NORMAL ] = {ui_process_normal_lever , normal_apply_touch},
+  [UI_MENU   ] = {ui_process_menu_lever   , menu_apply_touch},
+  [UI_KEYPAD ] = {ui_process_keypad_lever , keypad_apply_touch},
+#ifdef __SD_FILE_BROWSER__
+  [UI_BROWSER] = {ui_process_browser_lever, browser_apply_touch},
+#endif
+};
 
 static void
 ui_process_lever(void)
@@ -3235,14 +3255,7 @@ ui_process_lever(void)
 //  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
-  switch (ui_mode) {
-    case UI_NORMAL: ui_process_normal_lever(status);  break;
-    case UI_MENU:   ui_process_menu_lever(status);    break;
-    case UI_KEYPAD: ui_process_keypad_lever(status);  break;
-#ifdef __SD_FILE_BROWSER__
-    case UI_BROWSER: ui_process_browser_lever(status);  break;
-#endif
-  }
+  ui_handler[ui_mode].button(status);
 }
 
 static
@@ -3252,20 +3265,14 @@ void ui_process_touch(void)
   int status = touch_check();
   if (status == EVT_TOUCH_PRESSED || status == EVT_TOUCH_DOWN) {
     touch_position(&touch_x, &touch_y);
-    switch (ui_mode) {
-      case UI_NORMAL: normal_apply_touch(touch_x, touch_y); break;
-      case UI_MENU:   menu_apply_touch(touch_x, touch_y);   break;
-      case UI_KEYPAD: keypad_apply_touch(touch_x, touch_y); break;
-#ifdef __SD_FILE_BROWSER__
-      case UI_BROWSER: browser_apply_touch(touch_x, touch_y); break;
-#endif
-    }
+    ui_handler[ui_mode].touch(touch_x, touch_y);
   }
 }
 
 void
 ui_process(void)
 {
+//if (ui_mode >= UI_END) return; // for safe
   if (operation_requested&OP_LEVER)
     ui_process_lever();
   if (operation_requested&OP_TOUCH)
