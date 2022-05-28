@@ -1544,6 +1544,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_sdcard_auto_acb)
 #ifdef __SD_FILE_BROWSER__
 #include "vna_modules/vna_browser.c"
 #endif
+#endif // __USE_SD_CARD__
 
 static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
 {
