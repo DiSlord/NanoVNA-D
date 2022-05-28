@@ -55,7 +55,11 @@ uint8_t operation_requested = OP_NONE;
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
 enum {
-  UI_NORMAL, UI_MENU, UI_KEYPAD, UI_BROWSER
+  UI_NORMAL, UI_MENU, UI_KEYPAD,
+#ifdef __SD_FILE_BROWSER__
+  UI_BROWSER,
+#endif
+  UI_END
 };
 
 typedef struct {
@@ -1570,12 +1574,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 #endif
 
 #if STORED_TRACES > 0
-static UI_FUNCTION_CALLBACK(menu_stored_trace_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
 {
-  if (data & 1)
-    disableStoredTrace(data>>1);
-  else
-    storeCurrentTrace(data>>1);
+  if (b){
+    b->p1.text = getStoredTraces() & (1<<data) ? "CLEAR" : "STORE";
+    return;
+  }
+  toogleStoredTrace(data);
 }
 #endif
 
@@ -1695,13 +1700,14 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
-#if STORED_TRACES > 0
-  { MT_CALLBACK,     0, "STORE TRACE", menu_stored_trace_cb},
-  { MT_CALLBACK,     1, "CLEAN STORE", menu_stored_trace_cb},
+#if STORED_TRACES == 1
+  { MT_ADV_CALLBACK, 0, "%s TRACE", menu_stored_trace_acb},
+#elif STORED_TRACES > 1
+  { MT_ADV_CALLBACK, 0, "%s TRACE A", menu_stored_trace_acb},
+  { MT_ADV_CALLBACK, 1, "%s TRACE B", menu_stored_trace_acb},
+#if STORED_TRACES > 2
+  { MT_ADV_CALLBACK, 2, "%s TRACE C", menu_stored_trace_acb},
 #endif
-#if STORED_TRACES > 1
-  { MT_CALLBACK,     2, "STORE TRACE 1", menu_stored_trace_cb},
-  { MT_CALLBACK,     3, "CLEAN STORE 1", menu_stored_trace_cb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -3228,6 +3234,17 @@ normal_apply_touch(int touch_x, int touch_y){
   ui_mode_menu();
 }
 //========================== end normal plot input =======================
+static const struct {
+  void (*button)(uint16_t status);
+  void (*touch)(int touch_x, int touch_y);
+} ui_handler[UI_END] = {
+  [UI_NORMAL ] = {ui_process_normal_lever , normal_apply_touch},
+  [UI_MENU   ] = {ui_process_menu_lever   , menu_apply_touch},
+  [UI_KEYPAD ] = {ui_process_keypad_lever , keypad_apply_touch},
+#ifdef __SD_FILE_BROWSER__
+  [UI_BROWSER] = {ui_process_browser_lever, browser_apply_touch},
+#endif
+};
 
 static void
 ui_process_lever(void)
@@ -3235,14 +3252,7 @@ ui_process_lever(void)
 //  last_button = 0;
   uint16_t status = btn_check();
   if (status == 0) return;
-  switch (ui_mode) {
-    case UI_NORMAL: ui_process_normal_lever(status);  break;
-    case UI_MENU:   ui_process_menu_lever(status);    break;
-    case UI_KEYPAD: ui_process_keypad_lever(status);  break;
-#ifdef __SD_FILE_BROWSER__
-    case UI_BROWSER: ui_process_browser_lever(status);  break;
-#endif
-  }
+  ui_handler[ui_mode].button(status);
 }
 
 static
@@ -3252,20 +3262,14 @@ void ui_process_touch(void)
   int status = touch_check();
   if (status == EVT_TOUCH_PRESSED || status == EVT_TOUCH_DOWN) {
     touch_position(&touch_x, &touch_y);
-    switch (ui_mode) {
-      case UI_NORMAL: normal_apply_touch(touch_x, touch_y); break;
-      case UI_MENU:   menu_apply_touch(touch_x, touch_y);   break;
-      case UI_KEYPAD: keypad_apply_touch(touch_x, touch_y); break;
-#ifdef __SD_FILE_BROWSER__
-      case UI_BROWSER: browser_apply_touch(touch_x, touch_y); break;
-#endif
-    }
+    ui_handler[ui_mode].touch(touch_x, touch_y);
   }
 }
 
 void
 ui_process(void)
 {
+//if (ui_mode >= UI_END) return; // for safe
   if (operation_requested&OP_LEVER)
     ui_process_lever();
   if (operation_requested&OP_TOUCH)

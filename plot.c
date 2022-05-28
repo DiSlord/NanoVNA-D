@@ -827,23 +827,26 @@ invalidate_rect_func(int x0, int y0, int x1, int y1)
 
 #if STORED_TRACES > 0
 static uint8_t enabled_store_trace = 0;
-void storeCurrentTrace(int idx){
+void toogleStoredTrace(int idx) {
+  uint8_t mask = 1<<idx;
+  if (enabled_store_trace & mask) {
+    enabled_store_trace&= ~mask;
+    return;
+  }
   if (current_trace == TRACE_INVALID) return;
   memcpy(trace_index[TRACES_MAX + idx], trace_index[current_trace], sizeof(trace_index[0]));
-  enabled_store_trace|=1<<idx;
+  enabled_store_trace|= mask;
 }
 
-void disableStoredTrace(int idx){
-  enabled_store_trace&=~(1<<idx);
+uint8_t getStoredTraces(void) {
+  return enabled_store_trace;
 }
 
 static bool needProcessTrace(uint16_t idx) {
-  if (idx < TRACES_MAX) {
-    if (trace[idx].enabled)
-      return true;
-  }
-  else if ((enabled_store_trace & (1<<(idx-TRACES_MAX))))
-    return true;
+  if (idx < TRACES_MAX)
+    return trace[idx].enabled;
+  else if (idx < TRACE_INDEX_COUNT)
+    return enabled_store_trace & (1<<(idx-TRACES_MAX));
   return false;
 }
 #else
