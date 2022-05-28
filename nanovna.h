@@ -959,8 +959,8 @@ uint16_t plot_get_measure_channels(void);
 int distance_to_index(int8_t t, uint16_t idx, int16_t x, int16_t y);
 int search_nearest_index(int x, int y, int t);
 
-void storeCurrentTrace(int idx);
-void disableStoredTrace(int idx);
+void toogleStoredTrace(int idx);
+uint8_t getStoredTraces(void);
 
 const char *get_trace_typename(int t, int marker_smith_format);
 const char *get_smith_format_names(int m);

@@ -62,11 +62,6 @@ enum {
   UI_END
 };
 
-typedef void (*ui_button_cb_t)(uint16_t status);
-#define UI_BUTTON_CALLBACK(ui_button_function_name) void ui_button_function_name(uint16_t status)
-typedef void (*ui_touch_cb_t)(int touch_x, int touch_y);
-#define UI_TOUCH_CALLBACK(ui_touch_function_name) void ui_touch_function_name(int touch_x, int touch_y)
-
 typedef struct {
   uint8_t bg;
   uint8_t fg;
@@ -1579,12 +1574,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
 #endif
 
 #if STORED_TRACES > 0
-static UI_FUNCTION_CALLBACK(menu_stored_trace_cb)
+static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
 {
-  if (data & 1)
-    disableStoredTrace(data>>1);
-  else
-    storeCurrentTrace(data>>1);
+  if (b){
+    b->p1.text = getStoredTraces() & (1<<data) ? "CLEAR" : "STORE";
+    return;
+  }
+  toogleStoredTrace(data);
 }
 #endif
 
@@ -1704,13 +1700,14 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
-#if STORED_TRACES > 0
-  { MT_CALLBACK,     0, "STORE TRACE", menu_stored_trace_cb},
-  { MT_CALLBACK,     1, "CLEAN STORE", menu_stored_trace_cb},
+#if STORED_TRACES == 1
+  { MT_ADV_CALLBACK, 0, "%s TRACE", menu_stored_trace_acb},
+#elif STORED_TRACES > 1
+  { MT_ADV_CALLBACK, 0, "%s TRACE A", menu_stored_trace_acb},
+  { MT_ADV_CALLBACK, 1, "%s TRACE B", menu_stored_trace_acb},
+#if STORED_TRACES > 2
+  { MT_ADV_CALLBACK, 2, "%s TRACE C", menu_stored_trace_acb},
 #endif
-#if STORED_TRACES > 1
-  { MT_CALLBACK,     2, "STORE TRACE 1", menu_stored_trace_cb},
-  { MT_CALLBACK,     3, "CLEAN STORE 1", menu_stored_trace_cb},
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -3238,8 +3235,8 @@ normal_apply_touch(int touch_x, int touch_y){
 }
 //========================== end normal plot input =======================
 static const struct {
-  ui_button_cb_t button;
-  ui_touch_cb_t touch;
+  void (*button)(uint16_t status);
+  void (*touch)(int touch_x, int touch_y);
 } ui_handler[UI_END] = {
   [UI_NORMAL ] = {ui_process_normal_lever , normal_apply_touch},
   [UI_MENU   ] = {ui_process_menu_lever   , menu_apply_touch},
