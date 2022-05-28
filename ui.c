@@ -55,7 +55,7 @@ uint8_t operation_requested = OP_NONE;
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
 enum {
-  UI_NORMAL, UI_MENU, UI_KEYPAD
+  UI_NORMAL, UI_MENU, UI_KEYPAD, UI_BROWSER
 };
 
 typedef struct {
@@ -1540,6 +1540,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_sdcard_auto_acb)
   }
   VNA_mode^= VNA_MODE_AUTO_NAME;
 }
+
+#ifdef __SD_FILE_BROWSER__
+#include "vna_modules/vna_browser.c"
 #endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
@@ -1588,7 +1591,20 @@ static const menuitem_t menu_back[] = {
 };
 
 #ifdef __USE_SD_CARD__
+#ifdef __SD_FILE_BROWSER__
+static const menuitem_t menu_sdcard_browse[] = {
+  { MT_CALLBACK, FMT_BMP_FILE, "LOAD BMP", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_S1P_FILE, "LOAD S1P", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_S2P_FILE, "LOAD S2P", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_CAL_FILE, "LOAD CAL", menu_sdcard_browse_cb },
+  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
 static const menuitem_t menu_sdcard[] = {
+#ifdef __SD_FILE_BROWSER__
+  { MT_SUBMENU,              0, "LOAD",       menu_sdcard_browse },
+#endif
   { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
   { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
   { MT_CALLBACK, FMT_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
@@ -1611,6 +1627,9 @@ static const menuitem_t menu_calop[] = {
 };
 
 const menuitem_t menu_save[] = {
+#ifdef __SD_FILE_BROWSER__
+  { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO SD", menu_sdcard_cb },
+#endif
   { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
   { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
@@ -1630,6 +1649,9 @@ const menuitem_t menu_save[] = {
 };
 
 const menuitem_t menu_recall[] = {
+#ifdef __SD_FILE_BROWSER__
+  { MT_CALLBACK, FMT_CAL_FILE, "LOAD FROM SD", menu_sdcard_browse_cb },
+#endif
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_recall_acb },
   { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_recall_acb },
   { MT_ADV_CALLBACK, 2, MT_CUSTOM_LABEL, menu_recall_acb },
@@ -2974,7 +2996,7 @@ ui_mode_normal(void)
   set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
   if (ui_mode == UI_MENU)
     request_to_draw_cells_behind_menu();
-  if (ui_mode == UI_KEYPAD)
+  if (ui_mode == UI_KEYPAD || ui_mode == UI_BROWSER)
     request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
@@ -3216,6 +3238,9 @@ ui_process_lever(void)
     case UI_NORMAL: ui_process_normal_lever(status);  break;
     case UI_MENU:   ui_process_menu_lever(status);    break;
     case UI_KEYPAD: ui_process_keypad_lever(status);  break;
+#ifdef __SD_FILE_BROWSER__
+    case UI_BROWSER: ui_process_browser_lever(status);  break;
+#endif
   }
 }
 
@@ -3230,6 +3255,9 @@ void ui_process_touch(void)
       case UI_NORMAL: normal_apply_touch(touch_x, touch_y); break;
       case UI_MENU:   menu_apply_touch(touch_x, touch_y);   break;
       case UI_KEYPAD: keypad_apply_touch(touch_x, touch_y); break;
+#ifdef __SD_FILE_BROWSER__
+      case UI_BROWSER: browser_apply_touch(touch_x, touch_y); break;
+#endif
     }
   }
 }

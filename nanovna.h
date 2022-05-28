@@ -79,6 +79,8 @@
 #define __SD_CARD_LOAD__
 // Allow dump firmware to SD card
 #define __SD_CARD_DUMP_FIRMWARE__
+// Enable SD card file browser, and allow load files from it
+//#define __SD_FILE_BROWSER__
 #endif
 
 // If measure module enabled, add submodules
@@ -551,7 +553,14 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define MENU_BUTTON_WIDTH           (21 + 10*FONT_WIDTH)
 #define MENU_BUTTON_HEIGHT(n)       (AREA_HEIGHT_NORMAL/(n))
 #define MENU_BUTTON_BORDER            1
-#define KEYBOARD_BUTTON_BORDER        2
+#define KEYBOARD_BUTTON_BORDER        1
+#define BROWSER_BUTTON_BORDER         1
+// Browser window settings
+#define FILES_COLUMNS               (LCD_WIDTH/160)                                // columns in browser
+#define FILES_ROWS                   10                                            // rows in browser
+#define FILES_PER_PAGE              (FILES_COLUMNS*FILES_ROWS)                     // FILES_ROWS * FILES_COLUMNS
+#define FILE_BOTTOM_HEIGHT           20                                            // Height of bottom buttons (< > X)
+#define FILE_BUTTON_HEIGHT          ((LCD_HEIGHT - FILE_BOTTOM_HEIGHT)/FILES_ROWS) // Height of file buttons
 
 // Define message box width
 #define MESSAGE_BOX_WIDTH           180
