@@ -127,11 +127,20 @@ typedef struct {
 
 // Max keyboard input length
 #define NUMINPUT_LEN 12
+#if FF_USE_LFN
+#define TXTINPUT_LEN (FF_MAX_LFN - 4)
+#else
+#define TXTINPUT_LEN (8)
+#endif
 
+#if NUMINPUT_LEN + 2 > TXTINPUT_LEN + 1
+static char    kp_buf[NUMINPUT_LEN+2];  // !!!!!! WARNING size must be + 2 from NUMINPUT_LEN or TXTINPUT_LEN + 1
+#else
+static char    kp_buf[TXTINPUT_LEN+1];  // !!!!!! WARNING size must be + 2 from NUMINPUT_LEN or TXTINPUT_LEN + 1
+#endif
 static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
-static char    kp_buf[NUMINPUT_LEN+2];
 static int8_t  kp_index = 0;
 static uint8_t menu_current_level = 0;
 static int8_t  selection = -1;
@@ -2891,7 +2900,7 @@ full_keypad_click(int c)
       return KP_CANCEL;
     --kp_index;
   }
-  else if (kp_index < NUMINPUT_LEN) { // any other text input
+  else if (kp_index < TXTINPUT_LEN) { // any other text input
     kp_buf[kp_index++] = c;
   }
   kp_buf[kp_index] = '\0';
