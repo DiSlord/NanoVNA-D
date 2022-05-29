@@ -1620,7 +1620,7 @@ marker_search(bool update)
   // Select search index table
   index_t *index = trace_index[current_trace];
   // Select compare function (depend from config settings)
-  bool (*compare)(int x, int y) = (VNA_mode & VNA_MODE_SEARCH_MIN) ? _lesser : _greater;
+  bool (*compare)(int x, int y) = VNA_MODE(VNA_MODE_SEARCH) ? _lesser : _greater;
   for (i = 1, value = index[0].y; i < sweep_points; i++) {
     if ((*compare)(value, index[i].y)) {
       value = index[i].y;
@@ -1642,7 +1642,7 @@ marker_search_dir(int16_t from, int16_t dir)
   // Select search index table
   index_t *index = trace_index[current_trace];
   // Select compare function (depend from config settings)
-  bool (*compare)(int x, int y) = (VNA_mode & VNA_MODE_SEARCH_MIN) ? _lesser : _greater;
+  bool (*compare)(int x, int y) = VNA_MODE(VNA_MODE_SEARCH) ? _lesser : _greater;
   // Search next
   for (i = from + dir,  value = index[from].y; i >= 0 && i < sweep_points; i+=dir) {
     if ((*compare)(value, index[i].y))
@@ -1815,7 +1815,7 @@ draw_cell(int m, int n)
       t_count++;
     }
   }
-  const int step = (VNA_mode & VNA_MODE_DOT_GRID) ? 2 : 1;
+  const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
   // Draw rectangular plot (40 system ticks for all screen calls)
   if (trace_type & RECTANGULAR_GRID_MASK) {
     for (x = 0; x < w; x++) {
@@ -1845,7 +1845,7 @@ draw_cell(int m, int n)
 
 #ifdef __USE_GRID_VALUES__
   // Only right cells
-  if ((VNA_mode & VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+  if (VNA_MODE(VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
     cell_grid_line_info(x0, y0);
 #endif
 
