@@ -22,6 +22,7 @@
 #include "ch.h"
 #include "hal.h"
 #include "chprintf.h"
+#include <string.h>
 #include "nanovna.h"
 #include "si5351.h"
 
@@ -519,7 +520,7 @@ touch_cal_exec(void)
   const uint16_t y2 = LCD_HEIGHT - 1 - CALIBRATION_OFFSET - TOUCH_MARK_Y;
   uint16_t p1 = 0, p2 = 2;
 #ifdef __FLIP_DISPLAY__
-  if(VNA_mode & VNA_MODE_FLIP_DISPLAY) {p1 = 2, p2 = 0;}
+  if (VNA_MODE(VNA_MODE_FLIP_DISPLAY)) {p1 = 2, p2 = 0;}
 #endif
   getTouchPoint(x1, y1, "UPPER LEFT", &config._touch_cal[p1]);
   getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[p2]);
@@ -564,7 +565,7 @@ touch_position(int *x, int *y)
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
   int ty = ((LCD_HEIGHT-1-CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) + CALIBRATION_OFFSET * (config._touch_cal[3] - last_touch_y)) / (config._touch_cal[3] - config._touch_cal[1]);
   if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
-  if(VNA_mode & VNA_MODE_FLIP_DISPLAY) {
+  if (VNA_MODE(VNA_MODE_FLIP_DISPLAY)) {
     tx = LCD_WIDTH - 1 - tx;
     ty = LCD_HEIGHT - 1 - ty;
   }
@@ -925,17 +926,60 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   set_bandwidth(data);
 }
 
-#ifdef __USE_SMOOTH__
-static UI_FUNCTION_ADV_CALLBACK(menu_smooth_func_acb)
-{
-  (void)data;
-  if (b){
-    b->p1.text = (VNA_mode & VNA_SMOOTH_FUNCTION) ? "Arith" : "Geom";
-    return;
+void apply_VNA_mode(uint16_t idx, uint16_t value) {
+  uint16_t m = 1<<idx;
+  uint16_t old = config._vna_mode;
+       if (value == VNA_MODE_CLR) config._vna_mode&=~m; // clear
+  else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
+  else                            config._vna_mode^= m; // toggle
+  if (old == config._vna_mode) return;
+  request_to_redraw(REDRAW_BACKUP | REDRAW_AREA);
+  // Custom processing after apply
+  switch(idx) {
+#ifdef __USE_SERIAL_CONSOLE__
+    case VNA_MODE_CONNECTION: shell_reset_console(); break;
+#endif
+    case VNA_MODE_SEARCH:
+      marker_search(true);
+#ifdef UI_USE_LEVELER_SEARCH_MODE
+      select_lever_mode(LM_SEARCH);
+#endif
+    break;
+#ifdef __FLIP_DISPLAY__
+    case VNA_MODE_FLIP_DISPLAY:
+      lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
+      request_to_redraw(REDRAW_CLRSCR | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+      draw_all(true);
+    break;
+#endif
   }
-  VNA_mode^= VNA_SMOOTH_FUNCTION;
 }
 
+static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
+{
+  static const char *vna_mode_text[] = {
+    [VNA_MODE_AUTO_NAME] = 0,
+    [VNA_MODE_SMOOTH] = "Geom\0Arith",
+    [VNA_MODE_CONNECTION] = "USB\0SERIAL",
+    [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
+    [VNA_MODE_SHOW_GRID] = 0,
+    [VNA_MODE_DOT_GRID] = 0,
+    [VNA_MODE_BACKUP] = 0,
+    [VNA_MODE_FLIP_DISPLAY] = 0
+  };
+  if (b){
+    if (vna_mode_text[data] == 0)
+      b->icon = VNA_MODE(data) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    else {
+      const char *t = vna_mode_text[data];
+      b->p1.text = VNA_MODE(data) ? t + strlen(t) + 1 : t;
+    }
+    return;
+  }
+  apply_VNA_mode(data, VNA_MODE_TOGGLE);
+}
+
+#ifdef __USE_SMOOTH__
 static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
 {
   if (b){
@@ -944,19 +988,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
     return;
   }
   set_smooth_factor(data);
-}
-#endif
-
-#ifdef __USE_BACKUP__
-static UI_FUNCTION_ADV_CALLBACK(menu_backup_acb)
-{
-  (void)data;
-  if (b){
-    b->icon = (VNA_mode & VNA_MODE_BACKUP) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  VNA_mode^= VNA_MODE_BACKUP;
-  request_to_redraw(REDRAW_BACKUP);
 }
 #endif
 
@@ -1007,21 +1038,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
   set_power(data);
 }
 
-#ifdef __FLIP_DISPLAY__
-static UI_FUNCTION_ADV_CALLBACK(menu_display_acb)
-{
-  (void)data;
-  if(b){
-    b->icon = VNA_mode & VNA_MODE_FLIP_DISPLAY ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  VNA_mode ^= VNA_MODE_FLIP_DISPLAY;
-  lcd_set_flip(VNA_mode & VNA_MODE_FLIP_DISPLAY);
-  request_to_redraw(0xff);
-  draw_all(true);
-}
-#endif
-
 extern const keypads_list keypads_mode_tbl[];
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
@@ -1039,18 +1055,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
   }
   ui_mode_keypad(data);
 }
-
-#ifdef __USE_GRID_VALUES__
-static UI_FUNCTION_ADV_CALLBACK(menu_grid_acb)
-{
-  if (b){
-    b->icon = VNA_mode & data ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  VNA_mode^=data;
-  request_to_redraw(REDRAW_AREA);
-}
-#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
@@ -1104,20 +1108,6 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
   }
   ui_mode_normal();
-}
-
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_search_mode_acb)
-{
-  (void)data;
-  if (b){
-    b->p1.text = (VNA_mode & VNA_MODE_SEARCH_MIN) ? "MINIMUM" : "MAXIMUM";
-    return;
-  }
-  VNA_mode^= VNA_MODE_SEARCH_MIN;
-  marker_search(true);
-#ifdef UI_USE_LEVELER_SEARCH_MODE
-  select_lever_mode(LM_SEARCH);
-#endif
 }
 
 static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
@@ -1237,17 +1227,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb)
     return;
   }
   menu_push_submenu(menu_serial_speed);
-}
-
-
-static UI_FUNCTION_ADV_CALLBACK(menu_connection_acb)
-{
-  if (b){
-    b->icon = (VNA_mode & VNA_MODE_CONNECTION_MASK) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    return;
-  }
-  VNA_mode = (VNA_mode & ~VNA_MODE_CONNECTION_MASK) | data;
-  shell_reset_console();
 }
 #endif
 
@@ -1529,20 +1508,10 @@ static void vna_save_file(char *name, uint8_t format)
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
-  if (VNA_mode & VNA_MODE_AUTO_NAME)
+  if (VNA_MODE(VNA_MODE_AUTO_NAME))
     vna_save_file(NULL, data);
   else
     ui_mode_keypad(data + KM_S1P_NAME); // If no auto name, call text keyboard input
-}
-
-static UI_FUNCTION_ADV_CALLBACK(menu_sdcard_auto_acb)
-{
-  (void)data;
-  if (b){
-    b->icon = (VNA_mode & VNA_MODE_AUTO_NAME) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    return;
-  }
-  VNA_mode^= VNA_MODE_AUTO_NAME;
 }
 
 #ifdef __SD_FILE_BROWSER__
@@ -1615,7 +1584,7 @@ static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
   { MT_CALLBACK, FMT_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
   { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
-  { MT_ADV_CALLBACK,         0, "AUTO NAME",  menu_sdcard_auto_acb },
+  { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -1775,8 +1744,8 @@ const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
-  { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_grid_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_grid_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1821,7 +1790,7 @@ const menuitem_t menu_bandwidth[] = {
 
 #ifdef __USE_SMOOTH__
 const menuitem_t menu_smooth_count[] = {
-  { MT_ADV_CALLBACK, 0, "SMOOTH\n" R_LINK_COLOR "%s avg",menu_smooth_func_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SMOOTH, "SMOOTH\n" R_LINK_COLOR "%s avg",menu_vna_mode_acb },
   { MT_ADV_CALLBACK, 0, "SMOOTH\nOFF",menu_smooth_acb },
   { MT_ADV_CALLBACK, 1, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 2, "x%d", menu_smooth_acb },
@@ -1959,12 +1928,12 @@ const menuitem_t menu_marker_measure[] = {
 #endif
 
 const menuitem_t menu_marker[] = {
-  { MT_SUBMENU,                0, "SELECT\nMARKER",              menu_marker_sel    },
-  { MT_ADV_CALLBACK,           0, "SEARCH\n" R_LINK_COLOR " %s", menu_marker_search_mode_acb },
-  { MT_CALLBACK, MK_SEARCH_LEFT,  "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
-  { MT_CALLBACK, MK_SEARCH_RIGHT, "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
-  { MT_SUBMENU,                0, "OPERATIONS",                  menu_marker_ops    },
-  { MT_ADV_CALLBACK,           0, "TRACKING",                    menu_marker_tracking_acb },
+  { MT_SUBMENU,                0,   "SELECT\nMARKER",              menu_marker_sel    },
+  { MT_ADV_CALLBACK,VNA_MODE_SEARCH,"SEARCH\n" R_LINK_COLOR " %s", menu_vna_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,    "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT,   "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
+  { MT_SUBMENU,                0,   "OPERATIONS",                  menu_marker_ops    },
+  { MT_ADV_CALLBACK,           0,   "TRACKING",                    menu_marker_tracking_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1991,9 +1960,8 @@ const menuitem_t menu_serial_speed[] = {
 };
 
 const menuitem_t menu_connection[] = {
-  { MT_ADV_CALLBACK, VNA_MODE_USB,    "USB",          menu_connection_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_SERIAL, "SERIAL",       menu_connection_acb },
-  { MT_ADV_CALLBACK,               0, "SERIAL SPEED\n " R_LINK_COLOR "%u", menu_serial_speed_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_CONNECTION, "CONNECTION\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, 0, "SERIAL SPEED\n " R_LINK_COLOR "%u", menu_serial_speed_sel_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2040,10 +2008,10 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
 #endif
 #ifdef __USE_BACKUP__
-  { MT_ADV_CALLBACK, 0,            "REMEMBER\nSTATE",                          menu_backup_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_BACKUP,"REMEMBER\nSTATE",                        menu_vna_mode_acb},
 #endif
 #ifdef __FLIP_DISPLAY__
-  { MT_ADV_CALLBACK, 0,            "FLIP\nDISPLAY",                            menu_display_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_FLIP_DISPLAY, "FLIP\nDISPLAY",                   menu_vna_mode_acb },
 #endif
 #ifdef __USE_RTC__
   { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                                 menu_keyboard_acb },

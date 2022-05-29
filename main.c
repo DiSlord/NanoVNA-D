@@ -96,6 +96,8 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //#define DEBUG_CONSOLE_SHOW
 // Enable usart command
 #define ENABLE_USART_COMMAND
+// Enable config command
+#define ENABLE_CONFIG_COMMAND
 #ifdef __USE_SD_CARD__
 // Enable SD card console command
 #define ENABLE_SD_CARD_CMD
@@ -129,7 +131,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.2.00"
+#define VERSION "1.2.01"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -196,7 +198,7 @@ static void measurementDataSmooth(uint16_t ch_mask){
   int j;
 //  ch_mask = 2;
 //  memcpy(measured[0], measured[1], sizeof(measured[0]));
-  float (*smooth_func)(float v0, float v1, float v2) = (VNA_mode & VNA_SMOOTH_FUNCTION) ? arifmetic_mean : geometry_mean;
+  float (*smooth_func)(float v0, float v1, float v2) = VNA_MODE(VNA_MODE_SMOOTH) ? arifmetic_mean : geometry_mean;
   for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
     if ((ch_mask&1)==0) continue;
     int count = 1<<(smooth_factor-1), n;
@@ -230,7 +232,7 @@ static THD_FUNCTION(Thread1, arg)
   (void)arg;
   chRegSetThreadName("sweep");
 #ifdef __FLIP_DISPLAY__
-  if(VNA_mode & VNA_MODE_FLIP_DISPLAY)
+  if(VNA_MODE(VNA_MODE_FLIP_DISPLAY))
     lcd_set_flip(true);
 #endif
 /*
@@ -680,6 +682,19 @@ VNA_SHELL_FUNCTION(cmd_smooth)
 }
 #endif
 
+#ifdef ENABLE_CONFIG_COMMAND
+VNA_SHELL_FUNCTION(cmd_config)
+{
+  static const char cmd_mode_list[] = "auto|avg|connection|mode|grid|dot|bk|flip";
+  int idx;
+  if (argc == 2 && (idx = get_str_index(argv[0], cmd_mode_list)) >= 0) {
+	apply_VNA_mode(idx, my_atoui(argv[1]));
+  }
+  else
+    shell_printf("usage: config {%s} [0|1] \r\n", cmd_mode_list);
+}
+#endif
+
 #ifdef USE_VARIABLE_OFFSET
 VNA_SHELL_FUNCTION(cmd_offset)
 {
@@ -1016,10 +1031,11 @@ void update_backup_data(void) {
   RTC->BKP1R = frequency0;
   RTC->BKP2R = frequency1;
   RTC->BKP3R = var_freq;
+  RTC->BKP4R = config._vna_mode;
 }
 
 static void load_start_properties(void) {
-  if (VNA_mode & VNA_MODE_BACKUP) {
+  if (VNA_MODE(VNA_MODE_BACKUP)) {
     backup_0 bk = {.v = RTC->BKP0R};
     if (bk.v != 0 && bk.id < SAVEAREA_MAX) { // if backup data valid, and slot valid
       if (caldata_recall(bk.id) == 0) {      // Load ok
@@ -1029,6 +1045,7 @@ static void load_start_properties(void) {
         frequency0 = RTC->BKP1R;
         frequency1 = RTC->BKP2R;
         var_freq   = RTC->BKP3R;
+        config._vna_mode = RTC->BKP4R|(1<<VNA_MODE_BACKUP); // refresh backup settings
       }
       // Here need restore settings not depend from cal data
     }
@@ -1909,10 +1926,11 @@ cal_collect(uint16_t type)
       cal_data[dst][j][1]+=measured[src][j][1];
     }
   }
-  if (i!=1){
+  if (i != 1){
+    float k = 1.0f / i;
     for (j = 0; j < sweep_points; j++){
-      cal_data[dst][j][0]/=i;
-      cal_data[dst][j][1]/=i;
+      cal_data[dst][j][0]*= k;
+      cal_data[dst][j][1]*= k;
     }
   }
 
@@ -2759,7 +2777,7 @@ result:
 VNA_SHELL_FUNCTION(cmd_usart)
 {
   uint32_t time = 2000; // 200ms wait answer by default
-  if (argc == 0 || argc > 2 || (VNA_mode & VNA_MODE_SERIAL)) return;
+  if (argc == 0 || argc > 2 || VNA_MODE(VNA_MODE_SERIAL)) return;
   if (argc == 2) time = my_atoui(argv[1])*10;
   sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
   sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
@@ -2983,6 +3001,9 @@ static const VNAShellCommand commands[] =
 #ifdef __USE_SMOOTH__
     {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif
+#ifdef ENABLE_CONFIG_COMMAND
+    {"config"      , cmd_config      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+#endif
 #ifdef __USE_SERIAL_CONSOLE__
 #ifdef ENABLE_USART_COMMAND
     {"usart_cfg"   , cmd_usart_cfg   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
@@ -3053,7 +3074,7 @@ VNA_SHELL_FUNCTION(cmd_help)
 #endif
 
 // Before start process command from shell, need select input stream
-#define PREPARE_STREAM shell_stream = (VNA_mode & VNA_MODE_SERIAL) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
+#define PREPARE_STREAM shell_stream = VNA_MODE(VNA_MODE_CONNECTION) ? (BaseSequentialStream *)&SD1 : (BaseSequentialStream *)&SDU1;
 
 // Update Serial connection speed and settings
 void shell_update_speed(uint32_t speed){
@@ -3073,7 +3094,7 @@ static bool usb_IsActive(void){
 void shell_reset_console(void){
   // Reset I/O queue over USB (for USB need also connect/disconnect)
   if (usb_IsActive()){
-    if (VNA_mode & VNA_MODE_SERIAL)
+    if (VNA_MODE(VNA_MODE_CONNECTION))
       sduDisconnectI(&SDU1);
     else
       sduConfigureHookI(&SDU1);
@@ -3086,7 +3107,7 @@ void shell_reset_console(void){
 // Check active connection for Shell
 static bool shell_check_connect(void){
   // Serial connection always active
-  if (VNA_mode & VNA_MODE_SERIAL)
+  if (VNA_MODE(VNA_MODE_CONNECTION))
     return true;
   // USB connection can be USB_SUSPENDED
   return usb_IsActive();

@@ -816,24 +816,25 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 // config._mode flags
 // Auto name for files
-#define VNA_MODE_AUTO_NAME        0x01
+#define VNA_MODE_AUTO_NAME        0
 // Smooth function
-#define VNA_SMOOTH_FUNCTION       0x02
+#define VNA_MODE_SMOOTH           1
 // Connection flag
-#define VNA_MODE_CONNECTION_MASK  0x04
-#define VNA_MODE_SERIAL           0x04
-#define VNA_MODE_USB              0x00
+#define VNA_MODE_CONNECTION       2
+#define VNA_MODE_SERIAL           (1<<VNA_MODE_CONNECTION)
+#define VNA_MODE_USB              (0<<VNA_MODE_CONNECTION)
 // Marker search mode
-#define VNA_MODE_SEARCH_MIN       0x08
-#define VNA_MODE_SEARCH_MAX       0x00
+#define VNA_MODE_SEARCH           3
+#define VNA_MODE_SEARCH_MIN       (1<<VNA_MODE_SEARCH)
+#define VNA_MODE_SEARCH_MAX       (0<<VNA_MODE_SEARCH)
 // Show grid values
-#define VNA_MODE_SHOW_GRID        0x10
+#define VNA_MODE_SHOW_GRID        4
 // Show grid values
-#define VNA_MODE_DOT_GRID         0x20
+#define VNA_MODE_DOT_GRID         5
 // Made backup settings (save some settings after power off)
-#define VNA_MODE_BACKUP           0x40
+#define VNA_MODE_BACKUP           6
 // Flip display
-#define VNA_MODE_FLIP_DISPLAY     0x80
+#define VNA_MODE_FLIP_DISPLAY     7
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1294,7 +1295,7 @@ extern uint16_t lastsaveid;
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
 
-#define VNA_mode             config._vna_mode
+#define VNA_MODE(idx)        (config._vna_mode&(1<<idx))
 #define lever_mode           config._lever_mode
 #define IF_OFFSET            config._IF_freq
 #ifdef __DIGIT_SEPARATOR__
@@ -1350,6 +1351,12 @@ void enter_dfu(void);
 extern uint8_t operation_requested;
 
 #define TOUCH_THRESHOLD 2000
+
+// Update config._vna_mode flags
+#define VNA_MODE_CLR     0
+#define VNA_MODE_SET     1
+#define VNA_MODE_TOGGLE  2
+void apply_VNA_mode(uint16_t idx, uint16_t value);
 
 /*
  * adc.c
