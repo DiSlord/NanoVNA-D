@@ -2971,8 +2971,13 @@ ui_mode_normal(void)
   set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
   if (ui_mode == UI_MENU)
     request_to_draw_cells_behind_menu();
+#ifdef __SD_FILE_BROWSER__
   if (ui_mode == UI_KEYPAD || ui_mode == UI_BROWSER)
     request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+#else
+  if (ui_mode == UI_KEYPAD)
+    request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+#endif
   request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
 }

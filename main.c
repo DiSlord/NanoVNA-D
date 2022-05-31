@@ -115,13 +115,8 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask);
 static void transform_domain(uint16_t ch_mask);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
-
-// sweep operation variables
-volatile uint16_t wait_count = 0;
 // current sweep point (used for continue sweep if user break)
 static uint16_t p_sweep = 0;
-// ChibiOS i2s buffer must be 2x size (for process one while next buffer filled by DMA)
-static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 // Sweep measured data
 float measured[2][POINTS_COUNT][2];
 
@@ -1092,36 +1087,64 @@ duplicate_buffer_to_dump(int16_t *p, size_t n)
 }
 #endif
 
-//
-// DMA i2s callback function, called on get 'half' and 'full' buffer size data
-// need for process data, while DMA fill next buffer
-static volatile systime_t ready_time = 0;
+// DMA i2s callback function, called on get 'half' and 'full' buffer size data need for process data, while DMA fill next buffer
+static systime_t ready_time = 0;
+// sweep operation variables
+uint16_t wait_count = 0;
+// i2s buffer must be 2x size (for process one while next buffer filled by DMA)
+static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 
-void i2s_end_callback(I2SDriver *i2sp, size_t offset, size_t n)
-{
-  int16_t *p = &rx_buffer[offset];
+static void i2s_lld_serve_rx_interrupt(void *i2sp, uint32_t flags) {
   (void)i2sp;
-  if (wait_count == 0 || chVTGetSystemTimeX() < ready_time) return;
-  if (wait_count == config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
+//if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
+  uint16_t wait = wait_count;
+  if (wait == 0 || chVTGetSystemTimeX() < ready_time) return;
+  uint16_t count = AUDIO_BUFFER_LEN;
+  int16_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
+  if (wait >= config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
     reset_dsp_accumerator();
-  else if (wait_count <= config._bandwidth+1) // Clean data ready, process it
-    dsp_process(p, n);
+  else
+    dsp_process(p, count);
 #ifdef ENABLED_DUMP_COMMAND
-  duplicate_buffer_to_dump(p, n);
+  duplicate_buffer_to_dump(p, count);
 #endif
   --wait_count;
 //  stat.callback_count++;
 }
 
-static const I2SConfig i2sconfig = {
-  NULL,                   // TX Buffer
-  rx_buffer,              // RX Buffer
-  AUDIO_BUFFER_LEN * 2,   // RX Buffer size
-  NULL,                   // tx callback
-  i2s_end_callback,       // rx callback
-  0,                      // i2scfgr
-  0                       // i2spr
-};
+static void initI2S(void) {
+  const uint32_t  I2S_DMA_RX_ccr = 0
+    | STM32_DMA_CR_CHSEL(I2S2_RX_DMA_CHANNEL)
+    | STM32_DMA_CR_PL(3)       // 3 - Very High
+    | STM32_DMA_CR_PSIZE_HWORD // 16 bit
+    | STM32_DMA_CR_MSIZE_HWORD // 16 bit
+    | STM32_DMA_CR_DIR_P2M     // Read from peripheral
+    | STM32_DMA_CR_MINC        // Memory increment mode
+    | STM32_DMA_CR_CIRC        // Circular mode
+    | STM32_DMA_CR_HTIE        // Half transfer complete interrupt enable
+    | STM32_DMA_CR_TCIE        // Full transfer complete interrupt enable
+//  | STM32_DMA_CR_TEIE        // Transfer error interrupt enable
+    ;
+  // I2S RX DMA setup.
+  static const stm32_dma_stream_t *i2sdmarx = STM32_DMA_STREAM(STM32_I2S_SPI2_RX_DMA_STREAM); // Use SPI2 RX
+  dmaStreamAllocate(i2sdmarx, STM32_I2S_SPI2_IRQ_PRIORITY, (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt, NULL);
+  dmaStreamSetTransactionSize(i2sdmarx, ARRAY_COUNT(rx_buffer));
+  dmaStreamSetPeripheral(i2sdmarx, &SPI2->DR);
+  dmaStreamSetMemory0(i2sdmarx, rx_buffer);
+  dmaStreamSetMode(i2sdmarx, I2S_DMA_RX_ccr | STM32_DMA_CR_EN);
+
+  // Starting I2S
+  rccEnableSPI2(FALSE);           // Enabling I2S unit clock.
+  SPI2->CR1 = 0;                  // CRs settings
+  SPI2->CR2 = SPI_CR2_RXDMAEN;    // Enable RX DMA
+  SPI2->I2SPR   = 0;              // I2S (re)configuration.
+  SPI2->I2SCFGR = 0
+    | SPI_I2SCFGR_I2SCFG_0 // 01: Slave - receive
+//  | SPI_I2SCFGR_I2SCFG_1 //
+    | SPI_I2SCFGR_I2SMOD   // I2S mode is selected
+    | SPI_I2SCFGR_I2SE     // I2S enable
+    ;
+}
 
 #ifdef ENABLE_SI5351_TIMINGS
 extern uint16_t timings[16];
@@ -1272,6 +1295,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
+
+
 //  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
@@ -3462,10 +3487,7 @@ int main(void)
 /*
  * I2S Initialize
  */
-  i2sInit();
-  i2sObjectInit(&I2SD2);
-  i2sStart(&I2SD2, &i2sconfig);
-  i2sStartExchange(&I2SD2);
+  initI2S();
 
 /*
  * SD Card init (if inserted) allow fix issues
