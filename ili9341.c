@@ -174,19 +174,16 @@ static void dmaWaitCompletionRxTx(void){
 // SPI transmit byte buffer use DMA
 static void spi_DMARxBuffer(uint8_t *buffer, uint16_t len, bool wait) {
   uint8_t dummy_tx = 0xFF;
-  // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit)
-  dmaStreamSetMemory0(dmarx, buffer);
-  dmaStreamSetTransactionSize(dmarx, len);
-  dmaStreamSetMode(dmarx, rxdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
-  // Init dummy Tx DMA (for rx clock), size, mode (spi and mem data size is 8 bit)
-  dmaStreamSetMemory0(dmatx, &dummy_tx);
-  dmaStreamSetTransactionSize(dmatx, len);
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE);
   // Skip SPI rx buffer
   spi_DropRx();
-  // Start DMA exchange
-  dmaStreamEnable(dmarx);
-  dmaStreamEnable(dmatx);
+  // Init Rx DMA buffer, size, mode (spi and mem data size is 8 bit), and start
+  dmaStreamSetMemory0(dmarx, buffer);
+  dmaStreamSetTransactionSize(dmarx, len);
+  dmaStreamSetMode(dmarx, rxdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC | STM32_DMA_CR_EN);
+  // Init dummy Tx DMA (for rx clock), size, mode (spi and mem data size is 8 bit), and start
+  dmaStreamSetMemory0(dmatx, &dummy_tx);
+  dmaStreamSetTransactionSize(dmatx, len);
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_EN);
   if (wait)
     dmaWaitCompletionRxTx();
 }
@@ -593,9 +590,8 @@ void lcd_fill(int x, int y, int w, int h)
 static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   dmaStreamSetMemory0(dmatx, buffer);
-  dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC);
   dmaStreamSetTransactionSize(dmatx, w * h);
-  dmaStreamEnable(dmatx);
+  dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC | STM32_DMA_CR_EN);
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
      remote_region_t rd = {"bulk\r\n", x, y, w, h};
