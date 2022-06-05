@@ -59,13 +59,10 @@ static void flash_erase_pages(uint32_t page_address, uint32_t size)
 {
   // Unlock for erase
   flash_unlock();
-
-  chSysLock();
   // erase flash pages
   size+=page_address;
   for (; page_address < size; page_address+=FLASH_PAGESIZE)
     flash_erase_page0(page_address);
-  chSysUnlock();
 }
 
 static void flash_program_half_word_buffer(uint16_t* dst, uint16_t *data, uint16_t size)
