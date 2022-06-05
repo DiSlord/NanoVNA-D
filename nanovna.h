@@ -1167,7 +1167,6 @@ void lcd_line(int x0, int y0, int x1, int y1);
 void lcd_vector_draw(int x, int y, const vector_data *v);
 
 uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
-void     lcd_setBrightness(uint16_t b);
 void     lcd_set_flip(bool flip);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
@@ -1382,6 +1381,13 @@ uint32_t rtc_get_FAT(void);
 // Write date and time (need in bcd format!!!)
 void rtc_set_time(uint32_t dr, uint32_t tr);
 #endif
+
+/*
+ * dac.c
+ */
+void dac_init(void);
+void dac_setvalue_ch1(uint16_t v);
+void dac_setvalue_ch2(uint16_t v);
 
 /*
  * misclinous
