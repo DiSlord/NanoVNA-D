@@ -573,14 +573,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
   }
 #endif
   shell_printf("Performing reset\r\n");
-
-  rccEnableWWDG(FALSE);
-  WWDG->CFR = 0x60;
-  WWDG->CR = 0xff;
-
-  /* wait forever */
-  while (1)
-    ;
+  NVIC_SystemReset();
 }
 
 // Use macro, std isdigit more big
@@ -1295,7 +1288,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
-
 
 //  STOP_PROFILE;
   // blink LED while scanning
