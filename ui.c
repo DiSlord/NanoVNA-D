@@ -320,9 +320,6 @@ static void bubbleSort(uint16_t *v, int n) {
 // Software Touch module
 //*******************************************************************************
 #ifdef SOFTWARE_TOUCH
-// ADC read count for measure X and Y (2^N count)
-#define TOUCH_X_N 3
-#define TOUCH_Y_N 3
 static int
 touch_measure_y(void)
 {
@@ -337,10 +334,8 @@ touch_measure_y(void)
 //  palSetPadMode(GPIOB, GPIOB_YN, PAL_MODE_INPUT);        // Hi-z mode
   palSetPadMode(GPIOA, GPIOA_YP, PAL_MODE_INPUT_ANALOG);   // <- ADC_TOUCH_Y channel
 
-//  chThdSleepMilliseconds(20);
-  uint32_t v = 0, cnt = 1<<TOUCH_Y_N;
-  do{v+=adc_single_read(ADC_TOUCH_Y);}while(--cnt);
-  return v>>TOUCH_Y_N;
+  chThdSleepMilliseconds(3);
+  return adc_single_read(ADC_TOUCH_Y);
 }
 
 static int
@@ -355,10 +350,8 @@ touch_measure_x(void)
   // Set X line as input
   palSetPadMode(GPIOB, GPIOB_XN, PAL_MODE_INPUT);        // Hi-z mode
   palSetPadMode(GPIOA, GPIOA_XP, PAL_MODE_INPUT_ANALOG); // <- ADC_TOUCH_X channel
-
-  uint32_t v = 0, cnt = 1<<TOUCH_X_N;
-  do{v+=adc_single_read(ADC_TOUCH_X);}while(--cnt);
-  return v>>TOUCH_X_N;
+  chThdSleepMilliseconds(3);
+  return adc_single_read(ADC_TOUCH_X);
 }
 // Manually measure touch event
 static inline int

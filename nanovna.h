@@ -1362,9 +1362,8 @@ void apply_VNA_mode(uint16_t idx, uint16_t value);
  * adc.c
  */
 #if defined(NANOVNA_F303)
-#define rccEnableWWDG(lp) rccEnableAPB1(RCC_APB1ENR_WWDGEN, lp)
-#define ADC_TOUCH_X  ADC_CHANNEL_IN3
-#define ADC_TOUCH_Y  ADC_CHANNEL_IN4
+#define ADC_TOUCH_X  3
+#define ADC_TOUCH_Y  4
 #else
 #define ADC_TOUCH_X  ADC_CHSELR_CHSEL6
 #define ADC_TOUCH_Y  ADC_CHSELR_CHSEL7
