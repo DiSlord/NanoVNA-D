@@ -484,29 +484,9 @@ static const uint8_t ST7796S_init_seq[] = {
 #define LCD_INIT ST7796S_init_seq
 #endif
 
-#ifdef __LCD_BRIGHTNESS__
-#if HAL_USE_DAC == TRUE
-#error "Need disable HAL_USE_DAC in halconf.h for use __LCD_BRIGHTNESS__"
-#endif
-static void lcd_initBrightness(void){
-  rccEnableDAC1(false); // Enable DAC1
-  DAC->CR|= DAC_CR_EN2; // Use DAC1 CH2
-}
-// Brightness control range 0 - 100
-void lcd_setBrightness(uint16_t b){
-  uint32_t v = 700 + b*(4000-700)/100;
-  DAC->DHR12R2 = v;
-}
-#else
-#define lcd_initBrightness()
-#endif
-
 void lcd_init(void)
 {
   spi_init();
-  // Init Brightness if LCD support
-  lcd_initBrightness();
-
   LCD_DC_DATA;
   LCD_RESET_ASSERT;
   chThdSleepMilliseconds(10);

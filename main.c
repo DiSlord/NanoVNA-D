@@ -236,12 +236,6 @@ static THD_FUNCTION(Thread1, arg)
   ui_init();
   //Initialize graph plotting
   plot_init();
-/*
- * Set LCD display brightness
- */
-#ifdef  __LCD_BRIGHTNESS__
-  lcd_setBrightness(config._brightness);
-#endif
   while (1) {
     bool completed = false;
     uint16_t mask = get_sweep_mask();
@@ -764,16 +758,6 @@ usage:
 #endif
 
 #ifdef __VNA_ENABLE_DAC__
-// Check DAC enabled in ChibiOS
-#if HAL_USE_DAC == TRUE
-#error "Need disable HAL_USE_DAC in halconf.h for use VNA_DAC"
-#endif
-
-static void dac_init(void) {
-  rccEnableDAC1(false); // Use DAC1
-  DAC->CR|= DAC_CR_EN2; // Enable DAC1 ch2
-}
-
 VNA_SHELL_FUNCTION(cmd_dac)
 {
   if (argc != 1) {
@@ -781,7 +765,7 @@ VNA_SHELL_FUNCTION(cmd_dac)
                  "current value: %d\r\n", config._dac_value);
     return;
   }
-  DAC->DHR12R2 = my_atoui(argv[0])&0xFFF;
+  dac_setvalue_ch2(my_atoui(argv[0])&0xFFF);
 }
 #endif
 
@@ -1000,20 +984,22 @@ void load_default_properties(void)
 // backup_0 bitfield
 typedef union {
   struct {
-    uint32_t points   : 9; //  9 !! limit 511 points!!
-    uint32_t bw       : 9; // 18 !! limit 511
-    uint32_t id       : 4; // 22 !! 15 save slots
-    uint32_t leveler  : 3; // 25
+    uint32_t points     : 9; //  9 !! limit 511 points!!
+    uint32_t bw         : 9; // 18 !! limit 511
+    uint32_t id         : 4; // 22 !! 15 save slots
+    uint32_t leveler    : 3; // 25
+    uint32_t brightness : 7; // 32
   };
   uint32_t v;
 } backup_0;
 
 void update_backup_data(void) {
   backup_0 bk = {
-    .points   = sweep_points,
-    .bw       = config._bandwidth,
-    .id       = lastsaveid,
-    .leveler  = lever_mode,
+    .points     = sweep_points,
+    .bw         = config._bandwidth,
+    .id         = lastsaveid,
+    .leveler    = lever_mode,
+    .brightness = config._brightness
   };
   RTC->BKP0R = bk.v;
   RTC->BKP1R = frequency0;
@@ -1029,6 +1015,7 @@ static void load_start_properties(void) {
       if (caldata_recall(bk.id) == 0) {      // Load ok
         sweep_points = bk.points;            // Restore settings depend from calibration data
         lever_mode   = bk.leveler;
+        config._brightness = bk.brightness;
         set_bandwidth(bk.bw);
         frequency0 = RTC->BKP1R;
         frequency1 = RTC->BKP2R;
@@ -3463,7 +3450,7 @@ int main(void)
 /*
  * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
  */
-#ifdef  __VNA_ENABLE_DAC__
+#if defined(__VNA_ENABLE_DAC__) ||  defined(__LCD_BRIGHTNESS__)
   dac_init();
 #endif
 

@@ -63,3 +63,17 @@
 #endif
 #endif
 #endif
+
+#ifndef VNA_DAC_H
+#define VNA_DAC_H
+// Check DAC enabled in ChibiOS
+#if HAL_USE_DAC == TRUE
+#error "Need disable HAL_USE_DAC in halconf.h for use VNA_DAC"
+#endif
+
+#ifdef NANOVNA_F303
+#include "NANOVNA_STM32_F303/dac.c"
+#else
+#include "NANOVNA_STM32_F072/dac.c"
+#endif
+#endif

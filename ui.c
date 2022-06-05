@@ -1248,6 +1248,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_offset_sel_acb)
 #endif
 
 #ifdef __LCD_BRIGHTNESS__
+// Brightness control range 0 - 100
+static void lcd_setBrightness(uint16_t b){
+  dac_setvalue_ch2(700 + b*(4000-700)/100);
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 {
   (void)data;
@@ -1278,7 +1283,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
       break;
   }
   config._brightness = (uint8_t)value;
-  request_to_redraw(REDRAW_AREA);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_AREA);
   ui_mode_normal();
 }
 #endif
@@ -3300,4 +3305,8 @@ ui_init()
   extStart(&EXTD1, &extcfg);
   // Init touch subsystem
   touch_init();
+  // Set LCD display brightness
+#ifdef  __LCD_BRIGHTNESS__
+  lcd_setBrightness(config._brightness);
+#endif
 }
