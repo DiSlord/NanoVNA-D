@@ -18,17 +18,6 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include "ch.h"
-#include "hal.h"
-#include "nanovna.h"
-
-#ifdef __USE_RTC__
-
-// Compact STM32 RTC time library
-#if HAL_USE_RTC == TRUE
-#error "Error VNA use self RTC lib, define HAL_USE_RTC = FALSE in halconf.h"
-#endif
-
 // Get RTC time as binary structure in 0x00HHMMSS
 uint32_t rtc_get_tr_bin(void){
   uint32_t tr = RTC->TR;
@@ -171,4 +160,3 @@ void rtc_init(void){
   else
     RTC->ISR &= ~RTC_ISR_RSF;
 }
-#endif // __USE_RTC__
