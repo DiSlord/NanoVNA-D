@@ -41,11 +41,7 @@
  * @brief   Enables the ADC subsystem.
  */
 #if !defined(HAL_USE_ADC) || defined(__DOXYGEN__)
-#if defined(NANOVNA_F303) 
-#define HAL_USE_ADC                 TRUE
-#else
 #define HAL_USE_ADC                 FALSE
-#endif
 #endif
 
 /**
@@ -80,7 +76,7 @@
  * @brief   Enables the I2C subsystem.
  */
 #if !defined(HAL_USE_I2C) || defined(__DOXYGEN__)
-#define HAL_USE_I2C                 TRUE
+#define HAL_USE_I2C                 FALSE
 #endif
 
 /**
@@ -184,11 +180,7 @@
  * @note    Disabling this option saves both code and data space.
  */
 #if !defined(ADC_USE_WAIT) || defined(__DOXYGEN__)
-#if defined(NANOVNA_F303)
-#define ADC_USE_WAIT                TRUE
-#else
 #define ADC_USE_WAIT                FALSE
-#endif
 #endif
 
 /**

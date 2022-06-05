@@ -60,29 +60,32 @@ void adc_init(void)
   VNA_ADC->CR |= ADC_CR_ADEN;
   while (!(VNA_ADC->ISR & ADC_ISR_ADRDY))
     ;
+  // VBATEN enables resiter devider circuit. It consume vbat power.
+  ADC->CCR |= ADC_CCR_VREFEN | ADC_CCR_VBATEN;
 }
 
+#define ADC_AVERAGE_N 3
 uint16_t adc_single_read(uint32_t chsel)
 {
-  /* ADC setup */
+  // ADC setup
   VNA_ADC->ISR    = VNA_ADC->ISR;
   VNA_ADC->IER    = 0;
   VNA_ADC->TR     = ADC_TR(0, 0);
   VNA_ADC->SMPR   = ADC_SMPR_SMP_239P5;
   VNA_ADC->CFGR1  = ADC_CFGR1_RES_12BIT;
   VNA_ADC->CHSELR = chsel;
-
-  VNA_ADC->CR |= ADC_CR_ADSTART; // ADC conversion start
-  while (VNA_ADC->CR & ADC_CR_ADSTART)
-    ;
-
-  return VNA_ADC->DR;
+  uint16_t count = 1<<ADC_AVERAGE_N;
+  uint16_t sample = 0;
+  do {
+    VNA_ADC->CR |= ADC_CR_ADSTART; // ADC conversion start
+    while (VNA_ADC->CR & ADC_CR_ADSTART);
+    sample+=VNA_ADC->DR;
+  } while(--count);
+  return sample>>ADC_AVERAGE_N;
 }
 
 int16_t adc_vbat_read(void)
 {
-// Vbat measure averange count = 2^VBAT_AVERAGE
-#define VBAT_AVERAGE 4
   static int16_t   vbat_raw = 0;
   static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;
   systime_t _time = chVTGetSystemTimeX();
@@ -91,8 +94,8 @@ int16_t adc_vbat_read(void)
   vbat_time = _time;
 // 13.9 Temperature sensor and internal reference voltage
 // VREFINT_CAL calibrated on 3.3V, need get value in mV
-#define ADC_FULL_SCALE 3300
-#define VREFINT_CAL (*((uint16_t*)0x1FFFF7BA))
+  uint16_t VREFINT = 3300;
+  uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
   uint32_t vrefint = 0;
   uint32_t vbat = 0;
 
@@ -101,25 +104,16 @@ int16_t adc_vbat_read(void)
     adc_stop_analog_watchdog();
     restart_touch = 1;
   }
-  ADC->CCR |= ADC_CCR_VREFEN | ADC_CCR_VBATEN;
-  for (uint16_t i = 0; i < 1<<VBAT_AVERAGE; i++){
-    // VREFINT == ADC_IN17
-    vrefint+= adc_single_read(ADC_CHSELR_CHSEL17);
-    // VBAT == ADC_IN18
-    // VBATEN enables resiter devider circuit. It consume vbat power.
-    vbat+= adc_single_read(ADC_CHSELR_CHSEL18);
-  }
-  vbat>>=VBAT_AVERAGE;
-  vrefint>>=VBAT_AVERAGE;
-  ADC->CCR &= ~(ADC_CCR_VREFEN | ADC_CCR_VBATEN);
+  vrefint = adc_single_read(ADC_CHSELR_CHSEL17); // VREFINT == ADC_IN17
+  vbat    = adc_single_read(ADC_CHSELR_CHSEL18); // VBAT == ADC_IN18
 
   if (restart_touch)
     adc_start_analog_watchdog();
 
-  // vbat_raw = (3300 * 2 * vbat / 4095) * (VREFINT_CAL / vrefint)
-  // uint16_t vbat_raw = (ADC_FULL_SCALE * VREFINT_CAL * (float)vbat * 2 / (vrefint * ((1<<12)-1)));
+  // vbat_raw = (VREFINT * 2 * vbat / 4095) * (VREFINT_CAL / vrefint)
+  // uint16_t vbat_raw = (VREFINT * VREFINT_CAL * (float)vbat * 2 / (vrefint * ((1<<12)-1)));
   // For speed divide not on 4095, divide on 4096, get little error, but no matter
-  vbat_raw = ((ADC_FULL_SCALE * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
+  vbat_raw = ((VREFINT * 2 * vbat)>>12) * VREFINT_CAL / vrefint;
 return_cached:
   if (vbat_raw < 100) {
     // maybe D2 is not installed
@@ -164,12 +158,8 @@ static void adc_interrupt(void)
 {
   uint32_t isr = VNA_ADC->ISR;
   VNA_ADC->ISR = isr;
-
-  if (isr & ADC_ISR_OVR) {
-    /* ADC overflow condition, this could happen only if the DMA is unable
-       to read data fast enough.*/
-    
-  }
+//  if (isr & ADC_ISR_OVR) { // ADC overflow condition
+//  }
   if (isr & ADC_ISR_AWD) {
     /* Analog watchdog error.*/
     handle_touch_interrupt();

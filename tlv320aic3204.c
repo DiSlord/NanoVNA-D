@@ -331,9 +331,7 @@ static const uint8_t conf_data_ch1_select[] = {
 static void
 tlv320aic3204_bulk_write(const uint8_t *buf, int len)
 {
-//  i2cAcquireBus(&I2CD1);
-  (void)i2cMasterTransmitTimeout(&I2CD1, AIC3204_ADDR, buf, len, NULL, 0, 1000);
-//  i2cReleaseBus(&I2CD1);
+  i2c_transfer(AIC3204_ADDR, buf, len);
 }
 
 #if 0

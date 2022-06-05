@@ -1189,37 +1189,6 @@ void testLog(void);        // debug log
 #endif
 
 /*
- * rtc.c
- */
-#ifdef __USE_RTC__
-#define RTC_START_YEAR          2000
-
-#define RTC_DR_YEAR(dr)         (((dr)>>16)&0xFF)
-#define RTC_DR_MONTH(dr)        (((dr)>> 8)&0xFF)
-#define RTC_DR_DAY(dr)          (((dr)>> 0)&0xFF)
-
-#define RTC_TR_HOUR(dr)         (((tr)>>16)&0xFF)
-#define RTC_TR_MIN(dr)          (((tr)>> 8)&0xFF)
-#define RTC_TR_SEC(dr)          (((tr)>> 0)&0xFF)
-
-// Init RTC
-void rtc_init(void);
-// Then read time and date TR should read first, after DR !!!
-// Get RTC time as bcd structure in 0x00HHMMSS
-#define rtc_get_tr_bcd() (RTC->TR & 0x007F7F7F)
-// Get RTC date as bcd structure in 0x00YYMMDD (remove day of week information!!!!)
-#define rtc_get_dr_bcd() (RTC->DR & 0x00FF1F3F)
-// read TR as 0x00HHMMSS in bin (TR should be read first for sync)
-uint32_t rtc_get_tr_bin(void);
-// read DR as 0x00YYMMDD in bin (DR should be read second)
-uint32_t rtc_get_dr_bin(void);
-// Read time in FAT filesystem format
-uint32_t rtc_get_FAT(void);
-// Write date and time (need in bcd format!!!)
-void rtc_set_time(uint32_t dr, uint32_t tr);
-#endif
-
-/*
  * flash.c
  */
 #if defined(NANOVNA_F303)
@@ -1362,9 +1331,8 @@ void apply_VNA_mode(uint16_t idx, uint16_t value);
  * adc.c
  */
 #if defined(NANOVNA_F303)
-#define rccEnableWWDG(lp) rccEnableAPB1(RCC_APB1ENR_WWDGEN, lp)
-#define ADC_TOUCH_X  ADC_CHANNEL_IN3
-#define ADC_TOUCH_Y  ADC_CHANNEL_IN4
+#define ADC_TOUCH_X  3
+#define ADC_TOUCH_Y  4
 #else
 #define ADC_TOUCH_X  ADC_CHSELR_CHSEL6
 #define ADC_TOUCH_Y  ADC_CHSELR_CHSEL7
@@ -1375,6 +1343,45 @@ uint16_t adc_single_read(uint32_t chsel);
 void adc_start_analog_watchdog(void);
 void adc_stop_analog_watchdog(void);
 int16_t adc_vbat_read(void);
+
+/*
+ * i2c.c
+ */
+void i2c_start(void);
+void i2c_set_timings(uint32_t timings);
+bool i2c_transfer(uint8_t addr, const uint8_t *w, size_t wn);
+//bool i2c_transfer(uint8_t addr, const uint8_t *w, size_t wn, uint8_t *r, size_t rn);
+
+/*
+ * rtc.c
+ */
+#ifdef __USE_RTC__
+#define RTC_START_YEAR          2000
+
+#define RTC_DR_YEAR(dr)         (((dr)>>16)&0xFF)
+#define RTC_DR_MONTH(dr)        (((dr)>> 8)&0xFF)
+#define RTC_DR_DAY(dr)          (((dr)>> 0)&0xFF)
+
+#define RTC_TR_HOUR(dr)         (((tr)>>16)&0xFF)
+#define RTC_TR_MIN(dr)          (((tr)>> 8)&0xFF)
+#define RTC_TR_SEC(dr)          (((tr)>> 0)&0xFF)
+
+// Init RTC
+void rtc_init(void);
+// Then read time and date TR should read first, after DR !!!
+// Get RTC time as bcd structure in 0x00HHMMSS
+#define rtc_get_tr_bcd() (RTC->TR & 0x007F7F7F)
+// Get RTC date as bcd structure in 0x00YYMMDD (remove day of week information!!!!)
+#define rtc_get_dr_bcd() (RTC->DR & 0x00FF1F3F)
+// read TR as 0x00HHMMSS in bin (TR should be read first for sync)
+uint32_t rtc_get_tr_bin(void);
+// read DR as 0x00YYMMDD in bin (DR should be read second)
+uint32_t rtc_get_dr_bin(void);
+// Read time in FAT filesystem format
+uint32_t rtc_get_FAT(void);
+// Write date and time (need in bcd format!!!)
+void rtc_set_time(uint32_t dr, uint32_t tr);
+#endif
 
 /*
  * misclinous

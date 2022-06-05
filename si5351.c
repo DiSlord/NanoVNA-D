@@ -94,9 +94,7 @@ void si5351_set_power(uint8_t drive_strength){
 
 void si5351_bulk_write(const uint8_t *buf, int len)
 {
-//  i2cAcquireBus(&I2CD1);
-  (void)i2cMasterTransmitTimeout(&I2CD1, SI5351_I2C_ADDR, buf, len, NULL, 0, 1000);
-//  i2cReleaseBus(&I2CD1);
+  i2c_transfer(SI5351_I2C_ADDR, buf, len);
 }
 
 #if 0
