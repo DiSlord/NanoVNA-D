@@ -77,3 +77,13 @@
 #include "NANOVNA_STM32_F072/dac.c"
 #endif
 #endif
+
+#ifndef VNA_FLASH_H
+#define VNA_DAC_H
+
+#ifdef NANOVNA_F303
+#include "NANOVNA_STM32_F303/flash.c"
+#else
+#include "NANOVNA_STM32_F072/flash.c"
+#endif
+#endif
