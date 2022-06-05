@@ -21,20 +21,30 @@
 #include "ch.h"
 
 // Define LCD display driver and size
+#if defined(NANOVNA_F303)
+#define LCD_DRIVER_ST7796S
+#define LCD_480x320
+#else
 #define LCD_DRIVER_ILI9341
 #define LCD_320x240
-
-//#define LCD_DRIVER_ST7796S
-//#define LCD_480x320
+#endif
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
+#if defined(NANOVNA_F303)
+#define __LCD_BRIGHTNESS__
+#else
 //#define __LCD_BRIGHTNESS__
+#endif
 // Use DAC (in H4 used for brightness used DAC, so need enable __LCD_BRIGHTNESS__ for it)
 //#define __VNA_ENABLE_DAC__
 // Allow enter to DFU from menu or command
+#if defined(NANOVNA_F303)
+//#define __DFU_SOFTWARE_MODE__
+#else
 #define __DFU_SOFTWARE_MODE__
+#endif
 // Add RTC clock support
 #define __USE_RTC__
 // Add RTC backup registers support
@@ -112,21 +122,40 @@
 #define MEASURE_DEFAULT_R        50.0f
 
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
+#if defined(NANOVNA_F303)
+//#define AUDIO_ADC_FREQ_K        768
+#define AUDIO_ADC_FREQ_K        384
+//#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        48
+#else
 //#define AUDIO_ADC_FREQ_K        768
 //#define AUDIO_ADC_FREQ_K        384
 #define AUDIO_ADC_FREQ_K        192
 //#define AUDIO_ADC_FREQ_K        96
 //#define AUDIO_ADC_FREQ_K        48
+#endif
 
 // Define sample count for one step measure
+#if defined(NANOVNA_F303)
+//#define AUDIO_SAMPLES_COUNT   (48)
+#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
+#else
 #define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
 //#define AUDIO_SAMPLES_COUNT   (192)
+#endif
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
+#if defined(NANOVNA_F303)
+#define USE_VARIABLE_OFFSET
+#else
 //#define USE_VARIABLE_OFFSET
+#endif
+
 // Add IF select menu in expert settings
 #ifdef USE_VARIABLE_OFFSET
 #define USE_VARIABLE_OFFSET_MENU
@@ -194,7 +223,11 @@
 #define VNA_TWOPI                6.28318530717958647692f
 
 // Maximum sweep point count (limit by flash and RAM size)
+#if defined(NANOVNA_F303)
+#define POINTS_COUNT             401
+#else
 #define POINTS_COUNT             101
+#endif
 
 // Define frequency range (can be unsigned)
 typedef uint32_t freq_t;
