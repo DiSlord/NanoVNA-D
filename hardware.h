@@ -84,6 +84,7 @@ void dac_setvalue_ch2(uint16_t v);
 
 /*
  * flash.c
+ * Used for store config and calibration data on CPU flash
  */
 #if defined(NANOVNA_F303)
 // For STM32F303xC CPU setting
@@ -121,5 +122,7 @@ void dac_setvalue_ch2(uint16_t v);
 // Properties save area follow after config
 #define SAVE_PROP_CONFIG_ADDR   (SAVE_CONFIG_ADDR + SAVE_CONFIG_SIZE)
 
+// Erase settings on page
 void flash_erase_pages(uint32_t page_address, uint32_t size);
+// Write data
 void flash_program_half_word_buffer(uint16_t* dst, uint16_t *data, uint16_t size);

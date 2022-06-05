@@ -24,6 +24,7 @@
 
 #ifndef VNA_ADC_H
 #define VNA_ADC_H
+// Compact STM32 ADC library
 #if HAL_USE_ADC == TRUE
 #error "Error VNA use self ADC lib, define HAL_USE_ADC = FALSE in halconf.h"
 #endif
@@ -38,7 +39,7 @@
 
 #ifndef VNA_I2C_H
 #define VNA_I2C_H
-// Compact STM32 RTC time library
+// Compact STM32 I2C library
 #if HAL_USE_I2C == TRUE
 #error "Error VNA use self I2C lib, define HAL_USE_I2C = FALSE in halconf.h"
 #endif
@@ -66,7 +67,7 @@
 
 #ifndef VNA_DAC_H
 #define VNA_DAC_H
-// Check DAC enabled in ChibiOS
+// Compact STM32 DAC library
 #if HAL_USE_DAC == TRUE
 #error "Need disable HAL_USE_DAC in halconf.h for use VNA_DAC"
 #endif
@@ -79,8 +80,8 @@
 #endif
 
 #ifndef VNA_FLASH_H
-#define VNA_DAC_H
-
+#define VNA_FLASH_H
+// Compact STM32 flash library
 #ifdef NANOVNA_F303
 #include "NANOVNA_STM32_F303/flash.c"
 #else
