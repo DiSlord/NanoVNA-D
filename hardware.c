@@ -24,13 +24,42 @@
 
 #ifndef VNA_ADC_H
 #define VNA_ADC_H
-
+#if HAL_USE_ADC == TRUE
+#error "Error VNA use self ADC lib, define HAL_USE_ADC = FALSE in halconf.h"
+#endif
 // Measure vbat every 5 second
 #define VBAT_MEASURE_INTERVAL   S2ST(5)
-
 #ifdef NANOVNA_F303
 #include "NANOVNA_STM32_F303/adc.c"
 #else
 #include "NANOVNA_STM32_F072/adc.c"
+#endif
+#endif
+
+#ifndef VNA_I2C_H
+#define VNA_I2C_H
+// Compact STM32 RTC time library
+#if HAL_USE_I2C == TRUE
+#error "Error VNA use self I2C lib, define HAL_USE_I2C = FALSE in halconf.h"
+#endif
+#ifdef NANOVNA_F303
+#include "NANOVNA_STM32_F303/i2c.c"
+#else
+#include "NANOVNA_STM32_F072/i2c.c"
+#endif
+#endif
+
+#ifndef VNA_RTC_H
+#define VNA_RTC_H
+#ifdef __USE_RTC__
+// Compact STM32 RTC time library
+#if HAL_USE_RTC == TRUE
+#error "Error VNA use self RTC lib, define HAL_USE_RTC = FALSE in halconf.h"
+#endif
+#ifdef NANOVNA_F303
+#include "NANOVNA_STM32_F303/rtc.c"
+#else
+#include "NANOVNA_STM32_F072/rtc.c"
+#endif
 #endif
 #endif

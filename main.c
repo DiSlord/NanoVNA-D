@@ -126,7 +126,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.2.01"
+#define VERSION "1.2.02"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2658,12 +2658,6 @@ VNA_SHELL_FUNCTION(cmd_si5351reg)
 }
 #endif
 
-static void set_I2C_timings(uint32_t timings) {
-  I2CD1.i2c->CR1 &=~I2C_CR1_PE;
-  I2CD1.i2c->TIMINGR = timings;
-  I2CD1.i2c->CR1 |= I2C_CR1_PE;
-}
-
 #ifdef ENABLE_I2C_TIMINGS
 VNA_SHELL_FUNCTION(cmd_i2ctime)
 {
@@ -3357,50 +3351,33 @@ THD_FUNCTION(myshellThread, p)
 /*
  * I2C bus settings
  */
+#define STM32_I2C_TIMINGS(presc, scldel, sdadel, sclh, scll) ( ((presc)  << I2C_TIMINGR_PRESC_Pos)  \
+                                                             | ((scldel) << I2C_TIMINGR_SCLDEL_Pos) \
+                                                             | ((sdadel) << I2C_TIMINGR_SDADEL_Pos) \
+                                                             | ((sclh)   << I2C_TIMINGR_SCLH_Pos)   \
+                                                             | ((scll)   << I2C_TIMINGR_SCLL_Pos) )
 #if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
 #if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(0U)  |\
-                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
-                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)  |\
-                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(1U) |\
-                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+ #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(0U, 3U, 1U, 3U, 9U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 3U, 1U, 3U, 9U)
 #endif
 #elif  STM32_I2C1_CLOCK == 48 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
- #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(5U) |\
-                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
-                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
-
+ #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(5U, 3U, 3U, 3U, 9U)
  #if   STM32_I2C_SPEED == 400 // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(5U)  |\
-                            STM32_TIMINGR_SCLDEL(3U) | STM32_TIMINGR_SDADEL(3U) |\
-                            STM32_TIMINGR_SCLH(3U)   | STM32_TIMINGR_SCLL(9U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(5U, 3U, 3U, 3U, 9U)
  #elif STM32_I2C_SPEED == 600 // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
-                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(50U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 30U, 50U)
  #elif STM32_I2C_SPEED == 900 // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
-                            STM32_TIMINGR_SCLH(23U)   | STM32_TIMINGR_SCLL(30U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 23U, 30U)
  #endif
 #elif  STM32_I2C1_CLOCK == 72 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 72MHz)
- #define STM32_I2C_INIT_T   STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(20U) | STM32_TIMINGR_SDADEL(20U) |\
-                            STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U)
-
+ #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(0U, 20U, 20U, 80U, 100U)
  #if   STM32_I2C_SPEED == 400 // ~400kHz @ SYSCLK 72MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
-                            STM32_TIMINGR_SCLH(80U)   | STM32_TIMINGR_SCLL(100U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 80U, 100U)
  #elif STM32_I2C_SPEED == 600 // ~600kHz @ SYSCLK 72MHz, manually get values, x1.5 I2C speed
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
-                            STM32_TIMINGR_SCLH(40U)   | STM32_TIMINGR_SCLL(80U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 40U, 80U)
  #elif STM32_I2C_SPEED == 900 // ~900kHz @ SYSCLK 72MHz, manually get values, x2 I2C speed
- #define STM32_I2C_TIMINGR  STM32_TIMINGR_PRESC(0U)   |\
-                            STM32_TIMINGR_SCLDEL(10U) | STM32_TIMINGR_SDADEL(10U) |\
-                            STM32_TIMINGR_SCLH(30U)   | STM32_TIMINGR_SCLL(40U)
+ #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 30U, 40U)
  #endif
 #endif
 
@@ -3408,12 +3385,6 @@ THD_FUNCTION(myshellThread, p)
 #error "Need define I2C bus TIMINGR settings"
 #endif
 
-// I2C clock bus setting: depend from STM32_I2C1SW in mcuconf.h
-static const I2CConfig i2ccfg = {
-  .timingr = STM32_I2C_INIT_T,  // TIMINGR register initialization. (use I2C timing configuration tool for STM32F3xx and STM32F0xx microcontrollers (AN4235))
-  .cr1 = 0,                      // CR1 register initialization.
-  .cr2 = 0                       // CR2 register initialization.
-};
 
 // Main thread stack size defined in makefile USE_PROCESS_STACKSIZE = 0x200
 // Profile stack usage (enable threads command by def ENABLE_THREADS_COMMAND) show:
@@ -3456,8 +3427,8 @@ int main(void)
 /*
  * I2C bus
  */
-  i2cStart(&I2CD1, &i2ccfg);
-
+  i2c_start();
+  i2c_set_timings(STM32_I2C_INIT_T);
 /*
  * Start si5351
  */
@@ -3499,7 +3470,7 @@ int main(void)
 /*
  * I2C bus run on work speed
  */
-  set_I2C_timings(STM32_I2C_TIMINGR);
+  i2c_set_timings(STM32_I2C_TIMINGR);
 
 /*
  * Startup sweep thread
