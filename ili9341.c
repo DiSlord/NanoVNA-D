@@ -90,7 +90,7 @@ void spi_TxBuffer(const uint8_t *buffer, uint16_t len) {
 static uint8_t spi_RxByte(void) {
   // Start RX clock (by sending data)
   SPI_WRITE_8BIT(LCD_SPI, 0xFF);
-  while (SPI_RX_IS_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI));
+  while (SPI_RX_IS_EMPTY(LCD_SPI));
   return SPI_READ_8BIT(LCD_SPI);
 }
 
@@ -105,9 +105,9 @@ void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
 
 void spi_DropRx(void){
   // Drop Rx buffer after tx and wait tx complete
-  while (SPI_RX_IS_NOT_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI))
-    (void)SPI_READ_8BIT(LCD_SPI);
-  (void)SPI_READ_8BIT(LCD_SPI);
+  while (SPI_IS_BUSY(LCD_SPI));
+  (void)SPI_READ_16BIT(LCD_SPI);
+  (void)SPI_READ_16BIT(LCD_SPI);
 }
 
 //*****************************************************
@@ -145,24 +145,13 @@ static void spi_lld_serve_rx_interrupt(SPIDriver *spip, uint32_t flags)
 }
 #endif
 
-// Send prepared DMA data, and wait completion
-static void dmaStreamFlush(uint32_t len)
-{
-  while (len) {
-    // DMA data transfer limited by 65535
-    uint16_t tx_size = len > 65535 ? 65535 : len;
-    dmaStreamSetTransactionSize(dmatx, tx_size);
-    dmaStreamEnable(dmatx);
-    len -= tx_size;
-    dmaWaitCompletion(dmatx);
-  }
-}
-
 // SPI receive byte buffer use DMA
-void spi_DMATxBuffer(uint8_t *buffer, uint16_t len) {
+void spi_DMATxBuffer(uint8_t *buffer, uint16_t len, bool wait) {
   dmaStreamSetMemory0(dmatx, buffer);
-  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC);
-  dmaStreamFlush(len);
+  dmaStreamSetTransactionSize(dmatx, len);
+  dmaStreamSetMode(dmatx, txdmamode | STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE | STM32_DMA_CR_MINC | STM32_DMA_CR_EN);
+  if (wait)
+    dmaWaitCompletion(dmatx);
 }
 
 // Wait DMA Rx completion
@@ -190,7 +179,7 @@ static void spi_DMARxBuffer(uint8_t *buffer, uint16_t len, bool wait) {
 #else
 // Replace DMA function vs no DMA
 #define dmaWaitCompletionRxTx() {}
-#define spi_DMATxBuffer(buffer, len) spi_TxBuffer(buffer, len)
+#define spi_DMATxBuffer(buffer, len, wait) spi_TxBuffer(buffer, len)
 #define spi_DMARxBuffer(buffer, len, wait) spi_RxBuffer(buffer, len)
 #endif // __USE_DISPLAY_DMA__
 
@@ -335,13 +324,12 @@ static void spi_init(void)
 static void ili9341_send_command(uint8_t cmd, uint8_t len, const uint8_t *data)
 {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
-//  while (SPI_IN_TX_RX(LCD_SPI))
-//    ;
+  while (SPI_IS_BUSY(LCD_SPI));
   LCD_CS_LOW;
   LCD_DC_CMD;
   SPI_WRITE_8BIT(LCD_SPI, cmd);
   // Need wait transfer complete and set data bit
-  while (SPI_IN_TX_RX(LCD_SPI))
+  while (SPI_IS_BUSY(LCD_SPI))
     ;
   // Send command data (if need)
   LCD_DC_DATA;
@@ -557,8 +545,14 @@ void lcd_fill(int x, int y, int w, int h)
 {
   ili9341_setWindow(ILI9341_MEMORY_WRITE, x, y, w, h);
   dmaStreamSetMemory0(dmatx, &background_color);
-  dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE);
-  dmaStreamFlush(w * h);
+  uint32_t len = w * h, delta;
+  while(len) {
+    delta = len > 0xFFFF ? 0xFFFF : len; // DMA can send only 65535 data in one run
+    dmaStreamSetTransactionSize(dmatx, delta);
+    dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_EN);
+    dmaWaitCompletion(dmatx);
+    len-=delta;
+  }
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
      remote_region_t rd = {"fill\r\n", x, y, w, h};
@@ -1308,7 +1302,7 @@ static bool SD_TxDataBlock(const uint8_t *buff, uint16_t len, uint8_t token) {
 #endif
 
 #ifdef __USE_SDCARD_DMA__
-  spi_DMATxBuffer((uint8_t*)buff, len);
+  spi_DMATxBuffer((uint8_t*)buff, len, true);
 #else
   spi_TxBuffer((uint8_t*)buff, len);
 #endif
@@ -1541,7 +1535,7 @@ DRESULT disk_read(BYTE pdrv, BYTE* buff, DWORD sector, UINT count) {
     DEBUG_PRINT(" err READ_BLOCK %d 0x%08x\r\n", count, sector);
 #if 0
   else{
-    DEBUG_PRINT("Sector read 0x%08x %d \r\n", sector, cnt);
+    DEBUG_PRINT("Sector read 0x%08x %d \r\n", sector, count);
     for (UINT j = 0; j < 32; j++){
       for (UINT i = 0; i < 16; i++)
         DEBUG_PRINT(" 0x%02x", buff[j*16 + i]);
