@@ -191,27 +191,27 @@ static void spi_init(void)
                | SPI_CR1_SSM       // Software slave management (The external NSS pin is free for other application uses)
                | SPI_CR1_SSI       // Internal slave select (This bit has an effect only when the SSM bit is set. Allow use NSS pin as I/O)
                | LCD_SPI_SPEED     // Baud rate control
-//               | SPI_CR1_CPHA      // Clock Phase
-//               | SPI_CR1_CPOL      // Clock Polarity
-                 ;
-
+//             | SPI_CR1_CPHA      // Clock Phase
+//             | SPI_CR1_CPOL      // Clock Polarity
+               ;
   LCD_SPI->CR2 = SPI_CR2_8BIT      // SPI data size, set to 8 bit
-               | SPI_CR2_FRXTH;    // SPI_SR_RXNE generated every 8 bit data
-//             | SPI_CR2_SSOE;     //
-
+               | SPI_CR2_FRXTH     // SPI_SR_RXNE generated every 8 bit data
+//             | SPI_CR2_SSOE      //
 #ifdef __USE_DISPLAY_DMA__
-  // Tx DMA init
-  dmaStreamAllocate(dmatx, STM32_SPI_SPI1_IRQ_PRIORITY, NULL, NULL);
-  dmaStreamSetPeripheral(dmatx, &LCD_SPI->DR);
-  LCD_SPI->CR2|= SPI_CR2_TXDMAEN;    // Tx DMA enable
+               | SPI_CR2_TXDMAEN   // Tx DMA enable
 #ifdef __USE_DISPLAY_DMA_RX__
-  // Rx DMA init
-  dmaStreamAllocate(dmarx, STM32_SPI_SPI1_IRQ_PRIORITY, NULL, NULL);
-  dmaStreamSetPeripheral(dmarx, &LCD_SPI->DR);
+               | SPI_CR2_RXDMAEN   // Rx DMA enable
+#endif
+#endif
+               ;
+// Init SPI DMA Peripheral
+#ifdef __USE_DISPLAY_DMA__
+  dmaStreamSetPeripheral(dmatx, &LCD_SPI->DR); // DMA Peripheral Tx
+#ifdef __USE_DISPLAY_DMA_RX__
+  dmaStreamSetPeripheral(dmarx, &LCD_SPI->DR); // DMA Peripheral Rx
+#endif
+#endif
   // Enable DMA on SPI
-  LCD_SPI->CR2|= SPI_CR2_RXDMAEN;   // Rx DMA enable
-#endif
-#endif
   LCD_SPI->CR1|= SPI_CR1_SPE;       //SPI enable
 }
 
@@ -475,7 +475,6 @@ static const uint8_t ST7796S_init_seq[] = {
 void lcd_init(void)
 {
   spi_init();
-  LCD_DC_DATA;
   LCD_RESET_ASSERT;
   chThdSleepMilliseconds(10);
   LCD_RESET_NEGATE;
@@ -516,8 +515,8 @@ void lcd_fill(int x, int y, int w, int h)
   }while(--len);
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
-     remote_region_t rd = {"fill\r\n", x, y, w, h};
-     send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
+    remote_region_t rd = {"fill\r\n", x, y, w, h};
+    send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
   }
 #endif
 }
@@ -528,8 +527,8 @@ void lcd_bulk(int x, int y, int w, int h)
   spi_TxBuffer((uint8_t *)spi_buffer, w * h * sizeof(pixel_t));
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
-     remote_region_t rd = {"bulk\r\n", x, y, w, h};
-     send_region(&rd, (uint8_t *)buffer, w * h * sizeof(pixel_t));
+    remote_region_t rd = {"bulk\r\n", x, y, w, h};
+    send_region(&rd, (uint8_t *)spi_buffer, w * h * sizeof(pixel_t));
   }
 #endif
 }
@@ -538,8 +537,9 @@ void lcd_bulk(int x, int y, int w, int h)
 //
 // Use DMA for send data
 //
-#define LCD_DMA_MODE (LCD_PIXEL_SIZE == 2 ? (STM32_DMA_CR_PSIZE_HWORD|STM32_DMA_CR_MSIZE_HWORD) : (STM32_DMA_CR_PSIZE_BYTE|STM32_DMA_CR_MSIZE_BYTE))
-
+#define STM32_DMA_CR_BYTE       (STM32_DMA_CR_PSIZE_BYTE | STM32_DMA_CR_MSIZE_BYTE)
+#define STM32_DMA_CR_HWORD      (STM32_DMA_CR_PSIZE_HWORD | STM32_DMA_CR_MSIZE_HWORD)
+#define LCD_DMA_MODE (LCD_PIXEL_SIZE == 2 ? STM32_DMA_CR_HWORD : STM32_DMA_CR_BYTE)
 // Fill region by some color
 void lcd_fill(int x, int y, int w, int h)
 {
@@ -555,8 +555,8 @@ void lcd_fill(int x, int y, int w, int h)
   }
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
-     remote_region_t rd = {"fill\r\n", x, y, w, h};
-     send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
+    remote_region_t rd = {"fill\r\n", x, y, w, h};
+    send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
   }
 #endif
 }
@@ -568,8 +568,8 @@ static void ili9341_DMA_bulk(int x, int y, int w, int h, pixel_t *buffer){
   dmaStreamSetMode(dmatx, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_MINC | STM32_DMA_CR_EN);
 #ifdef __REMOTE_DESKTOP__
   if (sweep_mode & SWEEP_REMOTE) {
-     remote_region_t rd = {"bulk\r\n", x, y, w, h};
-     send_region(&rd, (uint8_t *)buffer, w * h * sizeof(pixel_t));
+    remote_region_t rd = {"bulk\r\n", x, y, w, h};
+    send_region(&rd, (uint8_t *)buffer, w * h * sizeof(pixel_t));
   }
 #endif
 }
@@ -606,7 +606,7 @@ void lcd_bulk_continue(int x, int y, int w, int h)
 {
   lcd_bulk_finish();                                   // Wait DMA
   ili9341_DMA_bulk(x, y, w, h, lcd_get_cell_buffer()); // Send new cell data
-  LCD_dma_status^=LCD_BUFFER_1;                            // Switch buffer
+  LCD_dma_status^=LCD_BUFFER_1;                        // Switch buffer
 }
 #endif
 #endif
