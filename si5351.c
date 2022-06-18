@@ -55,7 +55,7 @@ uint16_t timings[8]={
   DELAY_RESET_PLL_BEFORE,  // 5
   DELAY_RESET_PLL_AFTER,   // 6
 };
-inline void si5351_set_timing(int i, int v) {timings[i]=v;}
+inline void si5351_set_timing(int i, int v) {timings[i]=US2ST(v);}
 #undef DELAY_BAND_1_2
 #undef DELAY_BAND_3_4
 #undef DELAY_BANDCHANGE
@@ -558,7 +558,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   }
 
   if (freq == current_freq)
-    return 0;
+    return DELAY_CHANNEL_CHANGE;
 
   if (current_band != band) {
 //   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
