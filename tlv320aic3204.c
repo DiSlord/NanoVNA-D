@@ -132,7 +132,7 @@ static const uint8_t conf_data[] = {
   0x06, 0x02,     // J=2
   0x07, 0x00,     // D=0
   0x08, 0x00,
-#elif AUDIO_CLOCK_REF == 86016000U
+#elif AUDIO_CLOCK_REF == 98304000U
   // MCLK = 98.304MHz
   0x04, 0x00,     // MCLK as CODEC_CLKIN
   0x05, 0x00,     // Power down PLL
