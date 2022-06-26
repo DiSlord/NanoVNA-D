@@ -97,7 +97,7 @@
 #define ADC_CCR_TS_ENABLE        (1 << ADC_CCR_TSEN_Pos)
 #define ADC_CCR_VBAT_ENABLE      (1 << ADC_CCR_VBATEN_Pos)
 
-#define ADC_TOUCH_SMP_TIME       ADC_SMPR_SMP_7P5
+#define ADC_TOUCH_SMP_TIME       ADC_SMPR_SMP_601P5
 #define ADC_VBAT_SMP_TIME        ADC_SMPR_SMP_601P5
 
 #define BAT_ADC                  ADC1
@@ -145,7 +145,7 @@ static void adcStartMeasure(ADC_TypeDef *adc, uint32_t sqr0, uint16_t *samples) 
   do {
     adc->CR|= ADC_CR_ADSTART;
     for (uint16_t i = 0; i <= count; i++) {
-      while((adc->ISR & ADC_ISR_EOC) == 0/* && adc->CR & ADC_CR_ADSTART*/); // wait one sample ready
+      while((adc->ISR & ADC_ISR_EOC) == 0 && adc->CR & ADC_CR_ADSTART); // wait one sample ready
       samples[i]+= adc->DR;
     }
   } while (--j);
@@ -161,18 +161,16 @@ uint16_t adc_single_read(uint32_t chsel)
 
 int16_t adc_vbat_read(void)
 {
-// Measure vbat every 5 second
-#define VBAT_MEASURE_INTERVAL   S2ST(5)
   static int16_t   vbat_raw = 0;
+#ifdef VBAT_MEASURE_INTERVAL
   static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;
   systime_t _time = chVTGetSystemTimeX();
   if (_time - vbat_time < VBAT_MEASURE_INTERVAL)
     goto return_cached;
   vbat_time = _time;
-  uint16_t VREFINT = 3300;
-  uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
-  uint32_t vrefint;
-  uint32_t vbat;
+#endif
+  const uint16_t VREFINT = 3300;
+  const uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
 //  const uint16_t V25 = 1750;// when V25=1.41V at ref 3.3V
 //  const uint16_t Avg_Slope = 5; //when avg_slope=4.3mV/C at ref 3.3V
 //  uint16_t temperature_cal1 = *((uint16_t*) ((uint32_t)0x1FFFF7B8U));
@@ -188,8 +186,8 @@ int16_t adc_vbat_read(void)
   #define N_CH_VBAT    2  // 17 and 18 channels
   uint16_t samplesVBAT[N_CH_VBAT];
   adcStartMeasure(BAT_ADC, ADC_SQR1_NUM_CH(N_CH_VBAT) | ADC_SQR1_SQ1_N(17) | ADC_SQR1_SQ2_N(18)/*| ADC_SQR1_SQ3_N(16)*/, samplesVBAT);
-  vbat    = samplesVBAT[0];
-  vrefint = samplesVBAT[1];
+  uint32_t vbat    = samplesVBAT[0];
+  uint32_t vrefint = samplesVBAT[1];
 //  ts = samplesVBAT[2];
 //  uint16_t vts = (VREFINT * VREFINT_CAL * ts / (vrefint * ((1<<12)-1)));
 //  uint16_t TemperatureC2 = (uint16_t)((V25-ts)/Avg_Slope+25);
@@ -209,7 +207,7 @@ return_cached:
 
 void adc_start_analog_watchdog(void)
 {
-  ADC_TypeDef *adc = TOUCH_ADC;                              // ADC setup
+  ADC_TypeDef *adc = TOUCH_ADC;                                 // ADC setup
   adc->ISR  = adc->ISR;                                         // reset interrupts
   adc->IER = /*ADC_ISR_OVR |*/ ADC_IER_AWD1;                    // enable watchdog interrupt (ignore overflow)
   adc->TR1  = ADC_TR(0, TOUCH_THRESHOLD);                       // Threshold
@@ -237,9 +235,9 @@ static inline void adc_interrupt(void)
   ADC_TypeDef *adc = TOUCH_ADC;
   uint32_t isr = adc->ISR;
   adc->ISR = isr;
-//  if (isr & ADC_ISR_OVR) {//   ADC overflow condition
+//  if (isr & ADC_ISR_OVR) { //   ADC overflow condition
 //  }
-  if (isr & ADC_ISR_AWD1) { // Analog watchdog error.
+  if (isr & ADC_ISR_AWD1) {  // Analog watchdog error.
     handle_touch_interrupt();
   }
 }

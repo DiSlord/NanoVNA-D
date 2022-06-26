@@ -37,31 +37,24 @@
 void adc_init(void)
 {
   rccEnableADC1(FALSE);
-
+  nvicEnableVector(ADC1_COMP_IRQn, STM32_EXT_EXTI21_22_IRQ_PRIORITY); // Shared vs GPIO handler
+  VNA_ADC->CFGR1 = 0;
   /* Ensure flag states */
+  VNA_ADC->ISR = VNA_ADC->CR;                  // clear ISR
   VNA_ADC->IER = 0;
 
   /* Calibration procedure.*/
-  ADC->CCR = 0;
   if (VNA_ADC->CR & ADC_CR_ADEN) {
-    VNA_ADC->CR |= ~ADC_CR_ADDIS; /* Disable ADC */
+    VNA_ADC->CR |= ~ADC_CR_ADDIS;      // Disable ADC
+    while (VNA_ADC->CR & ADC_CR_ADEN); // Wait completion
   }
-  while (VNA_ADC->CR & ADC_CR_ADEN)
-    ;
-  VNA_ADC->CFGR1 &= ~ADC_CFGR1_DMAEN;
-  VNA_ADC->CR |= ADC_CR_ADCAL;
-  while (VNA_ADC->CR & ADC_CR_ADCAL)
-    ;
 
-  if (VNA_ADC->ISR & ADC_ISR_ADRDY) {
-    VNA_ADC->ISR |= ADC_ISR_ADRDY; /* clear ADRDY */
-  }
-  /* Enable ADC */
-  VNA_ADC->CR |= ADC_CR_ADEN;
-  while (!(VNA_ADC->ISR & ADC_ISR_ADRDY))
-    ;
+  VNA_ADC->CR |= ADC_CR_ADCAL;
+  while (VNA_ADC->CR & ADC_CR_ADCAL);
+  VNA_ADC->CR |= ADC_CR_ADEN;                  // Enable ADC
+  while (!(VNA_ADC->ISR & ADC_ISR_ADRDY));
   // VBATEN enables resiter devider circuit. It consume vbat power.
-  ADC->CCR |= ADC_CCR_VREFEN | ADC_CCR_VBATEN;
+  ADC->CCR = ADC_CCR_VREFEN | ADC_CCR_VBATEN;
 }
 
 #define ADC_AVERAGE_N 3
@@ -87,25 +80,24 @@ uint16_t adc_single_read(uint32_t chsel)
 int16_t adc_vbat_read(void)
 {
   static int16_t   vbat_raw = 0;
+#ifdef VBAT_MEASURE_INTERVAL
   static systime_t vbat_time = -VBAT_MEASURE_INTERVAL-1;
   systime_t _time = chVTGetSystemTimeX();
   if (_time - vbat_time < VBAT_MEASURE_INTERVAL)
     goto return_cached;
   vbat_time = _time;
+#endif
 // 13.9 Temperature sensor and internal reference voltage
 // VREFINT_CAL calibrated on 3.3V, need get value in mV
-  uint16_t VREFINT = 3300;
-  uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
-  uint32_t vrefint = 0;
-  uint32_t vbat = 0;
-
+  const uint16_t VREFINT = 3300;
+  const uint16_t VREFINT_CAL = (*((uint16_t*)0x1FFFF7BA));
   uint8_t restart_touch = 0;
   if (VNA_ADC->CR & ADC_CR_ADSTART){
     adc_stop_analog_watchdog();
     restart_touch = 1;
   }
-  vrefint = adc_single_read(ADC_CHSELR_CHSEL17); // VREFINT == ADC_IN17
-  vbat    = adc_single_read(ADC_CHSELR_CHSEL18); // VBAT == ADC_IN18
+  uint32_t vrefint = adc_single_read(ADC_CHSELR_CHSEL17); // VREFINT == ADC_IN17
+  uint32_t vbat    = adc_single_read(ADC_CHSELR_CHSEL18); // VBAT == ADC_IN18
 
   if (restart_touch)
     adc_start_analog_watchdog();
@@ -141,16 +133,9 @@ void adc_start_analog_watchdog(void)
 
 void adc_stop_analog_watchdog(void)
 {
-  if (VNA_ADC->CR & ADC_CR_ADEN) {
-    if (VNA_ADC->CR & ADC_CR_ADSTART) {
-      VNA_ADC->CR |= ADC_CR_ADSTP;
-      while (VNA_ADC->CR & ADC_CR_ADSTP)
-        ;
-    }
-
-    /*    VNA_ADC->CR |= ADC_CR_ADDIS;
-    while (VNA_ADC->CR & ADC_CR_ADDIS)
-    ;*/
+  if (VNA_ADC->CR & ADC_CR_ADSTART) {
+    VNA_ADC->CR |= ADC_CR_ADSTP;
+    while (VNA_ADC->CR & ADC_CR_ADSTP);
   }
 }
 
@@ -158,10 +143,9 @@ static void adc_interrupt(void)
 {
   uint32_t isr = VNA_ADC->ISR;
   VNA_ADC->ISR = isr;
-//  if (isr & ADC_ISR_OVR) { // ADC overflow condition
+//  if (isr & ADC_ISR_OVR) {  // ADC overflow condition
 //  }
-  if (isr & ADC_ISR_AWD) {
-    /* Analog watchdog error.*/
+  if (isr & ADC_ISR_AWD) {    // Analog watchdog error.
     handle_touch_interrupt();
   }
 }

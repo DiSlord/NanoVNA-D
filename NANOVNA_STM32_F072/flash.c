@@ -40,8 +40,8 @@ static void flash_erase_page0(uint32_t page_address)
 static inline void flash_unlock(void)
 {
   // unlock sequence
-  FLASH->KEYR = 0x45670123;
-  FLASH->KEYR = 0xCDEF89AB;
+  FLASH->KEYR = FLASH_KEY1;
+  FLASH->KEYR = FLASH_KEY2;
 }
 
 void flash_erase_pages(uint32_t page_address, uint32_t size)
