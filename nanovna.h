@@ -106,9 +106,55 @@
 #endif
 
 /*
- * CPU Hardware depend functions declaration
+ * Hardware depends options for VNA
  */
-#include "hardware.h"
+#if defined(NANOVNA_F303)
+// Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
+//#define AUDIO_ADC_FREQ_K        768
+//#define AUDIO_ADC_FREQ_K        384
+#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        48
+
+// Define sample count for one step measure
+#define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
+
+// Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
+// Use real time build table (undef for use constant, see comments)
+// Constant tables build only for AUDIO_SAMPLES_COUNT = 48
+#define USE_VARIABLE_OFFSET
+
+// Maximum sweep point count (limit by flash and RAM size)
+#define POINTS_COUNT             401
+
+#define AUDIO_ADC_FREQ_K1        384
+#else
+//#define AUDIO_ADC_FREQ_K        768
+//#define AUDIO_ADC_FREQ_K        384
+#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        48
+
+// Define sample count for one step measure
+#define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
+
+// Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
+// Use real time build table (undef for use constant, see comments)
+// Constant tables build only for AUDIO_SAMPLES_COUNT = 48
+//#define USE_VARIABLE_OFFSET
+
+// Maximum sweep point count (limit by flash and RAM size)
+#define POINTS_COUNT             101
+#endif
+
+// Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
+#ifndef AUDIO_ADC_FREQ_K1
+#define AUDIO_ADC_FREQ_K1        AUDIO_ADC_FREQ_K
+#endif
 
 /*
  * main.c
@@ -120,46 +166,11 @@
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 // XTAL frequency on si5351
-#define XTALFREQ 26000000U
+#define XTALFREQ                 26000000U
 // Define i2c bus speed, add predefined for 400k, 600k, 900k
 #define STM32_I2C_SPEED          900
 // Define default src impedance for xtal calculations
 #define MEASURE_DEFAULT_R        50.0f
-
-// Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
-#if defined(NANOVNA_F303)
-//#define AUDIO_ADC_FREQ_K        768
-#define AUDIO_ADC_FREQ_K        384
-//#define AUDIO_ADC_FREQ_K        192
-//#define AUDIO_ADC_FREQ_K        96
-//#define AUDIO_ADC_FREQ_K        48
-#else
-//#define AUDIO_ADC_FREQ_K        768
-//#define AUDIO_ADC_FREQ_K        384
-#define AUDIO_ADC_FREQ_K        192
-//#define AUDIO_ADC_FREQ_K        96
-//#define AUDIO_ADC_FREQ_K        48
-#endif
-
-// Define sample count for one step measure
-#if defined(NANOVNA_F303)
-//#define AUDIO_SAMPLES_COUNT   (48)
-#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
-#else
-#define AUDIO_SAMPLES_COUNT   (48)
-//#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
-#endif
-
-// Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
-// Use real time build table (undef for use constant, see comments)
-// Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-#if defined(NANOVNA_F303)
-#define USE_VARIABLE_OFFSET
-#else
-//#define USE_VARIABLE_OFFSET
-#endif
 
 // Add IF select menu in expert settings
 #ifdef USE_VARIABLE_OFFSET
@@ -214,6 +225,11 @@
 //#define FREQUENCY_IF_K          7
 #endif
 
+/*
+ * CPU Hardware depend functions declaration
+ */
+#include "hardware.h"
+
 #define AUDIO_ADC_FREQ       (AUDIO_ADC_FREQ_K*1000)
 #define FREQUENCY_OFFSET     (FREQUENCY_IF_K*1000)
 
@@ -226,13 +242,6 @@
 // pi const
 #define VNA_PI                   3.14159265358979323846f
 #define VNA_TWOPI                6.28318530717958647692f
-
-// Maximum sweep point count (limit by flash and RAM size)
-#if defined(NANOVNA_F303)
-#define POINTS_COUNT             401
-#else
-#define POINTS_COUNT             101
-#endif
 
 // Define frequency range (can be unsigned)
 typedef uint32_t freq_t;
@@ -365,8 +374,8 @@ extern const char *info_about[];
 //#define ENABLE_SI5351_TIMINGS
 #if defined(NANOVNA_F303)
 // Generator ready delays, values in us
-#define DELAY_BAND_1_2           US2ST(  90)   // Delay for bands 1-2
-#define DELAY_BAND_3_4           US2ST( 160)   // Delay for bands 3-4
+#define DELAY_BAND_1_2           US2ST( 100)   // Delay for bands 1-2
+#define DELAY_BAND_3_4           US2ST( 120)   // Delay for bands 3-4
 #define DELAY_BANDCHANGE         US2ST(2000)   // Band changes need set additional delay after reset PLL
 #define DELAY_CHANNEL_CHANGE     US2ST( 100)   // Switch channel delay
 #define DELAY_SWEEP_START        US2ST(2000)   // Delay at sweep start
@@ -376,13 +385,13 @@ extern const char *info_about[];
 #else
 // Generator ready delays, values in us
 #define DELAY_BAND_1_2           US2ST( 100)   // 0 Delay for bands 1-2
-#define DELAY_BAND_3_4           US2ST( 160)   // 1 Delay for bands 3-4
+#define DELAY_BAND_3_4           US2ST( 140)   // 1 Delay for bands 3-4
 #define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
 #define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
-#define DELAY_SWEEP_START        US2ST(2000)   // 4 Delay at sweep start
+#define DELAY_SWEEP_START        US2ST( 100)   // 4 Delay at sweep start
 // Delay after before/after set new PLL values in ms
 #define DELAY_RESET_PLL_BEFORE            0    // 5    0 (0 for disabled)
-#define DELAY_RESET_PLL_AFTER          2000    // 6 4000 (0 for disabled)
+#define DELAY_RESET_PLL_AFTER          4000    // 6 4000 (0 for disabled)
 #endif
 
 /*
@@ -392,8 +401,6 @@ extern const char *info_about[];
 #define AUDIO_CLOCK_REF       (8000000U)
 // Define aic3204 source clock frequency (on 12288000U used integer multiplier)
 //#define AUDIO_CLOCK_REF       (12288000U)
-// Define aic3204 source clock frequency (on 10752000U used integer multiplier)
-//#define AUDIO_CLOCK_REF       (10752000U)
 // Disable AIC PLL clock, use input as CODEC_CLKIN (not stable on some devices, on long work)
 //#define AUDIO_CLOCK_REF       (98304000U)
 
@@ -1228,8 +1235,8 @@ void testLog(void);        // debug log
 /*
  * flash.c
  */
-#define CONFIG_MAGIC 0x434f4e54 /* 'CONF' */
-#define PROPS_MAGIC  0x434f4e51 /* 'CONF' */
+#define CONFIG_MAGIC 0x434f4e55 // Config magic value (allow reset on new config version)
+#define PROPS_MAGIC  0x434f4e51 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;

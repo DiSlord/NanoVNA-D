@@ -34,7 +34,7 @@
  * @brief   Enables the PAL subsystem.
  */
 #if !defined(HAL_USE_PAL) || defined(__DOXYGEN__)
-#define HAL_USE_PAL                 TRUE
+#define HAL_USE_PAL                 FALSE
 #endif
 
 /**
@@ -62,14 +62,14 @@
  * @brief   Enables the EXT subsystem.
  */
 #if !defined(HAL_USE_EXT) || defined(__DOXYGEN__)
-#define HAL_USE_EXT                 TRUE
+#define HAL_USE_EXT                 FALSE
 #endif
 
 /**
  * @brief   Enables the GPT subsystem.
  */
 #if !defined(HAL_USE_GPT) || defined(__DOXYGEN__)
-#define HAL_USE_GPT                 TRUE
+#define HAL_USE_GPT                 FALSE
 #endif
 
 /**
@@ -170,7 +170,7 @@
 #define HAL_USE_WDG                 FALSE
 #endif
 
-#define STM32_DMA_REQUIRED
+//#define STM32_DMA_REQUIRED
 /*===========================================================================*/
 /* ADC driver related settings.                                              */
 /*===========================================================================*/

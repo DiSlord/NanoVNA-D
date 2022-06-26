@@ -334,7 +334,7 @@ touch_measure_y(void)
 //  palSetPadMode(GPIOB, GPIOB_YN, PAL_MODE_INPUT);        // Hi-z mode
   palSetPadMode(GPIOA, GPIOA_YP, PAL_MODE_INPUT_ANALOG);   // <- ADC_TOUCH_Y channel
 
-  chThdSleepMilliseconds(3);
+//  chThdSleepMilliseconds(3);
   return adc_single_read(ADC_TOUCH_Y);
 }
 
@@ -350,7 +350,7 @@ touch_measure_x(void)
   // Set X line as input
   palSetPadMode(GPIOB, GPIOB_XN, PAL_MODE_INPUT);        // Hi-z mode
   palSetPadMode(GPIOA, GPIOA_XP, PAL_MODE_INPUT_ANALOG); // <- ADC_TOUCH_X channel
-  chThdSleepMilliseconds(3);
+//  chThdSleepMilliseconds(3);
   return adc_single_read(ADC_TOUCH_X);
 }
 // Manually measure touch event
@@ -405,12 +405,23 @@ touch_stop_watchdog(void)
 }
 
 // Touch panel timer check (check press frequency 20Hz)
+#if HAL_USE_GPT == TRUE
 static const GPTConfig gpt3cfg = {
-  20,     // 200Hz timer clock. 200/10 = 20Hz touch check
+  1000,   // 1kHz timer clock.
   NULL,   // Timer callback.
   0x0020, // CR2:MMS=02 to output TRGO
   0
 };
+static void init_Timers(void) {
+  gptStart(&GPTD3, &gpt3cfg);         // Init timer 3
+  gptStartContinuous(&GPTD3, 10);     // Start timer 10ms period (use 1kHz clock)
+}
+#else
+static void init_Timers(void) {
+  initTimers();
+  startTimer(TIM3, 10);               // Start timer 10ms period (use 1kHz clock)
+}
+#endif
 
 //
 // Touch init function init timer 3 trigger adc for check touch interrupt, and run measure
@@ -419,8 +430,7 @@ static void touch_init(void){
   // Prepare pin for measure touch event
   touch_prepare_sense();
   // Start touch interrupt, used timer_3 ADC check threshold:
-  gptStart(&GPTD3, &gpt3cfg);         // Init timer 3
-  gptStartContinuous(&GPTD3, 10);     // Start timer 3 vs timer 10 interval
+  init_Timers();
   touch_start_watchdog();             // Start ADC watchdog (measure by timer 3 interval and trigger interrupt if touch pressed)
 }
 
@@ -3250,12 +3260,9 @@ ui_process(void)
   operation_requested = OP_NONE;
 }
 
-/* Triggered when the button is pressed or released. The LED4 is set to ON.*/
-static void extcb1(EXTDriver *extp, expchannel_t channel)
-{
-  (void)extp;
+void handle_button_interrupt(uint16_t channel) {
   (void)channel;
-  operation_requested|=OP_LEVER;
+  operation_requested|= OP_LEVER;
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 
@@ -3269,12 +3276,19 @@ void handle_touch_interrupt(void)
 //  t_time = n_time;
 }
 
+#if HAL_USE_EXT == TRUE // Use ChibiOS EXT code (need lot of flash ~1.5k)
+static void handle_button_ext(EXTDriver *extp, expchannel_t channel)
+{
+  (void)extp;
+  handle_button_interrupt((uint16_t)channel);
+}
+
 static const EXTConfig extcfg = {
   {
     {EXT_CH_MODE_DISABLED, NULL},
-    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, extcb1},
-    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, extcb1},
-    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, extcb1},
+    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, handle_button_ext}, // EXT1
+    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, handle_button_ext}, // EXT2
+    {EXT_CH_MODE_RISING_EDGE | EXT_CH_MODE_AUTOSTART | EXT_MODE_GPIOA, handle_button_ext}, // EXT3
     {EXT_CH_MODE_DISABLED, NULL},
     {EXT_CH_MODE_DISABLED, NULL},
     {EXT_CH_MODE_DISABLED, NULL},
@@ -3297,12 +3311,25 @@ static const EXTConfig extcfg = {
   }
 };
 
+static void init_EXT(void) {
+  extStart(&EXTD1, &extcfg);
+}
+#else // Use custom EXT lib, allow save flash (but need fix for different CPU)
+static void init_EXT(void) {
+  // Activates the EXT driver 1.
+  extStart();
+  ext_channel_enable(1, EXT_CH_MODE_RISING_EDGE | EXT_MODE_GPIOA);
+  ext_channel_enable(2, EXT_CH_MODE_RISING_EDGE | EXT_MODE_GPIOA);
+  ext_channel_enable(3, EXT_CH_MODE_RISING_EDGE | EXT_MODE_GPIOA);
+}
+#endif
+
 void
 ui_init()
 {
   adc_init();
   // Activates the EXT driver 1.
-  extStart(&EXTD1, &extcfg);
+  init_EXT();
   // Init touch subsystem
   touch_init();
   // Set LCD display brightness

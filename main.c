@@ -100,7 +100,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_CONFIG_COMMAND
 #ifdef __USE_SD_CARD__
 // Enable SD card console command
-#define ENABLE_SD_CARD_CMD
+#define ENABLE_SD_CARD_COMMAND
 #endif
 
 static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
@@ -126,7 +126,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.2.02"
+#define VERSION "1.2.05"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -139,7 +139,7 @@ const char *info_about[]={
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
-  "ADC:"define_to_STR(AUDIO_ADC_FREQ_K)"k, "\
+  "ADC:"define_to_STR(AUDIO_ADC_FREQ_K1)"k, "\
   "Lcd:"define_to_STR(LCD_WIDTH)"x"define_to_STR(LCD_HEIGHT)\
   "]",  "Build Time: " __DATE__ " - " __TIME__,
 //  "Kernel: " CH_KERNEL_VERSION,
@@ -257,7 +257,7 @@ static THD_FUNCTION(Thread1, arg)
     ui_process();
     sweep_mode&=~SWEEP_UI_MODE;
     // Process collected data, calculate trace coordinates and plot only if scan completed
-    if ((sweep_mode & SWEEP_ENABLE) && completed) {
+    if (completed) {
 #ifdef __USE_SMOOTH__
 //    START_PROFILE;
       if (smooth_factor)
@@ -490,6 +490,8 @@ int shell_printf(const char *fmt, ...)
   va_end(ap);
   return formatted_bytes;
 }
+
+static void shell_write(void *buf, uint32_t size) {streamWrite(shell_stream, buf, size);}
 
 #ifdef __USE_SERIAL_CONSOLE__
 // Serial Shell commands output
@@ -840,7 +842,7 @@ VNA_SHELL_FUNCTION(cmd_capture)
   for (y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
     lcd_read_memory(0, y, LCD_WIDTH, READ_ROWS, (uint16_t *)spi_buffer);
-    streamWrite(shell_stream, (void*)spi_buffer, READ_ROWS * LCD_WIDTH * sizeof(uint16_t));
+    shell_write(spi_buffer, READ_ROWS * LCD_WIDTH * sizeof(uint16_t));
   }
 }
 
@@ -894,7 +896,7 @@ config_t config = {
   ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
-  ._vbat_offset = 320,
+  ._vbat_offset = 420,
   ._bandwidth = BANDWIDTH_1000,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
@@ -967,7 +969,7 @@ void load_default_properties(void)
   current_props._reserved = 0;
   current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-  current_props._measure   = MEASURE_NONE;
+  current_props._measure   = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -981,6 +983,7 @@ void load_default_properties(void)
 #if POINTS_COUNT > 511 || SAVEAREA_MAX > 15
 #error "Check backup data limits!!"
 #endif
+
 // backup_0 bitfield
 typedef union {
   struct {
@@ -1001,28 +1004,28 @@ void update_backup_data(void) {
     .leveler    = lever_mode,
     .brightness = config._brightness
   };
-  RTC->BKP0R = bk.v;
-  RTC->BKP1R = frequency0;
-  RTC->BKP2R = frequency1;
-  RTC->BKP3R = var_freq;
-  RTC->BKP4R = config._vna_mode;
+  set_backup_data32(0, bk.v);
+  set_backup_data32(1, frequency0);
+  set_backup_data32(2, frequency1);
+  set_backup_data32(3, var_freq);
+  set_backup_data32(4, config._vna_mode);
 }
 
-static void load_start_properties(void) {
-  if (VNA_MODE(VNA_MODE_BACKUP)) {
-    backup_0 bk = {.v = RTC->BKP0R};
+static void load_settings(void) {
+  if (config_recall() == 0 && VNA_MODE(VNA_MODE_BACKUP)) { // Config loaded ok and need restore backup
+    backup_0 bk = {.v = get_backup_data32(0)};
     if (bk.v != 0 && bk.id < SAVEAREA_MAX) { // if backup data valid, and slot valid
       if (caldata_recall(bk.id) == 0) {      // Load ok
         sweep_points = bk.points;            // Restore settings depend from calibration data
-        lever_mode   = bk.leveler;
-        config._brightness = bk.brightness;
-        set_bandwidth(bk.bw);
-        frequency0 = RTC->BKP1R;
-        frequency1 = RTC->BKP2R;
-        var_freq   = RTC->BKP3R;
-        config._vna_mode = RTC->BKP4R|(1<<VNA_MODE_BACKUP); // refresh backup settings
+        frequency0 = get_backup_data32(1);
+        frequency1 = get_backup_data32(2);
+        var_freq   = get_backup_data32(3);
       }
       // Here need restore settings not depend from cal data
+      config._brightness = bk.brightness;
+      lever_mode         = bk.leveler;
+      config._vna_mode   = get_backup_data32(4) | (1<<VNA_MODE_BACKUP); // refresh backup settings
+      set_bandwidth(bk.bw);
     }
     else
       caldata_recall(0);
@@ -1035,7 +1038,8 @@ static void load_start_properties(void) {
 #endif
 }
 #else
-static void load_start_properties(void) {
+static void load_settings(void) {
+  config_recall();
   load_properties(0);
 }
 #endif
@@ -1070,12 +1074,11 @@ duplicate_buffer_to_dump(int16_t *p, size_t n)
 // DMA i2s callback function, called on get 'half' and 'full' buffer size data need for process data, while DMA fill next buffer
 static systime_t ready_time = 0;
 // sweep operation variables
-uint16_t wait_count = 0;
+volatile uint16_t wait_count = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
 static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 
-static void i2s_lld_serve_rx_interrupt(void *i2sp, uint32_t flags) {
-  (void)i2sp;
+void i2s_lld_serve_rx_interrupt(uint32_t flags) {
 //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
   if (wait == 0 || chVTGetSystemTimeX() < ready_time) return;
@@ -1090,40 +1093,6 @@ static void i2s_lld_serve_rx_interrupt(void *i2sp, uint32_t flags) {
 #endif
   --wait_count;
 //  stat.callback_count++;
-}
-
-static void initI2S(void) {
-  const uint32_t  I2S_DMA_RX_ccr = 0
-    | STM32_DMA_CR_CHSEL(I2S2_RX_DMA_CHANNEL)
-    | STM32_DMA_CR_PL(3)       // 3 - Very High
-    | STM32_DMA_CR_PSIZE_HWORD // 16 bit
-    | STM32_DMA_CR_MSIZE_HWORD // 16 bit
-    | STM32_DMA_CR_DIR_P2M     // Read from peripheral
-    | STM32_DMA_CR_MINC        // Memory increment mode
-    | STM32_DMA_CR_CIRC        // Circular mode
-    | STM32_DMA_CR_HTIE        // Half transfer complete interrupt enable
-    | STM32_DMA_CR_TCIE        // Full transfer complete interrupt enable
-//  | STM32_DMA_CR_TEIE        // Transfer error interrupt enable
-    ;
-  // I2S RX DMA setup.
-  static const stm32_dma_stream_t *i2sdmarx = STM32_DMA_STREAM(STM32_I2S_SPI2_RX_DMA_STREAM); // Use SPI2 RX
-  dmaStreamAllocate(i2sdmarx, STM32_I2S_SPI2_IRQ_PRIORITY, (stm32_dmaisr_t)i2s_lld_serve_rx_interrupt, NULL);
-  dmaStreamSetTransactionSize(i2sdmarx, ARRAY_COUNT(rx_buffer));
-  dmaStreamSetPeripheral(i2sdmarx, &SPI2->DR);
-  dmaStreamSetMemory0(i2sdmarx, rx_buffer);
-  dmaStreamSetMode(i2sdmarx, I2S_DMA_RX_ccr | STM32_DMA_CR_EN);
-
-  // Starting I2S
-  rccEnableSPI2(FALSE);           // Enabling I2S unit clock.
-  SPI2->CR1 = 0;                  // CRs settings
-  SPI2->CR2 = SPI_CR2_RXDMAEN;    // Enable RX DMA
-  SPI2->I2SPR   = 0;              // I2S (re)configuration.
-  SPI2->I2SCFGR = 0
-    | SPI_I2SCFGR_I2SCFG_0 // 01: Slave - receive
-//  | SPI_I2SCFGR_I2SCFG_1 //
-    | SPI_I2SCFGR_I2SMOD   // I2S mode is selected
-    | SPI_I2SCFGR_I2SE     // I2S enable
-    ;
 }
 
 #ifdef ENABLE_SI5351_TIMINGS
@@ -1475,12 +1444,12 @@ VNA_SHELL_FUNCTION(cmd_scan)
   // Output data after if set (faster data receive)
   if (mask) {
     if (mask&SCAN_MASK_BINARY){
-      streamWrite(shell_stream, (void *)&mask, sizeof(uint16_t));
-      streamWrite(shell_stream, (void *)&points, sizeof(uint16_t));
+      shell_write(&mask, sizeof(uint16_t));
+      shell_write(&points, sizeof(uint16_t));
       for (int i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) {freq_t f = getFrequency(i); streamWrite(shell_stream, (void *)&f, sizeof(freq_t));}    // 4 bytes .. frequency
-        if (mask & SCAN_MASK_OUT_DATA0) streamWrite(shell_stream, (void *)&measured[0][i][0], sizeof(float)* 2);  // 4+4 bytes .. S11 real/imag
-        if (mask & SCAN_MASK_OUT_DATA1) streamWrite(shell_stream, (void *)&measured[1][i][0], sizeof(float)* 2);  // 4+4 bytes .. S21 real/imag
+        if (mask & SCAN_MASK_OUT_FREQ ) {freq_t f = getFrequency(i); shell_write(&f, sizeof(freq_t));} // 4 bytes .. frequency
+        if (mask & SCAN_MASK_OUT_DATA0) shell_write(&measured[0][i][0], sizeof(float)* 2);             // 4+4 bytes .. S11 real/imag
+        if (mask & SCAN_MASK_OUT_DATA1) shell_write(&measured[1][i][0], sizeof(float)* 2);             // 4+4 bytes .. S21 real/imag
       }
     }
     else{
@@ -2791,9 +2760,9 @@ VNA_SHELL_FUNCTION(cmd_usart)
 void send_region(remote_region_t *rd, uint8_t * buf, uint16_t size)
 {
   if (SDU1.config->usbp->state == USB_ACTIVE) {
-    streamWrite(shell_stream, (void*) rd, sizeof(remote_region_t));
-    streamWrite(shell_stream, (void*) buf, size);
-    streamWrite(shell_stream, (void*)"ch> \r\n", 6);
+    shell_write(rd, sizeof(remote_region_t));
+    shell_write(buf, size);
+    shell_write("ch> \r\n", 6);
   }
   else
     sweep_mode&=~SWEEP_REMOTE;
@@ -2827,9 +2796,9 @@ VNA_SHELL_FUNCTION(cmd_release)
 }
 #endif
 
-#ifdef ENABLE_SD_CARD_CMD
+#ifdef ENABLE_SD_CARD_COMMAND
 #ifndef __USE_SD_CARD__
-#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_COMMAND"
 #endif
 
 static FRESULT cmd_sd_card_mount(void){
@@ -2884,11 +2853,11 @@ VNA_SHELL_FUNCTION(cmd_sd_read)
   // shell_printf("sd_read: %s\r\n", filename);
   // number of bytes to follow (file size)
   uint32_t filesize = f_size(fs_file);
-  streamWrite(shell_stream, (void *)&filesize, 4);
+  shell_write(&filesize, 4);
   UINT size = 0;
   // file data (send all data from file)
   while (f_read(fs_file, buf, 512, &size) == FR_OK && size > 0)
-    streamWrite(shell_stream, (void *)buf, size);
+    shell_write(buf, size);
 
   f_close(fs_file);
   return;
@@ -2948,7 +2917,7 @@ static const VNAShellCommand commands[] =
 #ifdef __USE_RTC__
     {"time"        , cmd_time        , CMD_RUN_IN_UI},
 #endif
-#ifdef ENABLE_SD_CARD_CMD
+#ifdef ENABLE_SD_CARD_COMMAND
     { "sd_list",   cmd_sd_list       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     { "sd_read",   cmd_sd_read       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     { "sd_delete", cmd_sd_delete     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
@@ -3225,7 +3194,7 @@ static int VNAShell_readLine(char *line, int max_size)
   while (streamRead(shell_stream, &c, 1)) {
     // Backspace or Delete
     if (c == 0x08 || c == 0x7f) {
-      if (j > 0) {shell_printf(backspace); j--;}
+      if (j > 0) {shell_write(backspace, sizeof(backspace)); j--;}
       continue;
     }
     // New line (Enter)
@@ -3274,7 +3243,7 @@ static void VNAShell_executeLine(char *line)
 
 #ifdef __SD_CARD_LOAD__
 #ifndef __USE_SD_CARD__
-#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use ENABLE_SD_CARD_CMD"
+#error "Need enable SD card support __USE_SD_CARD__ in nanovna.h, for use __SD_CARD_LOAD__"
 #endif
 bool sd_card_load_config(void){
   // Mount card
@@ -3335,44 +3304,6 @@ THD_FUNCTION(myshellThread, p)
 }
 #endif
 
-/*
- * I2C bus settings
- */
-#define STM32_I2C_TIMINGS(presc, scldel, sdadel, sclh, scll) ( ((presc)  << I2C_TIMINGR_PRESC_Pos)  \
-                                                             | ((scldel) << I2C_TIMINGR_SCLDEL_Pos) \
-                                                             | ((sdadel) << I2C_TIMINGR_SDADEL_Pos) \
-                                                             | ((sclh)   << I2C_TIMINGR_SCLH_Pos)   \
-                                                             | ((scll)   << I2C_TIMINGR_SCLL_Pos) )
-#if STM32_I2C1_CLOCK == 8    // STM32_I2C1SW == STM32_I2C1SW_HSI     (HSI=8MHz)
-#if   STM32_I2C_SPEED == 400 // 400kHz @ HSI 8MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(0U, 3U, 1U, 3U, 9U)
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 3U, 1U, 3U, 9U)
-#endif
-#elif  STM32_I2C1_CLOCK == 48 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 48MHz)
- #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(5U, 3U, 3U, 3U, 9U)
- #if   STM32_I2C_SPEED == 400 // 400kHz @ SYSCLK 48MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(5U, 3U, 3U, 3U, 9U)
- #elif STM32_I2C_SPEED == 600 // 600kHz @ SYSCLK 48MHz, manually get values, x1.5 I2C speed
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 30U, 50U)
- #elif STM32_I2C_SPEED == 900 // 900kHz @ SYSCLK 48MHz, manually get values, x2 I2C speed
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 23U, 30U)
- #endif
-#elif  STM32_I2C1_CLOCK == 72 // STM32_I2C1SW == STM32_I2C1SW_SYSCLK  (SYSCLK = 72MHz)
- #define STM32_I2C_INIT_T   STM32_I2C_TIMINGS(0U, 20U, 20U, 80U, 100U)
- #if   STM32_I2C_SPEED == 400 // ~400kHz @ SYSCLK 72MHz (Use 26.4.10 I2C_TIMINGR register configuration examples from STM32 RM0091 Reference manual)
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 80U, 100U)
- #elif STM32_I2C_SPEED == 600 // ~600kHz @ SYSCLK 72MHz, manually get values, x1.5 I2C speed
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 40U, 80U)
- #elif STM32_I2C_SPEED == 900 // ~900kHz @ SYSCLK 72MHz, manually get values, x2 I2C speed
- #define STM32_I2C_TIMINGR  STM32_I2C_TIMINGS(0U, 10U, 10U, 30U, 40U)
- #endif
-#endif
-
-#ifndef STM32_I2C_TIMINGR
-#error "Need define I2C bus TIMINGR settings"
-#endif
-
-
 // Main thread stack size defined in makefile USE_PROCESS_STACKSIZE = 0x200
 // Profile stack usage (enable threads command by def ENABLE_THREADS_COMMAND) show:
 // Stack maximum usage = 472 bytes (need test more and run all commands), free stack = 40 bytes
@@ -3384,6 +3315,41 @@ int main(void)
  */
   halInit();
   chSysInit();
+/*
+ * Init used hardware
+ */
+/*
+ *  Init DMA channels (used for direct send data)
+ */
+  // Enable DMA, need for i2s and spi
+    rccEnableDMA1(false);
+  //  rccEnableDMA2(false);
+
+/*
+ * Init GPIO (pin control)
+ */
+#if HAL_USE_PAL == FALSE
+  initPal();
+#endif
+
+/*
+ * Initialize RTC library (not used ChibiOS RTC module)
+ */
+#ifdef __USE_RTC__
+  rtc_init();
+#endif
+
+/*
+ * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
+ */
+#if defined(__VNA_ENABLE_DAC__) ||  defined(__LCD_BRIGHTNESS__)
+  dac_init();
+#endif
+
+/*
+ * I2C bus
+ */
+  i2c_start();
 
 /*
  * SPI bus and LCD Initialize
@@ -3391,14 +3357,9 @@ int main(void)
   lcd_init();
 
 /*
- * Restore config
+ * restore config and calibration 0 slot from flash memory, also if need use backup data
  */
-  config_recall();
-
-/*
- * restore frequencies and calibration 0 slot / backup id properties from flash memory
- */
-  load_start_properties();
+  load_settings();
 
 /*
  * Set frequency offset
@@ -3412,32 +3373,19 @@ int main(void)
   shell_init_connection();
 
 /*
- * I2C bus
- */
-  i2c_start();
-  i2c_set_timings(STM32_I2C_INIT_T);
-/*
  * Start si5351
  */
   si5351_init();
 
 /*
- * Initialize RTC library (not used ChibiOS RTC module)
+ * I2S Initialize
  */
-#ifdef __USE_RTC__
-  rtc_init();
-#endif
+  initI2S(rx_buffer, ARRAY_COUNT(rx_buffer));
 
 /*
  * tlv320aic Initialize (audio codec)
  */
   tlv320aic3204_init();
-//  chThdSleepMilliseconds(100);
-
-/*
- * I2S Initialize
- */
-  initI2S();
 
 /*
  * SD Card init (if inserted) allow fix issues
@@ -3445,13 +3393,6 @@ int main(void)
  */
 #ifdef __USE_SD_CARD__
   disk_initialize(0);
-#endif
-
-/*
- * Starting DAC1 driver, setting up the output pin as analog as suggested by the Reference Manual.
- */
-#if defined(__VNA_ENABLE_DAC__) ||  defined(__LCD_BRIGHTNESS__)
-  dac_init();
 #endif
 
 /*
