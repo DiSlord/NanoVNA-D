@@ -7,7 +7,7 @@
 ifeq ($(TARGET),)
   TARGET = F072
 endif
-#TARGET=F303
+TARGET=F303
 
 # Compiler options here.
 ifeq ($(USE_OPT),)
@@ -77,9 +77,9 @@ ifeq ($(TARGET),F303)
   USE_FPU = hard
 endif
 
-# Stack size to the allocated to the Cortex-M main/exceptions stack. This
-# stack is used for processing interrupts and exceptions.
-ifeq ($(USE_EXCEPTIONS_STACKSIZE),)
+# Stack size to be allocated to the Cortex-M process stack. This stack is
+# the stack used by the main() thread.
+ifeq ($(USE_PROCESS_STACKSIZE),)
   USE_PROCESS_STACKSIZE = 0x200
 endif
 # Stack size to the allocated to the Cortex-M main/exceptions stack. This
@@ -244,6 +244,7 @@ endif
 UDEFS+= -DVNA_AUTO_SELECT_RTC_SOURCE
 #Enable if install external 32.768kHz clock quartz on PC14 and PC15 pins on STM32 CPU and no VNA_AUTO_SELECT_RTC_SOURCE
 #UDEFS+= -DVNA_USE_LSE
+#UDEFS+= -D__VNA_Z_RENORMALIZATION__ -D__SD_FILE_BROWSER__
 
 # Define ASM defines here
 UADEFS =
