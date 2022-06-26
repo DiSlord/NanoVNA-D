@@ -340,9 +340,7 @@ tlv320aic3204_read(uint8_t d0)
 {
   int addr = AIC3204_ADDR;
   uint8_t buf[] = { d0 };
-  i2cAcquireBus(&I2CD1);
-  i2cMasterTransmitTimeout(&I2CD1, addr, buf, 1, buf, 1, 1000);
-  i2cReleaseBus(&I2CD1);
+  i2c_receive(&I2CD1, addr, buf, 1, buf, 1);
   return buf[0];
 }
 #endif
@@ -350,10 +348,8 @@ tlv320aic3204_read(uint8_t d0)
 static void
 tlv320aic3204_config(const uint8_t *data, int len)
 {
-//  i2cAcquireBus(&I2CD1);
   for (; len--; data += 2)
     tlv320aic3204_bulk_write(data, 2);
-//  i2cReleaseBus(&I2CD1);
 }
 
 void tlv320aic3204_init(void)
