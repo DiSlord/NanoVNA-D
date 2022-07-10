@@ -131,7 +131,7 @@ static float kaiser_data[FFT_SIZE];
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2019-2021 Copyright @DiSlord (based on @edy555 source)",
+  "2019-2022 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL.",
   "  https://github.com/DiSlord/NanoVNA-D",
   "Donate support:",
@@ -249,7 +249,6 @@ static THD_FUNCTION(Thread1, arg)
     if (shell_function) {
       shell_function(shell_nargs - 1, &shell_args[1]);
       shell_function = 0;
-      chThdSleepMilliseconds(10);
       continue;
     }
     // Process UI inputs
@@ -491,7 +490,10 @@ int shell_printf(const char *fmt, ...)
   return formatted_bytes;
 }
 
-static void shell_write(void *buf, uint32_t size) {streamWrite(shell_stream, buf, size);}
+static void shell_write(const void *buf, uint32_t size) {streamWrite(shell_stream, buf, size);}
+static int  shell_read(void *buf, uint32_t size)        {return streamRead(shell_stream, buf, size);}
+//static void shell_put(uint8_t c)                      {streamPut(shell_stream, c);}
+//static uint8_t shell_getc(void)                       {return streamGet(shell_stream);}
 
 #ifdef __USE_SERIAL_CONSOLE__
 // Serial Shell commands output
@@ -2743,9 +2745,9 @@ result:
 
 VNA_SHELL_FUNCTION(cmd_usart)
 {
-  uint32_t time = 2000; // 200ms wait answer by default
+  uint32_t time = MS2ST(200); // 200ms wait answer by default
   if (argc == 0 || argc > 2 || VNA_MODE(VNA_MODE_SERIAL)) return;
-  if (argc == 2) time = my_atoui(argv[1])*10;
+  if (argc == 2) time = MS2ST(my_atoui(argv[1]));
   sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
   sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
   uint32_t size;
@@ -2954,7 +2956,6 @@ static const VNAShellCommand commands[] =
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
     {"marker"      , cmd_marker      , CMD_RUN_IN_LOAD},
-//  {"grid"        , cmd_grid        , CMD_RUN_IN_LOAD},
     {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #ifdef __REMOTE_DESKTOP__
@@ -3182,16 +3183,16 @@ static const VNAShellCommand *VNAShell_parceLine(char *line){
 //
 // Read command line from shell_stream
 //
+static const char backspace[] = {0x08, 0x20, 0x08, 0x00};
 static int VNAShell_readLine(char *line, int max_size)
 {
   // send backspace, space for erase, backspace again
-  char backspace[] = {0x08, 0x20, 0x08, 0x00};
   uint8_t c;
   // Prepare I/O for shell_stream
   PREPARE_STREAM;
   uint16_t j = 0;
   // Return 0 only if stream not active
-  while (streamRead(shell_stream, &c, 1)) {
+  while (shell_read(&c, 1)) {
     // Backspace or Delete
     if (c == 0x08 || c == 0x7f) {
       if (j > 0) {shell_write(backspace, sizeof(backspace)); j--;}
@@ -3205,7 +3206,7 @@ static int VNAShell_readLine(char *line, int max_size)
     }
     // Others (skip) or too long - skip
     if (c < ' ' || j >= max_size - 1) continue;
-    streamPut(shell_stream, c); // Echo
+    shell_write(&c, 1); // Echo
     line[j++] = (char)c;
   }
   return 0;
@@ -3253,7 +3254,7 @@ bool sd_card_load_config(void){
   if (f_open(fs_file, "config.ini", FA_OPEN_EXISTING | FA_READ) != FR_OK)
     return FALSE;
 
-  // Disable shell output
+  // Disable shell output (not allow shell_printf write, but not block other output!!)
   shell_stream = NULL;
   char *buf = (char *)spi_buffer;
   UINT size = 0;
@@ -3315,15 +3316,15 @@ int main(void)
  */
   halInit();
   chSysInit();
+
 /*
  * Init used hardware
  */
 /*
- *  Init DMA channels (used for direct send data)
+ *  Init DMA channels (used for direct send data, used for i2s and spi)
  */
-  // Enable DMA, need for i2s and spi
-    rccEnableDMA1(false);
-  //  rccEnableDMA2(false);
+  rccEnableDMA1(false);
+//rccEnableDMA2(false);
 
 /*
  * Init GPIO (pin control)
