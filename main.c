@@ -36,6 +36,7 @@
 // #define VNA_SHELL_THREAD
 
 static BaseSequentialStream *shell_stream = 0;
+threads_queue_t shell_thread;
 
 // Shell new line
 #define VNA_SHELL_NEWLINE_STR    "\r\n"
@@ -54,7 +55,7 @@ typedef void (*vna_shellcmd_t)(int argc, char *argv[]);
 // Shell command line buffer, args, nargs, and function ptr
 static char shell_line[VNA_SHELL_MAX_LENGTH];
 static char *shell_args[VNA_SHELL_MAX_ARGUMENTS + 1];
-static uint16_t shell_nargs;
+static int16_t  shell_nargs;
 static volatile vna_shellcmd_t  shell_function = 0;
 
 #define ENABLED_DUMP_COMMAND
@@ -246,10 +247,10 @@ static THD_FUNCTION(Thread1, arg)
       __WFI();
     }
     // Run Shell command in sweep thread
-    if (shell_function) {
+    while (shell_function) {
       shell_function(shell_nargs - 1, &shell_args[1]);
       shell_function = 0;
-      continue;
+      osalThreadDequeueNextI(&shell_thread, MSG_OK);
     }
     // Process UI inputs
     sweep_mode|= SWEEP_UI_MODE;
@@ -3082,6 +3083,7 @@ static bool shell_check_connect(void){
 }
 
 static void shell_init_connection(void){
+  osalThreadQueueObjectInit(&shell_thread);
 /*
  * Initializes and start serial-over-USB CDC driver SDU1, connected to USBD1
  */
@@ -3159,7 +3161,7 @@ int parse_line(char *line, char* args[], int max_cnt) {
     if ((lp = ep) == NULL) break;
     // Argument limits check
     if (nargs >= max_cnt) // !! error
-      break;
+      return -1;
     // Set zero at the end of string and continue check
     *lp++ = 0;
   }
@@ -3169,14 +3171,16 @@ int parse_line(char *line, char* args[], int max_cnt) {
 static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
   shell_nargs = parse_line(line, shell_args, ARRAY_COUNT(shell_args));
-  if (shell_nargs <= 0) {
+  if (shell_nargs < 0) {
     shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
     return NULL;
   }
-  const VNAShellCommand *scp;
-  for (scp = commands; scp->sc_name != NULL; scp++)
-    if (get_str_index(scp->sc_name, shell_args[0]) == 0)
-      return scp;
+  if (shell_nargs > 0) {
+    const VNAShellCommand *scp;
+    for (scp = commands; scp->sc_name != NULL; scp++)
+      if (get_str_index(scp->sc_name, shell_args[0]) == 0)
+        return scp;
+  }
   return NULL;
 }
 
@@ -3223,22 +3227,20 @@ static void VNAShell_executeLine(char *line)
   if (scp) {
     uint16_t cmd_flag = scp->flags;
     // Skip wait mutex if process UI
-    if ((cmd_flag& CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
+    if ((cmd_flag & CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
     // Wait
     if (cmd_flag & CMD_WAIT_MUTEX) {
       shell_function = scp->sc_function;
       if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
       // Wait execute command in sweep thread
-      do {
-        chThdSleepMilliseconds(10);
-      } while (shell_function);
-      return;
-    }
-    scp->sc_function(shell_nargs - 1, &shell_args[1]);
+      osalThreadEnqueueTimeoutS(&shell_thread, TIME_INFINITE);
+//      do {
+//        chThdSleepMilliseconds(10);
+//      } while (shell_function);
+    } else
+      scp->sc_function(shell_nargs - 1, &shell_args[1]);
 //  DEBUG_LOG(10, "ok");
-    return;
-  }
-  if (**shell_args) // unknown command (not empty), ignore <CR>
+  } else if (**shell_args) // unknown command (not empty), ignore <CR>
     shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
 }
 
