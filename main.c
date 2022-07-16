@@ -55,7 +55,7 @@ typedef void (*vna_shellcmd_t)(int argc, char *argv[]);
 // Shell command line buffer, args, nargs, and function ptr
 static char shell_line[VNA_SHELL_MAX_LENGTH];
 static char *shell_args[VNA_SHELL_MAX_ARGUMENTS + 1];
-static int16_t  shell_nargs;
+static uint16_t shell_nargs;
 static volatile vna_shellcmd_t  shell_function = 0;
 
 #define ENABLED_DUMP_COMMAND
@@ -3145,25 +3145,35 @@ static void shell_init_connection(void){
 }
 #endif
 
+static inline char* vna_strpbrk(char *s1, char *s2) {
+  do {
+    char *s = s2;
+    do {
+      if (*s == *s1) return s1;
+      s++;
+    } while (*s);
+    s1++;
+  } while(*s1);
+  return s1;
+}
+
+/*
+ * Split line by arguments, return arguments count
+ */
 int parse_line(char *line, char* args[], int max_cnt) {
-  // Parse and execute line
-  char *lp = line, *ep;
-  int nargs = 0;
-  while (*lp != 0) {
-    // Skipping white space and tabs at string begin.
-    while (*lp == ' ' || *lp == '\t') lp++;
-    // If an argument starts with a double quote then its delimiter is another quote, else
-    // delimiter is white space.
-    ep = (*lp == '"') ? strpbrk(++lp, "\"") : strpbrk(lp, " \t");
-    // Store in args string
-    args[nargs++] = lp;
-    // Stop, end of input string
-    if ((lp = ep) == NULL) break;
-    // Argument limits check
-    if (nargs >= max_cnt) // !! error
-      return -1;
-    // Set zero at the end of string and continue check
-    *lp++ = 0;
+  char *lp = line, c, *brk;
+  uint16_t nargs = 0;
+  while ((c = *lp) != 0) {                   // While not end
+    if (c != ' ' && c != '\t') {             // Skipping white space and tabs.
+      if (c == '"') {lp++; brk = "\""; }     // string end is next quote or end
+      else          {      brk = " \t";}     // string end is tab or space or end
+      if (nargs < max_cnt) args[nargs] = lp; // Put pointer in args buffer (if possible)
+      nargs++;                               // Substring count
+      lp = vna_strpbrk(lp, brk);             // search end
+      if (*lp == 0) break;                   // Stop, end of input string
+      *lp = 0;                               // Set zero at the end of substring
+    }
+    lp++;
   }
   return nargs;
 }
@@ -3171,7 +3181,7 @@ int parse_line(char *line, char* args[], int max_cnt) {
 static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
   shell_nargs = parse_line(line, shell_args, ARRAY_COUNT(shell_args));
-  if (shell_nargs < 0) {
+  if (shell_nargs >= ARRAY_COUNT(shell_args)) {
     shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
     return NULL;
   }
