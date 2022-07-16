@@ -1017,21 +1017,20 @@ void update_backup_data(void) {
 static void load_settings(void) {
   if (config_recall() == 0 && VNA_MODE(VNA_MODE_BACKUP)) { // Config loaded ok and need restore backup
     backup_0 bk = {.v = get_backup_data32(0)};
-    if (bk.v != 0 && bk.id < SAVEAREA_MAX) { // if backup data valid, and slot valid
-      if (caldata_recall(bk.id) == 0) {      // Load ok
-        sweep_points = bk.points;            // Restore settings depend from calibration data
+    if (bk.v != 0) {                                             // if backup data valid
+      if (bk.id < SAVEAREA_MAX && caldata_recall(bk.id) == 0) {  // Slot valid and Load ok
+        sweep_points = bk.points;                                // Restore settings depend from calibration data
         frequency0 = get_backup_data32(1);
         frequency1 = get_backup_data32(2);
         var_freq   = get_backup_data32(3);
-      }
+      } else
+        caldata_recall(0);
       // Here need restore settings not depend from cal data
       config._brightness = bk.brightness;
       lever_mode         = bk.leveler;
       config._vna_mode   = get_backup_data32(4) | (1<<VNA_MODE_BACKUP); // refresh backup settings
       set_bandwidth(bk.bw);
     }
-    else
-      caldata_recall(0);
   }
   else
     caldata_recall(0);
@@ -3181,7 +3180,7 @@ int parse_line(char *line, char* args[], int max_cnt) {
 static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line
   shell_nargs = parse_line(line, shell_args, ARRAY_COUNT(shell_args));
-  if (shell_nargs >= ARRAY_COUNT(shell_args)) {
+  if (shell_nargs > ARRAY_COUNT(shell_args)) {
     shell_printf("too many arguments, max " define_to_STR(VNA_SHELL_MAX_ARGUMENTS) "" VNA_SHELL_NEWLINE_STR);
     return NULL;
   }
