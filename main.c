@@ -3393,19 +3393,19 @@ int main(void)
 #endif
 
 /*
+ * restore config and calibration 0 slot from flash memory, also if need use backup data
+ */
+  load_settings();
+
+/*
  * I2C bus
  */
   i2c_start();
 
 /*
- * SPI bus and LCD Initialize
+ * Start si5351
  */
-  lcd_init();
-
-/*
- * restore config and calibration 0 slot from flash memory, also if need use backup data
- */
-  load_settings();
+  si5351_init();
 
 /*
  * Set frequency offset
@@ -3419,19 +3419,19 @@ int main(void)
   shell_init_connection();
 
 /*
- * Start si5351
+ * SPI bus and LCD Initialize
  */
-  si5351_init();
-
-/*
- * I2S Initialize
- */
-  initI2S(rx_buffer, ARRAY_COUNT(rx_buffer));
+  lcd_init();
 
 /*
  * tlv320aic Initialize (audio codec)
  */
   tlv320aic3204_init();
+
+/*
+ * I2S Initialize
+ */
+  initI2S(rx_buffer, ARRAY_COUNT(rx_buffer));
 
 /*
  * SD Card init (if inserted) allow fix issues
