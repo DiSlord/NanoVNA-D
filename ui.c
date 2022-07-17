@@ -82,7 +82,7 @@ typedef struct {
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
   KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
-  KM_REFPOS, KM_EDELAY, KM_VELOCITY_FACTOR,
+  KM_REFPOS, KM_EDELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
@@ -1106,7 +1106,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
       float (*array)[2] = measured[trace[current_trace].channel];
       int index = markers[active_marker].index;
       float v = groupdelay_from_array(index, array[index]);
-      set_electrical_delay(electrical_delay + (v / 1e-12));
+      set_electrical_delay((electrical_delay + v) / 1e-12f);
     }
     break;
   }
@@ -1751,6 +1751,7 @@ const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n" R_LINK_COLOR " %b.3F" S_dB, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
@@ -2321,8 +2322,14 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
-  if (b) {b->p1.f = electrical_delay * 1e-12; return;}
+  if (b) {b->p1.f = electrical_delay; return;}
   set_electrical_delay(keyboard_get_float());
+}
+
+UI_KEYBOARD_CALLBACK(input_s21_offset) {
+  (void)data;
+  if (b) {b->p1.f = s21_offset; return;}
+  set_s21_offset(keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_velocity) {
@@ -2423,6 +2430,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value
 [KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REFPOS",             input_ref      }, // refpos
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
+[KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
 [KM_VELOCITY_FACTOR] = {KEYPAD_UFLOAT, 0,             "VELOCITY%%",         input_velocity }, // velocity factor
 [KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
 [KM_THRESHOLD]       = {KEYPAD_FREQ,   0,             "THRESHOLD",          input_harmonic }, // Harmonic threshold frequency

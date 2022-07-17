@@ -1921,8 +1921,16 @@ draw_cell(int m, int n)
 // Draw trace and marker info on the top (50 system ticks for all screen calls)
 #if 1
   int cnt = t_count > m_count ? t_count : m_count;
+  int extra = 0;
+  if (electrical_delay != 0.0f) extra+= 2;
+  if (s21_offset != 0.0f ) extra+= 2;
+#ifdef __VNA_Z_RENORMALIZATION__
+  if (current_props._portz != 50.0f) extra+= 2;
+#endif
+  if (extra < 2) extra = 2;
+  cnt = (cnt + extra + 1)>>1;
   // Get max marker/trace string count add one string for edelay/marker freq
-  if (n <= (((cnt+1)/2 + 1)*FONT_STR_HEIGHT)/CELLHEIGHT)
+  if (n <= (cnt * FONT_STR_HEIGHT)/CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
 
@@ -2169,23 +2177,23 @@ cell_draw_marker_info(int x0, int y0)
       cell_printf(xpos, ypos, "%F" S_SECOND " (%F" S_METRE ")", time_of_index(active_marker_idx), distance_of_index(active_marker_idx));
   }
 
+  xpos = 1 + 18 + CELLOFFSETX - x0;
+  ypos = 1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
   if (electrical_delay != 0.0f) {
     // draw electrical delay
-    xpos = 1 + 18 + CELLOFFSETX          - x0;
-    ypos = 1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
-
-    if (lever_mode == LM_EDELAY)
-      cell_printf(xpos, ypos, S_SARROW);
-    xpos += 5;
-
-    float edelay = electrical_delay * 1e-12; // to seconds
-    cell_printf(xpos, ypos, "Edelay: %F" S_SECOND " (%F" S_METRE ")", edelay, edelay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
+    char sel = lever_mode == LM_EDELAY ? S_SARROW[0] : ' ';
+    cell_printf(xpos, ypos, "%cEdelay: %F" S_SECOND " (%F" S_METRE ")", sel, electrical_delay, electrical_delay * (SPEED_OF_LIGHT / 100.0f) * velocity_factor);
+    ypos+= FONT_STR_HEIGHT;
+  }
+  if (s21_offset != 0.0f) {
+    // draw s21 offset
+    cell_printf(xpos, ypos, "S21 offset: %.3F" S_dB, s21_offset);
+    ypos+= FONT_STR_HEIGHT;
   }
 #ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) {
-    xpos = 1 + 18 + CELLOFFSETX          - x0;
-    ypos = PORT_Z_OFFSET + ((j+1)/2 + 1)*FONT_STR_HEIGHT - y0;
     cell_printf(xpos, ypos, "PORT-Z: 50 " S_RARROW " %F" S_OHM, current_props._portz);
+    ypos+= FONT_STR_HEIGHT;
   }
 #endif
 }

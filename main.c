@@ -127,7 +127,7 @@ static float kaiser_data[FFT_SIZE];
 #endif
 
 #undef VERSION
-#define VERSION "1.2.05"
+#define VERSION "1.2.06"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -962,7 +962,8 @@ void load_default_properties(void)
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
-  current_props._electrical_delay = 0.0;
+  current_props._electrical_delay = 0.0f;
+  current_props._s21_offset       = 0.0f;
   current_props._portz = 50.0f;
   current_props._velocity_factor = 70;
   current_props._current_trace   = 0;
@@ -1112,9 +1113,10 @@ extern uint16_t timings[16];
 #define SWEEP_CH0_MEASURE           0x01
 #define SWEEP_CH1_MEASURE           0x02
 #define SWEEP_APPLY_EDELAY          0x04
-#define SWEEP_APPLY_CALIBRATION     0x08
-#define SWEEP_USE_INTERPOLATION     0x10
-#define SWEEP_USE_RENORMALIZATION   0x20
+#define SWEEP_APPLY_S21_OFFSET      0x08
+#define SWEEP_APPLY_CALIBRATION     0x10
+#define SWEEP_USE_INTERPOLATION     0x20
+#define SWEEP_USE_RENORMALIZATION   0x40
 
 static uint16_t get_sweep_mask(void){
   uint16_t ch_mask = 0;
@@ -1137,6 +1139,7 @@ static uint16_t get_sweep_mask(void){
   if (cal_status & CALSTAT_APPLY)        ch_mask|= SWEEP_APPLY_CALIBRATION;
   if (cal_status & CALSTAT_INTERPOLATED) ch_mask|= SWEEP_USE_INTERPOLATION;
   if (electrical_delay)                  ch_mask|= SWEEP_APPLY_EDELAY;
+  if (s21_offset)                        ch_mask|= SWEEP_APPLY_S21_OFFSET;
   return ch_mask;
 }
 
@@ -1145,6 +1148,11 @@ static void applyEDelay(float data[2], float s, float c){
   float imag = data[1];
   data[0] = real * c - imag * s;
   data[1] = imag * c + real * s;
+}
+
+static void applyOffset(float data[2], float offset){
+  data[0]*= offset;
+  data[1]*= offset;
 }
 
 #ifdef __VNA_Z_RENORMALIZATION__
@@ -1163,6 +1171,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
   int delay = 0;
+  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
@@ -1178,7 +1187,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
       // Edelay calibration
       if (mask & SWEEP_APPLY_EDELAY)
-        vna_sincosf(electrical_delay * frequency * 1E-12, &s, &c);
+        vna_sincosf(electrical_delay * frequency, &s, &c);
       // Set invalid value for check
       c_data[0][0] = INFINITY;
     }
@@ -1216,6 +1225,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         apply_CH1_error_term(data, c_data);
       if (mask & SWEEP_APPLY_EDELAY)         // Apply e-delay
         applyEDelay(&data[2], s, c);
+      if (mask & SWEEP_APPLY_S21_OFFSET)
+        applyOffset(&data[2], offset);
     }
 #ifdef __VNA_Z_RENORMALIZATION__
     if (mask & SWEEP_USE_RENORMALIZATION)
@@ -1391,6 +1402,7 @@ static bool needInterpolate(freq_t start, freq_t stop, uint16_t points){
 #define SCAN_MASK_OUT_DATA1      0b00000100
 #define SCAN_MASK_NO_CALIBRATION 0b00001000
 #define SCAN_MASK_NO_EDELAY      0b00010000
+#define SCAN_MASK_NO_S21OFFS     0b00100000
 #define SCAN_MASK_BINARY         0b10000000
 
 VNA_SHELL_FUNCTION(cmd_scan)
@@ -1435,6 +1447,8 @@ VNA_SHELL_FUNCTION(cmd_scan)
 
   if ((cal_status & CALSTAT_APPLY) && !(mask&SCAN_MASK_NO_CALIBRATION)) sweep_ch|= SWEEP_APPLY_CALIBRATION;
   if (electrical_delay             && !(mask&SCAN_MASK_NO_EDELAY     )) sweep_ch|= SWEEP_APPLY_EDELAY;
+  if (s21_offset                   && !(mask&SCAN_MASK_NO_S21OFFS    )) sweep_ch|= SWEEP_APPLY_S21_OFFSET;
+
   if (needInterpolate(start, stop, sweep_points))
     sweep_ch|= SWEEP_USE_INTERPOLATION;
 
@@ -1886,9 +1900,10 @@ cal_collect(uint16_t type)
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
-
+  uint16_t mask = (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE;
+  if (electrical_delay) mask|= SWEEP_APPLY_EDELAY;
   // Measure calibration data
-  sweep(false, (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE);
+  sweep(false, mask);
   // Copy calibration data
   memcpy(cal_data[dst], measured[src], sizeof measured[0]);
 
@@ -2162,8 +2177,17 @@ void set_trace_enable(int t, bool enable)
 
 void set_electrical_delay(float picoseconds)
 {
+  picoseconds*= 1e-12;
   if (electrical_delay != picoseconds) {
     electrical_delay = picoseconds;
+    request_to_redraw(REDRAW_AREA);
+  }
+}
+
+void set_s21_offset(float offset)
+{
+  if (s21_offset != offset) {
+    s21_offset = offset;
     request_to_redraw(REDRAW_AREA);
   }
 }
@@ -2249,12 +2273,20 @@ usage:
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
   if (argc != 1) {
-    shell_printf("%f\r\n", electrical_delay);
+    shell_printf("%f\r\n", electrical_delay * (1.0f / 1e-12f)); // return in picoseconds
     return;
   }
-  set_electrical_delay(my_atof(argv[0]));
+  set_electrical_delay(my_atof(argv[0])); // input value in picoseconds
 }
 
+VNA_SHELL_FUNCTION(cmd_s21offset)
+{
+  if (argc != 1) {
+    shell_printf("%f\r\n", s21_offset); // return in dB
+    return;
+  }
+  set_s21_offset(my_atof(argv[0]));     // input value in dB
+}
 
 VNA_SHELL_FUNCTION(cmd_marker)
 {
@@ -2957,6 +2989,7 @@ static const VNAShellCommand commands[] =
     {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
     {"marker"      , cmd_marker      , CMD_RUN_IN_LOAD},
     {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
+    {"s21offset"   , cmd_s21offset   , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #ifdef __REMOTE_DESKTOP__
     {"refresh"     , cmd_refresh     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
@@ -3144,9 +3177,9 @@ static void shell_init_connection(void){
 }
 #endif
 
-static inline char* vna_strpbrk(char *s1, char *s2) {
+static inline char* vna_strpbrk(char *s1, const char *s2) {
   do {
-    char *s = s2;
+    const char *s = s2;
     do {
       if (*s == *s1) return s1;
       s++;
@@ -3160,7 +3193,8 @@ static inline char* vna_strpbrk(char *s1, char *s2) {
  * Split line by arguments, return arguments count
  */
 int parse_line(char *line, char* args[], int max_cnt) {
-  char *lp = line, c, *brk;
+  char *lp = line, c;
+  const char *brk;
   uint16_t nargs = 0;
   while ((c = *lp) != 0) {                   // While not end
     if (c != ' ' && c != '\t') {             // Skipping white space and tabs.

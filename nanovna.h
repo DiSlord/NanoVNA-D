@@ -731,7 +731,7 @@ extern const uint8_t numfont16x22[];
 // X and Y offset to L/C match text
  #define STR_MEASURE_X      (OFFSETX +  0)
 // Better be aligned by cell (cell height = 32)
- #define STR_MEASURE_Y      (OFFSETY + 64)
+ #define STR_MEASURE_Y      (OFFSETY + 80)
 // 1/3 Width of text (use 3 column for data)
  #define STR_MEASURE_WIDTH  (FONT_WIDTH * 10)
 // String Height (need 2 + 0..4 string)
@@ -967,6 +967,7 @@ typedef struct properties {
   uint8_t  _reserved;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
+  float    _s21_offset;
   float    _portz;
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
@@ -988,6 +989,7 @@ void shell_update_speed(uint32_t speed);
 void shell_reset_console(void);
 
 void set_electrical_delay(float picoseconds);
+void set_s21_offset(float offset);
 float groupdelay_from_array(int i, const float *v);
 
 void plot_init(void);
@@ -1236,7 +1238,7 @@ void testLog(void);        // debug log
  * flash.c
  */
 #define CONFIG_MAGIC 0x434f4e55 // Config magic value (allow reset on new config version)
-#define PROPS_MAGIC  0x434f4e51 // Properties magic value (allow reset on new properties version)
+#define PROPS_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;
@@ -1252,6 +1254,7 @@ extern uint16_t lastsaveid;
 #define cal_status          current_props._cal_status
 #define cal_data            current_props._cal_data
 #define electrical_delay    current_props._electrical_delay
+#define s21_offset          current_props._s21_offset
 #define velocity_factor     current_props._velocity_factor
 #define trace               current_props._trace
 #define current_trace       current_props._current_trace
