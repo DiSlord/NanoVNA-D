@@ -448,12 +448,8 @@ extern const char *info_about[];
 #define BANDWIDTH_10              (100 - 1)
 #endif
 
-#ifdef ENABLED_DUMP
-extern int16_t ref_buf[];
-extern int16_t samp_buf[];
-#endif
-
-void dsp_process(int16_t *src, size_t len);
+typedef int16_t  audio_sample_t;
+void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
 void calculate_gamma(float *gamma);
 void fetch_amplitude(float *gamma);
@@ -1205,7 +1201,7 @@ void lcd_drawstring(int16_t x, int16_t y, const char *str);
 #define lcd_drawstring lcd_printf
 #endif
 int  lcd_printf(int16_t x, int16_t y, const char *fmt, ...);
-void lcd_drawstringV(const char *str, int x, int y);
+int  lcd_printfV(int16_t x, int16_t y, const char *fmt, ...);
 int  lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
 void lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
 void lcd_drawfont(uint8_t ch, int x, int y);
@@ -1346,7 +1342,7 @@ int plot_printf(char *str, int, const char *fmt, ...);
 #define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
 // Speed profile definition
 #define START_PROFILE   systime_t time = chVTGetSystemTimeX();
-#define STOP_PROFILE    {char string_buf[12];plot_printf(string_buf, sizeof string_buf, "T:%08d", chVTGetSystemTimeX() - time); lcd_set_foreground(LCD_BG_COLOR); lcd_drawstringV(string_buf, 1, 90);}
+#define STOP_PROFILE    {lcd_printfV(1, 1, "T:%08d", chVTGetSystemTimeX() - time);}
 // Macros for convert define value to string
 #define STR1(x)  #x
 #define define_to_STR(x)  STR1(x)

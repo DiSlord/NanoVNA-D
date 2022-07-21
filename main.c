@@ -1057,11 +1057,11 @@ int load_properties(uint32_t id) {
 }
 
 #ifdef ENABLED_DUMP_COMMAND
-int16_t *dump_buffer;
+audio_sample_t *dump_buffer;
 volatile int16_t dump_len = 0;
 int16_t dump_selection = 0;
 static void
-duplicate_buffer_to_dump(int16_t *p, size_t n)
+duplicate_buffer_to_dump(audio_sample_t *p, size_t n)
 {
   p+=dump_selection;
   while (n) {
@@ -1079,14 +1079,14 @@ static systime_t ready_time = 0;
 // sweep operation variables
 volatile uint16_t wait_count = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
-static int16_t rx_buffer[AUDIO_BUFFER_LEN * 2];
+static audio_sample_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 
 void i2s_lld_serve_rx_interrupt(uint32_t flags) {
 //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
   if (wait == 0 || chVTGetSystemTimeX() < ready_time) return;
   uint16_t count = AUDIO_BUFFER_LEN;
-  int16_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
+  audio_sample_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
   if (wait >= config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
     reset_dsp_accumerator();
   else
@@ -1268,9 +1268,9 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 VNA_SHELL_FUNCTION(cmd_dump)
 {
   int i, j;
-  int16_t dump[96*2];
+  audio_sample_t dump[96*2];
   dump_buffer = dump;
-  dump_len = sizeof(dump) / sizeof(int16_t);
+  dump_len = ARRAY_COUNT(dump);
   int len = dump_len;
   if (argc == 1)
     dump_selection = my_atoi(argv[0]) == 1 ? 0 : 1;

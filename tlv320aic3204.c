@@ -109,6 +109,22 @@
 #define REG_39_CM2R_TO_RIGHT_N_20k   (2<<0)
 #define REG_39_CM2R_TO_RIGHT_N_40k   (3<<0)
 
+#define REG_27_WCLK_IN               (0<<2)
+#define REG_27_WCLK_OUT              (1<<2)
+#define REG_27_BCLK_IN               (0<<3)
+#define REG_27_BCLK_OUT              (1<<3)
+#define REG_27_DATA_16               (0<<4)
+#define REG_27_DATA_20               (1<<4)
+#define REG_27_DATA_24               (2<<4)
+#define REG_27_DATA_32               (3<<4)
+#define REG_27_INTERFACE_I2S         (0<<6)
+#define REG_27_INTERFACE_DSP         (1<<6)
+#define REG_27_INTERFACE_RJF         (2<<6)
+#define REG_27_INTERFACE_LJF         (3<<6)
+
+// Set the interface mode: 16 bit, BCLK, WCLK as output, DSP mode
+#define REG_27  (REG_27_DATA_16 | REG_27_INTERFACE_DSP | REG_27_WCLK_OUT | REG_27_BCLK_OUT)
+
 static const uint8_t conf_data[] = {
 // reg, data,     // PLL clock config
   0x00, 0x00,     // Initialize to Page 0
@@ -162,9 +178,8 @@ static const uint8_t conf_data[] = {
   0x3d, 0x01,     // Select ADC PRB_R1
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
+  0x1b, REG_27,   // Set the interface mode
   0x1e, 0x80 + 32,// Enable the BCLKN divider with value 32 (I2S clock = 98.304MHz/(NDAC*32) = 48kHz * (16+16)
-
 #elif AUDIO_ADC_FREQ == 24000
   // Clock config, default fs=24kHz
   // from PLL 98.304MHz/(4*8*128) = 24kHz
@@ -181,9 +196,8 @@ static const uint8_t conf_data[] = {
   0x3d, 0x01,     // Select ADC PRB_R1
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
+  0x1b, REG_27,   // Set the interface mode
   0x1e, 0x80 + 32,// Enable the BCLKN divider with value 32 (I2S clock = 98.304MHz/(NDAC*32) = 48kHz * (16+16)
-
 #elif AUDIO_ADC_FREQ == 48000
   // Clock config, default fs=48kHz
   // from PLL 98.304MHz/(2*8*128) = 48kHz
@@ -200,7 +214,7 @@ static const uint8_t conf_data[] = {
   0x3d, 0x01,     // Select ADC PRB_R1
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
+  0x1b, REG_27,   // Set the interface mode
   0x1e, 0x80 + 32,// Enable the BCLKN divider with value 32 (I2S clock = 98.304MHz/(NDAC*32) = 48kHz * (16+16)
 #elif AUDIO_ADC_FREQ == 96000
   // Clock config, default fs=96kHz
@@ -218,7 +232,7 @@ static const uint8_t conf_data[] = {
   0x3d, 0x01,     // Select ADC PRB_R1 (AOSR = 64 (Use with PRB_R1 to PRB_R12, ADC Filter Type A or B))
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
+  0x1b, REG_27,   // Set the interface mode
   0x1e, 0x80 + 16,// Enable the BCLKN divider with value 16 (I2S clock = 98.304MHz/(NDAC*16) = 96kHz * (16+16)
 #elif AUDIO_ADC_FREQ == 192000
 // Clock config, default fs=192kHz
@@ -237,8 +251,8 @@ static const uint8_t conf_data[] = {
   0x3d,    7,     // Select ADC PRB_R7
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
-  0x1e, 0x80 + 8,// Enable the BCLKN divider with value 8 (I2S clock = 98.304MHz/(NDAC*8) = 192kHz * (16+16)
+  0x1b, REG_27,   // Set the interface mode
+  0x1e, 0x80 + 8, // Enable the BCLKN divider with value 8 (I2S clock = 98.304MHz/(NDAC*8) = 192kHz * (16+16)
 #elif AUDIO_ADC_FREQ == 384000
 // Clock config, default fs=384kHz
 // from PLL 98.304MHz/(2*4*32) = 384kHz
@@ -256,8 +270,8 @@ static const uint8_t conf_data[] = {
   0x3d,    7,     // Select ADC PRB_R7
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
-  0x1e, 0x80 + 4,// Enable the BCLKN divider with value 4 (I2S clock = 98.304MHz/(NDAC*4) = 384kHz * (16+16)
+  0x1b, REG_27,   // Set the interface mode
+  0x1e, 0x80 + 4, // Enable the BCLKN divider with value 4 (I2S clock = 98.304MHz/(NDAC*4) = 384kHz * (16+16)
 #elif AUDIO_ADC_FREQ == 768000
 // Clock config, default fs=768kHz
 // from PLL 98.304MHz/(2*4*16) = 768kHz
@@ -275,8 +289,8 @@ static const uint8_t conf_data[] = {
   0x3d,    7,     // Select ADC PRB_R7
   0x24, 0xee,     // ADC power up
 
-  0x1b, 0x0c,     // Set the BCLK,WCLK as output
-  0x1e, 0x80 + 2,// Enable the BCLKN divider with value 2 (I2S clock = 98.304MHz/(NDAC*2) = 768kHz * (16+16)
+  0x1b, REG_27,   // Set the interface mode
+  0x1e, 0x80 + 2, // Enable the BCLKN divider with value 2 (I2S clock = 98.304MHz/(NDAC*2) = 768kHz * (16+16)
 #else
 #error "Need set correct ADC clock for aic3204"
 #endif

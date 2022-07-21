@@ -22,10 +22,15 @@
 // F303 SPI2 RX DMA1 interrupt
 #define STM32_SPI2_RX_DMA_IRQ_NUMBER           DMA1_Channel4_IRQn
 
+#define SPI_I2S_FHILLIPS_MODE  (                   0)
+#define SPI_I2S_MSB_MODE       (SPI_I2SCFGR_I2SSTD_0)
+#define SPI_I2S_LSB_MODE       (SPI_I2SCFGR_I2SSTD_1)
+#define SPI_I2S_PCM_MODE       (SPI_I2SCFGR_I2SSTD_0 | SPI_I2SCFGR_I2SSTD_1)
+
 /*
  * Run I2S bus in Circular mode, fill buffer, and handle read in I2S DMA RX interrupt
  */
-void initI2S(int16_t *buffer, uint16_t count) {
+void initI2S(void *buffer, uint16_t count) {
   const uint16_t  I2S_DMA_RX_ccr = 0
     | STM32_DMA_CR_PL(3)       // 3 - Very High
     | STM32_DMA_CR_PSIZE_HWORD // 16 bit
@@ -53,6 +58,8 @@ void initI2S(int16_t *buffer, uint16_t count) {
     | SPI_I2SCFGR_I2SCFG_0        // 01: Slave - receive
 //  | SPI_I2SCFGR_I2SCFG_1        //
     | SPI_I2SCFGR_I2SMOD          // I2S mode is selected
+    | SPI_I2S_PCM_MODE            // I2S PCM standard (aic3204 use DSP mode, short sync)
+    | SPI_I2SCFGR_PCMSYNC         // Short sync
     | SPI_I2SCFGR_I2SE            // I2S enable
     ;
 }

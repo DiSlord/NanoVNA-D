@@ -123,7 +123,7 @@ static const uint32_t rxdmamode = 0
     | STM32_DMA_CR_PL(STM32_SPI_SPI1_DMA_PRIORITY)  // Set priority
     | STM32_DMA_CR_DIR_P2M;                         // SPI to Memory
 
-// SPI transmit byte buffer use DMA
+// SPI transmit byte buffer use DMA (65535 bytes limit)
 static inline void spi_DMATxBuffer(const uint8_t *buffer, uint16_t len, bool wait) {
   dmaChannelSetMemory(LCD_DMA_TX, buffer);
   dmaChannelSetTransactionSize(LCD_DMA_TX, len);
@@ -828,11 +828,23 @@ int lcd_printf(int16_t x, int16_t y, const char *fmt, ...) {
   return retval;
 }
 
-void lcd_drawstringV(const char *str, int x, int y)
-{
+int lcd_printfV(int16_t x, int16_t y, const char *fmt, ...) {
+  // Init small lcd print stream
+  struct lcd_printStreamVMT {
+    _base_sequential_stream_methods
+  } lcd_vmt = {NULL, NULL, lcd_put, NULL};
+  lcdPrintStream ps = {&lcd_vmt, x, y, x, y, 0};
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
   ili9341_set_rotation(DISPLAY_ROTATION_270);
-  lcd_drawstring(LCD_HEIGHT-y, x, str);
+  // Performing the print operation using the common code.
+  va_list ap;
+  va_start(ap, fmt);
+  int retval = chvprintf((BaseSequentialStream *)(void *)&ps, fmt, ap);
+  va_end(ap);
   ili9341_set_rotation(DISPLAY_ROTATION_0);
+  // Return number of bytes that would have been written.
+  return retval;
 }
 
 int lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size)
