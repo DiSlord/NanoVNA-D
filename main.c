@@ -3431,7 +3431,7 @@ int main(void)
 /*
  * I2S Initialize
  */
-  initI2S(rx_buffer, ARRAY_COUNT(rx_buffer));
+  initI2S(rx_buffer, ARRAY_COUNT(rx_buffer) * sizeof(audio_sample_t) / sizeof(int16_t));
 
 /*
  * SD Card init (if inserted) allow fix issues
