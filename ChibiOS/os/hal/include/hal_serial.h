@@ -261,6 +261,9 @@ struct SerialDriver {
  */
 #define sdAsynchronousRead(sdp, b, n)                                       \
   iqReadTimeout(&(sdp)->iqueue, b, n, TIME_IMMEDIATE)
+
+#define sdSetBaudrate(sdp, baud)  sd_lld_setbaudrate(sdp, baud)
+#define sdGetBaudrate(sdp)        sd_lld_getbaudrate(sdp, baud)
 /** @} */
 
 /*===========================================================================*/

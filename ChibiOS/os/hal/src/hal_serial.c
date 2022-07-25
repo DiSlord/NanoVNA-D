@@ -47,6 +47,7 @@
  * queue-level function or macro.
  */
 
+#define DISABLE_TIME_FUNCTIONS
 static size_t write(void *ip, const uint8_t *bp, size_t n) {
 
   return oqWriteTimeout(&((SerialDriver *)ip)->oqueue, bp,
@@ -69,6 +70,7 @@ static msg_t get(void *ip) {
   return iqGetTimeout(&((SerialDriver *)ip)->iqueue, TIME_INFINITE);
 }
 
+#ifndef DISABLE_TIME_FUNCTIONS
 static msg_t putt(void *ip, uint8_t b, systime_t timeout) {
 
   return oqPutTimeout(&((SerialDriver *)ip)->oqueue, b, timeout);
@@ -88,10 +90,15 @@ static size_t readt(void *ip, uint8_t *bp, size_t n, systime_t timeout) {
 
   return iqReadTimeout(&((SerialDriver *)ip)->iqueue, bp, n, timeout);
 }
+#endif
 
 static const struct SerialDriverVMT vmt = {
   write, read, put, get,
+#ifndef DISABLE_TIME_FUNCTIONS
   putt, gett, writet, readt
+#else
+  NULL, NULL, NULL, NULL
+#endif
 };
 
 /*===========================================================================*/
@@ -126,12 +133,11 @@ void sdInit(void) {
  * @init
  */
 void sdObjectInit(SerialDriver *sdp, qnotify_t inotify, qnotify_t onotify) {
-
   sdp->vmt = &vmt;
-  osalEventObjectInit(&sdp->event);
+  //osalEventObjectInit(&sdp->event);
   sdp->state = SD_STOP;
-  iqObjectInit(&sdp->iqueue, sdp->ib, SERIAL_RX_BUFFERS_SIZE, inotify, sdp);
-  oqObjectInit(&sdp->oqueue, sdp->ob, SERIAL_TX_BUFFERS_SIZE, onotify, sdp);
+  qObjectInit(&sdp->iqueue, sdp->ib, sizeof(sdp->ib), inotify);
+  qObjectInit(&sdp->oqueue, sdp->ob, sizeof(sdp->ob), onotify);
 }
 
 /**
@@ -174,8 +180,8 @@ void sdStop(SerialDriver *sdp) {
                 "invalid state");
   sd_lld_stop(sdp);
   sdp->state = SD_STOP;
-  oqResetI(&sdp->oqueue);
-  iqResetI(&sdp->iqueue);
+  qResetI(&sdp->oqueue);
+  qResetI(&sdp->iqueue);
   osalOsRescheduleS();
   osalSysUnlock();
 }
@@ -201,9 +207,9 @@ void sdIncomingDataI(SerialDriver *sdp, uint8_t b) {
   osalDbgCheckClassI();
   osalDbgCheck(sdp != NULL);
 
-  if (iqIsEmptyI(&sdp->iqueue))
+  if (qIsEmptyI(&sdp->iqueue))
     chnAddFlagsI(sdp, CHN_INPUT_AVAILABLE);
-  if (iqPutI(&sdp->iqueue, b) < MSG_OK)
+  if (qPutI(&sdp->iqueue, b) < MSG_OK)
     chnAddFlagsI(sdp, SD_OVERRUN_ERROR);
 }
 
@@ -228,7 +234,7 @@ msg_t sdRequestDataI(SerialDriver *sdp) {
   osalDbgCheckClassI();
   osalDbgCheck(sdp != NULL);
 
-  b = oqGetI(&sdp->oqueue);
+  b = qGetI(&sdp->oqueue);
   if (b < MSG_OK)
     chnAddFlagsI(sdp, CHN_OUTPUT_EMPTY);
   return b;
@@ -253,7 +259,7 @@ bool sdPutWouldBlock(SerialDriver *sdp) {
   bool b;
 
   osalSysLock();
-  b = oqIsFullI(&sdp->oqueue);
+  b = qIsFullI(&sdp->oqueue);
   osalSysUnlock();
 
   return b;
@@ -278,7 +284,7 @@ bool sdGetWouldBlock(SerialDriver *sdp) {
   bool b;
 
   osalSysLock();
-  b = iqIsEmptyI(&sdp->iqueue);
+  b = qIsEmptyI(&sdp->iqueue);
   osalSysUnlock();
 
   return b;

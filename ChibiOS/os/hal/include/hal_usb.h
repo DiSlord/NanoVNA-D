@@ -472,7 +472,7 @@ typedef const USBDescriptor * (*usbgetdescriptor_t)(USBDriver *usbp,
 #define usbSetupTransfer(usbp, buf, n, endcb) {                             \
   (usbp)->ep0next  = (buf);                                                 \
   (usbp)->ep0n     = (n);                                                   \
-  (usbp)->ep0endcb = (endcb);                                               \
+  if ((endcb) != NULL) (usbp)->ep0endcb = (endcb);                          \
 }
 
 /**

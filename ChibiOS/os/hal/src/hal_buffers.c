@@ -1,5 +1,5 @@
 /*
-    ChibiOS - Copyright (C) 2006..2016 Giovanni Di Sirio
+    ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@
  *          - <b>Input queue</b>, unidirectional queue where the writer is the
  *            ISR side and the reader is the thread side.
  *          - <b>Output queue</b>, unidirectional queue where the writer is the
- *            ISR side and the reader is the thread side.
+ *            thread side and the reader is the ISR side.
  *          - <b>Full duplex queue</b>, bidirectional queue. Full duplex queues
  *            are implemented by pairing an input queue and an output queue
  *            together.
@@ -44,6 +44,30 @@
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
 
+/* Inform the low side that the queue has at least one slot available.*/
+static inline void bq_Notify(io_buffers_queue_t *bqp) {
+  if (bqp->notify != NULL) bqp->notify(bqp);
+}
+
+/* Restore suspend by waitReadyTimeout or waitFreeTimeout thread */
+static inline void bq_Restore(io_buffers_queue_t *bqp) {
+  osalThreadDequeueNextI(&bqp->waiting, MSG_OK);
+}
+
+/* Waiting until there empty or a timeout occurs.*/
+static msg_t waitReadyTimeout(io_buffers_queue_t *bqp, systime_t timeout) {
+  if (bqIsEmptyI(bqp))
+    return  osalThreadEnqueueTimeoutS(&bqp->waiting, timeout);
+  return MSG_OK;
+}
+
+/* Waiting until there is a slot available or a timeout occurs.*/
+static msg_t waitFreeTimeout(io_buffers_queue_t *bqp, systime_t timeout) {
+  if (bqIsFullI(bqp))
+    return osalThreadEnqueueTimeoutS(&bqp->waiting, timeout);
+  return MSG_OK;
+}
+
 /*===========================================================================*/
 /* Driver exported variables.                                                */
 /*===========================================================================*/
@@ -55,85 +79,119 @@
 /*===========================================================================*/
 /* Driver local functions.                                                   */
 /*===========================================================================*/
+static size_t bqCopyTimeout(io_buffers_queue_t *bqp, bool dir, uint8_t *bp, size_t n, systime_t timeout) {
+  size_t c = 0, size;
+
+  osalSysLock();
+  do {
+    /* This condition indicates that a new buffer must be acquired.*/
+    if (bqp->ptr == NULL) {
+      msg_t msg = dir ? obqGetEmptyBufferTimeoutS(bqp, timeout) :
+                        ibqGetFullBufferTimeoutS(bqp, timeout);
+      /* Anything except MSG_OK interrupts the operation.*/
+      if (msg != MSG_OK) {
+        break;
+      }
+    }
+
+    /* Size of the space available in the current buffer.*/
+    size = (size_t)(bqp->top - bqp->ptr);
+    if (size > (n - c)) {
+      size = n - c;
+    }
+
+    if (dir) memcpy(bqp->ptr, &bp[c], size); // to buffer (write)
+    else     memcpy(bp, bqp->ptr, size);     // from buffer (read)
+    bqp->ptr += size;
+    c        += size;
+    /* Has the current data buffer been finished? if so then release it.*/
+    if (bqp->ptr >= bqp->top) {
+      if (dir) obqPostFullBufferS(bqp, bqp->bsize - sizeof (size_t)); // Write complete (full)
+      else     ibqReleaseEmptyBufferS(bqp);                           // Read complete  (empty)
+    }
+  } while(c < n);
+  osalSysUnlock();
+  return c;
+}
+
+static void bqReleaseEmptyBuffer(io_buffers_queue_t *bqp)
+{
+  /* Freeing a buffer slot in the queue.*/
+  bqp->bcounter--;
+  bqp->brdptr += bqp->bsize;
+  if (bqp->brdptr >= bqp->btop) {
+    bqp->brdptr = bqp->buffers;
+  }
+}
+
+static void bqPrepareBuffer(io_buffers_queue_t *bqp, size_t size)
+{
+  /* Writing size field in the buffer.*/
+  *((size_t *)(void *)bqp->bwrptr) = size;
+
+  /* Posting the buffer in the queue.*/
+  bqp->bcounter++;
+  bqp->bwrptr += bqp->bsize;
+  if (bqp->bwrptr >= bqp->btop) {
+    bqp->bwrptr = bqp->buffers;
+  }
+}
 
 /*===========================================================================*/
 /* Driver exported functions.                                                */
 /*===========================================================================*/
 
 /**
- * @brief   Initializes an input buffers queue object.
+ * @brief   Initializes an input/output buffers queue object.
  *
- * @param[out] ibqp     pointer to the @p input_buffers_queue_t object
+ * @param[out] bqp      pointer to the @p io_buffers_queue_t object
  * @param[in] bp        pointer to a memory area allocated for buffers
  * @param[in] size      buffers size
  * @param[in] n         number of buffers
- * @param[in] infy      callback called when a buffer is returned to the queue
+ * @param[in] nfy       callback called when a buffer is posted in the queue
  * @param[in] link      application defined pointer
  *
  * @init
  */
-void ibqObjectInit(input_buffers_queue_t *ibqp, uint8_t *bp,
+void bqObjectInit(io_buffers_queue_t *bqp, uint8_t *bp,
                    size_t size, size_t n,
-                   bqnotify_t infy, void *link) {
+                   bqnotify_t nfy, void *link) {
 
-  osalDbgCheck((ibqp != NULL) && (bp != NULL) && (size >= 2U));
+  osalDbgCheck((bqp != NULL) && (bp != NULL) && (size >= 2U));
 
-  osalThreadQueueObjectInit(&ibqp->waiting);
-  ibqp->bcounter = 0;
-  ibqp->brdptr   = bp;
-  ibqp->bwrptr   = bp;
-  ibqp->btop     = bp + ((size + sizeof (size_t)) * n);
-  ibqp->bsize    = size + sizeof (size_t);
-  ibqp->bn       = n;
-  ibqp->buffers  = bp;
-  ibqp->ptr      = NULL;
-  ibqp->top      = NULL;
-  ibqp->notify   = infy;
-  ibqp->link     = link;
+  osalThreadQueueObjectInit(&bqp->waiting);
+  bqp->bcounter  = 0;
+  bqp->brdptr    = bp;
+  bqp->bwrptr    = bp;
+  bqp->btop      = bp + ((size + sizeof (size_t)) * n);
+  bqp->bsize     = size + sizeof (size_t);
+  bqp->bn        = n;
+  bqp->buffers   = bp;
+  bqp->ptr       = NULL;
+  bqp->top       = NULL;
+  bqp->notify    = nfy;
+  bqp->link      = link;
 }
-
 /**
- * @brief   Resets an input buffers queue.
+ * @brief   Resets an input/output buffers queue.
  * @details All the data in the input buffers queue is erased and lost, any
  *          waiting thread is resumed with status @p MSG_RESET.
  * @note    A reset operation can be used by a low level driver in order to
  *          obtain immediate attention from the high level layers.
  *
- * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
+ * @param[in] bqp       pointer to the @p io_buffers_queue_t object
  *
  * @iclass
  */
-void ibqResetI(input_buffers_queue_t *ibqp) {
-
+void bqResetI(io_buffers_queue_t *bqp) {
   osalDbgCheckClassI();
 
-  ibqp->bcounter = 0;
-  ibqp->brdptr   = ibqp->buffers;
-  ibqp->bwrptr   = ibqp->buffers;
-  ibqp->ptr      = NULL;
-  ibqp->top      = NULL;
-  osalThreadDequeueAllI(&ibqp->waiting, MSG_RESET);
-}
-
-/**
- * @brief   Gets the next empty buffer from the queue.
- * @note    The function always returns the same buffer if called repeatedly.
- *
- * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
- * @return              A pointer to the next buffer to be filled.
- * @retval NULL         if the queue is full.
- *
- * @iclass
- */
-uint8_t *ibqGetEmptyBufferI(input_buffers_queue_t *ibqp) {
-
-  osalDbgCheckClassI();
-
-  if (ibqIsFullI(ibqp)) {
-    return NULL;
-  }
-
-  return ibqp->bwrptr + sizeof (size_t);
+  bqp->bcounter  = 0;
+  bqp->brdptr    = bqp->buffers;
+  bqp->bwrptr    = bqp->buffers;
+  bqp->ptr       = NULL;
+  bqp->top       = NULL;
+  osalThreadDequeueAllI(&bqp->waiting, MSG_RESET);
 }
 
 /**
@@ -149,20 +207,11 @@ void ibqPostFullBufferI(input_buffers_queue_t *ibqp, size_t size) {
   osalDbgCheckClassI();
 
   osalDbgCheck((size > 0U) && (size <= (ibqp->bsize - sizeof (size_t))));
-  osalDbgAssert(!ibqIsFullI(ibqp), "buffers queue full");
-
-  /* Writing size field in the buffer.*/
-  *((size_t *)ibqp->bwrptr) = size;
-
-  /* Posting the buffer in the queue.*/
-  ibqp->bcounter++;
-  ibqp->bwrptr += ibqp->bsize;
-  if (ibqp->bwrptr >= ibqp->btop) {
-    ibqp->bwrptr = ibqp->buffers;
-  }
-
+  osalDbgAssert(!bqIsFullI(ibqp), "buffers queue full");
+  /* Prepare buffer for input */
+  bqPrepareBuffer(ibqp, size);
   /* Waking up one waiting thread, if any.*/
-  osalThreadDequeueNextI(&ibqp->waiting, MSG_OK);
+  bq_Restore(ibqp);
 }
 
 /**
@@ -196,45 +245,39 @@ msg_t ibqGetFullBufferTimeout(input_buffers_queue_t *ibqp,
   return msg;
 }
 
-  /**
-   * @brief   Gets the next filled buffer from the queue.
-   * @note    The function always acquires the same buffer if called repeatedly.
-   * @post    After calling the function the fields @p ptr and @p top are set
-   *          at beginning and end of the buffer data or @p NULL if the queue
-   *          is empty.
-   *
-   * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
-   * @param[in] timeout   the number of ticks before the operation timeouts,
-   *                      the following special values are allowed:
-   *                      - @a TIME_IMMEDIATE immediate timeout.
-   *                      - @a TIME_INFINITE no timeout.
-   *                      .
-   * @return              The operation status.
-   * @retval MSG_OK       if a buffer has been acquired.
-   * @retval MSG_TIMEOUT  if the specified time expired.
-   * @retval MSG_RESET    if the queue has been reset.
-   *
-   * @sclass
-   */
-  msg_t ibqGetFullBufferTimeoutS(input_buffers_queue_t *ibqp,
-                                 systime_t timeout) {
+/**
+ * @brief   Gets the next filled buffer from the queue.
+ * @note    The function always acquires the same buffer if called repeatedly.
+ * @post    After calling the function the fields @p ptr and @p top are set
+ *          at beginning and end of the buffer data or @p NULL if the queue
+ *          is empty.
+ *
+ * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
+ * @param[in] timeout   the number of ticks before the operation timeouts,
+ *                      the following special values are allowed:
+ *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      - @a TIME_INFINITE no timeout.
+ *                      .
+ * @return              The operation status.
+ * @retval MSG_OK       if a buffer has been acquired.
+ * @retval MSG_TIMEOUT  if the specified time expired.
+ * @retval MSG_RESET    if the queue has been reset.
+ *
+ * @sclass
+ */
+msg_t ibqGetFullBufferTimeoutS(input_buffers_queue_t *ibqp, systime_t timeout) {
 
   osalDbgCheckClassS();
 
-  while (ibqIsEmptyI(ibqp)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&ibqp->waiting, timeout);
-    if (msg < MSG_OK) {
-       return msg;
-    }
+  msg_t msg = waitReadyTimeout(ibqp, timeout);
+  if (msg == MSG_OK) {
+    osalDbgAssert(!bqIsEmptyI(ibqp), "still empty");
+
+    /* Setting up the "current" buffer and its boundary.*/
+    ibqp->ptr = ibqp->brdptr + sizeof (size_t);
+    ibqp->top = ibqp->ptr + *((size_t *)(void *)ibqp->brdptr);
   }
-
-  osalDbgAssert(!ibqIsEmptyI(ibqp), "still empty");
-
-  /* Setting up the "current" buffer and its boundary.*/
-  ibqp->ptr = ibqp->brdptr + sizeof (size_t);
-  ibqp->top = ibqp->ptr + *((size_t *)ibqp->brdptr);
-
-  return MSG_OK;
+  return msg;
 }
 
 /**
@@ -252,33 +295,26 @@ void ibqReleaseEmptyBuffer(input_buffers_queue_t *ibqp) {
   osalSysUnlock();
 }
 
-  /**
-   * @brief   Releases the buffer back in the queue.
-   * @note    The object callback is called after releasing the buffer.
-   *
-   * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
-   *
-   * @sclass
-   */
-  void ibqReleaseEmptyBufferS(input_buffers_queue_t *ibqp) {
+/**
+ * @brief   Releases the buffer back in the queue.
+ * @note    The object callback is called after releasing the buffer.
+ *
+ * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
+ *
+ * @sclass
+ */
+void ibqReleaseEmptyBufferS(input_buffers_queue_t *ibqp) {
 
   osalDbgCheckClassS();
-  osalDbgAssert(!ibqIsEmptyI(ibqp), "buffers queue empty");
+  osalDbgAssert(!bqIsEmptyI(ibqp), "buffers queue empty");
 
   /* Freeing a buffer slot in the queue.*/
-  ibqp->bcounter--;
-  ibqp->brdptr += ibqp->bsize;
-  if (ibqp->brdptr >= ibqp->btop) {
-    ibqp->brdptr = ibqp->buffers;
-  }
+  bqReleaseEmptyBuffer(ibqp);
 
   /* No "current" buffer.*/
   ibqp->ptr = NULL;
-
   /* Notifying the buffer release.*/
-  if (ibqp->notify != NULL) {
-    ibqp->notify(ibqp);
-  }
+  bq_Notify(ibqp);
 }
 
 /**
@@ -350,137 +386,29 @@ msg_t ibqGetTimeout(input_buffers_queue_t *ibqp, systime_t timeout) {
  */
 size_t ibqReadTimeout(input_buffers_queue_t *ibqp, uint8_t *bp,
                       size_t n, systime_t timeout) {
-  size_t r = 0;
-  systime_t deadline;
-
   osalDbgCheck(n > 0U);
-
-  osalSysLock();
-
-  /* Time window for the whole operation.*/
-  deadline = osalOsGetSystemTimeX() + timeout;
-
-  while (true) {
-    size_t size;
-
-    /* This condition indicates that a new buffer must be acquired.*/
-    if (ibqp->ptr == NULL) {
-      msg_t msg;
-
-      /* TIME_INFINITE and TIME_IMMEDIATE are handled differently, no
-         deadline.*/
-      if ((timeout == TIME_INFINITE) || (timeout == TIME_IMMEDIATE)) {
-        msg = ibqGetFullBufferTimeoutS(ibqp, timeout);
-      }
-      else {
-        systime_t next_timeout = deadline - osalOsGetSystemTimeX();
-
-        /* Handling the case where the system time went past the deadline,
-           in this case next becomes a very high number because the system
-           time is an unsigned type.*/
-        if (next_timeout > timeout) {
-          osalSysUnlock();
-          return r;
-        }
-        msg = ibqGetFullBufferTimeoutS(ibqp, next_timeout);
-      }
-
-      /* Anything except MSG_OK interrupts the operation.*/
-      if (msg != MSG_OK) {
-        osalSysUnlock();
-        return r;
-      }
-    }
-
-    /* Size of the data chunk present in the current buffer.*/
-    size = (size_t)ibqp->top - (size_t)ibqp->ptr;
-    if (size > (n - r)) {
-      size = n - r;
-    }
-
-    /* Smaller chunks in order to not make the critical zone too long,
-       this impacts throughput however.*/
-    if (size > 64U) {
-      /* Giving the compiler a chance to optimize for a fixed size move.*/
-      memcpy(bp, ibqp->ptr, 64U);
-      bp        += 64U;
-      ibqp->ptr += 64U;
-      r         += 64U;
-    }
-    else {
-      memcpy(bp, ibqp->ptr, size);
-      bp        += size;
-      ibqp->ptr += size;
-      r         += size;
-    }
-
-    /* Has the current data buffer been finished? if so then release it.*/
-    if (ibqp->ptr >= ibqp->top) {
-      ibqReleaseEmptyBufferS(ibqp);
-    }
-
-    /* Giving a preemption chance.*/
-    osalSysUnlock();
-    if (r >= n) {
-      return r;
-    }
-    osalSysLock();
-  }
+  return bqCopyTimeout(ibqp, false, bp, n, timeout);
 }
 
 /**
- * @brief   Initializes an output buffers queue object.
+ * @brief   Gets the next empty buffer from the queue.
+ * @note    The function always returns the same buffer if called repeatedly.
  *
- * @param[out] obqp     pointer to the @p output_buffers_queue_t object
- * @param[in] bp        pointer to a memory area allocated for buffers
- * @param[in] size      buffers size
- * @param[in] n         number of buffers
- * @param[in] onfy      callback called when a buffer is posted in the queue
- * @param[in] link      application defined pointer
- *
- * @init
- */
-void obqObjectInit(output_buffers_queue_t *obqp, uint8_t *bp,
-                   size_t size, size_t n,
-                   bqnotify_t onfy, void *link) {
-
-  osalDbgCheck((obqp != NULL) && (bp != NULL) && (size >= 2U));
-
-  osalThreadQueueObjectInit(&obqp->waiting);
-  obqp->bcounter = n;
-  obqp->brdptr   = bp;
-  obqp->bwrptr   = bp;
-  obqp->btop     = bp + ((size + sizeof (size_t)) * n);
-  obqp->bsize    = size + sizeof (size_t);
-  obqp->bn       = n;
-  obqp->buffers  = bp;
-  obqp->ptr      = NULL;
-  obqp->top      = NULL;
-  obqp->notify   = onfy;
-  obqp->link     = link;
-}
-
-/**
- * @brief   Resets an output buffers queue.
- * @details All the data in the output buffers queue is erased and lost, any
- *          waiting thread is resumed with status @p MSG_RESET.
- * @note    A reset operation can be used by a low level driver in order to
- *          obtain immediate attention from the high level layers.
- *
- * @param[in] obqp      pointer to the @p output_buffers_queue_t object
+ * @param[in] ibqp      pointer to the @p input_buffers_queue_t object
+ * @return              A pointer to the next buffer to be filled.
+ * @retval NULL         if the queue is full.
  *
  * @iclass
  */
-void obqResetI(output_buffers_queue_t *obqp) {
+uint8_t *ibqGetEmptyBufferI(input_buffers_queue_t *ibqp) {
 
   osalDbgCheckClassI();
 
-  obqp->bcounter = bqSizeX(obqp);
-  obqp->brdptr   = obqp->buffers;
-  obqp->bwrptr   = obqp->buffers;
-  obqp->ptr      = NULL;
-  obqp->top      = NULL;
-  osalThreadDequeueAllI(&obqp->waiting, MSG_RESET);
+  if (bqIsFullI(ibqp)) {
+    return NULL;
+  }
+
+  return ibqp->bwrptr + sizeof (size_t);
 }
 
 /**
@@ -494,18 +422,14 @@ void obqResetI(output_buffers_queue_t *obqp) {
  *
  * @iclass
  */
-uint8_t *obqGetFullBufferI(output_buffers_queue_t *obqp,
-                           size_t *sizep) {
-
+uint8_t *obqGetFullBufferI(output_buffers_queue_t *obqp, size_t *sizep) {
   osalDbgCheckClassI();
 
-  if (obqIsEmptyI(obqp)) {
+  if (bqIsEmptyI(obqp)) {
     return NULL;
   }
-
   /* Buffer size.*/
-  *sizep = *((size_t *)obqp->brdptr);
-
+  *sizep = *((size_t *)(void *)obqp->brdptr);
   return obqp->brdptr + sizeof (size_t);
 }
 
@@ -519,17 +443,11 @@ uint8_t *obqGetFullBufferI(output_buffers_queue_t *obqp,
 void obqReleaseEmptyBufferI(output_buffers_queue_t *obqp) {
 
   osalDbgCheckClassI();
-  osalDbgAssert(!obqIsEmptyI(obqp), "buffers queue empty");
-
+  osalDbgAssert(!bqIsEmptyI(obqp), "buffers queue empty");
   /* Freeing a buffer slot in the queue.*/
-  obqp->bcounter++;
-  obqp->brdptr += obqp->bsize;
-  if (obqp->brdptr >= obqp->btop) {
-    obqp->brdptr = obqp->buffers;
-  }
-
+  bqReleaseEmptyBuffer(obqp);
   /* Waking up one waiting thread, if any.*/
-  osalThreadDequeueNextI(&obqp->waiting, MSG_OK);
+  bq_Restore(obqp);
 }
 
 /**
@@ -563,45 +481,39 @@ msg_t obqGetEmptyBufferTimeout(output_buffers_queue_t *obqp,
   return msg;
 }
 
-  /**
-   * @brief   Gets the next empty buffer from the queue.
-   * @note    The function always acquires the same buffer if called repeatedly.
-   * @post    After calling the function the fields @p ptr and @p top are set
-   *          at beginning and end of the buffer data or @p NULL if the queue
-   *          is empty.
-   *
-   * @param[in] obqp      pointer to the @p output_buffers_queue_t object
-   * @param[in] timeout   the number of ticks before the operation timeouts,
-   *                      the following special values are allowed:
-   *                      - @a TIME_IMMEDIATE immediate timeout.
-   *                      - @a TIME_INFINITE no timeout.
-   *                      .
-   * @return              The operation status.
-   * @retval MSG_OK       if a buffer has been acquired.
-   * @retval MSG_TIMEOUT  if the specified time expired.
-   * @retval MSG_RESET    if the queue has been reset.
-   *
-   * @sclass
-   */
-  msg_t obqGetEmptyBufferTimeoutS(output_buffers_queue_t *obqp,
-                                  systime_t timeout) {
+/**
+ * @brief   Gets the next empty buffer from the queue.
+ * @note    The function always acquires the same buffer if called repeatedly.
+ * @post    After calling the function the fields @p ptr and @p top are set
+ *          at beginning and end of the buffer data or @p NULL if the queue
+ *          is empty.
+ *
+ * @param[in] obqp      pointer to the @p output_buffers_queue_t object
+ * @param[in] timeout   the number of ticks before the operation timeouts,
+ *                      the following special values are allowed:
+ *                      - @a TIME_IMMEDIATE immediate timeout.
+ *                      - @a TIME_INFINITE no timeout.
+ *                      .
+ * @return              The operation status.
+ * @retval MSG_OK       if a buffer has been acquired.
+ * @retval MSG_TIMEOUT  if the specified time expired.
+ * @retval MSG_RESET    if the queue has been reset or has been put in
+ *                      suspended state.
+ *
+ * @sclass
+ */
+msg_t obqGetEmptyBufferTimeoutS(output_buffers_queue_t *obqp,
+                                systime_t timeout) {
 
   osalDbgCheckClassS();
-
-  while (obqIsFullI(obqp)) {
-    msg_t msg = osalThreadEnqueueTimeoutS(&obqp->waiting, timeout);
-    if (msg < MSG_OK) {
-      return msg;
-    }
+  msg_t msg = waitFreeTimeout(obqp, timeout);
+  if (msg == MSG_OK) {
+    osalDbgAssert(!bqIsFullI(obqp), "still full");
+    /* Setting up the "current" buffer and its boundary.*/
+    obqp->ptr = obqp->bwrptr + sizeof (size_t);
+    obqp->top = obqp->bwrptr + obqp->bsize;
   }
-
-  osalDbgAssert(!obqIsFullI(obqp), "still full");
-
-  /* Setting up the "current" buffer and its boundary.*/
-  obqp->ptr = obqp->bwrptr + sizeof (size_t);
-  obqp->top = obqp->bwrptr + obqp->bsize;
-
-  return MSG_OK;
+  return msg;
 }
 
 /**
@@ -633,25 +545,13 @@ void obqPostFullBufferS(output_buffers_queue_t *obqp, size_t size) {
 
   osalDbgCheckClassS();
   osalDbgCheck((size > 0U) && (size <= (obqp->bsize - sizeof (size_t))));
-  osalDbgAssert(!obqIsFullI(obqp), "buffers queue full");
-
-  /* Writing size field in the buffer.*/
-  *((size_t *)obqp->bwrptr) = size;
-
-  /* Posting the buffer in the queue.*/
-  obqp->bcounter--;
-  obqp->bwrptr += obqp->bsize;
-  if (obqp->bwrptr >= obqp->btop) {
-    obqp->bwrptr = obqp->buffers;
-  }
-
+  osalDbgAssert(!bqIsFullI(obqp), "buffers queue full");
+  /* Prepare buffer for output */
+  bqPrepareBuffer(obqp, size);
   /* No "current" buffer.*/
   obqp->ptr = NULL;
-
   /* Notifying the buffer release.*/
-  if (obqp->notify != NULL) {
-    obqp->notify(obqp);
-  }
+  bq_Notify(obqp);
 }
 
 /**
@@ -725,82 +625,8 @@ msg_t obqPutTimeout(output_buffers_queue_t *obqp, uint8_t b,
  */
 size_t obqWriteTimeout(output_buffers_queue_t *obqp, const uint8_t *bp,
                        size_t n, systime_t timeout) {
-  size_t w = 0;
-  systime_t deadline;
-
   osalDbgCheck(n > 0U);
-
-  osalSysLock();
-
-  /* Time window for the whole operation.*/
-  deadline = osalOsGetSystemTimeX() + timeout;
-
-  while (true) {
-    size_t size;
-
-    /* This condition indicates that a new buffer must be acquired.*/
-    if (obqp->ptr == NULL) {
-      msg_t msg;
-
-      /* TIME_INFINITE and TIME_IMMEDIATE are handled differently, no
-         deadline.*/
-      if ((timeout == TIME_INFINITE) || (timeout == TIME_IMMEDIATE)) {
-        msg = obqGetEmptyBufferTimeoutS(obqp, timeout);
-      }
-      else {
-        systime_t next_timeout = deadline - osalOsGetSystemTimeX();
-
-        /* Handling the case where the system time went past the deadline,
-           in this case next becomes a very high number because the system
-           time is an unsigned type.*/
-        if (next_timeout > timeout) {
-          osalSysUnlock();
-          return w;
-        }
-        msg = obqGetEmptyBufferTimeoutS(obqp, next_timeout);
-      }
-
-      /* Anything except MSG_OK interrupts the operation.*/
-      if (msg != MSG_OK) {
-        osalSysUnlock();
-        return w;
-      }
-    }
-
-    /* Size of the space available in the current buffer.*/
-    size = (size_t)obqp->top - (size_t)obqp->ptr;
-    if (size > (n - w)) {
-      size = n - w;
-    }
-
-    /* Smaller chunks in order to not make the critical zone too long,
-       this impacts throughput however.*/
-    if (size > 64U) {
-      /* Giving the compiler a chance to optimize for a fixed size move.*/
-      memcpy(obqp->ptr, bp, 64U);
-      bp        += 64U;
-      obqp->ptr += 64U;
-      w         += 64U;
-    }
-    else {
-      memcpy(obqp->ptr, bp, size);
-      bp        += size;
-      obqp->ptr += size;
-      w         += size;
-    }
-
-    /* Has the current data buffer been finished? if so then release it.*/
-    if (obqp->ptr >= obqp->top) {
-      obqPostFullBufferS(obqp, obqp->bsize - sizeof (size_t));
-    }
-
-    /* Giving a preemption chance.*/
-    osalSysUnlock();
-    if (w >= n) {
-      return w;
-    }
-    osalSysLock();
-  }
+  return bqCopyTimeout(obqp, true, (uint8_t *)bp, n, timeout);
 }
 
 /**
@@ -822,24 +648,13 @@ bool obqTryFlushI(output_buffers_queue_t *obqp) {
 
   /* If queue is empty and there is a buffer partially filled and
      it is not being written.*/
-  if (obqIsEmptyI(obqp) && (obqp->ptr != NULL)) {
+  if (bqIsEmptyI(obqp) && (obqp->ptr != NULL)) {
     size_t size = (size_t)obqp->ptr - ((size_t)obqp->bwrptr + sizeof (size_t));
 
     if (size > 0U) {
-
-      /* Writing size field in the buffer.*/
-      *((size_t *)obqp->bwrptr) = size;
-
-      /* Posting the buffer in the queue.*/
-      obqp->bcounter--;
-      obqp->bwrptr += obqp->bsize;
-      if (obqp->bwrptr >= obqp->btop) {
-        obqp->bwrptr = obqp->buffers;
-      }
-
+      bqPrepareBuffer(obqp, size);
       /* No "current" buffer.*/
       obqp->ptr = NULL;
-
       return true;
     }
   }
@@ -859,7 +674,7 @@ void obqFlush(output_buffers_queue_t *obqp) {
 
   /* If there is a buffer partially filled and not being written.*/
   if (obqp->ptr != NULL) {
-    size_t size = (size_t)obqp->ptr - (size_t)obqp->bwrptr - sizeof (size_t);
+    size_t size = ((size_t)obqp->ptr - (size_t)obqp->bwrptr) - sizeof (size_t);
 
     if (size > 0U) {
       obqPostFullBufferS(obqp, size);

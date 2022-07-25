@@ -138,7 +138,7 @@ static void usart_init(SerialDriver *sdp, const SerialConfig *config) {
   }
   else
 #endif
-  u->BRR = (uint32_t)(sdp->clock / config->speed);
+//  u->BRR = (uint32_t)(sdp->clock / config->speed);
 
   /* Note that some bits are enforced.*/
   u->CR2 = config->cr2 | USART_CR2_LBDIE;
@@ -146,6 +146,7 @@ static void usart_init(SerialDriver *sdp, const SerialConfig *config) {
   u->CR1 = config->cr1 | USART_CR1_UE | USART_CR1_PEIE |
                          USART_CR1_RXNEIE | USART_CR1_TE |
                          USART_CR1_RE;
+  sd_lld_setbaudrate(sdp, config->speed);
   u->ICR = 0xFFFFFFFFU;
 }
 
@@ -163,28 +164,6 @@ static void usart_deinit(USART_TypeDef *u) {
 }
 
 /**
- * @brief   Error handling routine.
- *
- * @param[in] sdp       pointer to a @p SerialDriver object
- * @param[in] isr       USART ISR register value
- */
-static void set_error(SerialDriver *sdp, uint32_t isr) {
-  eventflags_t sts = 0;
-
-  if (isr & USART_ISR_ORE)
-    sts |= SD_OVERRUN_ERROR;
-  if (isr & USART_ISR_PE)
-    sts |= SD_PARITY_ERROR;
-  if (isr & USART_ISR_FE)
-    sts |= SD_FRAMING_ERROR;
-  if (isr & USART_ISR_NE)
-    sts |= SD_NOISE_ERROR;
-  osalSysLockFromISR();
-  chnAddFlagsI(sdp, sts);
-  osalSysUnlockFromISR();
-}
-
-/**
  * @brief   Common IRQ handler.
  *
  * @param[in] sdp       communication channel associated to the USART
@@ -192,52 +171,52 @@ static void set_error(SerialDriver *sdp, uint32_t isr) {
 static void serve_interrupt(SerialDriver *sdp) {
   USART_TypeDef *u = sdp->usart;
   uint32_t cr1 = u->CR1;
-  uint32_t isr;
-
   /* Reading and clearing status.*/
-  isr = u->ISR;
+  uint32_t isr = u->ISR;
   u->ICR = isr;
-
+  osalSysLockFromISR();
+#if 0
   /* Error condition detection.*/
-  if (isr & (USART_ISR_ORE | USART_ISR_NE | USART_ISR_FE  | USART_ISR_PE))
-    set_error(sdp, isr);
-
+  if (isr & (USART_ISR_ORE | USART_ISR_NE | USART_ISR_FE  | USART_ISR_PE)) {
+    eventflags_t sts = 0;
+    if (isr & USART_ISR_ORE) sts |= SD_OVERRUN_ERROR;
+    if (isr & USART_ISR_PE)  sts |= SD_PARITY_ERROR;
+    if (isr & USART_ISR_FE)  sts |= SD_FRAMING_ERROR;
+    if (isr & USART_ISR_NE)  sts |= SD_NOISE_ERROR;
+    chnAddFlagsI(sdp, sts);
+  }
+#endif
+#if 0
   /* Special case, LIN break detection.*/
   if (isr & USART_ISR_LBDF) {
-    osalSysLockFromISR();
     chnAddFlagsI(sdp, SD_BREAK_DETECTED);
-    osalSysUnlockFromISR();
   }
-
-  /* Data available.*/
-  if (isr & USART_ISR_RXNE) {
-    osalSysLockFromISR();
-    sdIncomingDataI(sdp, (uint8_t)u->RDR);
-    osalSysUnlockFromISR();
+#endif
+  /* Data available, try read all data from FIFO*/
+  while (isr & USART_ISR_RXNE) {
+    qPutI(&sdp->iqueue, (uint8_t)u->RDR);
+    isr = u->ISR;
   }
-
-  /* Transmission buffer empty.*/
-  if ((cr1 & USART_CR1_TXEIE) && (isr & USART_ISR_TXE)) {
-    msg_t b;
-    osalSysLockFromISR();
-    b = oqGetI(&sdp->oqueue);
-    if (b < MSG_OK) {
-      chnAddFlagsI(sdp, CHN_OUTPUT_EMPTY);
-      u->CR1 = (cr1 & ~USART_CR1_TXEIE) | USART_CR1_TCIE;
-    }
-    else
+  /* Transmission buffer empty. Try write data to FIFO while possible*/
+  if (cr1 & USART_CR1_TXEIE) {
+    while (isr & USART_ISR_TXE) {
+      msg_t b = qGetI(&sdp->oqueue);
+      if (b < MSG_OK) {
+        chnAddFlagsI(sdp, CHN_OUTPUT_EMPTY);
+        u->CR1 = cr1 & ~USART_CR1_TXEIE;
+        break;
+      }
       u->TDR = b;
-    osalSysUnlockFromISR();
+      isr = u->ISR;
+    }
   }
-
   /* Physical transmission end.*/
-  if (isr & USART_ISR_TC) {
-    osalSysLockFromISR();
-    if (oqIsEmptyI(&sdp->oqueue))
+  if ((cr1 & USART_CR1_TCIE) && (isr & USART_ISR_TC)) {
+    if (qIsEmptyI(&sdp->oqueue))
       chnAddFlagsI(sdp, CHN_TRANSMISSION_END);
     u->CR1 = cr1 & ~USART_CR1_TCIE;
-    osalSysUnlockFromISR();
   }
+  osalSysUnlockFromISR();
 }
 
 #if STM32_SERIAL_USE_USART1 || defined(__DOXYGEN__)
@@ -687,6 +666,17 @@ void sd_lld_start(SerialDriver *sdp, const SerialConfig *config) {
   usart_init(sdp, config);
 }
 
+void sd_lld_setbaudrate(SerialDriver *sdp, uint32_t baud) {
+  USART_TypeDef *u = sdp->usart;
+  u->CR1&=~USART_CR1_UE;
+  u->BRR = (uint32_t)(sdp->clock / baud);
+  u->CR1|= USART_CR1_UE;
+}
+
+uint32_t sd_lld_getbaudrate(SerialDriver *sdp) {
+  USART_TypeDef *u = sdp->usart;
+  return sdp->clock / u->BRR;
+}
 /**
  * @brief   Low level serial driver stop.
  * @details De-initializes the USART, stops the associated clock, resets the

@@ -49,6 +49,11 @@ typedef struct io_queue io_queue_t;
 typedef void (*qnotify_t)(io_queue_t *qp);
 
 /**
+ * @brief   Queue size type.
+ */
+typedef size_t       qsize_t;
+
+/**
  * @brief   Generic I/O queue structure.
  * @details This structure represents a generic Input or Output asymmetrical
  *          queue. The queue is asymmetrical because one end is meant to be
@@ -58,14 +63,12 @@ typedef void (*qnotify_t)(io_queue_t *qp);
  */
 struct io_queue {
   threads_queue_t       q_waiting;  /**< @brief Queue of waiting threads.   */
-  volatile size_t       q_counter;  /**< @brief Resources counter.          */
-  uint8_t               *q_buffer;  /**< @brief Pointer to the queue buffer.*/
-  uint8_t               *q_top;     /**< @brief Pointer to the first
-                                         location after the buffer.         */
-  uint8_t               *q_wrptr;   /**< @brief Write pointer.              */
-  uint8_t               *q_rdptr;   /**< @brief Read pointer.               */
   qnotify_t             q_notify;   /**< @brief Data notification callback. */
-  void                  *q_link;    /**< @brief Application defined field.  */
+  uint8_t               *q_buffer;  /**< @brief Pointer to the queue buffer.*/
+  qsize_t               q_counter;  /**< @brief Resources counter.          */
+  qsize_t               q_size;     /**< @brief Size of queue buffer.       */
+  qsize_t               q_wr;       /**< @brief Write position              */
+  qsize_t               q_rd;       /**< @brief Read position               */
 };
 
 /**
@@ -80,10 +83,7 @@ struct io_queue {
  *
  * @xclass
  */
-#define qSizeX(qp)                                                          \
-  /*lint -save -e9033 [10.8] The cast is safe.*/                            \
-  ((size_t)((qp)->q_top - (qp)->q_buffer))                                  \
-  /*lint -restore*/
+#define qSizeX(qp)      ((qp)->q_size)
 
 /**
  * @brief   Queue space.
@@ -98,21 +98,9 @@ struct io_queue {
 #define qSpaceI(qp) ((qp)->q_counter)
 
 /**
- * @brief   Returns the queue application-defined link.
- * @note    This function can be called in any context.
- *
- * @param[in] qp        pointer to a @p io_queue_t structure
- * @return              The application-defined link.
- *
- * @special
- */
-#define qGetLink(qp) ((qp)->q_link)
-/** @} */
-
-/**
  * @extends io_queue_t
  *
- * @brief   Type of an input queue structure.
+ * @brief   Type of an input / output queue structure.
  * @details This structure represents a generic asymmetrical input queue.
  *          Writing to the queue is non-blocking and can be performed from
  *          interrupt handlers or from within a kernel lock zone.
@@ -120,6 +108,7 @@ struct io_queue {
  *          be performed by a system thread.
  */
 typedef io_queue_t input_queue_t;
+typedef io_queue_t output_queue_t;
 
 /**
  * @name    Macro Functions
@@ -134,30 +123,30 @@ typedef io_queue_t input_queue_t;
  *
  * @iclass
  */
-#define iqGetFullI(iqp) qSpaceI(iqp)
+#define qGetFullI(qp) qSpaceI(qp)
 
 /**
  * @brief   Returns the empty space into an input queue.
  *
- * @param[in] iqp       pointer to an @p input_queue_t structure
+ * @param[in] iqp       pointer to an @p io_queue_t structure
  * @return              The number of empty bytes in the queue.
  * @retval 0            if the queue is full.
  *
  * @iclass
  */
-#define iqGetEmptyI(iqp) (qSizeX(iqp) - qSpaceI(iqp))
+#define qGetEmptyI(qp) (qSizeX(qp) - qSpaceI(qp))
 
 /**
  * @brief   Evaluates to @p true if the specified input queue is empty.
  *
- * @param[in] iqp       pointer to an @p input_queue_t structure
+ * @param[in] iqp       pointer to an @p io_queue_t structure
  * @return              The queue status.
  * @retval false        if the queue is not empty.
  * @retval true         if the queue is empty.
  *
  * @iclass
  */
-#define iqIsEmptyI(iqp) ((bool)(qSpaceI(iqp) == 0U))
+#define qIsEmptyI(qp) (qSpaceI(qp) == 0U)
 
 /**
  * @brief   Evaluates to @p true if the specified input queue is full.
@@ -169,10 +158,7 @@ typedef io_queue_t input_queue_t;
  *
  * @iclass
  */
-#define iqIsFullI(iqp)                                                      \
-  /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
-  ((bool)(((iqp)->q_wrptr == (iqp)->q_rdptr) && ((iqp)->q_counter != 0U)))  \
-  /*lint -restore*/
+#define qIsFullI(qp)  ((qp)->q_counter >= (qp)->q_size)
 
 /**
  * @brief   Input queue read.
@@ -188,71 +174,6 @@ typedef io_queue_t input_queue_t;
  */
 #define iqGet(iqp) iqGetTimeout(iqp, TIME_INFINITE)
 /** @} */
-
-/**
- * @extends io_queue_t
- *
- * @brief   Type of an output queue structure.
- * @details This structure represents a generic asymmetrical output queue.
- *          Reading from the queue is non-blocking and can be performed from
- *          interrupt handlers or from within a kernel lock zone.
- *          Writing the queue can be a blocking operation and is supposed to
- *          be performed by a system thread.
- */
-typedef io_queue_t output_queue_t;
-
-/**
- * @name    Macro Functions
- * @{
- */
-/**
- * @brief   Returns the filled space into an output queue.
- *
- * @param[in] oqp       pointer to an @p output_queue_t structure
- * @return              The number of full bytes in the queue.
- * @retval 0            if the queue is empty.
- *
- * @iclass
- */
-#define oqGetFullI(oqp) (qSizeX(oqp) - qSpaceI(oqp))
-
-/**
- * @brief   Returns the empty space into an output queue.
- *
- * @param[in] oqp       pointer to an @p output_queue_t structure
- * @return              The number of empty bytes in the queue.
- * @retval 0            if the queue is full.
- *
- * @iclass
- */
-#define oqGetEmptyI(oqp) qSpaceI(oqp)
-
-/**
- * @brief   Evaluates to @p true if the specified output queue is empty.
- *
- * @param[in] oqp       pointer to an @p output_queue_t structure
- * @return              The queue status.
- * @retval false        if the queue is not empty.
- * @retval true         if the queue is empty.
- *
- * @iclass
- */
-#define oqIsEmptyI(oqp)                                                     \
-  /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
-  ((bool)(((oqp)->q_wrptr == (oqp)->q_rdptr) && ((oqp)->q_counter != 0U)))  \
-  /*lint -restore*/
-
-/**
- * @brief   Evaluates to @p true if the specified output queue is full.
- *
- * @param[in] oqp       pointer to an @p output_queue_t structure
- * @return              The queue status.
- * @retval false        if the queue is not full.
- * @retval true         if the queue is full.
- *
- * @iclass
- */
-#define oqIsFullI(oqp) ((bool)(qSpaceI(oqp) == 0U))
 
 /**
  * @brief   Output queue write.
@@ -274,21 +195,17 @@ typedef io_queue_t output_queue_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void iqObjectInit(input_queue_t *iqp, uint8_t *bp, size_t size,
-                    qnotify_t infy, void *link);
-  void iqResetI(input_queue_t *iqp);
-  msg_t iqPutI(input_queue_t *iqp, uint8_t b);
-  msg_t iqGetTimeout(input_queue_t *iqp, systime_t timeout);
-  size_t iqReadTimeout(input_queue_t *iqp, uint8_t *bp,
-                       size_t n, systime_t timeout);
+  void qObjectInit(io_queue_t *qp, uint8_t *bp, qsize_t size, qnotify_t infy);
 
-  void oqObjectInit(output_queue_t *oqp, uint8_t *bp, size_t size,
-                    qnotify_t onfy, void *link);
-  void oqResetI(output_queue_t *oqp);
-  msg_t oqPutTimeout(output_queue_t *oqp, uint8_t b, systime_t timeout);
-  msg_t oqGetI(output_queue_t *oqp);
-  size_t oqWriteTimeout(output_queue_t *oqp, const uint8_t *bp,
-                        size_t n, systime_t timeout);
+  void qResetI(io_queue_t *qp);
+  msg_t qPutI(io_queue_t *qp, uint8_t b);
+  msg_t qGetI(io_queue_t *qp);
+
+  msg_t   iqGetTimeout(input_queue_t *iqp, systime_t timeout);
+  qsize_t iqReadTimeout(input_queue_t *iqp, uint8_t *bp, qsize_t n, systime_t timeout);
+
+  msg_t   oqPutTimeout(output_queue_t *oqp, uint8_t b, systime_t timeout);
+  qsize_t oqWriteTimeout(output_queue_t *oqp, const uint8_t *bp, qsize_t n, systime_t timeout);
 #ifdef __cplusplus
 }
 #endif

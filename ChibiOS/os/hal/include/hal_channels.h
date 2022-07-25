@@ -199,6 +199,7 @@ typedef struct {
  * @name    I/O status flags added to the event listener
  * @{
  */
+#define DISABLE_EVENTS_FLAGS
 /** @brief No pending conditions.*/
 #define CHN_NO_ERROR            (eventflags_t)0
 /** @brief Connection happened.*/
@@ -224,8 +225,7 @@ typedef struct {
  */
 #define _base_asynchronous_channel_data                                     \
   _base_channel_data                                                        \
-  /* I/O condition event source.*/                                          \
-  event_source_t        event;
+
 
 /**
  * @extends BaseChannelVMT
@@ -247,6 +247,10 @@ typedef struct {
   /** @brief Virtual Methods Table.*/
   const struct BaseAsynchronousChannelVMT *vmt;
   _base_asynchronous_channel_data
+#ifndef DISABLE_EVENTS_FLAGS
+  /* I/O condition event source.*/
+  event_source_t        event;
+#endif
 } BaseAsynchronousChannel;
 
 /**
@@ -263,8 +267,11 @@ typedef struct {
  *
  * @api
  */
+#ifndef DISABLE_EVENTS_FLAGS
 #define chnGetEventSource(ip) (&((ip)->event))
-
+#else
+#define chnGetEventSource(ip) {}
+#endif
 /**
  * @brief   Adds status flags to the listeners's flags mask.
  * @details This function is usually called from the I/O ISRs in order to
@@ -277,9 +284,11 @@ typedef struct {
  *
  * @iclass
  */
-#define chnAddFlagsI(ip, flags) {                                           \
-  osalEventBroadcastFlagsI(&(ip)->event, flags);                            \
-}
+#ifndef DISABLE_EVENTS_FLAGS
+#define chnAddFlagsI(ip, flags) {osalEventBroadcastFlagsI(&(ip)->event, flags);}
+#else
+#define chnAddFlagsI(ip, flags) {}
+#endif
 /** @} */
 
 #endif /* HAL_CHANNELS_H */

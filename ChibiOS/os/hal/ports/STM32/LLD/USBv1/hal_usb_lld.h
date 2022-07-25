@@ -36,7 +36,7 @@
 /**
  * @brief   Maximum endpoint address.
  */
-#define USB_MAX_ENDPOINTS                   USB_ENDOPOINTS_NUMBER
+#define USB_MAX_ENDPOINTS                   USB_ENDPOINTS_NUMBER
 
 /**
  * @brief   Status stage handling method.
@@ -175,10 +175,6 @@ typedef struct {
   thread_reference_t            thread;
 #endif
   /* End of the mandatory fields.*/
-  /**
-   * @brief   Size of the last transmitted packet.
-   */
-  size_t                        txlast;
 } USBInEndpointState;
 
 /**
@@ -204,10 +200,6 @@ typedef struct {
   thread_reference_t            thread;
 #endif
   /* End of the mandatory fields.*/
-  /**
-   * @brief   Number of packets to receive.
-   */
-  uint16_t                      rxpkts;
 } USBOutEndpointState;
 
 /**
@@ -263,18 +255,15 @@ typedef struct {
    */
   USBOutEndpointState           *out_state;
   /* End of the mandatory fields.*/
-  /**
-   * @brief   Reserved field, not currently used.
-   * @note    Initialize this field to 1 in order to be forward compatible.
-   */
-  uint16_t                      ep_buffers;
-  /**
-   * @brief   Pointer to a buffer for setup packets.
-   * @details Setup packets require a dedicated 8-bytes buffer, set this
-   *          field to @p NULL for non-control endpoints.
-   */
-  uint8_t                       *setup_buf;
 } USBEndpointConfig;
+
+typedef struct {
+  uint8_t bmRequestType;
+  uint8_t bRequest;
+  uint16_t wValue;
+  uint16_t wIndex;
+  uint16_t wLength;
+} setup_pack_t;
 
 /**
  * @brief   Type of an USB driver configuration structure.
@@ -360,7 +349,7 @@ struct USBDriver {
   /**
    * @brief   Setup packet buffer.
    */
-  uint8_t                       setup[8];
+  setup_pack_t                  setup;
   /**
    * @brief   Current USB device status.
    */
@@ -443,6 +432,18 @@ struct USBDriver {
 #define usb_lld_disconnect_bus(usbp) (SYSCFG->PMC &= ~SYSCFG_PMC_USB_PU)
 #endif
 #endif /* STM32L1XX */
+
+/**
+ * @brief   Start of host wake-up procedure.
+ *
+ * @notapi
+ */
+#define usb_lld_wakeup_host(usbp)                                           \
+  do {                                                                      \
+    STM32_USB->CNTR |= USB_CNTR_L2RES;                                      \
+    osalThreadSleepMilliseconds(STM32_USB_HOST_WAKEUP_DURATION);            \
+    STM32_USB->CNTR &= ~USB_CNTR_L2RES;                                     \
+  } while (false)
 
 /*===========================================================================*/
 /* External declarations.                                                    */

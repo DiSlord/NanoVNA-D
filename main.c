@@ -3087,9 +3087,7 @@ VNA_SHELL_FUNCTION(cmd_help)
 void shell_update_speed(uint32_t speed){
   config._serial_speed = speed;
   // Update Serial speed settings
-  SerialConfig s_config = {config._serial_speed, 0, USART_CR2_STOP1_BITS, 0 };
-  sdStop(&SD1);
-  sdStart(&SD1, &s_config);  // USART config
+  sdSetBaudrate(&SD1, speed);
 }
 
 // Check USB connection status
@@ -3107,8 +3105,10 @@ void shell_reset_console(void){
       sduConfigureHookI(&SDU1);
   }
   // Reset I/O queue over Serial
-  oqResetI(&SD1.oqueue);
-  iqResetI(&SD1.iqueue);
+  qResetI(&SD1.oqueue);
+  qResetI(&SD1.iqueue);
+  // Prepare I/O for shell_stream
+  PREPARE_STREAM;
 }
 
 // Check active connection for Shell
@@ -3127,7 +3127,8 @@ static void shell_init_connection(void){
  */
   sduObjectInit(&SDU1);
   sduStart(&SDU1, &serusbcfg);
-
+  SerialConfig s_config = {config._serial_speed, 0, USART_CR2_STOP1_BITS, 0 };
+  sdStart(&SD1, &s_config);
 /*
  * Set Serial speed settings for SD1
  */
@@ -3143,10 +3144,7 @@ static void shell_init_connection(void){
   usbStart(&USBD1, &usbcfg);
   usbConnectBus(&USBD1);
 
-/*
- *  Set I/O stream (SDU1 or SD1) for shell
- */
-  PREPARE_STREAM;
+  shell_reset_console();
 }
 
 #else
@@ -3241,8 +3239,6 @@ static int VNAShell_readLine(char *line, int max_size)
 {
   // send backspace, space for erase, backspace again
   uint8_t c;
-  // Prepare I/O for shell_stream
-  PREPARE_STREAM;
   uint16_t j = 0;
   // Return 0 only if stream not active
   while (shell_read(&c, 1)) {

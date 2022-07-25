@@ -1,5 +1,5 @@
 /*
-    ChibiOS - Copyright (C) 2006..2016 Giovanni Di Sirio
+    ChibiOS - Copyright (C) 2006..2018 Giovanni Di Sirio
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -173,57 +173,29 @@ typedef io_buffers_queue_t output_buffers_queue_t;
 /**
  * @brief   Evaluates to @p TRUE if the specified input buffers queue is empty.
  *
- * @param[in] ibqp      pointer to an @p input_buffers_queue_t structure
+ * @param[in] ibqp      pointer to an @p io_buffers_queue_t structure
  * @return              The queue status.
  * @retval false        if the queue is not empty.
  * @retval true         if the queue is empty.
  *
  * @iclass
  */
-#define ibqIsEmptyI(ibqp) ((bool)(bqSpaceI(ibqp) == 0U))
+#define bqIsEmptyI(bqp) ((bool)(bqSpaceI(bqp) == 0U))
 
 /**
- * @brief   Evaluates to @p TRUE if the specified input buffers queue is full.
+ * @brief   Evaluates to @p true if the specified input buffers queue is full.
  *
- * @param[in] ibqp      pointer to an @p input_buffers_queue_t structure
+ * @param[in] ibqp      pointer to an @p io_buffers_queue_t structure
  * @return              The queue status.
  * @retval false        if the queue is not full.
  * @retval true         if the queue is full.
  *
  * @iclass
  */
-#define ibqIsFullI(ibqp)                                                    \
+#define bqIsFullI(ibqp)                                                    \
   /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
   ((bool)(((ibqp)->bwrptr == (ibqp)->brdptr) && ((ibqp)->bcounter != 0U)))  \
   /*lint -restore*/
-
-/**
- * @brief   Evaluates to @p true if the specified output buffers queue is empty.
- *
- * @param[in] obqp      pointer to an @p output_buffers_queue_t structure
- * @return              The queue status.
- * @retval false        if the queue is not empty.
- * @retval true         if the queue is empty.
- *
- * @iclass
- */
-#define obqIsEmptyI(obqp)                                                   \
-  /*lint -save -e9007 [13.5] No side effects, a pointer is passed.*/        \
-  ((bool)(((obqp)->bwrptr == (obqp)->brdptr) && ((obqp)->bcounter != 0U)))  \
-  /*lint -restore*/
-
-/**
- * @brief   Evaluates to @p true if the specified output buffers queue is full.
- *
- * @param[in] obqp      pointer to an @p output_buffers_queue_t structure
- * @return              The queue status.
- * @retval false        if the queue is not full.
- * @retval true         if the queue is full.
- *
- * @iclass
- */
-#define obqIsFullI(obqp) ((bool)(bqSpaceI(obqp) == 0U))
-/** @} */
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -232,38 +204,38 @@ typedef io_buffers_queue_t output_buffers_queue_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void ibqObjectInit(input_buffers_queue_t *ibqp, uint8_t *bp,
+  void bqObjectInit(io_buffers_queue_t *ibqp, uint8_t *bp,
                      size_t size, size_t n,
                      bqnotify_t infy, void *link);
-  void ibqResetI(input_buffers_queue_t *ibqp);
-  uint8_t *ibqGetEmptyBufferI(input_buffers_queue_t *ibqp);
-  void ibqPostFullBufferI(input_buffers_queue_t *ibqp, size_t size);
-  msg_t ibqGetFullBufferTimeout(input_buffers_queue_t *ibqp,
-                                systime_t timeout);
-  msg_t ibqGetFullBufferTimeoutS(input_buffers_queue_t *ibqp,
-                                 systime_t timeout);
-  void ibqReleaseEmptyBuffer(input_buffers_queue_t *ibqp);
-  void ibqReleaseEmptyBufferS(input_buffers_queue_t *ibqp);
-  msg_t ibqGetTimeout(input_buffers_queue_t *ibqp, systime_t timeout);
-  size_t ibqReadTimeout(input_buffers_queue_t *ibqp, uint8_t *bp,
-                        size_t n, systime_t timeout);
-  void obqObjectInit(output_buffers_queue_t *obqp, uint8_t *bp,
-                     size_t size, size_t n,
-                     bqnotify_t onfy, void *link);
-  void obqResetI(output_buffers_queue_t *obqp);
-  uint8_t *obqGetFullBufferI(output_buffers_queue_t *obqp,
-                             size_t *sizep);
-  void obqReleaseEmptyBufferI(output_buffers_queue_t *obqp);
-  msg_t obqGetEmptyBufferTimeout(output_buffers_queue_t *obqp,
-                                 systime_t timeout);
-  msg_t obqGetEmptyBufferTimeoutS(output_buffers_queue_t *obqp,
-                                  systime_t timeout);
+
+  void bqResetI(io_buffers_queue_t *bqp);
+
   void obqPostFullBuffer(output_buffers_queue_t *obqp, size_t size);
   void obqPostFullBufferS(output_buffers_queue_t *obqp, size_t size);
-  msg_t obqPutTimeout(output_buffers_queue_t *obqp, uint8_t b,
-                      systime_t timeout);
-  size_t obqWriteTimeout(output_buffers_queue_t *obqp, const uint8_t *bp,
-                         size_t n, systime_t timeout);
+
+  msg_t obqGetEmptyBufferTimeout(output_buffers_queue_t *obqp, systime_t timeout);
+  msg_t obqGetEmptyBufferTimeoutS(output_buffers_queue_t *obqp, systime_t timeout);
+
+  msg_t ibqGetFullBufferTimeout(input_buffers_queue_t *ibqp, systime_t timeout);
+  msg_t ibqGetFullBufferTimeoutS(input_buffers_queue_t *ibqp, systime_t timeout);
+
+
+  void ibqPostFullBufferI(input_buffers_queue_t *ibqp, size_t size);
+
+  void ibqReleaseEmptyBuffer(input_buffers_queue_t *ibqp);
+  void ibqReleaseEmptyBufferS(input_buffers_queue_t *ibqp);
+
+  size_t ibqReadTimeout(input_buffers_queue_t *ibqp, uint8_t *bp, size_t n, systime_t timeout);
+  size_t obqWriteTimeout(output_buffers_queue_t *obqp, const uint8_t *bp, size_t n, systime_t timeout);
+
+  uint8_t *ibqGetEmptyBufferI(input_buffers_queue_t *ibqp);
+  uint8_t *obqGetFullBufferI(output_buffers_queue_t *obqp, size_t *sizep);
+
+  void obqReleaseEmptyBufferI(output_buffers_queue_t *obqp);
+
+  msg_t ibqGetTimeout(input_buffers_queue_t *ibqp, systime_t timeout);
+  msg_t obqPutTimeout(output_buffers_queue_t *obqp, uint8_t b, systime_t timeout);
+
   bool obqTryFlushI(output_buffers_queue_t *obqp);
   void obqFlush(output_buffers_queue_t *obqp);
 #ifdef __cplusplus
