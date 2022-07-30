@@ -754,7 +754,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
       clear_all_config_prop_data();
       NVIC_SystemReset();
       break;
-#ifdef __SD_CARD_LOAD__
+#if defined(__SD_CARD_LOAD__) && !defined(__SD_FILE_BROWSER__)
   case MENU_CONFIG_LOAD:
       if (!sd_card_load_config())
         drawMessageBox("Error", "No config.ini", 2000);
@@ -1303,7 +1303,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 enum {
   FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  FMT_BIN_FILE
+  FMT_BIN_FILE,
+#endif
+#ifdef __SD_CARD_LOAD__
+  FMT_CMD_FILE,
 #endif
 };
 
@@ -1315,6 +1318,9 @@ static const char *file_ext[] = {
   [FMT_CAL_FILE] = "cal",
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   [FMT_BIN_FILE] = "bin",
+#endif
+#ifdef __SD_CARD_LOAD__
+  [FMT_CMD_FILE] = "cmd",
 #endif
 };
 
@@ -2003,7 +2009,11 @@ const menuitem_t menu_device1[] = {
   { MT_CALLBACK, FMT_BIN_FILE,     "DUMP\nFIRMWARE",     menu_sdcard_cb },
 #endif
 #ifdef __SD_CARD_LOAD__
-  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",   menu_config_cb },
+#ifdef __SD_FILE_BROWSER__
+  { MT_CALLBACK, FMT_CMD_FILE,     "LOAD COMMAND\n SCRIPT", menu_sdcard_browse_cb },
+#else
+  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",      menu_config_cb },
+#endif
 #endif
   { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back

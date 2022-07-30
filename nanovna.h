@@ -341,6 +341,7 @@ void update_backup_data(void);
 void set_sweep_points(uint16_t points);
 
 bool sd_card_load_config(void);
+void VNAShell_executeCMDLine(char *line);
 
 #ifdef __REMOTE_DESKTOP__
 // State flags for remote touch state

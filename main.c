@@ -121,13 +121,8 @@ static uint16_t p_sweep = 0;
 // Sweep measured data
 float measured[2][POINTS_COUNT][2];
 
-//Buffer for fast apply FFT window function
-#ifdef USE_FFT_WINDOW_BUFFER
-static float kaiser_data[FFT_SIZE];
-#endif
-
 #undef VERSION
-#define VERSION "1.2.06"
+#define VERSION "1.2.07"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -304,7 +299,7 @@ toggle_sweep(void)
 static float
 bessel0(float x)
 {
-  const float eps = 0.0001;
+  const float eps = 0.0001f;
 
   float ret = 0;
   float term = 1;
@@ -321,7 +316,7 @@ bessel0(float x)
 static float
 kaiser_window(float k, float n, float beta)
 {
-  if (beta == 0.0) return 1.0;
+  if (beta == 0.0) return 1.0f;
   float r = (2 * k) / (n - 1) - 1;
   return bessel0(beta * vna_sqrtf(1 - r * r)) / bessel0(beta);
 }
@@ -365,7 +360,7 @@ float bessel0_ext(float x_pow_2)
 static float
 kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta)
 {
-  if (beta == 0) return 1.0;
+  if (beta == 0) return 1.0f;
   n = n - 1;
   k = k * (n - k) * beta * beta;
   n = n * n;
@@ -410,7 +405,7 @@ transform_domain(uint16_t ch_mask)
   // recalculate the scale factor if any window details are changed. The scale factor is to compensate for windowing.
   // Add constant multiplier for kaiser_window_ext use 1.0f / bessel0_ext(beta*beta/4.0f)
   // Add constant multiplier  1.0f / FFT_SIZE
-  static float window_scale = 0;
+  static float window_scale = 0.0f;
   static uint16_t td_cache = 0;
   // Check mode cache data
   uint16_t td_check = (props_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
@@ -422,15 +417,16 @@ transform_domain(uint16_t ch_mask)
       window_scale = 0.0f;
       for (int i = 0; i < sweep_points; i++)
         window_scale += kaiser_window_ext(i + offset, window_size, beta);
-      if (domain_func == TD_FUNC_BANDPASS) window_scale = 1.0f / (  window_scale);
-      else                                 window_scale = 1.0f / (2*window_scale);
+      if (domain_func == TD_FUNC_BANDPASS) window_scale = 1.0f / (       window_scale);
+      else                                 window_scale = 1.0f / (2.0f * window_scale);
 //    window_scale*= FFT_SIZE               // add correction from kaiser_window
 //    window_scale/= FFT_SIZE               // add defaut from FFT_SIZE
 //    window_scale*= bessel0_ext(beta*beta/4.0f) // for get result as kaiser_window
 //    window_scale/= bessel0_ext(beta*beta/4.0f) // for set correction on calculated kaiser_window for value
     }
 #ifdef USE_FFT_WINDOW_BUFFER
-    // Cache window function data to buffer
+    // Cache window function data to static buffer
+    static float kaiser_data[FFT_SIZE];
     for (i = 0; i < sweep_points; i++)
       kaiser_data[i] = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
 #endif
@@ -452,8 +448,8 @@ transform_domain(uint16_t ch_mask)
     }
     // Fill zeroes last
     for (; i < FFT_SIZE; i++) {
-      tmp[i * 2 + 0] = 0.0;
-      tmp[i * 2 + 1] = 0.0;
+      tmp[i * 2 + 0] = 0.0f;
+      tmp[i * 2 + 1] = 0.0f;
     }
     // For lowpass mode swap
     if (is_lowpass) {
@@ -3287,6 +3283,15 @@ static void VNAShell_executeLine(char *line)
 //  DEBUG_LOG(10, "ok");
   } else if (**shell_args) // unknown command (not empty), ignore <CR>
     shell_printf("%s?" VNA_SHELL_NEWLINE_STR, shell_args[0]);
+}
+
+void VNAShell_executeCMDLine(char *line) {
+  // Disable shell output (not allow shell_printf write, but not block other output!!)
+  shell_stream = NULL;
+  const VNAShellCommand *scp = VNAShell_parceLine(line);
+  if (scp && (scp->flags & CMD_RUN_IN_LOAD))
+    scp->sc_function(shell_nargs - 1, &shell_args[1]);
+  PREPARE_STREAM;
 }
 
 #ifdef __SD_CARD_LOAD__
