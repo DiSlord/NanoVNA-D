@@ -35,6 +35,9 @@ Download arm cross tools from [here](https://developer.arm.com/tools-and-softwar
     $ sudo tar xfj gcc-arm-none-eabi-8-2018-q4-major-linux.tar.bz2 -C /usr/local
     $ PATH=/usr/local/gcc-arm-none-eabi-8-2018-q4-major/bin:$PATH
     $ sudo apt install -y dfu-util
+### Debian
+    $ sudo apt install gcc-arm-none-eabi
+    $ sudo apt install -y dfu-util
 
 ## Fetch source code
 
