@@ -67,7 +67,7 @@ static index_t trace_index[TRACE_INDEX_COUNT][POINTS_COUNT];
 
 #if 1
 // All used in plot v > 0
-#define float2int(v) ((int)((v)+0.5))
+#define float2int(v) ((int)((v)+0.5f))
 #else
 static int 
 float2int(float v) 
@@ -358,7 +358,7 @@ swr(int i, const float *v)
 {
   (void) i;
   float x = linear(i, v);
-  if (x > 0.99)
+  if (x > 0.99f)
     return INFINITY;
   return (1 + x)/(1 - x);
 }
@@ -925,7 +925,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
   y1*=CELLWIDTH;
   while (1) {
     if ((uint32_t)x0 < CELLWIDTH)
-      cell_buffer[y0 + x0]|= c;
+      cell_buffer[y0 + x0] = c;
     if (x0 + y0 == y1 + x1)
       return;
     int e2 = err;
@@ -984,7 +984,7 @@ cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bm
   if (x <= -w)
     return;
   int c = h + y;
-  if (c < 0 || y >= CELLHEIGHT) return;
+  if (c < 0) return;
   if (c >= CELLHEIGHT) c = CELLHEIGHT;    // clip bottom if need
   if (y < 0) {bmp-= y*((w+7)>>3); y = 0;} // Clip top if need
   for (uint8_t bits = 0; y < c; y++) {
@@ -997,6 +997,35 @@ cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bm
   }
 }
 
+#ifdef _USE_SHADOW_TEXT_
+static void
+cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
+  int i;
+  if (x + w < 0 || h + y < 0)  // Clipping
+    return;
+  // Prepare shadow bitmap
+  uint16_t dst[16];
+  uint16_t p0 = 0, p1 = 0, c = 8 - w;
+  uint16_t mask = (0xFF>>c)<<c;
+  if (h > ARRAY_COUNT(dst) - 2) h = ARRAY_COUNT(dst) - 2;
+  for (i = 0; i < h; i++) {
+    c = (bmp[i] & mask)<<8;   // extend from 8 bit width to 16 bit
+    c|= (c>>1) | (c>>2);      // shadow horizontally
+    c = (c>>8) | (c<<8);      // swap bytes (render do by 8 bit)
+    dst[i] = c | p0 | p1;     // shadow vertically
+    p0 = p1; p1 = c;          // shift data
+  }
+  dst[i  ] = p0 | p1;
+  dst[i+1] = p1;
+  // Render shadow on cell
+  pixel_t t = foreground_color; // remember color
+  lcd_set_foreground(LCD_TXT_SHADOW_COLOR); // set shadow color
+  w+= 2; h+= 2;                 // Shadow size > by 2 pixel
+  cell_blit_bitmap(x-1, y-1, w < 9 ? 9 : w, h, (uint8_t *)dst);
+  foreground_color = t;         // restore color
+}
+#endif
+
 typedef struct {
   const void *vmt;
   int16_t x;
@@ -1005,6 +1034,9 @@ typedef struct {
 
 static void put_normal(cellPrintStream *ps, uint8_t ch) {
   uint16_t w = FONT_GET_WIDTH(ch);
+#ifdef _USE_SHADOW_TEXT_
+  cell_blit_bitmap_shadow(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+#endif
 #if _USE_FONT_ < 3
   cell_blit_bitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
 #else
@@ -1018,6 +1050,9 @@ typedef void (*font_put_t)(cellPrintStream *ps, uint8_t ch);
 static font_put_t put_char = put_normal;
 static void put_small(cellPrintStream *ps, uint8_t ch) {
   uint16_t w = sFONT_GET_WIDTH(ch);
+#ifdef _USE_SHADOW_TEXT_
+  cell_blit_bitmap_shadow(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+#endif
 #if _USE_SMALL_FONT_ < 3
   cell_blit_bitmap(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
 #else
@@ -1034,8 +1069,8 @@ static inline void cell_set_font(int type) {put_char = type == FONT_SMALL ? put_
 
 static msg_t cellPut(void *ip, uint8_t ch) {
   cellPrintStream *ps = ip;
-  if (ps->x < CELLWIDTH)
-	  put_char(ps, ch);
+  if (ps->x < CELLWIDTH && ps->y < CELLHEIGHT)
+    put_char(ps, ch);
   return MSG_OK;
 }
 
@@ -1843,17 +1878,10 @@ draw_cell(int m, int n)
     cell_polar_grid(x0, y0, w, h, c);
 #endif
 
-#ifdef __USE_GRID_VALUES__
-  // Only right cells
-  if (VNA_MODE(VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
-    cell_grid_line_info(x0, y0);
-#endif
-
 //  PULSE;
-// Draw traces (50-600 system ticks for all screen calls, depend from lines
-// count and size)
+// Draw traces (50-600 system ticks for all screen calls, depend from lines count and size)
 #if 1
-  for (t = 0; t < TRACE_INDEX_COUNT; t++) {
+  for (t = TRACE_INDEX_COUNT-1; t >=0; t--) {
     if (!needProcessTrace(t))
       continue;
     c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
@@ -1891,6 +1919,13 @@ draw_cell(int m, int n)
                   config.trace_color[0]);
 #endif
 //  PULSE;
+
+#ifdef __USE_GRID_VALUES__
+  // Only right cells
+  if (VNA_MODE(VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+    cell_grid_line_info(x0, y0);
+#endif
+
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
   int m_count = 0;
 #if 1
@@ -1912,7 +1947,7 @@ draw_cell(int m, int n)
           lcd_set_foreground(LCD_TRACE_1_COLOR + t);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
           // Draw marker number
-          lcd_set_foreground(LCD_BG_COLOR);
+          lcd_set_foreground(LCD_TXT_SHADOW_COLOR);
           cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(i+1));
       }
     }
@@ -2058,29 +2093,23 @@ redraw_marker(int8_t marker)
 
 // Marker and trace data position
 static const struct {uint16_t x, y;} marker_pos[]={
-  {1 +             CELLOFFSETX, 1                    },
-  {1 + (WIDTH/2) + CELLOFFSETX, 1                    },
-  {1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
-  {1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
-  {1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
-  {1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
-  {1 +             CELLOFFSETX, 1 + 3*FONT_STR_HEIGHT},
-  {1 + (WIDTH/2) + CELLOFFSETX, 1 + 3*FONT_STR_HEIGHT},
+  { 1 +             CELLOFFSETX, 1                    }, { 1 + (WIDTH/2) + CELLOFFSETX, 1                    },
+  { 1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
+  { 1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
+  { 1 +             CELLOFFSETX, 1 + 3*FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 + 3*FONT_STR_HEIGHT},
 };
 
 #ifdef LCD_320x240
-#if _USE_FONT_ < 1
-#define MARKER_FREQ       "%.6q" S_Hz
-#else
-#define MARKER_FREQ       "%.3q" S_Hz
-#endif
-#define MARKER_FREQ_SIZE        67
-#define PORT_Z_OFFSET            1
+ #if _USE_FONT_ < 1
+  #define MARKER_FREQ       "%.6q" S_Hz
+ #else
+  #define MARKER_FREQ       "%.3q" S_Hz
+ #endif
+ #define MARKER_FREQ_SIZE        67
 #endif
 #ifdef LCD_480x320
-#define MARKER_FREQ         "%q" S_Hz
-#define MARKER_FREQ_SIZE       112
-#define PORT_Z_OFFSET            0
+ #define MARKER_FREQ         "%q" S_Hz
+ #define MARKER_FREQ_SIZE       112
 #endif
 
 static void
@@ -2105,7 +2134,7 @@ cell_draw_marker_info(int x0, int y0)
         cell_printf(xpos, ypos, S_SARROW);
       xpos += FONT_WIDTH;
       cell_printf(xpos, ypos, "M%d", mk+1);
-      xpos += 3*FONT_WIDTH - 2;
+      xpos += 3 * FONT_WIDTH - 2;
       int32_t  delta_index = -1;
       uint32_t mk_index = markers[mk].index;
       freq_t freq = get_marker_frequency(mk);
@@ -2133,10 +2162,10 @@ cell_draw_marker_info(int x0, int y0)
         cell_printf(xpos, ypos, S_SARROW);
       xpos += FONT_WIDTH;
       cell_printf(xpos, ypos, get_trace_chname(t));
-      xpos += 3*FONT_WIDTH + 4;
+      xpos += 4 * FONT_WIDTH - 2;
 
-      int n = trace_print_info(xpos, ypos, t);
-      xpos += n * FONT_WIDTH + 2;
+      int n = trace_print_info(xpos, ypos, t) + 1;
+      xpos += n * FONT_WIDTH - 5;
       lcd_set_foreground(LCD_FG_COLOR);
       trace_print_value_string(xpos, ypos, t, active_marker_idx, -1);
     }

@@ -59,6 +59,8 @@
 #define __REMOTE_DESKTOP__
 // Allow flip display
 #define __FLIP_DISPLAY__
+// Add shadow on text in plot area (improve readable, but little slowdown render)
+#define _USE_SHADOW_TEXT_
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
 #define __VNA_USE_MATH_TABLES__
 // Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
@@ -592,7 +594,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Menu buttons y offset
 #define MENU_BUTTON_Y_OFFSET          1
 // Menu buttons size = 21 for icon and 10 chars
-#define MENU_BUTTON_WIDTH           (21 + 10*FONT_WIDTH)
+#define MENU_BUTTON_WIDTH           (7 + 12 * FONT_WIDTH)
 #define MENU_BUTTON_HEIGHT(n)       (AREA_HEIGHT_NORMAL/(n))
 #define MENU_BUTTON_BORDER            1
 #define KEYBOARD_BUTTON_BORDER        1
@@ -664,13 +666,13 @@ extern const uint8_t x7x11b_bits[];
 #define FONT_GET_WIDTH(ch)  (8-(x7x11b_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT]&7))
 
 #elif _USE_FONT_ == 3
-extern const uint8_t x10x14_bits[];
+extern const uint8_t x11x14_bits[];
 #define FONT_START_CHAR   0x16
 #define FONT_WIDTH          11
 #define FONT_GET_HEIGHT     14
 #define FONT_STR_HEIGHT     16
-#define FONT_GET_DATA(ch)   (   &x10x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT  ])
-#define FONT_GET_WIDTH(ch)  (14-(x10x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT+1]&0x7))
+#define FONT_GET_DATA(ch)   (   &x11x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT  ])
+#define FONT_GET_WIDTH(ch)  (14-(x11x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT+1]&0x7))
 #endif
 
 #if _USE_SMALL_FONT_ == 0
@@ -701,13 +703,13 @@ extern const uint8_t x7x11b_bits[];
 #define sFONT_GET_WIDTH(ch)  (8-(x7x11b_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&7))
 
 #elif _USE_SMALL_FONT_ == 3
-extern const uint8_t x10x14_bits[];
+extern const uint8_t x11x14_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH          11
 #define sFONT_GET_HEIGHT     14
 #define sFONT_STR_HEIGHT     16
-#define sFONT_GET_DATA(ch)   (   &x10x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT  ])
-#define sFONT_GET_WIDTH(ch)  (14-(x10x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT+1]&0x7))
+#define sFONT_GET_DATA(ch)   (   &x11x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT  ])
+#define sFONT_GET_WIDTH(ch)  (14-(x11x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT+1]&0x7))
 #endif
 
 #if _USE_FONT_ != _USE_SMALL_FONT_
@@ -736,7 +738,7 @@ extern const uint8_t numfont16x22[];
 #endif
 
 #ifdef __USE_GRID_VALUES__
-#define GRID_X_TEXT   (WIDTH - 5*FONT_WIDTH)
+#define GRID_X_TEXT   (WIDTH - 5 * sFONT_WIDTH)
 #endif
 
 // Render control chars
@@ -1127,6 +1129,7 @@ typedef uint16_t pixel_t;
 #define LCD_INTERP_CAL_COLOR    23
 #define LCD_DISABLE_CAL_COLOR   24
 #define LCD_LINK_COLOR          25
+#define LCD_TXT_SHADOW_COLOR    26
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \
@@ -1155,6 +1158,7 @@ typedef uint16_t pixel_t;
 [LCD_INTERP_CAL_COLOR ] = RGB565( 31,227,  0), \
 [LCD_DISABLE_CAL_COLOR] = RGB565(255,  0,  0), \
 [LCD_LINK_COLOR       ] = RGB565(  0,  0,192), \
+[LCD_TXT_SHADOW_COLOR ] = RGB565(  0,  0,  0), \
 }
 
 #define GET_PALTETTE_COLOR(idx)  config._lcd_palette[idx]

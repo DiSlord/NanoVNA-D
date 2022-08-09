@@ -30,8 +30,8 @@
 #define wFONT_START_CHAR   0x16
 #define wFONT_GET_HEIGHT     14
 #define wFONT_STR_HEIGHT     16
-#define wFONT_GET_DATA(ch)   (   &x10x14_bits[(ch-wFONT_START_CHAR)*2*wFONT_GET_HEIGHT  ])
-#define wFONT_GET_WIDTH(ch)  (14-(x10x14_bits[(ch-wFONT_START_CHAR)*2*wFONT_GET_HEIGHT+1]&0x7))
+#define wFONT_GET_DATA(ch)   (   &x11x14_bits[(ch-wFONT_START_CHAR)*2*wFONT_GET_HEIGHT  ])
+#define wFONT_GET_WIDTH(ch)  (14-(x11x14_bits[(ch-wFONT_START_CHAR)*2*wFONT_GET_HEIGHT+1]&0x7))
 
 
 #define CW_06  0x07
@@ -46,7 +46,7 @@
 // Font character bitmap data.
 // If use blit8BitWidthBitmap width should be > 8 !!)
 // for less 8 width used 9 but next char draw at correct place
-const uint8_t x10x14_bits[(127-wFONT_START_CHAR)*wFONT_GET_HEIGHT*2] =
+const uint8_t x11x14_bits[(127-wFONT_START_CHAR)*wFONT_GET_HEIGHT*2] =
 {
 //S_DELTA    "\029"  // 0x17
  _BMP16(0b0000000000000000|CW_13), // |                |
