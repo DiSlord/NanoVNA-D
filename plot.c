@@ -895,9 +895,11 @@ markmap_upperarea(void)
   invalidate_rect(0, 0, AREA_WIDTH_NORMAL, ((MARKERS_MAX+1)/2 + 1)*FONT_STR_HEIGHT);
 }
 
-//
-// in most cases _compute_outcode clip calculation not give render line speedup
-//
+#ifdef __VNA_FAST_LINES__
+// Little faster on easy traces, 2x faster if need lot of clipping and draw long lines
+#include "vna_modules/vna_lines.c"
+#else
+// Little slower on easy traces, but slow if need lot of clip and draw long lines
 static inline void
 cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 {
@@ -933,6 +935,7 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
     if (e2 < dy) { err-= dx; y0+=CELLWIDTH; if (y0>=CELLHEIGHT*CELLWIDTH) return;} // stop after cell bottom
   }
 }
+#endif
 
 // Give a little speedup then draw rectangular plot (50 systick on all calls, all render req 700 systick)
 // Write more difficult algorithm for search indexes not give speedup
