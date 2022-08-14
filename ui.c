@@ -3144,8 +3144,8 @@ touch_lever_mode_select(int touch_x, int touch_y)
   int mode = -1;
   if (touch_y > HEIGHT)
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
-  if (touch_y < 25)
-    mode = (touch_x < FREQUENCIES_XPOS2 && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
+  if (touch_y < UI_MARKER_Y0)
+    mode = (touch_x < (LCD_WIDTH / 2) && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
   if (mode == -1) return FALSE;
 
   touch_wait_release();
@@ -3183,7 +3183,7 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   int t = current_trace;
   // do not scale invalid or smith chart
   if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
-  if (touch_x < OFFSETX - 5 || touch_x > OFFSETX + CELLOFFSETX + 10 ||
+  if (touch_x < UI_SCALE_REF_X0 || touch_x > UI_SCALE_REF_X1 ||
       touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
   float ref   = trace[t].refpos;
   float scale = trace[t].scale;

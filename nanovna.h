@@ -593,6 +593,11 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Text offset in menu
 #define MENU_TEXT_OFFSET              6
 #define MENU_ICON_OFFSET              4
+// Scale / ref quick touch position
+#define UI_SCALE_REF_X0             (OFFSETX - 5)
+#define UI_SCALE_REF_X1             (OFFSETX + CELLOFFSETX + 10)
+// Leveler Marker mode select
+#define UI_MARKER_Y0                 30
 // Maximum menu buttons count
 #define MENU_BUTTON_MAX              16
 #define MENU_BUTTON_MIN               8
