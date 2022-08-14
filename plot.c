@@ -388,6 +388,7 @@ static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
 // R = z0 * r / d
 // X = z0 * x / d
 // |Z| = z0 * sqrt(4 * re / d + 1)
+// Z phase = atan(X, R)
 //**************************************************************************************
 static float
 resistance(int i, const float *v)
@@ -418,6 +419,14 @@ mod_z(int i, const float *v)
   return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
 }
 
+static float
+phase_z(int i, const float *v)
+{
+  (void) i;
+  const float r = get_r(v[0], v[1]);
+  const float x = get_x(v[1]);
+  return (180.0f / VNA_PI) * vna_atan2f(x, r);
+}
 //**************************************************************************************
 // Use w = 2 * pi * frequency
 // Get Series L and C from X
@@ -613,7 +622,7 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 27
+#if MAX_TRACE_TYPE != 28
 #error "Redefined trace_type list, need check format_list"
 #endif
 
@@ -631,6 +640,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 [TRC_R]      = {"R",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0, 100.0f, resistance           },
 [TRC_X]      = {"X",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, reactance            },
 [TRC_Z]      = {"|Z|",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0,  50.0f, mod_z                },
+[TRC_ZPHASE] = {"Z phase","%.1f%s", S_DELTA "%.2f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_z              },
 [TRC_G]      = {"G",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.01f, conductance          },
 [TRC_B]      = {"B",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,NGRIDY/2,  0.01f, susceptance          },
 [TRC_Y]      = {"|Y|",    "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.02f, mod_y                },
@@ -769,7 +779,8 @@ trace_print_info(int xpos, int ypos, int t)
   int smith = trace[t].smith_format;
   switch (type) {
     case TRC_LOGMAG: format = "%s %0.2f" S_dB "/"; break;
-    case TRC_PHASE:  format = "%s %0.2f" S_DEGREE "/"; break;
+    case TRC_PHASE:
+    case TRC_ZPHASE: format = "%s %0.2f" S_DEGREE "/"; break;
     case TRC_SMITH:
     case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
     default:         format = "%s %F/"; break;

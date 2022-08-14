@@ -1749,6 +1749,7 @@ const menuitem_t menu_formatS11[] = {
   { MT_ADV_CALLBACK, F_S11|TRC_R,      "RESISTANCE",   menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_X,      "REACTANCE",    menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_Z,      "|Z|",          menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_ZPHASE, "Z PHASE",      menu_format_acb },
   { MT_SUBMENU,          0, S_RARROW " MORE",     menu_format2 },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
