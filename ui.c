@@ -783,7 +783,11 @@ static UI_FUNCTION_CALLBACK(menu_dfu_cb)
 static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
 {
   if (b){
-    b->p1.u = data;
+    const properties_t *p = get_properties(data);
+    if (p)
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
+    else
+      plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     return;
   }
   if (caldata_save(data) == 0) {
@@ -1617,22 +1621,22 @@ static const menuitem_t menu_calop[] = {
 
 const menuitem_t menu_save[] = {
 #ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO SD", menu_sdcard_cb },
+  { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO\n SD CARD", menu_sdcard_cb },
 #endif
-  { MT_ADV_CALLBACK, 0, "SAVE %d", menu_save_acb },
-  { MT_ADV_CALLBACK, 1, "SAVE %d", menu_save_acb },
-  { MT_ADV_CALLBACK, 2, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 2, MT_CUSTOM_LABEL, menu_save_acb },
 #if SAVEAREA_MAX > 3
-  { MT_ADV_CALLBACK, 3, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 3, MT_CUSTOM_LABEL, menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 4
-  { MT_ADV_CALLBACK, 4, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 4, MT_CUSTOM_LABEL, menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 5, MT_CUSTOM_LABEL, menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, "SAVE %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_save_acb },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
