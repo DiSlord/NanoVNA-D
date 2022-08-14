@@ -590,6 +590,9 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #endif // end 480x320 display plot definitions
 
 // UI size defines
+// Text offset in menu
+#define MENU_TEXT_OFFSET              6
+#define MENU_ICON_OFFSET              4
 // Maximum menu buttons count
 #define MENU_BUTTON_MAX              16
 #define MENU_BUTTON_MIN               8

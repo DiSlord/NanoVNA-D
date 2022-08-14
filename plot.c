@@ -229,11 +229,11 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
 {
   int x, y;
   // offset to center
-  x0 -= P_CENTER_X;
+  x0  = P_CENTER_X - x0;
   y0 -= P_CENTER_Y;
   for (y = 0; y < h; y++)
     for (x = 0; x < w; x++)
-      if (smith_grid(-(x + x0), y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
+      if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
 void update_grid(void)
