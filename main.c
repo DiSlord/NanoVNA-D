@@ -131,7 +131,8 @@ const char *info_about[]={
   "Licensed under GPL.",
   "  https://github.com/DiSlord/NanoVNA-D",
   "Donate support:",
-  "  https://paypal.me/DiSlord",
+//  "  https://paypal.me/DiSlord",
+  "  WebMoney: Z313822869119",
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
