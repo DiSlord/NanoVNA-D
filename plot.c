@@ -1216,7 +1216,7 @@ markmap_marker(int marker)
       continue;
     index_t *index = trace_index[t];
     int x = index[mk_idx].x - X_MARKER_OFFSET;
-    int y = index[mk_idx].y - Y_MARKER_OFFSET;
+    int y = index[mk_idx].y + ((index[mk_idx].y < MARKER_HEIGHT * 2) ? 1 : -Y_MARKER_OFFSET);
     invalidate_rect(x, y, x+MARKER_WIDTH-1, y+MARKER_HEIGHT-1);
   }
 }
