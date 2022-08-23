@@ -895,16 +895,32 @@ mark_cells_from_index(void)
   }
 }
 
-void set_area_size(uint16_t w, uint16_t h){
+void set_area_size(uint16_t w, uint16_t h) {
   area_width  = w;
   area_height = h;
 }
 
+// Calculate marker area size depend from trace/marker count and options
+static int marker_area_max(void) {
+  int t_count = 0, m_count = 0, i;
+  for (i = 0; i < TRACES_MAX; i++) if (trace[i].enabled) t_count++;
+  for (i = 0; i < MARKERS_MAX; i++) if (markers[i].enabled) m_count++;
+  int cnt = t_count > m_count ? t_count : m_count;
+  int extra = 0;
+  if (electrical_delay != 0.0f) extra+= 2;
+  if (s21_offset != 0.0f) extra+= 2;
+#ifdef __VNA_Z_NORMALIZATION__
+  if (current_props._portz != 50.0f) extra+= 2;
+#endif
+  if (extra < 2) extra = 2;
+  cnt = (cnt + extra + 1)>>1;
+  return cnt * FONT_STR_HEIGHT;
+}
+
 static inline void
-markmap_upperarea(void)
-{
+markmap_upperarea(void) {
   // Hardcoded, Text info from upper area
-  invalidate_rect(0, 0, AREA_WIDTH_NORMAL, ((MARKERS_MAX+1)/2 + 1)*FONT_STR_HEIGHT);
+  invalidate_rect(0, 0, AREA_WIDTH_NORMAL, marker_area_max());
 }
 
 #ifdef __VNA_FAST_LINES__
@@ -1185,438 +1201,8 @@ static void cell_draw_measure(int x0, int y0){
 }
 #endif
 
-// Reference bitmap (size and offset)
-#define REFERENCE_WIDTH    6
-#define REFERENCE_HEIGHT   5
-#define REFERENCE_X_OFFSET 5
-#define REFERENCE_Y_OFFSET 2
-static const uint8_t reference_bitmap[]={
-  _BMP8(0b11000000),
-  _BMP8(0b11110000),
-  _BMP8(0b11111100),
-  _BMP8(0b11110000),
-  _BMP8(0b11000000),
-};
-
-// Marker bitmaps (size and offsets)
-#if _USE_MARKER_SET_ == 0
-#define MARKER_WIDTH       7
-#define MARKER_HEIGHT     10
-#define X_MARKER_OFFSET    3
-#define Y_MARKER_OFFSET   10
-#define MARKER_BITMAP(i)  (&marker_bitmap[(i)*MARKER_HEIGHT])
-static const uint8_t marker_bitmap[]={
-// Marker Back plate
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b11111110),
-  _BMP8(0b01111100),
-  _BMP8(0b00111000),
-  _BMP8(0b00010000),
-  // Marker 1
-  _BMP8(0b00000000),
-  _BMP8(0b00010000),
-  _BMP8(0b00110000),
-  _BMP8(0b00010000),
-  _BMP8(0b00010000),
-  _BMP8(0b00010000),
-  _BMP8(0b00111000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#if MARKERS_MAX >=2
-  // Marker 2
-  _BMP8(0b00000000),
-  _BMP8(0b00111000),
-  _BMP8(0b01000100),
-  _BMP8(0b00000100),
-  _BMP8(0b00111000),
-  _BMP8(0b01000000),
-  _BMP8(0b01111100),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=3
-  // Marker 3
-  _BMP8(0b00000000),
-  _BMP8(0b00111000),
-  _BMP8(0b01000100),
-  _BMP8(0b00011000),
-  _BMP8(0b00000100),
-  _BMP8(0b01000100),
-  _BMP8(0b00111000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=4
-  // Marker 4
-  _BMP8(0b00000000),
-  _BMP8(0b00001000),
-  _BMP8(0b00011000),
-  _BMP8(0b00101000),
-  _BMP8(0b01001000),
-  _BMP8(0b01001000),
-  _BMP8(0b01111100),
-  _BMP8(0b00001000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=5
-  // Marker 5
-  _BMP8(0b00000000),
-  _BMP8(0b01111100),
-  _BMP8(0b01000000),
-  _BMP8(0b01111000),
-  _BMP8(0b00000100),
-  _BMP8(0b01000100),
-  _BMP8(0b00111000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=6
-  // Marker 6
-  _BMP8(0b00000000),
-  _BMP8(0b00111100),
-  _BMP8(0b01000000),
-  _BMP8(0b01111000),
-  _BMP8(0b01000100),
-  _BMP8(0b01000100),
-  _BMP8(0b00111000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=7
-  // Marker 7
-  _BMP8(0b00000000),
-  _BMP8(0b01111100),
-  _BMP8(0b01000100),
-  _BMP8(0b00000100),
-  _BMP8(0b00001000),
-  _BMP8(0b00010000),
-  _BMP8(0b00010000),
-  _BMP8(0b00010000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-#if MARKERS_MAX >=8
-  // Marker 8
-  _BMP8(0b00000000),
-  _BMP8(0b00111000),
-  _BMP8(0b01000100),
-  _BMP8(0b00111000),
-  _BMP8(0b01000100),
-  _BMP8(0b01000100),
-  _BMP8(0b00111000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-  _BMP8(0b00000000),
-#endif
-};
-#elif _USE_MARKER_SET_ == 1
-#define MARKER_WIDTH       11
-#define MARKER_HEIGHT      12
-#define X_MARKER_OFFSET     5
-#define Y_MARKER_OFFSET    12
-#define MARKER_BITMAP(i)   (&marker_bitmap[(i)*2*MARKER_HEIGHT])
-static const uint8_t marker_bitmap[]={
-// Marker Back plate
-  _BMP16(0b0000000000000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0011111110000000),
-  _BMP16(0b0001111100000000),
-  _BMP16(0b0000111000000000),
-  _BMP16(0b0000010000000000),
-// Marker 1
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000111000100000),
-  _BMP16(0b1001011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b0100111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#if MARKERS_MAX >=2
-  // Marker 2
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000110000100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=3
-  // Marker 3
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000011100100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=4
-  // Marker 4
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000011100100000),
-  _BMP16(0b1000111100100000),
-  _BMP16(0b1001101100100000),
-  _BMP16(0b1011001100100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b0100001101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=5
-  // Marker 5
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b1011111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=6
-  // Marker 6
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b1011111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=7
-  // Marker 7
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000110000100000),
-  _BMP16(0b0100110001000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=8
-  // Marker 8
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-};
-#elif _USE_MARKER_SET_ == 2
-#define MARKER_WIDTH       11
-#define MARKER_HEIGHT      14
-#define X_MARKER_OFFSET     5
-#define Y_MARKER_OFFSET    14
-#define MARKER_BITMAP(i)   (&marker_bitmap[(i)*2*MARKER_HEIGHT])
-static const uint8_t marker_bitmap[]={
-  // Marker Back plate
-  _BMP16(0b0000000000000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0111111111000000),
-  _BMP16(0b0011111110000000),
-  _BMP16(0b0001111100000000),
-  _BMP16(0b0000111000000000),
-  _BMP16(0b0000010000000000),
-  // Marker 1
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000111000100000),
-  _BMP16(0b1001011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b0100111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#if MARKERS_MAX >=2
-  // Marker 2
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1000111100100000),
-  _BMP16(0b1001100110100000),
-  _BMP16(0b1001100110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000111000100000),
-  _BMP16(0b1001100000100000),
-  _BMP16(0b1001100000100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=3
-  // Marker 3
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000011100100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=4
-  // Marker 4
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000011100100000),
-  _BMP16(0b1000111100100000),
-  _BMP16(0b1001101100100000),
-  _BMP16(0b1011001100100000),
-  _BMP16(0b1011001100100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b0100001101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=5
-  // Marker 5
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b1011111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=6
-  // Marker 6
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000000100000),
-  _BMP16(0b1011011100100000),
-  _BMP16(0b1011100110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=7
-  // Marker 7
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1011111110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1000000110100000),
-  _BMP16(0b1000001100100000),
-  _BMP16(0b1000011000100000),
-  _BMP16(0b1000110000100000),
-  _BMP16(0b1000110000100000),
-  _BMP16(0b1000110000100000),
-  _BMP16(0b0100110001000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-#if MARKERS_MAX >=8
-  // Marker 8
-  _BMP16(0b1111111111100000),
-  _BMP16(0b1000000000100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1001111100100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b1011000110100000),
-  _BMP16(0b0101111101000000),
-  _BMP16(0b0010000010000000),
-  _BMP16(0b0001000100000000),
-  _BMP16(0b0000101000000000),
-#endif
-};
-#endif
+// Icons bitmap
+#include "icons_marker.c"
 
 static void
 markmap_marker(int marker)
@@ -1856,13 +1442,11 @@ draw_cell(int m, int n)
   c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
   // Generate grid type list
   uint32_t trace_type = 0;
-  int t_count = 0;
   bool use_smith = false;
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
       if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
-      t_count++;
     }
   }
   const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
@@ -1909,7 +1493,6 @@ draw_cell(int m, int n)
       // draw polar plot (check all points)
       i1 = sweep_points - 1;
     }
-#if 1
     // Line mode
     for (i = i0; i < i1; i++) {
       int x1 = index[i].x - x0;
@@ -1918,15 +1501,6 @@ draw_cell(int m, int n)
       int y2 = index[i + 1].y - y0;
       cell_drawline(x1, y1, x2, y2, c);
     }
-#else
-    // Dot mode
-    for (i = i0; i < i1; i++) {
-      int x = index[i].x - x0;
-      int y = index[i].y - y0;
-      if ((uint32_t)x < CELLWIDTH && (uint32_t)y < CELLHEIGHT)
-        cell_buffer[y * CELLWIDTH + x] = c;
-    }
-#endif
   }
 #else
   for (x = 0; x < area_width; x += 6)
@@ -1942,45 +1516,45 @@ draw_cell(int m, int n)
 #endif
 
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
-  int m_count = 0;
 #if 1
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
-    m_count++;
+    int mk_idx = markers[i].index;
     for (t = 0; t < TRACES_MAX; t++) {
       if (!trace[t].enabled)
         continue;
       index_t *index = trace_index[t];
-      int16_t mk_idx = markers[i].index;
-      int16_t x = index[mk_idx].x - x0 - X_MARKER_OFFSET;
-      int16_t y = index[mk_idx].y - y0 - Y_MARKER_OFFSET;
+      int x, y;
+      const uint8_t *plate, *marker;
+      x = index[mk_idx].x - x0 - X_MARKER_OFFSET;
+      if (index[mk_idx].y < MARKER_HEIGHT * 2) {
+        y = index[mk_idx].y - y0 + 1;
+        plate = MARKER_RBITMAP(0);
+        marker = MARKER_RBITMAP(i+1);
+      } else {
+        y = index[mk_idx].y - y0 - Y_MARKER_OFFSET;
+        plate = MARKER_BITMAP(0);
+        marker = MARKER_BITMAP(i+1);
+      }
       // Check marker icon on cell
       if ((uint32_t)(x+MARKER_WIDTH ) < (CELLWIDTH  + MARKER_WIDTH ) &&
-          (uint32_t)(y+MARKER_HEIGHT) < (CELLHEIGHT + MARKER_HEIGHT)){
-          // Draw marker plate
-          lcd_set_foreground(LCD_TRACE_1_COLOR + t);
-          cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(0));
-          // Draw marker number
-          lcd_set_foreground(LCD_TXT_SHADOW_COLOR);
-          cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, MARKER_BITMAP(i+1));
+          (uint32_t)(y+MARKER_HEIGHT) < (CELLHEIGHT + MARKER_HEIGHT)) {
+        // Draw marker plate
+        lcd_set_foreground(LCD_TRACE_1_COLOR + t);
+        cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, plate);
+        // Draw marker number
+        lcd_set_foreground(LCD_TXT_SHADOW_COLOR);
+        cell_blit_bitmap(x, y, MARKER_WIDTH, MARKER_HEIGHT, marker);
       }
     }
   }
+
 #endif
-// Draw trace and marker info on the top (50 system ticks for all screen calls)
+
 #if 1
-  int cnt = t_count > m_count ? t_count : m_count;
-  int extra = 0;
-  if (electrical_delay != 0.0f) extra+= 2;
-  if (s21_offset != 0.0f ) extra+= 2;
-#ifdef __VNA_Z_RENORMALIZATION__
-  if (current_props._portz != 50.0f) extra+= 2;
-#endif
-  if (extra < 2) extra = 2;
-  cnt = (cnt + extra + 1)>>1;
-  // Get max marker/trace string count add one string for edelay/marker freq
-  if (n <= (cnt * FONT_STR_HEIGHT)/CELLHEIGHT)
+  // Draw trace and marker info on the top
+  if (n <= marker_area_max() / CELLHEIGHT)
     cell_draw_marker_info(x0, y0);
 #endif
 
