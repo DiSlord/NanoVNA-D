@@ -122,7 +122,7 @@ static uint16_t p_sweep = 0;
 float measured[2][POINTS_COUNT][2];
 
 #undef VERSION
-#define VERSION "1.2.12"
+#define VERSION "1.2.13"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -270,7 +270,7 @@ static THD_FUNCTION(Thread1, arg)
     request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
     // plot trace and other indications as raster
-    draw_all(completed);  // flush markmap only if scan completed to prevent remaining traces
+    draw_all();
 #endif
   }
 }

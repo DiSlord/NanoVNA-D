@@ -942,7 +942,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     case VNA_MODE_FLIP_DISPLAY:
       lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
       request_to_redraw(REDRAW_CLRSCR | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
-      draw_all(true);
+      draw_all();
     break;
 #endif
   }
@@ -1409,7 +1409,7 @@ static void vna_save_file(char *name, uint8_t format)
   // Redraw use spi_buffer so need do it before any file ops
   if (format == FMT_BMP_FILE && ui_mode != UI_NORMAL){
     ui_mode_normal();
-    draw_all(true);
+    draw_all();
   }
 
   // Prepare filename and open for write
@@ -3106,8 +3106,8 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   trace[t].scale  = scale;
   trace[t].refpos =   ref;
   plot_into_index();
-  request_to_redraw(REDRAW_AREA);
-  chThdSleepMilliseconds(100);
+  request_to_redraw(REDRAW_CELLS);
+  chThdSleepMilliseconds(200);
   return TRUE;
 }
 

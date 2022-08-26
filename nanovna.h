@@ -529,8 +529,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define CALIBRATION_INFO_POSY       100
 
 #define FREQUENCIES_XPOS1           OFFSETX
-#define FREQUENCIES_XPOS2           206
-#define FREQUENCIES_XPOS3           135
+#define FREQUENCIES_XPOS2           (LCD_WIDTH - 23 * sFONT_WIDTH)
+#define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 14 * sFONT_WIDTH / 2)
 #define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL)
 #endif // end 320x240 display plot definitions
 
@@ -584,8 +584,8 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define CALIBRATION_INFO_POSY       100
 
 #define FREQUENCIES_XPOS1           OFFSETX
-#define FREQUENCIES_XPOS2           330
-#define FREQUENCIES_XPOS3           200
+#define FREQUENCIES_XPOS2           (LCD_WIDTH - 22 * sFONT_WIDTH)
+#define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 14 * sFONT_WIDTH / 2)
 #define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2)
 #endif // end 480x320 display plot definitions
 
@@ -1008,7 +1008,7 @@ void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
 void redraw_marker(int8_t marker);
 void plot_into_index(void);
-void draw_all(bool flush);
+void draw_all(void);
 void set_area_size(uint16_t w, uint16_t h);
 void plot_set_measure_mode(uint8_t mode);
 uint16_t plot_get_measure_channels(void);
