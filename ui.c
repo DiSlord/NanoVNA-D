@@ -799,7 +799,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
     current_trace = data;                           // make active
   else                                              //
     set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
-  request_to_redraw(REDRAW_AREA);
+  request_to_redraw(REDRAW_MARKER);
 }
 
 extern const menuitem_t menu_marker_s11smith[];
@@ -926,14 +926,14 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
   else                            config._vna_mode^= m; // toggle
   if (old == config._vna_mode) return;
-  request_to_redraw(REDRAW_BACKUP | REDRAW_AREA);
+  request_to_redraw(REDRAW_BACKUP);
   // Custom processing after apply
   switch(idx) {
 #ifdef __USE_SERIAL_CONSOLE__
     case VNA_MODE_CONNECTION: shell_reset_console(); break;
 #endif
     case VNA_MODE_SEARCH:
-      marker_search(true);
+      marker_search();
 #ifdef UI_USE_LEVELER_SEARCH_MODE
       select_lever_mode(LM_SEARCH);
 #endif
@@ -941,7 +941,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
 #ifdef __FLIP_DISPLAY__
     case VNA_MODE_FLIP_DISPLAY:
       lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
-      request_to_redraw(REDRAW_CLRSCR | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+      request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
       draw_all();
     break;
 #endif
@@ -1166,6 +1166,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
       markers[mk].enabled = FALSE;      //  disable it
       mk = previous_marker;             //  set select from previous marker
       active_marker = MARKER_INVALID;   //  invalidate active
+      request_to_redraw(REDRAW_AREA);
     }
   } else {
     markers[mk].enabled = TRUE;         // Enable marker
@@ -1184,7 +1185,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb)
     markers[i].enabled = FALSE;     // all off
   previous_marker = MARKER_INVALID;
   active_marker = MARKER_INVALID;
-  request_to_redraw(REDRAW_MARKER);
+  request_to_redraw(REDRAW_AREA);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
@@ -3103,10 +3104,9 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=2*ref-NGRIDY   + NGRIDY/2;}
   else                                 ref-=0.5f;
 
-  trace[t].scale  = scale;
-  trace[t].refpos =   ref;
+  if (trace[t].scale  != scale) {request_to_redraw(REDRAW_MARKER);    trace[t].scale  = scale;}
+  if (trace[t].refpos !=   ref) {request_to_redraw(REDRAW_REFERENCE); trace[t].refpos =   ref;}
   plot_into_index();
-  request_to_redraw(REDRAW_CELLS);
   chThdSleepMilliseconds(200);
   return TRUE;
 }

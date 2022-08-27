@@ -35,7 +35,7 @@ static void markmap_all_markers(void);
 static int16_t grid_offset;
 static int16_t grid_width;
 
-static uint8_t redraw_request = 0; // contains REDRAW_XXX flags
+static uint16_t redraw_request = 0; // contains REDRAW_XXX flags
 
 static uint16_t area_width  = AREA_WIDTH_NORMAL;
 static uint16_t area_height = AREA_HEIGHT_NORMAL;
@@ -55,8 +55,7 @@ typedef uint16_t map_t;
 typedef uint32_t map_t;
 #endif
 
-static map_t   markmap[2][MAX_MARKMAP_Y];
-static uint8_t current_mappage = 0;
+static map_t markmap[MAX_MARKMAP_Y];
 
 // Trace data cache, for faster redraw cells
 typedef struct {
@@ -685,19 +684,18 @@ const char *get_smith_format_names(int m)
 }
 
 static void mark_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
-  map_t *map = &markmap[current_mappage][0];
   x1/= CELLWIDTH;  x2/= CELLWIDTH;
   y1/= CELLHEIGHT; y2/= CELLHEIGHT;
   if (x1 == x2 && y1 == y2) {
-    map[y1] |= 1 << x1;
+    markmap[y1] |= 1 << x1;
     return;
   }
+  uint32_t mask = 0;
   if (x1 > x2) SWAP(uint16_t, x1, x2);
+  for (; x1 <= x2; x1++) mask|= 1 << x1;
   if (y1 > y2) SWAP(uint16_t, y1, y2);
-  for (; y1 <= y2; y1++) {
-    for (uint16_t j = x1; j <= x2; j++)
-      map[y1]|= 1 << j;
-  }
+  for (; y1 <= y2; y1++)
+    markmap[y1]|= mask;
 }
 
 static void mark_set_index(index_t *index, uint16_t i, uint16_t x, uint16_t y) {
@@ -716,10 +714,9 @@ static void mark_set_index(index_t *index, uint16_t i, uint16_t x, uint16_t y) {
 
 // Calculate and cache point coordinates for trace
 static void
-trace_into_index(int t)
-{
+trace_into_index(int t) {
+  uint16_t start = 0, stop = sweep_points - 1, i;
   float *array = &measured[trace[t].channel][0][0];
-  uint16_t point_count = sweep_points-1;
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
@@ -729,10 +726,9 @@ trace_into_index(int t)
     const float dscale = GRIDY / scale;
     if (type & (1<<TRC_SWR))  // For SWR need shift value by 1.0 down
       refpos+= dscale;
-    uint16_t delta = WIDTH / point_count;
-    uint16_t error = WIDTH % point_count;
-    int32_t x = CELLOFFSETX, dx = (point_count>>1), y, i;
-    for (i = 0; i <= point_count; i++, x+=delta) {
+    uint32_t dx = ((WIDTH)<<16) / (sweep_points-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
+    int16_t y;
+    for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
       if (c) v = c(i, &array[2*i]);         // Get value
       if (v == INFINITY) {
@@ -742,16 +738,15 @@ trace_into_index(int t)
              if (y <      0) y = 0;
         else if (y > HEIGHT) y = HEIGHT;
       }
-      mark_set_index(index, i, x, y);
-      dx+=error; if (dx >=point_count) {x++; dx-= point_count;}
+      mark_set_index(index, i, (uint16_t)(x>>16), y);
     }
     return;
   }
   // Smith/Polar grid
   if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))) { // Need custom calculations
     const float rscale = P_RADIUS / scale;
-    int16_t y, x, i;
-    for (i = 0; i <= point_count; i++){
+    int16_t y, x;
+    for (i = start; i <= stop; i++){
       cartesian_scale(&array[2*i], &x, &y, rscale);
       mark_set_index(index, i, x, y);
     }
@@ -829,15 +824,9 @@ static float distance_of_index(int idx)
 }
 
 static inline void
-swap_markmap(void)
-{
-  current_mappage^= 1;
-}
-
-static inline void
 clear_markmap(void)
 {
-  memset(markmap[current_mappage], 0, sizeof markmap[current_mappage]);
+  memset(markmap, 0, sizeof markmap);
 }
 
 /*
@@ -846,7 +835,7 @@ clear_markmap(void)
 static inline void
 force_set_markmap(void)
 {
-  memset(markmap[current_mappage^1], 0xff, sizeof markmap[current_mappage]);
+  memset(markmap, 0xff, sizeof markmap);
 }
 
 /*
@@ -858,10 +847,9 @@ invalidate_rect_func(int x0, int y0, int x1, int y1)
   int x, y;
   if (y0 < 0            ) y0 = 0;
   if (y1 >=MAX_MARKMAP_Y) y1 = MAX_MARKMAP_Y-1;
-  map_t *map = markmap[current_mappage];
   for (y = y0; y <= y1; y++)
     for (x = x0; x <= x1; x++)
-      map[y]|= 1 << x;
+      markmap[y]|= 1 << x;
 }
 #define invalidate_rect(x0, y0, x1, y1) invalidate_rect_func((x0)/CELLWIDTH, (y0)/CELLHEIGHT, (x1)/CELLWIDTH, (y1)/CELLHEIGHT)
 
@@ -871,6 +859,7 @@ void toogleStoredTrace(int idx) {
   uint8_t mask = 1<<idx;
   if (enabled_store_trace & mask) {
     enabled_store_trace&= ~mask;
+    request_to_redraw(REDRAW_AREA);
     return;
   }
   if (current_trace == TRACE_INVALID) return;
@@ -921,9 +910,7 @@ static int marker_area_max(void) {
 static inline void
 markmap_upperarea(void) {
   // Hardcoded, Text info from upper area
-  swap_markmap();
   invalidate_rect(0, 0, AREA_WIDTH_NORMAL, marker_area_max());
-  swap_markmap();
 }
 
 #ifdef __VNA_FAST_LINES__
@@ -1207,14 +1194,10 @@ static void cell_draw_measure(int x0, int y0){
 // Icons bitmap
 #include "icons_marker.c"
 
-static void
-markmap_marker(int marker)
+void
+request_to_draw_marker(uint16_t mk_idx)
 {
-  int t;
-  if (!markers[marker].enabled)
-    return;
-  int mk_idx = markers[marker].index;
-  for (t = 0; t < TRACES_MAX; t++) {
+  for (int t = 0; t < TRACES_MAX; t++) {
     if (!trace[t].enabled)
       continue;
     index_t *index = trace_index[t];
@@ -1231,18 +1214,16 @@ markmap_all_markers(void)
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
-    markmap_marker(i);
+    request_to_draw_marker(markers[i].index);
   }
   markmap_upperarea();
 }
 
-#if 0
 static void
 markmap_all_refpos(void)
 {
   invalidate_rect(OFFSETX, OFFSETY, CELLOFFSETX+1, AREA_HEIGHT_NORMAL);
 }
-#endif
 
 //
 // Marker search functions
@@ -1250,7 +1231,7 @@ markmap_all_refpos(void)
 static bool _greater(int x, int y) { return x > y; }
 static bool _lesser(int x, int y) { return x < y; }
 void
-marker_search(bool update)
+marker_search(void)
 {
   int i, value;
   int found = 0;
@@ -1267,8 +1248,6 @@ marker_search(bool update)
     }
   }
   set_marker_index(active_marker, found);
-  if (update)
-    redraw_marker(active_marker);
 }
 
 void
@@ -1297,7 +1276,6 @@ marker_search_dir(int16_t from, int16_t dir)
   }
   if (found < 0) return;
   set_marker_index(active_marker, found);
-  redraw_marker(active_marker);
 }
 
 int
@@ -1330,17 +1308,17 @@ search_nearest_index(int x, int y, int t)
 void
 plot_into_index(void)
 {
-  int t;
+  // Mark old markers for erase
+  markmap_all_markers();
 //  START_PROFILE;
-  // Cache trace data indexes
-  for (t = 0; t < TRACES_MAX; t++) {
+  // Cache trace data indexes, and mark plot area for update
+  for (int t = 0; t < TRACES_MAX; t++)
     if (trace[t].enabled)
       trace_into_index(t);
-  }
 //  STOP_PROFILE;
   // Marker track on data update
   if (props_mode & TD_MARKER_TRACK)
-    marker_search(false);
+    marker_search();
 #ifdef __VNA_MEASURE_MODULE__
   // Current scan update
   measure_set_flag(MEASURE_UPD_SWEEP);
@@ -1600,8 +1578,7 @@ draw_all_cells(void)
 #endif
 //  START_PROFILE
   for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++){
-    map_t update_map = markmap[0][n] | markmap[1][n];
-    if (update_map == 0) continue;
+    map_t update_map = markmap[n];
     for (m = 0; update_map; update_map>>=1, m++)
       if (update_map & 1)
         draw_cell(m, n);
@@ -1611,15 +1588,10 @@ draw_all_cells(void)
   lcd_bulk_finish();
   for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
     for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
-      if ((markmap[0][n] | markmap[1][n]) & (1 << m))
-        lcd_set_background(LCD_LOW_BAT_COLOR);
-      else
-        lcd_set_background(LCD_NORMAL_BAT_COLOR);
+      lcd_set_background((markmap[n] & (1 << m)) ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
       lcd_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2);
     }
 #endif
-  // keep current map for update
-  swap_markmap();
   // clear map for next plotting
   clear_markmap();
   // Flush LCD buffer, wait completion (need call after end use lcd_bulk_continue mode)
@@ -1643,8 +1615,9 @@ draw_all(void)
     force_set_markmap();
   else {
     if (redraw_request & REDRAW_MARKER) markmap_all_markers();
+    if (redraw_request & REDRAW_REFERENCE) markmap_all_refpos();
   }
-  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_AREA))
+  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_REFERENCE | REDRAW_AREA))
     draw_all_cells();
   if (redraw_request & REDRAW_FREQUENCY)
     draw_frequencies();
@@ -1659,20 +1632,19 @@ draw_all(void)
 // Call this function then need fast draw marker and marker info
 // Used in ui.c for leveler move marker, drag marker and etc.
 void
-redraw_marker(int8_t marker)
-{
-  if (marker == MARKER_INVALID)
+redraw_marker(int8_t marker) {
+  if (marker == MARKER_INVALID || !markers[marker].enabled)
     return;
-  // mark map on new position of marker
-  markmap_marker(marker);
-
 #ifdef __VNA_MEASURE_MODULE__
   if (marker == active_marker)
     measure_set_flag(MEASURE_UPD_FREQ);
 #endif
-  // mark cells on marker info
+  // Mark for update marker and text
+  request_to_draw_marker(markers[marker].index);
   markmap_upperarea();
+  // Draw all cells
   draw_all_cells();
+  redraw_request = 0;
 }
 
 // Marker and trace data position
@@ -1940,9 +1912,7 @@ void
 request_to_draw_cells_behind_menu(void)
 {
   // Values Hardcoded from ui.c
-  swap_markmap();
   invalidate_rect(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
-  swap_markmap();
   request_to_redraw(REDRAW_CELLS);
 }
 
@@ -1953,9 +1923,7 @@ void
 request_to_draw_cells_behind_numeric_input(void)
 {
   // Values Hardcoded from ui.c
-  swap_markmap();
   invalidate_rect(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, LCD_HEIGHT-1);
-  swap_markmap();
   request_to_redraw(REDRAW_CELLS);
 }
 
@@ -1963,7 +1931,7 @@ request_to_draw_cells_behind_numeric_input(void)
  * Set update mask for next screen update
  */
 void
-request_to_redraw(uint8_t mask)
+request_to_redraw(uint16_t mask)
 {
   redraw_request|= mask;
 }

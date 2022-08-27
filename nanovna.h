@@ -1003,9 +1003,10 @@ float groupdelay_from_array(int i, const float *v);
 
 void plot_init(void);
 void update_grid(void);
-void request_to_redraw(uint8_t mask);
+void request_to_redraw(uint16_t mask);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
+void request_to_draw_marker(uint16_t idx);
 void redraw_marker(int8_t marker);
 void plot_into_index(void);
 void draw_all(void);
@@ -1025,7 +1026,7 @@ const char *get_smith_format_names(int m);
 // Marker search functions
 #define MK_SEARCH_LEFT    -1
 #define MK_SEARCH_RIGHT    1
-void marker_search(bool update);
+void marker_search(void);
 void marker_search_dir(int16_t from, int16_t dir);
 
 // _request flag for update screen
@@ -1033,10 +1034,11 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
-#define REDRAW_BATTERY    (1<<4)
-#define REDRAW_AREA       (1<<5)
-#define REDRAW_CLRSCR     (1<<6)
-#define REDRAW_BACKUP     (1<<7)
+#define REDRAW_REFERENCE  (1<<4)
+#define REDRAW_BATTERY    (1<<5)
+#define REDRAW_AREA       (1<<6)
+#define REDRAW_CLRSCR     (1<<7)
+#define REDRAW_BACKUP     (1<<8)
 
 /*
  * ili9341.c

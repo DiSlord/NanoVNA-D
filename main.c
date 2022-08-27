@@ -122,7 +122,7 @@ static uint16_t p_sweep = 0;
 float measured[2][POINTS_COUNT][2];
 
 #undef VERSION
-#define VERSION "1.2.13"
+#define VERSION "1.2.14"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -920,27 +920,27 @@ static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith for
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
-  { TRUE, 0, 30*POINTS_COUNT/100-1, 0 },
+  { TRUE, 0, 10*POINTS_COUNT/100-1, 0 },
 #if MARKERS_MAX > 1
-  {FALSE, 0, 40*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 20*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 2
-  {FALSE, 0, 50*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 30*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 3
-  {FALSE, 0, 60*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 40*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 4
-  {FALSE, 0, 70*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 50*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 5
-  {FALSE, 0, 80*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 60*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 6
-  {FALSE, 0, 90*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 70*POINTS_COUNT/100-1, 0 },
 #endif
 #if MARKERS_MAX > 7
-  {FALSE, 0,100*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 80*POINTS_COUNT/100-1, 0 },
 #endif
 };
 
@@ -1501,8 +1501,11 @@ VNA_SHELL_FUNCTION(cmd_tcxo)
 void set_marker_index(int m, int idx)
 {
   if (m == MARKER_INVALID || (uint32_t)idx >= sweep_points) return;
-  markers[m].index = idx;
   markers[m].frequency = getFrequency(idx);
+  if (markers[m].index == idx) return;
+  request_to_draw_marker(markers[m].index); // Mark old marker position for erase
+  markers[m].index = idx;                   // Set new position
+  request_to_redraw(REDRAW_MARKER);
 }
 
 freq_t get_marker_frequency(int marker)
@@ -2160,6 +2163,7 @@ void set_trace_refpos(int t, float refpos)
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
     plot_into_index();
+    request_to_redraw(REDRAW_REFERENCE);
   }
 }
 
