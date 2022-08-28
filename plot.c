@@ -1805,8 +1805,8 @@ draw_frequencies(void)
       lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
-    lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "%c%s 0s",        lm0, "START");
-    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %F" S_SECOND " (%F" S_METRE ")", lm1, "STOP", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
+    lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "START 0" S_SECOND "    VF = %d%%", velocity_factor);
+    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "STOP %F" S_SECOND " (%F" S_METRE ")", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
@@ -1939,6 +1939,7 @@ request_to_redraw(uint16_t mask)
 void
 plot_init(void)
 {
+  plot_into_index();
   request_to_redraw(REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   draw_all();
 }

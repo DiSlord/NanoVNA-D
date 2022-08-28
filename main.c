@@ -2134,7 +2134,6 @@ void set_trace_type(int t, int type, int channel)
     trace[t].refpos = trace_info_list[type].refpos;
     // Set default trace scale
     trace[t].scale  = trace_info_list[type].scale_unit;
-
   }
   trace[t].channel = channel;
   plot_into_index();
@@ -2169,13 +2168,9 @@ void set_trace_refpos(int t, float refpos)
 
 void set_trace_enable(int t, bool enable)
 {
-  if (enable) {
-    trace[t].enabled = TRUE;
-    current_trace = t;
-  }
-  else {
-    trace[t].enabled = FALSE;             // disable if active trace is selected
-    current_trace = TRACE_INVALID;        // invalidate current
+  trace[t].enabled = enable;
+  current_trace = enable ? t : TRACE_INVALID;
+  if (!enable) {
     for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
       if (trace[i].enabled) {current_trace = i; break;}
   }
@@ -2187,7 +2182,7 @@ void set_electrical_delay(float picoseconds)
   picoseconds*= 1e-12;
   if (electrical_delay != picoseconds) {
     electrical_delay = picoseconds;
-    request_to_redraw(REDRAW_AREA);
+    request_to_redraw(REDRAW_MARKER);
   }
 }
 
@@ -2195,7 +2190,7 @@ void set_s21_offset(float offset)
 {
   if (s21_offset != offset) {
     s21_offset = offset;
-    request_to_redraw(REDRAW_AREA);
+    request_to_redraw(REDRAW_MARKER);
   }
 }
 
@@ -2361,18 +2356,11 @@ VNA_SHELL_FUNCTION(cmd_touchcal)
 {
   (void)argc;
   (void)argv;
-  //extern int16_t touch_cal[4];
-  int i;
-
   shell_printf("first touch upper left, then lower right...");
   touch_cal_exec();
-  shell_printf("done" VNA_SHELL_NEWLINE_STR);
-
-  shell_printf("touch cal params:");
-  for (i = 0; i < 4; i++) {
-    shell_printf(" %d", config._touch_cal[i]);
-  }
-  shell_printf(VNA_SHELL_NEWLINE_STR);
+  shell_printf("done" VNA_SHELL_NEWLINE_STR \
+               "touch cal params: %d %d %d %d" VNA_SHELL_NEWLINE_STR,
+               config._touch_cal[0], config._touch_cal[1], config._touch_cal[2], config._touch_cal[3]);
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 }
 
@@ -2426,30 +2414,14 @@ VNA_SHELL_FUNCTION(cmd_transform)
   static const char cmd_transform_list[] = "on|off|impulse|step|bandpass|minimum|normal|maximum";
   for (i = 0; i < argc; i++) {
     switch (get_str_index(argv[i], cmd_transform_list)) {
-      case 0:
-        set_domain_mode(DOMAIN_TIME);
-        return;
-      case 1:
-        set_domain_mode(DOMAIN_FREQ);
-        return;
-      case 2:
-        set_timedomain_func(TD_FUNC_LOWPASS_IMPULSE);
-        return;
-      case 3:
-        set_timedomain_func(TD_FUNC_LOWPASS_STEP);
-        return;
-      case 4:
-        set_timedomain_func(TD_FUNC_BANDPASS);
-        return;
-      case 5:
-        set_timedomain_window(TD_WINDOW_MINIMUM);
-        return;
-      case 6:
-        set_timedomain_window(TD_WINDOW_NORMAL);
-        return;
-      case 7:
-        set_timedomain_window(TD_WINDOW_MAXIMUM);
-        return;
+      case 0: set_domain_mode(DOMAIN_TIME); break;
+      case 1: set_domain_mode(DOMAIN_FREQ); break;
+      case 2: set_timedomain_func(TD_FUNC_LOWPASS_IMPULSE); break;
+      case 3: set_timedomain_func(TD_FUNC_LOWPASS_STEP); break;
+      case 4: set_timedomain_func(TD_FUNC_BANDPASS); break;
+      case 5: set_timedomain_window(TD_WINDOW_MINIMUM); break;
+      case 6: set_timedomain_window(TD_WINDOW_NORMAL); break;
+      case 7: set_timedomain_window(TD_WINDOW_MAXIMUM); break;
       default:
         goto usage;
     }
