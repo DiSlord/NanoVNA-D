@@ -1674,7 +1674,7 @@ static const struct {uint16_t x, y;} marker_pos[]={
 #endif
 #ifdef LCD_480x320
  #define MARKER_FREQ         "%q" S_Hz
- #define MARKER_FREQ_SIZE       112
+ #define MARKER_FREQ_SIZE       116
 #endif
 
 static void

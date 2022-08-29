@@ -925,7 +925,17 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
   else                            config._vna_mode^= m; // toggle
   if (old == config._vna_mode) return;
-  request_to_redraw(REDRAW_BACKUP);
+  static const uint16_t redraw[] = {
+    [VNA_MODE_AUTO_NAME]    = REDRAW_BACKUP,
+    [VNA_MODE_SMOOTH]       = REDRAW_BACKUP,
+    [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
+    [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
+    [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_GRID_VALUE,
+    [VNA_MODE_DOT_GRID]     = REDRAW_BACKUP | REDRAW_AREA,
+    [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
+    [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY
+  };
+  request_to_redraw(redraw[idx]);
   // Custom processing after apply
   switch(idx) {
 #ifdef __USE_SERIAL_CONSOLE__
@@ -940,7 +950,6 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
 #ifdef __FLIP_DISPLAY__
     case VNA_MODE_FLIP_DISPLAY:
       lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
-      request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
       draw_all();
     break;
 #endif
