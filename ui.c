@@ -3103,8 +3103,8 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=2*ref-NGRIDY   + NGRIDY/2;}
   else                                 ref-=0.5f;
 
-  if (trace[t].scale  != scale) {request_to_redraw(REDRAW_MARKER);    trace[t].scale  = scale;}
-  if (trace[t].refpos !=   ref) {request_to_redraw(REDRAW_REFERENCE); trace[t].refpos =   ref;}
+  if (trace[t].scale  != scale) {request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE);    trace[t].scale  = scale;}
+  if (trace[t].refpos !=   ref) {request_to_redraw(REDRAW_REFERENCE | REDRAW_GRID_VALUE); trace[t].refpos =   ref;}
   plot_into_index();
   chThdSleepMilliseconds(200);
   return TRUE;

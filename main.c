@@ -2152,9 +2152,7 @@ void set_trace_channel(int t, int channel)
 void set_active_trace(int t) {
   if (current_trace == t) return;
   current_trace = t;
-  if (VNA_MODE(VNA_MODE_SHOW_GRID))
-    request_to_draw_cells_behind_menu();
-  request_to_redraw(REDRAW_MARKER);
+  request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE);
 }
 
 void set_trace_scale(int t, float scale)
@@ -2162,6 +2160,7 @@ void set_trace_scale(int t, float scale)
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
     plot_into_index();
+    request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE);
   }
 }
 
@@ -2170,7 +2169,7 @@ void set_trace_refpos(int t, float refpos)
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
     plot_into_index();
-    request_to_redraw(REDRAW_REFERENCE);
+    request_to_redraw(REDRAW_REFERENCE | REDRAW_GRID_VALUE);
   }
 }
 

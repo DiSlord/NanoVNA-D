@@ -1352,6 +1352,11 @@ static void cell_grid_line_info(int x0, int y0)
   }while((ypos+=GRIDY) < CELLHEIGHT);
   cell_set_font(FONT_NORMAL);
 }
+
+static void markmap_grid_values(void) {
+  if (VNA_MODE(VNA_MODE_SHOW_GRID))
+    invalidate_rect(GRID_X_TEXT, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
+}
 #endif
 
 static void
@@ -1616,6 +1621,9 @@ draw_all(void)
   else {
     if (redraw_request & REDRAW_MARKER) markmap_all_markers();
     if (redraw_request & REDRAW_REFERENCE) markmap_all_refpos();
+#ifdef __USE_GRID_VALUES__
+    if (redraw_request & REDRAW_GRID_VALUE) markmap_grid_values();
+#endif
   }
   if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_REFERENCE | REDRAW_AREA))
     draw_all_cells();
