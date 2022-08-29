@@ -3040,7 +3040,7 @@ touch_pickup_marker(int touch_x, int touch_y)
   do {
     touch_position(&touch_x, &touch_y);
     int index = search_nearest_index(touch_x - OFFSETX, touch_y - OFFSETY, current_trace);
-    if (index >= 0) {
+    if (index >= 0 && markers[active_marker].index != index) {
       set_marker_index(active_marker, index);
       redraw_marker(active_marker);
     }

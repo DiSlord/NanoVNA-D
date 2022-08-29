@@ -1650,9 +1650,9 @@ redraw_marker(int8_t marker) {
   // Mark for update marker and text
   request_to_draw_marker(markers[marker].index);
   markmap_upperarea();
-  // Draw all cells
-  draw_all_cells();
-  redraw_request = 0;
+  redraw_request&= ~(REDRAW_MARKER); // reset all marker update
+  redraw_request|= REDRAW_CELLS;     // Update cells
+  draw_all();
 }
 
 // Marker and trace data position
