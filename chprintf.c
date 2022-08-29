@@ -422,7 +422,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       if (state & COMPLEX)
         *p++ = 'j';
       if (value.f == INFINITY){
-        *p++ = 0x19;
+        *p++ = 0x19; *p++ = ' ';
         break;
       }
       // Set default precision

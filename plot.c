@@ -396,7 +396,7 @@ resistance(int i, const float *v)
   const float z0 = PORT_Z;
   const float d = get_d(v[0], v[1]);
   const float r = get_r(v[0], v[1]);
-  return /* d == 0 ? INFINITY : */ z0 * r / d;
+  return d < 0.0f ? INFINITY : z0 * r / d;
 }
 
 static float
@@ -406,7 +406,7 @@ reactance(int i, const float *v)
   const float z0 = PORT_Z;
   const float d = get_d(v[0], v[1]);
   const float x = get_x(v[1]);
-  return /* d == 0 ? INFINITY :*/ z0 * x / d;
+  return z0 * x / d;
 }
 
 static float
@@ -734,9 +734,10 @@ trace_into_index(int t) {
       if (v == INFINITY) {
         y = 0;
       } else {
-        y = refpos - v * dscale;
-             if (y <      0) y = 0;
-        else if (y > HEIGHT) y = HEIGHT;
+        v = refpos - v * dscale;
+             if (v <      0) y = 0;
+        else if (v > HEIGHT) y = HEIGHT;
+        else y = v;
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
     }
@@ -844,12 +845,13 @@ force_set_markmap(void)
 static void
 invalidate_rect_func(int x0, int y0, int x1, int y1)
 {
-  int x, y;
   if (y0 < 0            ) y0 = 0;
   if (y1 >=MAX_MARKMAP_Y) y1 = MAX_MARKMAP_Y-1;
-  for (y = y0; y <= y1; y++)
-    for (x = x0; x <= x1; x++)
-      markmap[y]|= 1 << x;
+  uint32_t mask = 0;
+  for (; x0 <= x1; x0++) mask|= 1 << x0;
+  for (; y0 <= y1; y0++)
+    if ((uint32_t)y0 < MAX_MARKMAP_Y)
+        markmap[y0]|= mask;
 }
 #define invalidate_rect(x0, y0, x1, y1) invalidate_rect_func((x0)/CELLWIDTH, (y0)/CELLHEIGHT, (x1)/CELLWIDTH, (y1)/CELLHEIGHT)
 

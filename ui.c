@@ -3043,7 +3043,8 @@ touch_pickup_marker(int touch_x, int touch_y)
     if (index >= 0 && markers[active_marker].index != index) {
       set_marker_index(active_marker, index);
       redraw_marker(active_marker);
-    }
+    } else
+      chThdSleepMilliseconds(50); // Not check new position too fast
   } while (touch_check()!= EVT_TOUCH_RELEASED);
   return TRUE;
 }
