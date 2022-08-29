@@ -796,10 +796,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   }
 
   if (trace[data].enabled && data != current_trace) // for enabled trace and not current trace
-    current_trace = data;                           // make active
+    set_active_trace(data);                     // make active
   else                                              //
     set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
-  request_to_redraw(REDRAW_MARKER);
 }
 
 extern const menuitem_t menu_marker_s11smith[];
@@ -3036,7 +3035,7 @@ touch_pickup_marker(int touch_x, int touch_y)
   // Leveler mode = marker move
   select_lever_mode(LM_MARKER);
   // select trace
-  current_trace = mt;
+  set_active_trace(mt);
   // drag marker until release
   do {
     touch_position(&touch_x, &touch_y);

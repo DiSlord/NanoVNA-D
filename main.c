@@ -2149,6 +2149,14 @@ void set_trace_channel(int t, int channel)
   }
 }
 
+void set_active_trace(int t) {
+  if (current_trace == t) return;
+  current_trace = t;
+  if (VNA_MODE(VNA_MODE_SHOW_GRID))
+    request_to_draw_cells_behind_menu();
+  request_to_redraw(REDRAW_MARKER);
+}
+
 void set_trace_scale(int t, float scale)
 {
   if (trace[t].scale != scale) {
@@ -2172,7 +2180,7 @@ void set_trace_enable(int t, bool enable)
   current_trace = enable ? t : TRACE_INVALID;
   if (!enable) {
     for (int i = 0; i < TRACES_MAX; i++)  // set first enabled as current trace
-      if (trace[i].enabled) {current_trace = i; break;}
+      if (trace[i].enabled) {set_active_trace(i); break;}
   }
   request_to_redraw(REDRAW_AREA);
 }

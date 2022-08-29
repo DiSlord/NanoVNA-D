@@ -988,6 +988,7 @@ extern properties_t current_props;
 void set_trace_type(int t, int type, int channel);
 void set_trace_channel(int t, int channel);
 void set_trace_scale(int t, float scale);
+void set_active_trace(int t);
 void set_trace_refpos(int t, float refpos);
 void set_trace_enable(int t, bool enable);
 const char *get_trace_chname(int t);
