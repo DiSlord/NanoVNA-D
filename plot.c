@@ -720,24 +720,23 @@ trace_into_index(int t) {
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
-  float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5;  // 0.5 for pixel align
+  float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5f; // 0.5 for pixel align
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
     if (type & (1<<TRC_SWR))  // For SWR need shift value by 1.0 down
       refpos+= dscale;
     uint32_t dx = ((WIDTH)<<16) / (sweep_points-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
-    int16_t y;
+    int32_t y;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
       if (c) v = c(i, &array[2*i]);         // Get value
       if (v == INFINITY) {
         y = 0;
       } else {
-        v = refpos - v * dscale;
-             if (v <      0) y = 0;
-        else if (v > HEIGHT) y = HEIGHT;
-        else y = v;
+        y = refpos - v * dscale;
+             if (y <      0) y = 0;
+        else if (y > HEIGHT) y = HEIGHT;
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
     }
