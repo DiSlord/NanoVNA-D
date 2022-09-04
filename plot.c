@@ -282,33 +282,41 @@ rectangular_grid_y(int y)
 // This functions used for plot traces, and markers data output
 // Also can used in measure calculations
 //**************************************************************************************
+#ifdef __VNA_Z_RENORMALIZATION__
+#define PORT_Z current_props._portz
+#else
+#define PORT_Z 50.0f
+#endif
+// Help functions
+static float get_l(float re, float im) {return (re*re + im*im);}
+static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
+static float get_r(float re, float im, float z) {return vna_fabsf(2.0f * z * re / get_l(re, im) - z);}
+static float get_s21_r(float re, float im, float z) {return vna_fabsf(z * re / get_l(re, im) - z);}
+static float get_x(float re, float im, float z) {return z * 2.0f * im / get_l(re, im);}
+static float get_s21_x(float re, float im, float z) {return z * im / get_l(re, im);}
+
+//**************************************************************************************
 // LINEAR = |S|
 //**************************************************************************************
-static float
-linear(int i, const float *v)
-{
+static float linear(int i, const float *v) {
   (void) i;
-  return vna_sqrtf(v[0]*v[0] + v[1]*v[1]);
+  return vna_sqrtf(get_l(v[0], v[1]));
 }
+
 //**************************************************************************************
 // LOGMAG = 20*log10f(|S|)
 //**************************************************************************************
-static float
-logmag(int i, const float *v)
-{
+static float logmag(int i, const float *v) {
   (void) i;
-  float x = v[0]*v[0] + v[1]*v[1];
-//  return log10f(x) *  10.0f;
-//  return vna_logf(x) * (10.0f / logf(10.0f));
-  return vna_log10f_x_10(x);
+//  return log10f(get_l(v[0], v[1])) *  10.0f;
+//  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
+  return vna_log10f_x_10(get_l(v[0], v[1]));
 }
 
 //**************************************************************************************
 // PHASE angle in degree = atan2(im, re) * 180 / PI
 //**************************************************************************************
-static float
-phase(int i, const float *v)
-{
+static float phase(int i, const float *v) {
   (void) i;
   return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
 }
@@ -316,9 +324,7 @@ phase(int i, const float *v)
 //**************************************************************************************
 // Group delay
 //**************************************************************************************
-static float
-groupdelay(const float *v, const float *w, uint32_t deltaf)
-{
+static float groupdelay(const float *v, const float *w, uint32_t deltaf) {
 #if 1
   // atan(w)-atan(v) = atan((w-v)/(1+wv))
   float r = w[0]*v[0] + w[1]*v[1];
@@ -332,9 +338,7 @@ groupdelay(const float *v, const float *w, uint32_t deltaf)
 //**************************************************************************************
 // REAL
 //**************************************************************************************
-static float
-real(int i, const float *v)
-{
+static float real(int i, const float *v) {
   (void) i;
   return v[0];
 }
@@ -342,9 +346,7 @@ real(int i, const float *v)
 //**************************************************************************************
 // IMAG
 //**************************************************************************************
-static float
-imag(int i, const float *v)
-{
+static float imag(int i, const float *v) {
   (void) i;
   return v[1];
 }
@@ -352,9 +354,7 @@ imag(int i, const float *v)
 //**************************************************************************************
 // SWR = (1 + |S|)/(1 - |S|)
 //**************************************************************************************
-static float
-swr(int i, const float *v)
-{
+static float swr(int i, const float *v) {
   (void) i;
   float x = linear(i, v);
   if (x > 0.99f)
@@ -362,87 +362,56 @@ swr(int i, const float *v)
   return (1 + x)/(1 - x);
 }
 
-#ifdef __VNA_Z_RENORMALIZATION__
-#define PORT_Z current_props._portz
-#else
-#define PORT_Z 50.0f
-#endif
-
-static float get_d(float re, float im) {return (1.0f - re)*(1.0f - re) + im*im;}
-static float get_r(float re, float im) {return (1.0f - re*re - im*im);}
-static float get_l(float re, float im) {return (re*re + im*im);}
-static float get_a(float re, float im) {return (re - re*re - im*im);}
-static float get_x(float im) {return 2.0f * im;}
-static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
-
 //**************************************************************************************
-// Z parameters calculations from complex gamma
-// Z = R_ref * (1 + gamma) / (1 - gamma) = R + jX
-// Resolve this in complex give:
-//  R = z0 * (1 - re*re - im*im) / ((1-re)*(1-re) + im*im))
-//  X = z0 *               2*im  / ((1-re)*(1-re) + im*im))
+// Z parameters calculations from complex S
+// Z = z0 * (1 + S) / (1 - S) = R + jX
 // |Z| = sqrtf(R*R+X*X)
-//
-//  replace r = (1 - re*re - im*im); x = 2*im; d = ((1-re)*(1-re) + im*im))
-// R = z0 * r / d
-// X = z0 * x / d
-// |Z| = z0 * sqrt(4 * re / d + 1)
+// Resolve this in complex give:
+//   let S` = 1 - S
+//       l` = re` * re` + im` * im`
+// Z = z0 * (2 - S`) / S` = z0 * 2 / S` - z0
+//  R = z0 * 2 * re` / l` - z0
+//  X = z0 * 2 * im` / l`
+// |Z| = z0 * sqrt(4 * re / l` + 1)
 // Z phase = atan(X, R)
 //**************************************************************************************
-static float
-resistance(int i, const float *v)
-{
+static float resistance(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float r = get_r(v[0], v[1]);
-  return d < 0.0f ? INFINITY : z0 * r / d;
+  return get_r(1.0f - v[0], v[1], PORT_Z);
 }
 
-static float
-reactance(int i, const float *v)
-{
+static float reactance(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float x = get_x(v[1]);
-  return z0 * x / d;
+  return get_x(1.0f - v[0], v[1], PORT_Z);
 }
 
-static float
-mod_z(int i, const float *v)
-{
+static float mod_z(int i, const float *v) {
   (void) i;
   const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  return z0 * vna_sqrtf(4 * v[0] / d + 1); // always >= 0
+  const float l = get_l(1.0f - v[0], v[1]);
+  return z0 * vna_sqrtf(4.0f * v[0] / l + 1.0f); // always >= 0
 }
 
-static float
-phase_z(int i, const float *v)
-{
+static float phase_z(int i, const float *v) {
   (void) i;
-  const float r = get_r(v[0], v[1]);
-  const float x = get_x(v[1]);
+  const float r = 1.0f - get_l(v[0], v[1]);
+  const float x = 2.0f * v[1];
   return (180.0f / VNA_PI) * vna_atan2f(x, r);
 }
+
 //**************************************************************************************
 // Use w = 2 * pi * frequency
 // Get Series L and C from X
 //  C = -1 / (w * X)
 //  L =  X / w
 //**************************************************************************************
-static float
-series_c(int i, const float *v)
-{
+static float series_c(int i, const float *v) {
   const float zi = reactance(i, v);
   const float w = get_w(i);
   return -1.0f / (w * zi);
 }
 
-static float
-series_l(int i, const float *v)
-{
+static float series_l(int i, const float *v) {
   const float zi = reactance(i, v);
   const float w = get_w(i);
   return zi / w;
@@ -451,44 +420,60 @@ series_l(int i, const float *v)
 //**************************************************************************************
 // Q factor = abs(X / R)
 //**************************************************************************************
-static float
-qualityfactor(int i, const float *v)
-{
+static float qualityfactor(int i, const float *v) {
   (void) i;
-  const float x = get_x(v[1]);
-  const float r = get_r(v[0], v[1]);
+  const float r = 1.0f - get_l(v[0], v[1]);
+  const float x = 2.0f * v[1];
   return vna_fabsf(x / r);
 }
 
 //**************************************************************************************
-// Y parameters (conductance and susceptance) calculations from complex Z
-// Y = 1 / Z = 1 / (R + jX) = B + jG
-//  G =  R / (R*R + X*X)
-//  B = -X / (R*R + X*X)
+// Y parameters (conductance and susceptance) calculations from complex S
+// Y = (1 / z0) * (1 - S) / (1 + S) = G + jB
+// Resolve this in complex give:
+//   let S` = 1 + S
+//       l` = re` * re` + im` * im`
+//      z0` = (1 / z0)
+// Y = z0` * (2 - S`) / S` = 2 * z0` / S` - z0`
+//  G =  2 * z0` * re` / l` - z0`
+//  B = -2 * z0` * im` / l`
 // |Y| = 1 / |Z|
 //**************************************************************************************
-static float
-conductance(int i, const float *v)
-{
+static float conductance(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float r = get_r(v[0], v[1]);
-  const float x = get_x(v[1]);
-  const float rx = z0 * (r*r + x*x);
-  return /* rx == 0 ? INFINITY :*/ r * d / rx;
+  return get_r(1.0f + v[0], v[1], 1.0f / PORT_Z);
 }
 
-static float
-susceptance(int i, const float *v)
-{
+static float susceptance(int i, const float *v) {
+  (void) i;
+  return get_x(1.0f + v[0], -v[1], 1.0f / PORT_Z);
+}
+
+//**************************************************************************************
+// Parallel R and X calculations from Y
+// Rp = 1 / G
+// Xp =-1 / B
+//**************************************************************************************
+static float parallel_r(int i, const float *v) {
+#if 1
+  return 1.0f / conductance(i, v);
+#else
+  (void) i;
+  const float re = 1.0f + v[0], im = v[1];
+  const float z0 = PORT_Z;
+  const float l = get_l(re, im);
+  return z0 * l / (2.0f * re - l);
+#endif
+}
+
+static float parallel_x(int i, const float *v) {
+#if 1
+  return -1.0f / susceptance(i, v);
+#else
   (void) i;
   const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float r = get_r(v[0], v[1]);
-  const float x = get_x(v[1]);
-  const float rx = z0 * (r*r + x*x);
-  return /* rx == 0 ? INFINITY :*/ -x * d / rx;
+  return z0 * get_l(1.0f + v[0], v[1]) / (2.0f * v[1]);
+#endif
 }
 
 //**************************************************************************************
@@ -497,111 +482,59 @@ susceptance(int i, const float *v)
 //  C =  B / w
 //  L = -1 / (w * B)
 //**************************************************************************************
-static float
-parallel_c(int i, const float *v)
-{
-  const float zi = susceptance(i, v);
+static float parallel_c(int i, const float *v) {
+  const float yi = susceptance(i, v);
   const float w = get_w(i);
-  return zi / w;
+  return yi / w;
 }
 
-static float
-parallel_l(int i, const float *v)
-{
-  const float zi = susceptance(i, v);
+static float parallel_l(int i, const float *v) {
+  const float xp = parallel_x(i, v);
   const float w = get_w(i);
-  return -1.0f / (w * zi);
+  return xp / w;
 }
 
-static float
-mod_y(int i, const float *v)
-{
+static float mod_y(int i, const float *v) {
   return 1.0f / mod_z(i, v); // always >= 0
 }
 
 //**************************************************************************************
-// Parallel R and X calculations from Y
-// Rp = 1 / G
-// Xp =-1 / B
-//**************************************************************************************
-static float
-parallel_r(int i, const float *v)
-{
-#if 1
-  return 1.0f / conductance(i, v);
-#else
-  (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float r = get_r(v[0], v[1]);
-  const float x = get_x(v[1]);
-  const float rx = z0 * (r*r + x*x);
-  return rx / (r * d);
-#endif
-}
-
-static float
-parallel_x(int i, const float *v)
-{
-#if 1
-  return -1.0f / susceptance(i, v);
-#else
-  (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float r = get_r(v[0], v[1]);
-  const float x = get_x(v[1]);
-  const float rx = z0 * (r*r + x*x);
-  return  rx / (x * d);
-#endif
-}
-
-//**************************************************************************************
 // S21 series and shunt
-// S21 shunt  Z = 0.5f * z0 * z / (1 - z)
-// S21 series Z = 2.0f * z0 * (1 - z) / z
+// S21 shunt  Z = 0.5f * z0 * S / (1 - S)
+//   replace S` = (1 - S)
+// S21 shunt  Z = 0.5f * z0 * (1 - S`) / S`
+// S21 series Z = 2.0f * z0 * (1 - S ) / S
+// Q21 = im / re
 //**************************************************************************************
 static float s21shunt_r(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  const float a = get_a(v[0], v[1]);
-  return 0.5f * z0 * a / d;
+  return get_s21_r(1.0f - v[0], v[1], 0.5f * PORT_Z);
 }
 
 static float s21shunt_x(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float d = get_d(v[0], v[1]);
-  return 0.5f * z0 * v[1] / d;
+  return get_s21_x(1.0f - v[0], v[1], 0.5f * PORT_Z);
 }
 
 static float s21series_r(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float l = get_l(v[0], v[1]);
-  return 2.0f * z0 * (v[0] - l) / l;
+  return get_s21_r(v[0], v[1], 2.0f * PORT_Z);
 }
 
 static float s21series_x(int i, const float *v) {
   (void) i;
-  const float z0 = PORT_Z;
-  const float l = get_l(v[0], v[1]);
-  return -2.0f * z0 * v[1] / l;
+  return get_s21_x(v[0], -v[1], 2.0f * PORT_Z);
 }
 
 static float s21_qualityfactor(int i, const float *v) {
   (void) i;
-  const float a = get_a(v[0], v[1]);
-  return vna_fabsf(v[1] / a);
+  return vna_fabsf(v[1] / (v[0] - get_l(v[0], v[1])));
 }
 
 //**************************************************************************************
 // Group delay
 //**************************************************************************************
-float
-groupdelay_from_array(int i, const float *v)
-{
+float groupdelay_from_array(int i, const float *v) {
   int bottom = (i ==              0) ? 0 : -1; // get prev point
   int top    = (i == sweep_points-1) ? 0 :  1; // get next point
   freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((sweep_points - 1) / (top - bottom));
@@ -609,8 +542,7 @@ groupdelay_from_array(int i, const float *v)
 }
 
 static inline void
-cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale)
-{
+cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
   int16_t x = P_CENTER_X + float2int(v[0] * scale);
   int16_t y = P_CENTER_Y - float2int(v[1] * scale);
   if      (x <      0) x = 0;
@@ -690,9 +622,8 @@ static void mark_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     markmap[y1] |= 1 << x1;
     return;
   }
-  uint32_t mask = 0;
   if (x1 > x2) SWAP(uint16_t, x1, x2);
-  for (; x1 <= x2; x1++) mask|= 1 << x1;
+  uint32_t mask = ((1 << (x2 - x1 + 1)) - 1) << x1;
   if (y1 > y2) SWAP(uint16_t, y1, y2);
   for (; y1 <= y2; y1++)
     markmap[y1]|= mask;
@@ -818,36 +749,28 @@ static float time_of_index(int idx)
   return (idx * (sweep_points-1)) / ((float)FFT_SIZE * span);
 }
 
-static float distance_of_index(int idx)
-{
+static float distance_of_index(int idx) {
   return velocity_factor * (SPEED_OF_LIGHT / 200.0f) * time_of_index(idx);
 }
 
-static inline void
-clear_markmap(void)
-{
-  memset(markmap, 0, sizeof markmap);
+static inline void clear_markmap(void) {
+  int n = MAX_MARKMAP_Y - 1;
+  do {markmap[n] = (map_t)0;} while(n--);
 }
 
 /*
  * Force full screen update
  */
-static inline void
-force_set_markmap(void)
-{
-  memset(markmap, 0xff, sizeof markmap);
+static inline void force_set_markmap(void) {
+  int n = MAX_MARKMAP_Y - 1;
+  do {markmap[n] = (map_t)-1;} while(n--);
 }
 
 /*
  * Force region of screen update
  */
-static void
-invalidate_rect_func(int x0, int y0, int x1, int y1)
-{
-  if (y0 < 0            ) y0 = 0;
-  if (y1 >=MAX_MARKMAP_Y) y1 = MAX_MARKMAP_Y-1;
-  uint32_t mask = 0;
-  for (; x0 <= x1; x0++) mask|= 1 << x0;
+static void invalidate_rect_func(int x0, int y0, int x1, int y1) {
+  uint32_t mask = ((1 << (x1 - x0 + 1)) - 1) << x0;
   for (; y0 <= y1; y0++)
     if ((uint32_t)y0 < MAX_MARKMAP_Y)
         markmap[y0]|= mask;
