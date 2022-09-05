@@ -326,7 +326,7 @@ static float phase(int i, const float *v) {
 //**************************************************************************************
 static float groupdelay(const float *v, const float *w, uint32_t deltaf) {
 #if 1
-  // atan(w)-atan(v) = atan((w-v)/(1+wv))
+  // atan(w)-atan(v) = atan((w-v)/(1+wv)), for complex v and w result q = v / w
   float r = w[0]*v[0] + w[1]*v[1];
   float i = w[0]*v[1] - w[1]*v[0];
   return vna_atan2f(i, r) / (2 * VNA_PI * deltaf);
@@ -419,6 +419,7 @@ static float series_l(int i, const float *v) {
 
 //**************************************************************************************
 // Q factor = abs(X / R)
+// Q = 2 * im / (1 - re * re - im * im)
 //**************************************************************************************
 static float qualityfactor(int i, const float *v) {
   (void) i;
@@ -1229,7 +1230,7 @@ search_nearest_index(int x, int y, int t)
 //
 // Build graph data and cache it for output
 //
-void
+static void
 plot_into_index(void)
 {
   // Mark old markers for erase
@@ -1535,6 +1536,7 @@ draw_all(void)
   if (redraw_request & REDRAW_BACKUP)
     update_backup_data();
 #endif
+  if (redraw_request & REDRAW_PLOT) plot_into_index();
   if (area_width == 0) {redraw_request = 0; return;}
   if (redraw_request & REDRAW_CLRSCR){
     lcd_set_background(LCD_BG_COLOR);
@@ -1549,7 +1551,7 @@ draw_all(void)
     if (redraw_request & REDRAW_GRID_VALUE) markmap_grid_values();
 #endif
   }
-  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_REFERENCE | REDRAW_AREA))
+  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_GRID_VALUE | REDRAW_REFERENCE | REDRAW_AREA))
     draw_all_cells();
   if (redraw_request & REDRAW_FREQUENCY)
     draw_frequencies();
@@ -1723,7 +1725,7 @@ draw_frequencies(void)
   // Draw frequency string
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, FREQUENCIES_YPOS, LCD_WIDTH, LCD_HEIGHT - FREQUENCIES_YPOS);
+  lcd_fill(0, HEIGHT + 1, LCD_WIDTH, LCD_HEIGHT - HEIGHT - 1);
   lcd_set_font(FONT_SMALL);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
@@ -1871,7 +1873,6 @@ request_to_redraw(uint16_t mask)
 void
 plot_init(void)
 {
-  plot_into_index();
-  request_to_redraw(REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_AREA | REDRAW_PLOT | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
   draw_all();
 }

@@ -265,7 +265,7 @@ static THD_FUNCTION(Thread1, arg)
       if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
-      plot_into_index();
+      request_to_redraw(REDRAW_PLOT);
     }
     request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
@@ -1345,7 +1345,6 @@ result:
 void set_sweep_points(uint16_t points){
   if (points == sweep_points || points > POINTS_COUNT)
     return;
-
   sweep_points = points;
   update_frequencies();
 }
@@ -1560,7 +1559,7 @@ update_frequencies(void)
   else
     cal_status&= ~CALSTAT_INTERPOLATED;
 
-  request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS | REDRAW_FREQUENCY | REDRAW_AREA);
+  request_to_redraw(REDRAW_BACKUP | REDRAW_PLOT | REDRAW_CAL_STATUS | REDRAW_FREQUENCY | REDRAW_AREA);
   RESET_SWEEP;
 }
 
@@ -2136,8 +2135,7 @@ void set_trace_type(int t, int type, int channel)
     trace[t].scale  = trace_info_list[type].scale_unit;
   }
   trace[t].channel = channel;
-  plot_into_index();
-  request_to_redraw(REDRAW_AREA);
+  request_to_redraw(REDRAW_AREA | REDRAW_PLOT);
 }
 
 void set_trace_channel(int t, int channel)
@@ -2145,7 +2143,7 @@ void set_trace_channel(int t, int channel)
   channel&= 1;
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
-    plot_into_index();
+    request_to_redraw(REDRAW_PLOT);
   }
 }
 
@@ -2159,8 +2157,7 @@ void set_trace_scale(int t, float scale)
 {
   if (trace[t].scale != scale) {
     trace[t].scale = scale;
-    plot_into_index();
-    request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE);
+    request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE | REDRAW_PLOT);
   }
 }
 
@@ -2168,8 +2165,7 @@ void set_trace_refpos(int t, float refpos)
 {
   if (trace[t].refpos != refpos) {
     trace[t].refpos = refpos;
-    plot_into_index();
-    request_to_redraw(REDRAW_REFERENCE | REDRAW_GRID_VALUE);
+    request_to_redraw(REDRAW_REFERENCE | REDRAW_GRID_VALUE | REDRAW_PLOT);
   }
 }
 

@@ -930,7 +930,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_SMOOTH]       = REDRAW_BACKUP,
     [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
     [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
-    [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_GRID_VALUE,
+    [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
     [VNA_MODE_DOT_GRID]     = REDRAW_BACKUP | REDRAW_AREA,
     [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
     [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY
@@ -2935,15 +2935,8 @@ lever_move_marker(uint16_t status)
   uint16_t step = 1<<MARKER_SPEEDUP;
   do {
     int idx = (int)markers[active_marker].index;
-    if (status & EVT_DOWN) {
-      idx-= step>>MARKER_SPEEDUP;
-      if (idx < 0) idx = 0;
-    }
-    if (status & EVT_UP) {
-     idx+= step>>MARKER_SPEEDUP;
-      if (idx  > sweep_points-1)
-        idx = sweep_points-1 ;
-    }
+    if ((status & EVT_DOWN) && (idx-= step>>MARKER_SPEEDUP) <                0) idx = 0;
+    if ((status & EVT_UP  ) && (idx+= step>>MARKER_SPEEDUP) > sweep_points - 1) idx = sweep_points-1;
     set_marker_index(active_marker, idx);
     redraw_marker(active_marker);
     step++;
@@ -3113,9 +3106,8 @@ normal_apply_ref_scale(int touch_x, int touch_y){
   else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=2*ref-NGRIDY   + NGRIDY/2;}
   else                                 ref-=0.5f;
 
-  if (trace[t].scale  != scale) {request_to_redraw(REDRAW_MARKER | REDRAW_GRID_VALUE);    trace[t].scale  = scale;}
-  if (trace[t].refpos !=   ref) {request_to_redraw(REDRAW_REFERENCE | REDRAW_GRID_VALUE); trace[t].refpos =   ref;}
-  plot_into_index();
+  set_trace_scale(t, scale);
+  set_trace_refpos(t, ref);
   chThdSleepMilliseconds(200);
   return TRUE;
 }

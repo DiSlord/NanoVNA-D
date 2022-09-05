@@ -1009,7 +1009,6 @@ void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
 void request_to_draw_marker(uint16_t idx);
 void redraw_marker(int8_t marker);
-void plot_into_index(void);
 void draw_all(void);
 void set_area_size(uint16_t w, uint16_t h);
 void plot_set_measure_mode(uint8_t mode);
@@ -1031,7 +1030,7 @@ void marker_search(void);
 void marker_search_dir(int16_t from, int16_t dir);
 
 // _request flag for update screen
-#define REDRAW_CELLS      (1<<0)
+#define REDRAW_PLOT       (1<<0)
 #define REDRAW_FREQUENCY  (1<<1)
 #define REDRAW_CAL_STATUS (1<<2)
 #define REDRAW_MARKER     (1<<3)
@@ -1041,6 +1040,7 @@ void marker_search_dir(int16_t from, int16_t dir);
 #define REDRAW_AREA       (1<<7)
 #define REDRAW_CLRSCR     (1<<8)
 #define REDRAW_BACKUP     (1<<9)
+#define REDRAW_CELLS      (1<<10)
 
 /*
  * ili9341.c
