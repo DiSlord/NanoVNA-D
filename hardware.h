@@ -179,7 +179,11 @@ void initI2S(void *buffer, uint16_t count);
 
 #define FLASH_PAGESIZE 0x800
 
-#define SAVEAREA_MAX 5
+#ifdef __USE_SD_CARD__
+# define SAVEAREA_MAX 5
+#else
+# define SAVEAREA_MAX 6
+#endif
 
 // Depend from config_t size, should be aligned by FLASH_PAGESIZE
 #define SAVE_CONFIG_SIZE        0x00000800

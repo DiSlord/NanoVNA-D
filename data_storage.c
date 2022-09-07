@@ -76,8 +76,8 @@ caldata_save(uint32_t id)
   current_props.magic = PROPS_MAGIC;
   current_props.checksum = checksum(&current_props, sizeof current_props - sizeof current_props.checksum);
 
-  // write to flash
-  uint16_t *dst = (uint16_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
+  // write to flash (id: top-down)
+  uint16_t *dst = (uint16_t*)(SAVE_PROP_CONFIG_ADDR + (SAVEAREA_MAX - 1 - id) * SAVE_PROP_CONFIG_SIZE);
   flash_program_half_word_buffer(dst, (uint16_t*)&current_props, sizeof(properties_t));
 
   lastsaveid = id;
@@ -89,8 +89,8 @@ get_properties(uint32_t id)
 {
   if (id >= SAVEAREA_MAX)
     return NULL;
-  // point to saved area on the flash memory
-  properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
+  // point to saved area on the flash memory (id: top-down)
+  properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + (SAVEAREA_MAX - 1 - id) * SAVE_PROP_CONFIG_SIZE);
   // Check crc cache mask (made it only 1 time)
   if (checksum_ok&(1<<id))
     return src;
