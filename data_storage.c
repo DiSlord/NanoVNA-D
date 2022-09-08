@@ -24,7 +24,7 @@
 #include <string.h>
 
 uint16_t lastsaveid = 0;
-#if SAVEAREA_MAX >= 8
+#if SAVEAREA_MAX > 8
 #error "Increase checksum_ok type for save more cache slots"
 #endif
 // properties CRC check cache (max 8 slots)
