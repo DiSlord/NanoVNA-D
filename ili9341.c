@@ -100,7 +100,7 @@ void spi_RxBuffer(uint8_t *buffer, uint16_t len) {
 
 void spi_DropRx(void) {
   // Drop Rx buffer after tx and wait tx complete
-#if 0
+#if 1
   while (SPI_RX_IS_NOT_EMPTY(LCD_SPI)||SPI_IS_BUSY(LCD_SPI))
     (void)SPI_READ_8BIT(LCD_SPI);
   (void)SPI_READ_8BIT(LCD_SPI);
@@ -708,7 +708,7 @@ void ili9341_set_rotation(uint8_t r) {
 }
 
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b) {
-#if 0
+#if 1 // Use this for remote desctop (in this case bulk operation send to remote)
   pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
   for (uint32_t c = 0; c < height; c++) {
@@ -844,6 +844,18 @@ int lcd_printfV(int16_t x, int16_t y, const char *fmt, ...) {
 int lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size) {
   const uint8_t *char_buf = FONT_GET_DATA(ch);
   uint16_t w = FONT_GET_WIDTH(ch);
+#if 1
+  pixel_t *buf = spi_buffer;
+  for (uint32_t c = 0; c < FONT_GET_HEIGHT; c++, char_buf++) {
+    for (uint32_t i = 0; i < size; i++) {
+      uint8_t bits = *char_buf;
+      for (uint32_t r = 0; r < w; r++, bits <<= 1)
+        for (uint32_t j = 0; j < size; j++)
+          *buf++ = (0x80 & bits) ? foreground_color : background_color;
+    }
+  }
+  lcd_bulk(x, y, w * size, FONT_GET_HEIGHT * size);
+#else
   ili9341_setWindow(x, y, w * size, FONT_GET_HEIGHT * size, ILI9341_MEMORY_WRITE);
   for (int c = 0; c < FONT_GET_HEIGHT; c++, char_buf++) {
     for (int i = 0; i < size; i++) {
@@ -855,6 +867,7 @@ int lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size) {
         }
     }
   }
+#endif
   return w * size;
 }
 
