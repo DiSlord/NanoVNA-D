@@ -1697,8 +1697,10 @@ const menuitem_t menu_trace[] = {
 const menuitem_t menu_format4[] = {
   { MT_ADV_CALLBACK, F_S21|TRC_Rser,   "SERIES R",   menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_Xser,   "SERIES X",   menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_Zser,   "SERIES |Z|", menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_Rsh,    "SHUNT R",    menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_Xsh,    "SHUNT X",    menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_Zsh,    "SHUNT |Z|",  menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_Qs21,   "Q FACTOR",   menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };

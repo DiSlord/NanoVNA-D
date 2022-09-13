@@ -783,7 +783,7 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 28
+#define MAX_TRACE_TYPE 30
 enum trace_type {
   TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
   TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
@@ -791,8 +791,8 @@ enum trace_type {
   TRC_sC, TRC_sL,
   TRC_pC, TRC_pL,
   TRC_Q,
-  TRC_Rser, TRC_Xser,
-  TRC_Rsh, TRC_Xsh,
+  TRC_Rser, TRC_Xser, TRC_Zser,
+  TRC_Rsh, TRC_Xsh, TRC_Zsh,
   TRC_Qs21
 };
 // Mask for define rectangular plot
@@ -802,8 +802,8 @@ enum trace_type {
                               |(1<<TRC_sC)|(1<<TRC_sL)\
                               |(1<<TRC_pC)|(1<<TRC_pL)\
                               |(1<<TRC_Q)\
-                              |(1<<TRC_Rser)|(1<<TRC_Xser)\
-                              |(1<<TRC_Rsh)|(1<<TRC_Xsh)\
+                              |(1<<TRC_Rser)|(1<<TRC_Xser)|(1<<TRC_Zser)\
+                              |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
                               |(1<<TRC_Qs21))
 
 #define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))

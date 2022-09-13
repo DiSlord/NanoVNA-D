@@ -122,7 +122,7 @@ static uint16_t p_sweep = 0;
 float measured[2][POINTS_COUNT][2];
 
 #undef VERSION
-#define VERSION "1.2.14"
+#define VERSION "1.2.15"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1998,7 +1998,7 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   // Not need interpolate
   if (f == src_f0) goto copy_point;
 
-  float k1 = (delta == 0) ? 0.0 : (float)(f - src_f0) / delta;
+  float k1 = (delta == 0) ? 0.0f : (float)(f - src_f0) / delta;
   // avoid glitch between freqs in different harmonics mode
   uint32_t hf0 = si5351_get_harmonic_lvl(src_f0);
   if (hf0 != si5351_get_harmonic_lvl(src_f1)) {
@@ -2016,7 +2016,7 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
     }
   }
   // Interpolate by k1
-  float k0 = 1.0 - k1;
+  float k0 = 1.0f - k1;
   for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
     data[eterm][0] = cal_data[eterm][idx][0] * k0 + cal_data[eterm][idx+1][0] * k1;
     data[eterm][1] = cal_data[eterm][idx][1] * k0 + cal_data[eterm][idx+1][1] * k1;
@@ -2130,12 +2130,12 @@ void set_trace_type(int t, int type, int channel)
   if (trace[t].type != type) {
     trace[t].type = type;
     // Set default trace refpos
-    trace[t].refpos = trace_info_list[type].refpos;
+    set_trace_refpos(t, trace_info_list[type].refpos);
     // Set default trace scale
-    trace[t].scale  = trace_info_list[type].scale_unit;
+    set_trace_scale(t, trace_info_list[type].scale_unit);
+    request_to_redraw(REDRAW_AREA); // need for update grid
   }
-  trace[t].channel = channel;
-  request_to_redraw(REDRAW_AREA | REDRAW_PLOT);
+  set_trace_channel(t, channel);
 }
 
 void set_trace_channel(int t, int channel)
@@ -2143,7 +2143,7 @@ void set_trace_channel(int t, int channel)
   channel&= 1;
   if (trace[t].channel != channel) {
     trace[t].channel = channel;
-    request_to_redraw(REDRAW_PLOT);
+    request_to_redraw(REDRAW_MARKER | REDRAW_PLOT);
   }
 }
 
@@ -2233,11 +2233,12 @@ VNA_SHELL_FUNCTION(cmd_trace)
     set_trace_enable(t, false);
     return;
   }
-#if MAX_TRACE_TYPE != 28
+#if MAX_TRACE_TYPE != 30
 #error "Trace type enum possibly changed, check cmd_trace function"
 #endif
-  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_ZPHASE, TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q, TRC_Rser, TRC_Xser,TRC_Rsh, TRC_Xsh, TRC_Qs21
-  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|zp|g|b|y|rp|xp|sc|sl|pc|pl|q|rser|xser|rsh|xsh|q21";
+  // enum TRC_LOGMAG, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG, TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
+  //      TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp, TRC_sC, TRC_sL, TRC_pC, TRC_pL, TRC_Q, TRC_Rser, TRC_Xser, TRC_Zser, TRC_Rsh, TRC_Xsh, TRC_Zsh, TRC_Qs21
+  static const char cmd_type_list[] = "logmag|phase|delay|smith|polar|linear|swr|real|imag|r|x|z|zp|g|b|y|rp|xp|sc|sl|pc|pl|q|rser|xser|zser|rsh|xsh|zsh|q21";
   int type = get_str_index(argv[1], cmd_type_list);
   if (type >= 0) {
     int src = trace[t].channel;

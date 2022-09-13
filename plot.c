@@ -290,10 +290,10 @@ rectangular_grid_y(int y)
 // Help functions
 static float get_l(float re, float im) {return (re*re + im*im);}
 static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
-static float get_r(float re, float im, float z) {return vna_fabsf(2.0f * z * re / get_l(re, im) - z);}
-static float get_s21_r(float re, float im, float z) {return vna_fabsf(z * re / get_l(re, im) - z);}
-static float get_x(float re, float im, float z) {return z * 2.0f * im / get_l(re, im);}
-static float get_s21_x(float re, float im, float z) {return z * im / get_l(re, im);}
+static float get_s11_r(float re, float im, float z) {return vna_fabsf(2.0f * z * re / get_l(re, im) - z);}
+static float get_s21_r(float re, float im, float z) {return  1.0f * z * re / get_l(re, im) - z;}
+static float get_s11_x(float re, float im, float z) {return -2.0f * z * im / get_l(re, im);}
+static float get_s21_x(float re, float im, float z) {return -1.0f * z * im / get_l(re, im);}
 
 //**************************************************************************************
 // LINEAR = |S|
@@ -367,22 +367,22 @@ static float swr(int i, const float *v) {
 // Z = z0 * (1 + S) / (1 - S) = R + jX
 // |Z| = sqrtf(R*R+X*X)
 // Resolve this in complex give:
-//   let S` = 1 - S
+//   let S` = 1 - S  => re` = 1 - re and im` = -im
 //       l` = re` * re` + im` * im`
 // Z = z0 * (2 - S`) / S` = z0 * 2 / S` - z0
 //  R = z0 * 2 * re` / l` - z0
-//  X = z0 * 2 * im` / l`
+//  X =-z0 * 2 * im` / l`
 // |Z| = z0 * sqrt(4 * re / l` + 1)
 // Z phase = atan(X, R)
 //**************************************************************************************
 static float resistance(int i, const float *v) {
   (void) i;
-  return get_r(1.0f - v[0], v[1], PORT_Z);
+  return get_s11_r(1.0f - v[0], -v[1], PORT_Z);
 }
 
 static float reactance(int i, const float *v) {
   (void) i;
-  return get_x(1.0f - v[0], v[1], PORT_Z);
+  return get_s11_x(1.0f - v[0], -v[1], PORT_Z);
 }
 
 static float mod_z(int i, const float *v) {
@@ -432,7 +432,7 @@ static float qualityfactor(int i, const float *v) {
 // Y parameters (conductance and susceptance) calculations from complex S
 // Y = (1 / z0) * (1 - S) / (1 + S) = G + jB
 // Resolve this in complex give:
-//   let S` = 1 + S
+//   let S` = 1 + S  => re` = 1 + re and im` = im
 //       l` = re` * re` + im` * im`
 //      z0` = (1 / z0)
 // Y = z0` * (2 - S`) / S` = 2 * z0` / S` - z0`
@@ -442,12 +442,12 @@ static float qualityfactor(int i, const float *v) {
 //**************************************************************************************
 static float conductance(int i, const float *v) {
   (void) i;
-  return get_r(1.0f + v[0], v[1], 1.0f / PORT_Z);
+  return get_s11_r(1.0f + v[0], v[1], 1.0f / PORT_Z);
 }
 
 static float susceptance(int i, const float *v) {
   (void) i;
-  return get_x(1.0f + v[0], -v[1], 1.0f / PORT_Z);
+  return get_s11_x(1.0f + v[0], v[1], 1.0f / PORT_Z);
 }
 
 //**************************************************************************************
@@ -509,12 +509,19 @@ static float mod_y(int i, const float *v) {
 //**************************************************************************************
 static float s21shunt_r(int i, const float *v) {
   (void) i;
-  return get_s21_r(1.0f - v[0], v[1], 0.5f * PORT_Z);
+  return get_s21_r(1.0f - v[0], -v[1], 0.5f * PORT_Z);
 }
 
 static float s21shunt_x(int i, const float *v) {
   (void) i;
-  return get_s21_x(1.0f - v[0], v[1], 0.5f * PORT_Z);
+  return get_s21_x(1.0f - v[0], -v[1], 0.5f * PORT_Z);
+}
+
+static float s21shunt_z(int i, const float *v) {
+  (void) i;
+  float l1 = get_l(v[0], v[1]);
+  float l2 = get_l(1.0f - v[0], v[1]);
+  return 0.5f * PORT_Z * vna_sqrtf(l1 / l2);
 }
 
 static float s21series_r(int i, const float *v) {
@@ -524,7 +531,14 @@ static float s21series_r(int i, const float *v) {
 
 static float s21series_x(int i, const float *v) {
   (void) i;
-  return get_s21_x(v[0], -v[1], 2.0f * PORT_Z);
+  return get_s21_x(v[0], v[1], 2.0f * PORT_Z);
+}
+
+static float s21series_z(int i, const float *v) {
+  (void) i;
+  float l1 = get_l(v[0], v[1]);
+  float l2 = get_l(1.0f - v[0], v[1]);
+  return 2.0f * PORT_Z * vna_sqrtf(l2 / l1);
 }
 
 static float s21_qualityfactor(int i, const float *v) {
@@ -554,7 +568,7 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 28
+#if MAX_TRACE_TYPE != 30
 #error "Redefined trace_type list, need check format_list"
 #endif
 
@@ -585,8 +599,10 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 [TRC_Q]      = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, qualityfactor        },
 [TRC_Rser]   = {"Rser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_r          },
 [TRC_Xser]   = {"Xser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_x          },
+[TRC_Zser]   = {"|Zser|", "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_z          },
 [TRC_Rsh]    = {"Rsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_r           },
 [TRC_Xsh]    = {"Xsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_x           },
+[TRC_Zsh]    = {"|Zsh|",  "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_z           },
 [TRC_Qs21]   = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, s21_qualityfactor    },
 };
 
