@@ -167,8 +167,8 @@ static void spi_init(void) {
                | SPI_CR1_SSM       // Software slave management (The external NSS pin is free for other application uses)
                | SPI_CR1_SSI       // Internal slave select (This bit has an effect only when the SSM bit is set. Allow use NSS pin as I/O)
                | LCD_SPI_SPEED     // Baud rate control
-//             | SPI_CR1_CPHA      // Clock Phase
-//             | SPI_CR1_CPOL      // Clock Polarity
+               | SPI_CR1_CPHA      // Clock Phase
+               | SPI_CR1_CPOL      // Clock Polarity
                ;
   LCD_SPI->CR2 = SPI_CR2_8BIT      // SPI data size, set to 8 bit
                | SPI_CR2_FRXTH     // SPI_SR_RXNE generated every 8 bit data
