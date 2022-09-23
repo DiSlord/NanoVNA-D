@@ -750,9 +750,6 @@ trace_print_info(int xpos, int ypos, int t)
   int smith = trace[t].smith_format;
   const char *v = trace_info_list[trace[t].type].symbol;
   switch (type) {
-//    case TRC_LOGMAG:
-//    case TRC_PHASE:
-//    case TRC_ZPHASE: format = "%s %0.2f%s/"; break;
     case TRC_SMITH:
     case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
     default:         format = "%s %F%s/"; break;
@@ -1404,14 +1401,14 @@ draw_cell(int m, int n)
 //  PULSE;
 // Draw traces (50-600 system ticks for all screen calls, depend from lines count and size)
 #if 1
-  for (t = TRACE_INDEX_COUNT-1; t >=0; t--) {
+  for (t = TRACE_INDEX_COUNT-1; t >= 0; t--) {
     if (!needProcessTrace(t))
       continue;
     c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     index_t *index = trace_index[t];
     i0 = i1 = 0;
     // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace){
+    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace && sweep_points > 30){
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
     }else{
       // draw polar plot (check all points)
@@ -1429,7 +1426,7 @@ draw_cell(int m, int n)
 #else
   for (x = 0; x < area_width; x += 6)
     cell_drawline(x - x0, 0 - y0, area_width - x - x0, area_height - y0,
-                  config.trace_color[0]);
+                                GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR));
 #endif
 //  PULSE;
 

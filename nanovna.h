@@ -976,6 +976,7 @@ typedef struct properties {
   uint8_t  _reserved;
   uint8_t  _velocity_factor;     // 0 .. 100 %
   float    _electrical_delay;    // picoseconds
+  float    _var_delay;
   float    _s21_offset;
   float    _portz;
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
@@ -998,7 +999,7 @@ const char *get_trace_chname(int t);
 void shell_update_speed(uint32_t speed);
 void shell_reset_console(void);
 
-void set_electrical_delay(float picoseconds);
+void set_electrical_delay(float seconds);
 void set_s21_offset(float offset);
 float groupdelay_from_array(int i, const float *v);
 

@@ -82,7 +82,7 @@ typedef struct {
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
   KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
-  KM_REFPOS, KM_EDELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
+  KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
@@ -1048,6 +1048,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
       data = KM_SCALEDELAY;
     else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
       data = KM_nSCALE;
+  } else if (data == KM_VAR) {
+    if (lever_mode == LM_EDELAY) data = KM_VAR_DELAY;
   }
   if (b){
     const keyboard_cb_t cb = keypads_mode_tbl[data].cb;
@@ -1104,7 +1106,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
       float (*array)[2] = measured[trace[current_trace].channel];
       int index = markers[active_marker].index;
       float v = groupdelay_from_array(index, array[index]);
-      set_electrical_delay((electrical_delay + v) / 1e-12f);
+      set_electrical_delay(electrical_delay + v);
     }
     break;
   }
@@ -2305,9 +2307,10 @@ static const keypads_t *keypad_type_list[] = {
   [KEYPAD_TEXT]   = keypads_text    // text input
 };
 
-static float keyboard_get_float(void) {return my_atof(kp_buf);}
-static freq_t keyboard_get_freq(void)  {return my_atoui(kp_buf);}
-static uint32_t keyboard_get_uint(void)  {return my_atoui(kp_buf);}
+float keyboard_get_float(void)   {return my_atof(kp_buf);}
+float keyboard_get_nfloat(void)  {return my_atof(kp_buf) * 1e-12;}
+freq_t keyboard_get_freq(void)   {return my_atoui(kp_buf);}
+uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 
 // Call back functions for MT_CALLBACK type
 UI_KEYBOARD_CALLBACK(input_freq) {
@@ -2319,11 +2322,18 @@ UI_KEYBOARD_CALLBACK(input_freq) {
   set_sweep_frequency(data, keyboard_get_freq());
 }
 
+UI_KEYBOARD_CALLBACK(input_var_delay) {
+  (void)data;
+  if (b) {
+    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n" R_LINK_COLOR " %F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
+    return;
+  }
+  current_props._var_delay = keyboard_get_nfloat();
+}
+
 UI_KEYBOARD_CALLBACK(input_scale) {
   if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
-  float scale = keyboard_get_float();
-  if (data != KM_SCALE) scale*= 1e-12;
-  set_trace_scale(current_trace, scale);
+  set_trace_scale(current_trace, data != KM_SCALE ? keyboard_get_nfloat() : keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
@@ -2335,7 +2345,7 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
   if (b) {b->p1.f = electrical_delay; return;}
-  set_electrical_delay(keyboard_get_float());
+  set_electrical_delay(keyboard_get_nfloat());
 }
 
 UI_KEYBOARD_CALLBACK(input_s21_offset) {
@@ -2442,6 +2452,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value
 [KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REFPOS",             input_ref      }, // refpos
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
+[KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
 [KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
 [KM_VELOCITY_FACTOR] = {KEYPAD_UFLOAT, 0,             "VELOCITY%%",         input_velocity }, // velocity factor
 [KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
@@ -2989,16 +3000,19 @@ lever_frequency(uint16_t status, int mode)
   set_sweep_frequency(mode, freq);
 }
 
-#define STEPRATIO 0.2
+#define STEPRATIO 0.2f
 static void
 lever_edelay(uint16_t status)
 {
   float value = electrical_delay;
-  float ratio = value > 0 ?  STEPRATIO : -STEPRATIO;
-  if (status & EVT_UP)
-    value*= (1 - ratio);
-  if (status & EVT_DOWN)
-    value*= (1 + ratio);
+  if (current_props._var_delay == 0.0f) {
+    float ratio = value > 0 ?  STEPRATIO : -STEPRATIO;
+    if (status & EVT_UP  ) value*= (1.0f + ratio);
+    if (status & EVT_DOWN) value*= (1.0f - ratio);
+  } else {
+    if (status & EVT_UP  ) value+= current_props._var_delay;
+    if (status & EVT_DOWN) value-= current_props._var_delay;
+  }
   set_electrical_delay(value);
   while (btn_wait_release() != 0);
 }

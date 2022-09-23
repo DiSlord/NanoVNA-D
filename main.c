@@ -962,6 +962,7 @@ void load_default_properties(void)
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
   current_props._electrical_delay = 0.0f;
+  current_props._var_delay = 0.0f;
   current_props._s21_offset       = 0.0f;
   current_props._portz = 50.0f;
   current_props._velocity_factor = 70;
@@ -2180,11 +2181,10 @@ void set_trace_enable(int t, bool enable)
   request_to_redraw(REDRAW_AREA);
 }
 
-void set_electrical_delay(float picoseconds)
+void set_electrical_delay(float seconds)
 {
-  picoseconds*= 1e-12;
-  if (electrical_delay != picoseconds) {
-    electrical_delay = picoseconds;
+  if (electrical_delay != seconds) {
+    electrical_delay = seconds;
     request_to_redraw(REDRAW_MARKER);
   }
 }
@@ -2282,7 +2282,7 @@ VNA_SHELL_FUNCTION(cmd_edelay)
     shell_printf("%f" VNA_SHELL_NEWLINE_STR, electrical_delay * (1.0f / 1e-12f)); // return in picoseconds
     return;
   }
-  set_electrical_delay(my_atof(argv[0])); // input value in picoseconds
+  set_electrical_delay(my_atof(argv[0]) * 1e-12); // input value in seconds
 }
 
 VNA_SHELL_FUNCTION(cmd_s21offset)
