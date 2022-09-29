@@ -829,7 +829,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
       uint8_t marker_smith_format = get_smith_format();
       if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
           (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) {txt = "%s"; marker_smith_format = 0;}
-      else txt = "%s\n" R_LINK_COLOR " %s";
+      else txt = "%s\n" R_LINK_COLOR "%s";
       plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
     else
