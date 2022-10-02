@@ -908,14 +908,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
   menu_push_submenu(menu_bandwidth);
 }
 
+#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
+#define BANDWIDTH_COUNT 10
+uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
+
 static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 {
   if (b){
-    b->icon = config._bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.u = get_bandwidth_frequency(data);
+    b->icon = config._bandwidth == bandwidth[data] ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = get_bandwidth_frequency( bandwidth[data]);
     return;
   }
-  set_bandwidth(data);
+  set_bandwidth( bandwidth[data]);
 }
 
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
@@ -931,7 +935,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
     [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
     [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_DOT_GRID]     = REDRAW_BACKUP | REDRAW_AREA,
+    [VNA_MODE_DUMP_SAMPLE]     = REDRAW_BACKUP | REDRAW_AREA,
     [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
     [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY
   };
@@ -964,7 +968,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_CONNECTION] = "USB\0SERIAL",
     [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
     [VNA_MODE_SHOW_GRID] = 0,
-    [VNA_MODE_DOT_GRID] = 0,
+    [VNA_MODE_DUMP_SAMPLE] = 0,
     [VNA_MODE_BACKUP] = 0,
     [VNA_MODE_FLIP_DISPLAY] = 0
   };
@@ -1764,7 +1768,6 @@ const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n" R_LINK_COLOR " %b.3F" S_dB, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
 #endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1779,31 +1782,18 @@ const menuitem_t menu_transform[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
-const menuitem_t menu_bandwidth[] = {
-#ifdef BANDWIDTH_8000
-  { MT_ADV_CALLBACK, BANDWIDTH_8000, "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_4000
-  { MT_ADV_CALLBACK, BANDWIDTH_4000, "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_2000
-  { MT_ADV_CALLBACK, BANDWIDTH_2000, "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_1000
-  { MT_ADV_CALLBACK, BANDWIDTH_1000, "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_333
-  { MT_ADV_CALLBACK, BANDWIDTH_333,  "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_100
-  { MT_ADV_CALLBACK, BANDWIDTH_100,  "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_30
-  { MT_ADV_CALLBACK, BANDWIDTH_30,   "%u " S_Hz, menu_bandwidth_acb },
-#endif
-#ifdef BANDWIDTH_10
-  { MT_ADV_CALLBACK, BANDWIDTH_10,   "%u " S_Hz, menu_bandwidth_acb },
-#endif
+const menuitem_t menu_bandwidth[] =
+{
+  { MT_ADV_CALLBACK, 0, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 1, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 2, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 3, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 4, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 5, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 6, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 7, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 8, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 9, "%u " S_Hz, menu_bandwidth_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1828,6 +1818,7 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
   { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
   { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %u" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "DUMP\nSAMPLE",   menu_vna_mode_acb },
 #ifdef __USE_SMOOTH__
   { MT_SUBMENU,      0, "DATA SMOOTH",                         menu_smooth_count },
 #endif
@@ -2286,7 +2277,7 @@ static const keypads_t keypads_text[] = {
   {0x00, '0'}, {0x10, '1'}, {0x20, '2'}, {0x30, '3'}, {0x40, '4'}, {0x50, '5'}, {0x60, '6'}, {0x70, '7'}, {0x80, '8'}, {0x90, '9'},
   {0x01, 'A'}, {0x11, 'B'}, {0x21, 'C'}, {0x31, 'D'}, {0x41, 'E'}, {0x51, 'F'}, {0x61, 'G'}, {0x71, 'H'}, {0x81, 'I'}, {0x91, 'J'},
   {0x02, 'K'}, {0x12, 'L'}, {0x22, 'M'}, {0x32, 'N'}, {0x42, 'O'}, {0x52, 'P'}, {0x62, 'Q'}, {0x72, 'R'}, {0x82, 'S'}, {0x92, 'T'},
-  {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, S_ENTER[0]},
+  {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, C_ENTER},
 };
 #else
 static const keypads_t keypads_text[] = {
@@ -2294,7 +2285,7 @@ static const keypads_t keypads_text[] = {
   {0x00, '1'}, {0x10, '2'}, {0x20, '3'}, {0x30, '4'}, {0x40, '5'}, {0x50, '6'}, {0x60, '7'}, {0x70, '8'}, {0x80, '9'}, {0x90, '0'},
   {0x01, 'Q'}, {0x11, 'W'}, {0x21, 'E'}, {0x31, 'R'}, {0x41, 'T'}, {0x51, 'Y'}, {0x61, 'U'}, {0x71, 'I'}, {0x81, 'O'}, {0x91, 'P'},
   {0x02, 'A'}, {0x12, 'S'}, {0x22, 'D'}, {0x32, 'F'}, {0x42, 'G'}, {0x52, 'H'}, {0x62, 'J'}, {0x72, 'K'}, {0x82, 'L'}, {0x92, '_'},
-  {0x03, '-'}, {0x13, 'Z'}, {0x23, 'X'}, {0x33, 'C'}, {0x43, 'V'}, {0x53, 'B'}, {0x63, 'N'}, {0x73, 'M'}, {0x83, S_LARROW[0]}, {0x93, S_ENTER[0]},
+  {0x03, '-'}, {0x13, 'Z'}, {0x23, 'X'}, {0x33, 'C'}, {0x43, 'V'}, {0x53, 'B'}, {0x63, 'N'}, {0x73, 'M'}, {0x83, C_LARROW}, {0x93, C_ENTER},
 };
 #endif
 
@@ -2847,7 +2838,7 @@ num_keypad_click(int c)
 static int
 full_keypad_click(int c)
 {
-  if (c == S_ENTER[0]) { // Enter
+  if (c == C_ENTER) { // Enter
     return kp_index == 0 ? KP_CANCEL : KP_DONE;
   }
   if (c == S_LARROW[0]) { // Backspace

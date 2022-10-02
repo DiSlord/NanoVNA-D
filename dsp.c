@@ -33,8 +33,13 @@ void generate_DSP_Table(int offset){
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
-    sincos_tbl[i][0] = s*32700.0f;
-    sincos_tbl[i][1] = c*32700.0f;
+#if 1
+    sincos_tbl[i][0] = s*32610.0f;
+    sincos_tbl[i][1] = c*32610.0f;
+#else
+    sincos_tbl[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+    sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+#endif
     w+=step;
   }
 }
@@ -143,6 +148,24 @@ acc_t acc_ref_c;
 void
 dsp_process(audio_sample_t *capture, size_t length)
 {
+#if 0
+  int64_t samp_s = 0;
+  int64_t samp_c = 0;
+  int64_t ref_s = 0;
+  int64_t ref_c = 0;
+  uint32_t i = 0;
+  do{
+    int16_t ref = capture[i+0];
+    int16_t smp = capture[i+1];
+    int64_t sin = ((int32_t *)sincos_tbl)[i+0];
+    int64_t cos = ((int32_t *)sincos_tbl)[i+1];
+    samp_s+= (smp * sin);
+    samp_c+= (smp * cos);
+    ref_s += (ref * sin);
+    ref_c += (ref * cos);
+    i+=2;
+  }while (i < length);
+#else
   int32_t samp_s = 0;
   int32_t samp_c = 0;
   int32_t ref_s = 0;
@@ -159,6 +182,7 @@ dsp_process(audio_sample_t *capture, size_t length)
     ref_c += (ref * cos)/16;
     i+=2;
   }while (i < length);
+#endif
   acc_samp_s += samp_s;
   acc_samp_c += samp_c;
   acc_ref_s += ref_s;

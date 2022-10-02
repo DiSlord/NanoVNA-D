@@ -9,3 +9,7 @@ python
 TAGS
 .emacs-dirvars
 *png
+.cproject
+.project
+*.xml
+.settings/org.eclipse.core.resources.prefs

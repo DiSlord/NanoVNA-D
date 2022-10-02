@@ -29,6 +29,9 @@
 #define LCD_320x240
 #endif
 
+
+#define DMTD
+
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__
 // LCD or hardware allow change brightness, add menu item for this
@@ -64,13 +67,13 @@
 // Faster draw line in cell algorithm (better clipping and faster)
 // #define __VNA_FAST_LINES__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
-#define __VNA_USE_MATH_TABLES__
+//#define __VNA_USE_MATH_TABLES__
 // Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
 #define __USE_VNA_MATH__
 // Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
 //#define USE_FFT_WINDOW_BUFFER
 // Enable data smooth option
-#define __USE_SMOOTH__
+//#define __USE_SMOOTH__
 // Enable optional change digit separator for locales (dot or comma, need for correct work some external software)
 #define __DIGIT_SEPARATOR__
 // Use table for frequency list (if disabled use real time calc)
@@ -149,7 +152,7 @@
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             101
@@ -433,11 +436,17 @@ extern const char *info_about[];
 #define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
-#define BANDWIDTH_2000            (  2 - 1)
+//#define BANDWIDTH_2000            (  2 - 1)
 #define BANDWIDTH_1000            (  4 - 1)
 #define BANDWIDTH_333             ( 12 - 1)
 #define BANDWIDTH_100             ( 40 - 1)
 #define BANDWIDTH_30              (132 - 1)
+//#define BANDWIDTH_10              (400 - 1)
+//#define BANDWIDTH_3               (1320 - 1)
+//#define BANDWIDTH_1               (4000 - 1)
+#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
+#define BANDWIDTH_COUNT 10
+extern uint16_t bandwidth[BANDWIDTH_COUNT];
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 2000
 #define BANDWIDTH_2000            (  1 - 1)
 #define BANDWIDTH_1000            (  2 - 1)
@@ -760,10 +769,12 @@ extern const uint8_t numfont16x22[];
 
 // Additional chars in fonts
 #define S_ENTER    "\026"  // hex 0x16
+#define C_ENTER    '\026'   // hex 0x16
 #define S_DELTA    "\027"  // hex 0x17
 #define S_SARROW   "\030"  // hex 0x18
 #define S_INFINITY "\031"  // hex 0x19
 #define S_LARROW   "\032"  // hex 0x1A
+#define C_LARROW   '\032'  // hex 0x1A
 #define S_RARROW   "\033"  // hex 0x1B
 #define S_PI       "\034"  // hex 0x1C
 #define S_MICRO    '\035'  // hex 0x1D
@@ -884,11 +895,12 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_SHOW_GRID        4
 // Show grid values
-#define VNA_MODE_DOT_GRID         5
+#define VNA_MODE_DUMP_SAMPLE         5
 // Made backup settings (save some settings after power off)
 #define VNA_MODE_BACKUP           6
 // Flip display
 #define VNA_MODE_FLIP_DISPLAY     7
+
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

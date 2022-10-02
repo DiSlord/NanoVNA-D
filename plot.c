@@ -575,7 +575,7 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 // Type          name      format   delta format      symbol         ref   scale  get value
 [TRC_LOGMAG] = {"LOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag               },
-[TRC_PHASE]  = {"PHASE",  "%.1f%s", S_DELTA "%.2f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
+[TRC_PHASE]  = {"PHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
 [TRC_DELAY]  = {"DELAY",  "%.4F%s",         "%.4F%s", S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
 [TRC_SMITH]  = {"SMITH",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
 [TRC_POLAR]  = {"POLAR",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
@@ -731,8 +731,13 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   float *coeff = array[index];
   const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   get_value_cb_t c = trace_info_list[type].get_value_cb;
-  if (c){                                                               // Run standard get value function from table
-    float v = c(index, coeff);                                          // Get value
+  if (c){                                           // Run standard get value function from table
+    float v = 0;
+    for (int i =0; i<sweep_points; i++) {
+      v += c(i, array[i]);                                          // Get value
+    }
+    v = v/sweep_points;
+//    shell_printf("%f\r\n",v);
     if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
@@ -1370,7 +1375,8 @@ draw_cell(int m, int n)
       if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
     }
   }
-  const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
+//  const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
+  const int step = 1;
   // Draw rectangular plot (40 system ticks for all screen calls)
   if (trace_type & RECTANGULAR_GRID_MASK) {
     for (x = 0; x < w; x++) {

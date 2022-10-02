@@ -913,10 +913,10 @@ properties_t current_props;
 
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
-  { TRUE, TRC_LOGMAG, 0, MS_REIM, 10.0, NGRIDY-1 },
-  { TRUE, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
-  { TRUE, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
-  { TRUE, TRC_PHASE,  1, MS_REIM, 90.0, NGRIDY/2 }
+  { TRUE, TRC_PHASE, 1, MS_REIM, 90.0, NGRIDY/2 },
+  { FALSE, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
+  { FALSE, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
+  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
@@ -949,8 +949,8 @@ void load_default_properties(void)
 {
 //Magic add on caldata_save
 //current_props.magic = CONFIG_MAGIC;
-  current_props._frequency0       =     50000;    // start =  50kHz
-  current_props._frequency1       = 900000000;    // end   = 900MHz
+  current_props._frequency0       = 10000000;    // start =  50kHz
+  current_props._frequency1       = 10000000;    // end   = 900MHz
   current_props._var_freq         = 0;
   current_props._sweep_points     = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_frequency0   =     50000;    // calibration start =  50kHz
@@ -1168,6 +1168,59 @@ static void applyOffset(float data[2], float offset){
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
+  if (!VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
+    p_sweep = 0;
+//    float s, c;
+    float data[4];
+//    float c_data[CAL_TYPE_COUNT][2];
+    int st_delay = DELAY_SWEEP_START;
+//    int bar_start = 0;
+//    int interpolation_idx;
+
+    freq_t frequency = getFrequency(p_sweep);
+    int delay = set_frequency(frequency);
+    // CH0:REFLECTION, reset and begin measure
+    if (mask & SWEEP_CH0_MEASURE) {
+      tlv320aic3204_select(0);
+      DSP_START(delay+st_delay);
+      delay = DELAY_CHANNEL_CHANGE;
+      //================================================
+      // Place some code thats need execute while delay
+      //================================================
+      DSP_WAIT;
+      (*sample_func)(&data[0]);             // calculate reflection coefficient
+    }
+    // CH1:TRANSMISSION, reset and begin measure
+    if (mask & SWEEP_CH1_MEASURE) {
+      tlv320aic3204_select(1);
+      DSP_START(delay+st_delay);
+      DSP_WAIT;
+      (*sample_func)(&data[2]);              // Measure transmission coefficient
+    }
+    if (mask & SWEEP_CH0_MEASURE){
+      measured[0][p_sweep][0] = data[0];
+      measured[0][p_sweep][1] = data[1];
+    }
+    if (mask & SWEEP_CH1_MEASURE){
+      measured[1][p_sweep][0] = data[2];
+      measured[1][p_sweep][1] = data[3];
+    }
+    int t = 3;
+    uint8_t type = trace[t].type;
+    float (*array)[2] = measured[1];
+    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+    get_value_cb_t calc = trace_info_list[1].get_value_cb;
+    if (calc){                                           // Run standard get value function from table
+      //      float v = 0;
+      //      for (int i =0; i<sweep_points; i++) {
+      float v = calc(p_sweep, array[p_sweep]);                                          // Get value
+      //      }
+      //      v = v/sweep_points;
+      shell_printf("%f\r\n",v/360);
+    }
+    return false;
+
+  } else {
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   if (break_on_operation && mask == 0)
     return false;
@@ -1195,6 +1248,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       if (mask & SWEEP_APPLY_EDELAY)
         vna_sincosf(electrical_delay * frequency, &s, &c);
     }
+#if 0
     // CH0:REFLECTION, reset and begin measure
     if (mask & SWEEP_CH0_MEASURE) {
       tlv320aic3204_select(0);
@@ -1213,6 +1267,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       if (mask & SWEEP_APPLY_EDELAY)        // Apply e-delay
         applyEDelay(&data[0], s, c);
     }
+#endif
     // CH1:TRANSMISSION, reset and begin measure
     if (mask & SWEEP_CH1_MEASURE) {
       tlv320aic3204_select(1);
@@ -1246,6 +1301,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         measured[1][p_sweep][1] = data[3];
       }
     }
+    if (!VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
+    int t = 3;
+    uint8_t type = trace[t].type;
+    float (*array)[2] = measured[1];
+  //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+    get_value_cb_t calc = trace_info_list[1].get_value_cb;
+    if (calc){                                           // Run standard get value function from table
+//      float v = 0;
+//      for (int i =0; i<sweep_points; i++) {
+        float v = calc(p_sweep, array[p_sweep]);                                          // Get value
+//      }
+//      v = v/sweep_points;
+      shell_printf("%f\r\n",v/360);
+    }
+    }
+
+
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
     // Display SPI made noise on measurement (can see in CW mode), use reduced update
@@ -1261,11 +1333,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
+  if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
 
-//  STOP_PROFILE;
+    get_value_cb_t calc = trace_info_list[1].get_value_cb; // phase
+    float (*array)[2] = measured[1];
+    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+    float v = 0;
+    for (int i =0; i<sweep_points; i++) {
+      v += calc(i, array[i]);                                          // Get value
+    }
+    v = v/sweep_points;
+    shell_printf("%f\r\n",v/(360));
+  }
+  //  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
   return p_sweep == sweep_points;
+  }
 }
 
 #ifdef ENABLED_DUMP_COMMAND
@@ -1313,8 +1397,9 @@ static int set_frequency(freq_t freq)
   return si5351_set_frequency(freq, current_props._power);
 }
 
+
 void set_bandwidth(uint16_t bw_count){
-  config._bandwidth = bw_count&0x1FF;
+  config._bandwidth = bw_count;
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
 }
 
@@ -1900,8 +1985,8 @@ cal_collect(uint16_t type)
 
   // Run sweep for collect data (use minimum BANDWIDTH_30, or bigger if set)
   uint8_t bw = config._bandwidth;  // store current setting
-  if (bw < BANDWIDTH_100)
-    config._bandwidth = BANDWIDTH_100;
+//  if (bw < BANDWIDTH_100)
+//    config._bandwidth = BANDWIDTH_100;
 
   // Set MAX settings for sweep_points on calibrate
 //  if (sweep_points != POINTS_COUNT)
