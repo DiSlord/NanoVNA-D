@@ -31,6 +31,7 @@
 
 
 #define DMTD
+#define FREQ_SCALE  100
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__
@@ -119,8 +120,8 @@
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
 //#define AUDIO_ADC_FREQ_K        384
-#define AUDIO_ADC_FREQ_K        192
-//#define AUDIO_ADC_FREQ_K        96
+//#define AUDIO_ADC_FREQ_K        192
+#define AUDIO_ADC_FREQ_K        96
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
@@ -145,9 +146,9 @@
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
-#define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (192)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -155,7 +156,7 @@
 #define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             101
+#define POINTS_COUNT             51
 #endif
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
@@ -184,6 +185,7 @@
 #define USE_VARIABLE_OFFSET_MENU
 #endif
 
+#if 1
 #if AUDIO_ADC_FREQ_K == 768
 #define FREQUENCY_OFFSET_STEP    16000
 // For 768k ADC    (16k step for 48 samples)
@@ -215,7 +217,7 @@
 //#define FREQUENCY_IF_K         28
 
 #elif AUDIO_ADC_FREQ_K == 96
-#define FREQUENCY_OFFSET_STEP    2000
+#define FREQUENCY_OFFSET_STEP    4000
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 //#define FREQUENCY_IF_K          6
 //#define FREQUENCY_IF_K          8
@@ -230,6 +232,7 @@
 //#define FREQUENCY_IF_K          5
 #define FREQUENCY_IF_K          6
 //#define FREQUENCY_IF_K          7
+#endif
 #endif
 
 /*
@@ -269,6 +272,10 @@ typedef uint32_t freq_t;
 #elif POINTS_COUNT >=101
 #define POINTS_SET_COUNT       2
 #define POINTS_SET             {51, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#elif POINTS_COUNT >=51
+#define POINTS_SET_COUNT       2
+#define POINTS_SET             {25, POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
@@ -420,6 +427,7 @@ extern const char *info_about[];
 // for AUDIO_SAMPLES_COUNT = 48 and ADC =  96kHz one measure give  96000/48=2000Hz
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 192kHz one measure give 192000/48=4000Hz
 // Define additional measure count for menus
+#ifndef USE_VARIABLE_OFFSET
 #if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 16000
 #define BANDWIDTH_8000            (  1 - 1)
 #define BANDWIDTH_4000            (  2 - 1)
@@ -461,7 +469,7 @@ extern uint16_t bandwidth[BANDWIDTH_COUNT];
 #define BANDWIDTH_30              ( 33 - 1)
 #define BANDWIDTH_10              (100 - 1)
 #endif
-
+#endif
 typedef int16_t  audio_sample_t;
 void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
@@ -469,6 +477,9 @@ void calculate_gamma(float *gamma);
 void fetch_amplitude(float *gamma);
 void fetch_amplitude_ref(float *gamma);
 void generate_DSP_Table(int offset);
+#ifdef DMTD
+void fetch_data(float *gamma);
+#endif
 
 /*
  * tlv320aic3204.c
@@ -796,7 +807,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 #define MAX_TRACE_TYPE 30
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DFREQ, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
   TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
   TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
   TRC_sC, TRC_sL,
@@ -807,7 +818,7 @@ enum trace_type {
   TRC_Qs21
 };
 // Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
+#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DFREQ)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
                               |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
                               |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
                               |(1<<TRC_sC)|(1<<TRC_sL)\
@@ -925,7 +936,7 @@ enum {
 #endif
 
 #define STORED_TRACES  1
-#define TRACES_MAX     4
+#define TRACES_MAX     3
 #define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
 
 typedef struct trace {

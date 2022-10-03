@@ -318,8 +318,50 @@ static float logmag(int i, const float *v) {
 //**************************************************************************************
 static float phase(int i, const float *v) {
   (void) i;
+#if 0
+  float rs_rc = (float) v[0] / v[1];
+  float sc_rc = (float)v[0+sizeof(measured[0])/sizeof(float)] / v[1];
+  float ss_rc = (float)v[1+sizeof(measured[0])/sizeof(float)] / v[1];
+  float rr = rs_rc * rs_rc + 1.0;
+  float gamma_0, gamma_1;
+  gamma_0 = (sc_rc + ss_rc*rs_rc) / rr;
+  gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
+  return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
+#else
   return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
+#endif
 }
+
+
+//**************************************************************************************
+// Delta frequency
+//**************************************************************************************
+static float delta_freq(int i, const float *v) {
+  (void) i;
+#if 0
+  float rs_rc = (float) v[0] / v[1];
+  float sc_rc = (float)v[0+sizeof(measured[0])/sizeof(float)] / v[1];
+  float ss_rc = (float)v[1+sizeof(measured[0])/sizeof(float)] / v[1];
+  float rr = rs_rc * rs_rc + 1.0;
+  float gamma_0, gamma_1;
+  gamma_0 = (sc_rc + ss_rc*rs_rc) / rr;
+  gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
+  return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
+#else
+  if (i == sweep_points-1)
+    return 0.0;
+  float df = (vna_atan2f(v[3], v[2]) - vna_atan2f(v[1], v[0]))*0.5/VNA_PI;
+  if (df >= 0.5)
+    df -= 1.0;
+  if (df <= -0.5)
+    df += 1.0;
+
+  // AUDIO_ADC_FREQ / (config._bandwidth+1) * AUDIO_SAMPLES_COUNT  // frequency of df
+  df *= AUDIO_ADC_FREQ / ((config._bandwidth+2) * AUDIO_SAMPLES_COUNT);
+  return (df);
+#endif
+}
+
 
 //**************************************************************************************
 // Group delay
@@ -576,7 +618,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 // Type          name      format   delta format      symbol         ref   scale  get value
 [TRC_LOGMAG] = {"LOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag               },
 [TRC_PHASE]  = {"PHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
-[TRC_DELAY]  = {"DELAY",  "%.4F%s",         "%.4F%s", S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
+[TRC_DFREQ]  = {"DFREQ",  "%.4F%s",         "%.4F%s", "",       NGRIDY/2,  1,     delta_freq           },
 [TRC_SMITH]  = {"SMITH",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
 [TRC_POLAR]  = {"POLAR",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
 [TRC_LINEAR] = {"LINEAR", "%.6f%s", S_DELTA "%.5f%s", "",              0, 0.125f, linear               },

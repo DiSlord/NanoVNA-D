@@ -1048,8 +1048,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
   if ((data == KM_SCALE || data == KM_REFPOS) && current_trace == TRACE_INVALID) return;
   if (data == KM_SCALE) {   // Scale button type auto set
-    if ((1<<trace[current_trace].type) & (1<<TRC_DELAY))
-      data = KM_SCALEDELAY;
+    if ((1<<trace[current_trace].type) & (1<<TRC_DFREQ))
+      data = KM_SCALE;
     else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
       data = KM_nSCALE;
   } else if (data == KM_VAR) {
@@ -1714,7 +1714,7 @@ const menuitem_t menu_format4[] = {
 const menuitem_t menu_formatS21[] = {
   { MT_ADV_CALLBACK, F_S21|TRC_LOGMAG, "LOGMAG",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_PHASE,  "PHASE",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_DELAY,  "DELAY",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_DFREQ,  "DFREQ",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_SMITH, MT_CUSTOM_LABEL,menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_POLAR,  "POLAR",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_LINEAR, "LINEAR",      menu_format_acb },
@@ -1751,7 +1751,7 @@ const menuitem_t menu_format2[] = {
 const menuitem_t menu_formatS11[] = {
   { MT_ADV_CALLBACK, F_S11|TRC_LOGMAG, "LOGMAG",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_PHASE,  "PHASE",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DELAY,  "DELAY",        menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "DFREQ",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_SMITH, MT_CUSTOM_LABEL, menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_SWR,    "SWR",          menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_R,      "RESISTANCE",   menu_format_acb },
@@ -3199,6 +3199,7 @@ ui_process(void)
 void handle_button_interrupt(uint16_t channel) {
   (void)channel;
   operation_requested|= OP_LEVER;
+  if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) apply_VNA_mode(VNA_MODE_DUMP_SAMPLE, VNA_MODE_CLR);
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 
@@ -3207,6 +3208,7 @@ void handle_button_interrupt(uint16_t channel) {
 void handle_touch_interrupt(void)
 {
   operation_requested|= OP_TOUCH;
+
 //  systime_t n_time = chVTGetSystemTimeX();
 //  shell_printf("%d\r\n", n_time - t_time);
 //  t_time = n_time;

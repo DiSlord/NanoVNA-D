@@ -22,6 +22,8 @@
 #include "nanovna.h"
 #include "si5351.h"
 
+
+
 // audio codec frequency clock
 #define CLK2_FREQUENCY AUDIO_CLOCK_REF
 
@@ -529,23 +531,23 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   if (freq == 0) return 0;
   uint32_t rdiv = SI5351_R_DIV_1;
   uint32_t fdiv, pll_n;
-  uint32_t ofreq = freq + IF_OFFSET;
+  uint32_t ofreq = freq + IF_OFFSET * FREQ_SCALE;
 
   // Select optimal band for prepared freq
-  if (freq <  26000U) {
+  if (freq/FREQ_SCALE <  26000U) {
      rdiv = SI5351_R_DIV(7);
      drive_strength = SI5351_CLK_DRIVE_STRENGTH_2MA; // Always use 2ma
      freq<<= 7;
     ofreq<<= 7;
     band = 1;
-  } else if (freq <= 1000000U) {
+  } else if (freq/FREQ_SCALE <= 1000000U) {
     rdiv = SI5351_R_DIV(4);
      freq<<= 4;
     ofreq<<= 4;
     band = 2;
   }
   else
-    band = si5351_get_harmonic_lvl(freq);
+    band = si5351_get_harmonic_lvl(freq/FREQ_SCALE);
 
 #if 0
   uint32_t align = band_s[band].freq_align;
@@ -592,7 +594,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       }
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
-      si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * config._xtal_freq * pll_n, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * config._xtal_freq * pll_n * FREQ_SCALE, ofreq, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
 #ifndef DMTD
       si5351_set_frequency_fixedpll( FREQ_CHANNEL, (uint64_t) mul * config._xtal_freq * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
 #endif

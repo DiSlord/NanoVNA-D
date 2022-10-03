@@ -104,9 +104,9 @@ static volatile vna_shellcmd_t  shell_function = 0;
 #define ENABLE_SD_CARD_COMMAND
 #endif
 
-static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
-static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
-static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]);
+//static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
+//static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
+//static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]);
 
 static uint16_t get_sweep_mask(void);
 static void update_frequencies(void);
@@ -865,6 +865,7 @@ VNA_SHELL_FUNCTION(cmd_gamma)
 }
 #endif
 
+#if 0
 static void (*sample_func)(float *gamma) = calculate_gamma;
 #ifdef ENABLE_SAMPLE_COMMAND
 VNA_SHELL_FUNCTION(cmd_sample)
@@ -889,7 +890,7 @@ usage:
   shell_printf("usage: sample {%s}" VNA_SHELL_NEWLINE_STR, cmd_sample_list);
 }
 #endif
-
+#endif
 config_t config = {
   .magic       = CONFIG_MAGIC,
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
@@ -899,7 +900,7 @@ config_t config = {
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
-  ._bandwidth = BANDWIDTH_1000,
+  ._bandwidth = 0,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
@@ -914,9 +915,9 @@ properties_t current_props;
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
   { TRUE, TRC_PHASE, 1, MS_REIM, 90.0, NGRIDY/2 },
-  { FALSE, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
-  { FALSE, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
-  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
+  { TRUE, TRC_DFREQ, 0, MS_REIM, 1.0, NGRIDY/2 },
+  { TRUE, TRC_DFREQ,  1, MS_REIM, 1.0,  NGRIDY/2 },
+//  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
@@ -949,8 +950,8 @@ void load_default_properties(void)
 {
 //Magic add on caldata_save
 //current_props.magic = CONFIG_MAGIC;
-  current_props._frequency0       = 10000000;    // start =  50kHz
-  current_props._frequency1       = 10000000;    // end   = 900MHz
+  current_props._frequency0       = 1000000350;    // start =  50kHz
+  current_props._frequency1       = 1000000350;    // end   = 900MHz
   current_props._var_freq         = 0;
   current_props._sweep_points     = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_frequency0   =     50000;    // calibration start =  50kHz
@@ -1148,7 +1149,7 @@ static uint16_t get_sweep_mask(void){
   if (s21_offset)                        ch_mask|= SWEEP_APPLY_S21_OFFSET;
   return ch_mask;
 }
-
+#if 0
 static void applyEDelay(float data[2], float s, float c){
   float real = data[0];
   float imag = data[1];
@@ -1160,7 +1161,7 @@ static void applyOffset(float data[2], float offset){
   data[0]*= offset;
   data[1]*= offset;
 }
-
+#endif
 #ifdef __VNA_Z_RENORMALIZATION__
 #include "vna_modules/vna_renorm.c"
 #endif
@@ -1168,7 +1169,7 @@ static void applyOffset(float data[2], float offset){
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
-  if (!VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
+  if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
     p_sweep = 0;
 //    float s, c;
     float data[4];
@@ -1179,34 +1180,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
     freq_t frequency = getFrequency(p_sweep);
     int delay = set_frequency(frequency);
-    // CH0:REFLECTION, reset and begin measure
-    if (mask & SWEEP_CH0_MEASURE) {
-      tlv320aic3204_select(0);
-      DSP_START(delay+st_delay);
-      delay = DELAY_CHANNEL_CHANGE;
-      //================================================
-      // Place some code thats need execute while delay
-      //================================================
-      DSP_WAIT;
-      (*sample_func)(&data[0]);             // calculate reflection coefficient
-    }
     // CH1:TRANSMISSION, reset and begin measure
-    if (mask & SWEEP_CH1_MEASURE) {
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
       DSP_WAIT;
-      (*sample_func)(&data[2]);              // Measure transmission coefficient
-    }
-    if (mask & SWEEP_CH0_MEASURE){
+#if 1
+      calculate_gamma(data);              // Measure transmission coefficient
+      measured[1][p_sweep][0] = data[0];
+      measured[1][p_sweep][1] = data[1];
+#else
+      fetch_data(data);              // Measure transmission coefficient
       measured[0][p_sweep][0] = data[0];
       measured[0][p_sweep][1] = data[1];
-    }
-    if (mask & SWEEP_CH1_MEASURE){
       measured[1][p_sweep][0] = data[2];
       measured[1][p_sweep][1] = data[3];
-    }
-    int t = 3;
-    uint8_t type = trace[t].type;
+#endif
+//    int t = 3;
+//    uint8_t type = trace[t].type;
     float (*array)[2] = measured[1];
     //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
     get_value_cb_t calc = trace_info_list[1].get_value_cb;
@@ -1226,28 +1216,30 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     return false;
   float s, c;
   float data[4];
-  float c_data[CAL_TYPE_COUNT][2];
+//  float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
   int delay = 0;
-  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
+//  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
   int st_delay = DELAY_SWEEP_START;
   int bar_start = 0;
-  int interpolation_idx;
+//  int interpolation_idx;
 
+  freq_t frequency = getFrequency(p_sweep);
+  delay = set_frequency(frequency);
+  tlv320aic3204_select(1);
+  DSP_START(delay+st_delay);
   for (; p_sweep < sweep_points; p_sweep++) {
-    freq_t frequency = getFrequency(p_sweep);
     // Need made measure - set frequency
-    if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
-      delay = set_frequency(frequency);
-      interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
+//    if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
+//      interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
       // Edelay calibration
-      if (mask & SWEEP_APPLY_EDELAY)
-        vna_sincosf(electrical_delay * frequency, &s, &c);
-    }
+//      if (mask & SWEEP_APPLY_EDELAY)
+//        vna_sincosf(electrical_delay * frequency, &s, &c);
+//    }
 #if 0
     // CH0:REFLECTION, reset and begin measure
     if (mask & SWEEP_CH0_MEASURE) {
@@ -1269,16 +1261,27 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     }
 #endif
     // CH1:TRANSMISSION, reset and begin measure
-    if (mask & SWEEP_CH1_MEASURE) {
-      tlv320aic3204_select(1);
-      DSP_START(delay+st_delay);
+      DSP_START(0);
       // Get calibration data, only if not do this in 0 channel wait
-      if ((mask & SWEEP_APPLY_CALIBRATION) && !(mask & SWEEP_CH0_MEASURE))
-        cal_interpolate(interpolation_idx, frequency, c_data);
+      DSP_WAIT;
       //================================================
       // Place some code thats need execute while delay
       //================================================
-      DSP_WAIT;
+#if 1
+      calculate_gamma(data);              // Measure transmission coefficient
+      measured[1][p_sweep][0] = data[0];
+      measured[1][p_sweep][1] = data[1];
+      measured[0][p_sweep][0] = data[2];
+      measured[0][p_sweep][1] = data[3];
+
+#else
+      fetch_data(data);              // Measure transmission coefficient
+      measured[0][p_sweep][0] = data[0];
+      measured[0][p_sweep][1] = data[1];
+      measured[1][p_sweep][0] = data[2];
+      measured[1][p_sweep][1] = data[3];
+#endif
+#if 0
       (*sample_func)(&data[2]);              // Measure transmission coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
         apply_CH1_error_term(data, c_data);
@@ -1301,6 +1304,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         measured[1][p_sweep][1] = data[3];
       }
     }
+#endif
+#if 0
     if (!VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
     int t = 3;
     uint8_t type = trace[t].type;
@@ -1316,11 +1321,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       shell_printf("%f\r\n",v/360);
     }
     }
-
+#endif
 
     if (operation_requested && break_on_operation) break;
     st_delay = 0;
     // Display SPI made noise on measurement (can see in CW mode), use reduced update
+#if 0
     if (config._bandwidth >= BANDWIDTH_100){
       int current_bar =  (p_sweep * WIDTH)/(sweep_points-1);
       if (current_bar - bar_start > 0){
@@ -1328,6 +1334,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         bar_start = current_bar;
       }
     }
+#endif
   }
   if (bar_start){
     lcd_set_background(LCD_GRID_COLOR);
@@ -1345,6 +1352,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     v = v/sweep_points;
     shell_printf("%f\r\n",v/(360));
   }
+
+  // -------------------- Auto set CW frequency ----------------------
+
+  get_value_cb_t calc = trace_info_list[2].get_value_cb; // dfreq port 1
+  float (*array)[2] = measured[0];
+  //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+  float v = 0;
+  for (int i =0; i<sweep_points-1; i++) {
+    v += calc(i, array[i]);                                          // Get value
+  }
+  v = v/sweep_points-1;
+  v++;
+  if (v < 20 && v > -20) {
+    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER) - (int)(v*(float)FREQ_SCALE));
+  }
+
+
   //  STOP_PROFILE;
   // blink LED while scanning
   palSetPad(GPIOC, GPIOC_LED);
@@ -1636,7 +1660,7 @@ update_frequencies(void)
 
   set_frequencies(start, stop, sweep_points);
 
-  update_marker_index();
+  //update_marker_index();
   // set grid layout
   update_grid();
   // Update interpolation flag
@@ -1924,7 +1948,7 @@ static void apply_error_term_at(int i)
     measured[1][i][1] = s21ai;
 }
 #endif
-
+#if 0
 static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
   // S11m' = S11m - Ed
@@ -1937,7 +1961,8 @@ static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   data[0] = (s11mr * err + s11mi * eri) / sq;
   data[1] = (s11mi * err - s11mr * eri) / sq;
 }
-
+#endif
+#if 0
 static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
   // CAUTION: Et is inversed for efficiency
@@ -1948,7 +1973,7 @@ static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   data[2] = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
   data[3] = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
 }
-
+#endif
 void
 cal_collect(uint16_t type)
 {
@@ -2059,7 +2084,7 @@ cal_done(void)
   lastsaveid = NO_SAVE_SLOT;
   request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS);
 }
-
+#if 0
 static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   int eterm;
   uint16_t src_points = cal_sweep_points - 1;
@@ -2116,6 +2141,7 @@ copy_point:
   }
   return;
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_cal)
 {

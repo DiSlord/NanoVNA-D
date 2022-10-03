@@ -176,10 +176,10 @@ dsp_process(audio_sample_t *capture, size_t length)
     int16_t smp = capture[i+1];
     int32_t sin = ((int16_t *)sincos_tbl)[i+0];
     int32_t cos = ((int16_t *)sincos_tbl)[i+1];
-    samp_s+= (smp * sin)/16;
-    samp_c+= (smp * cos)/16;
-    ref_s += (ref * sin)/16;
-    ref_c += (ref * cos)/16;
+    samp_s+= (smp * sin)/32;
+    samp_c+= (smp * cos)/32;
+    ref_s += (ref * sin)/32;
+    ref_c += (ref * cos)/32;
     i+=2;
   }while (i < length);
 #endif
@@ -233,7 +233,7 @@ dsp_process(audio_sample_t *capture, size_t length)
 #endif
 
 void
-calculate_gamma(float gamma[2])
+calculate_gamma(float gamma[4])
 {
 #if 1
   // calculate reflection coeff. by samp divide by ref
@@ -253,6 +253,8 @@ calculate_gamma(float gamma[2])
   measure_t rr = rs_rc * rs_rc + 1.0;
   gamma[0] = (sc_rc + ss_rc*rs_rc) / rr;
   gamma[1] = (ss_rc - sc_rc*rs_rc) / rr;
+  gamma[2] =  acc_ref_s;
+  gamma[3] =  acc_ref_c;
 #endif
 #elif 0
   gamma[0] =  acc_samp_s;
@@ -276,6 +278,18 @@ fetch_amplitude_ref(float gamma[2])
   gamma[0] =  acc_ref_s * 1e-9;
   gamma[1] =  acc_ref_c * 1e-9;
 }
+
+#ifdef DMTD
+void
+fetch_data(float gamma[4])
+{
+  gamma[0] =  acc_ref_s;
+  gamma[1] =  acc_ref_c;
+  gamma[2] =  acc_samp_s;
+  gamma[3] =  acc_samp_c;
+}
+
+#endif
 
 void
 reset_dsp_accumerator(void)
