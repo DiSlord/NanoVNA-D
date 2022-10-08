@@ -328,10 +328,29 @@ static float phase(int i, const float *v) {
   gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
   return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
 #else
+#if 1
+  float p = v[1] - v[0];
+  if (p > 1)
+    p -= 2.0;
+  else if (p < -1)
+    p += 2.0;
+  return(p*180.0f);
+#else
   return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
+#endif
 #endif
 }
 
+//**************************************************************************************
+// PHASE angle in degree = atan2(im, re) * 180 / PI
+//**************************************************************************************
+
+extern float aver_phase;
+static float aver_delta_phase(int i, const float *v) {
+  (void) v;
+  (void) i;
+return (aver_phase);
+}
 
 //**************************************************************************************
 // Delta frequency
@@ -348,18 +367,36 @@ static float delta_freq(int i, const float *v) {
   gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
   return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
 #else
-  if (i == sweep_points-1)
-    return 0.0;
+  if (i == sweep_points-1){
+    i = sweep_points-2;
+    v--;
+    v--;
+  }
+#if 1
+  float df = (v[3] - v[1])*0.5f/VNA_PI;
+#else
   float df = (vna_atan2f(v[3], v[2]) - vna_atan2f(v[1], v[0]))*0.5/VNA_PI;
+#endif
   if (df >= 0.5)
     df -= 1.0;
   if (df <= -0.5)
     df += 1.0;
 
-  // AUDIO_ADC_FREQ / (config._bandwidth+1) * AUDIO_SAMPLES_COUNT  // frequency of df
-  df *= AUDIO_ADC_FREQ / ((config._bandwidth+2) * AUDIO_SAMPLES_COUNT);
+  df *= AUDIO_ADC_FREQ;
+  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
   return (df);
 #endif
+}
+
+
+//**************************************************************************************
+// Average delta frequency
+//**************************************************************************************
+extern float aver_freq;
+static float aver_delta_freq(int i, const float *v) {
+  (void) v;
+  (void) i;
+  return (aver_freq);
 }
 
 
@@ -618,9 +655,9 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 // Type          name      format   delta format      symbol         ref   scale  get value
 [TRC_LOGMAG] = {"LOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag               },
 [TRC_PHASE]  = {"PHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
-[TRC_DFREQ]  = {"DFREQ",  "%.4F%s",         "%.4F%s", "",       NGRIDY/2,  1,     delta_freq           },
-[TRC_SMITH]  = {"SMITH",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
-[TRC_POLAR]  = {"POLAR",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
+[TRC_DFREQ]  = {"DFREQ",  "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,     delta_freq           },
+[TRC_APHASE] = {"APHASE", "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, aver_delta_phase     },
+[TRC_AFREQ]  = {"AFREQ",  "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,     aver_delta_freq      },
 [TRC_LINEAR] = {"LINEAR", "%.6f%s", S_DELTA "%.5f%s", "",              0, 0.125f, linear               },
 [TRC_SWR]    = {"SWR",    "%.3f%s", S_DELTA "%.3f%s", "",              0,  0.25f, swr                  },
 [TRC_REAL]   = {"REAL",   "%.6f%s", S_DELTA "%.5f%s", "",       NGRIDY/2,  0.25f, real                 },
@@ -665,7 +702,7 @@ const marker_info_t marker_info_list[MS_END] = {
 
 const char *get_trace_typename(int t, int marker_smith_format)
 {
-  if (t == TRC_SMITH && ADMIT_MARKER_VALUE(marker_smith_format)) return "ADMIT";
+//  if (t == TRC_SMITH && ADMIT_MARKER_VALUE(marker_smith_format)) return "ADMIT";
   return trace_info_list[t].name;
 }
 
@@ -732,6 +769,7 @@ trace_into_index(int t) {
     }
     return;
   }
+#if 0
   // Smith/Polar grid
   if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))) { // Need custom calculations
     const float rscale = P_RADIUS / scale;
@@ -742,6 +780,7 @@ trace_into_index(int t) {
     }
     return;
   }
+#endif
 }
 
 static void
@@ -775,17 +814,19 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
     float v = 0;
-    for (int i =0; i<sweep_points; i++) {
+    for (int i =0; i<sweep_points-1; i++) {
       v += c(i, array[i]);                                          // Get value
     }
-    v = v/sweep_points;
+    v = v/(sweep_points-1);
 //    shell_printf("%f\r\n",v);
     if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
+#if 0
   else { // Need custom marker format for SMITH / POLAR
     format_smith_value(xpos, ypos, coeff, index, type == TRC_SMITH ? trace[t].smith_format : MS_REIM);
   }
+#endif
 }
 
 static int
@@ -797,8 +838,10 @@ trace_print_info(int xpos, int ypos, int t)
   int smith = trace[t].smith_format;
   const char *v = trace_info_list[trace[t].type].symbol;
   switch (type) {
+#if 0
     case TRC_SMITH:
     case TRC_POLAR:  format = (scale != 1.0f) ? "%s %0.1fFS" : "%s "; break;
+#endif
     default:         format = "%s %F%s/"; break;
   }
   return cell_printf(xpos, ypos, format, get_trace_typename(type, smith), scale, v);
@@ -1414,7 +1457,7 @@ draw_cell(int m, int n)
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
-      if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
+//      if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
     }
   }
 //  const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
@@ -1434,6 +1477,7 @@ draw_cell(int m, int n)
       }
     }
   }
+#if 0
   // Smith greed line (1000 system ticks for all screen calls)
   if (trace_type & (1 << TRC_SMITH)) {
     if (use_smith)
@@ -1441,9 +1485,12 @@ draw_cell(int m, int n)
     else
       cell_admit_grid(x0, y0, w, h, c);
   }
+#endif
+#if 0
   // Polar greed line (800 system ticks for all screen calls)
   else if (trace_type & (1 << TRC_POLAR))
     cell_polar_grid(x0, y0, w, h, c);
+#endif
 #endif
 
 //  PULSE;

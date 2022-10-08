@@ -102,6 +102,7 @@ enum {
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   KM_BIN_NAME,
 #endif
+  KM_TAU,
 #endif
   KM_NONE
 };
@@ -824,6 +825,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
   uint16_t format = data & (~F_S21);
   uint16_t channel = data & F_S21 ? 1 : 0;
   if (b) {
+#if 0
     if (format == TRC_SMITH) {
       const char *txt;
       uint8_t marker_smith_format = get_smith_format();
@@ -833,6 +835,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
       plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
     else
+#endif
       b->p1.text = get_trace_typename(format, -1);
 
     if (current_trace != TRACE_INVALID && trace[current_trace].type == format && trace[current_trace].channel == channel)
@@ -841,9 +844,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
   }
   if (current_trace == TRACE_INVALID) return;
 
+#if 0
   if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
   else
+#endif
     set_trace_type(current_trace, format, channel);
 }
 
@@ -897,26 +902,27 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 //  ui_mode_normal();
 }
 
+#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
+#define BANDWIDTH_COUNT 10
+uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
+
 const menuitem_t menu_bandwidth[];
 static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
 {
   (void)data;
   if (b){
-    b->p1.u = get_bandwidth_frequency(config._bandwidth);
+    b->p1.f =  ((float)bandwidth[data]+1.0) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ; // get_bandwidth_frequency(config._bandwidth);
     return;
   }
   menu_push_submenu(menu_bandwidth);
 }
 
-#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
-#define BANDWIDTH_COUNT 10
-uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
 
 static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 {
   if (b){
     b->icon = config._bandwidth == bandwidth[data] ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.u = get_bandwidth_frequency( bandwidth[data]);
+    b->p1.f =  ((float)bandwidth[data]+1.0) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ;
     return;
   }
   set_bandwidth( bandwidth[data]);
@@ -1715,8 +1721,8 @@ const menuitem_t menu_formatS21[] = {
   { MT_ADV_CALLBACK, F_S21|TRC_LOGMAG, "LOGMAG",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_PHASE,  "PHASE",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_DFREQ,  "DFREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_SMITH, MT_CUSTOM_LABEL,menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_POLAR,  "POLAR",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_APHASE, "APHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_AFREQ,  "AFREQ",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_LINEAR, "LINEAR",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_REAL,   "REAL",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_IMAG,   "IMAG",        menu_format_acb },
@@ -1736,7 +1742,7 @@ const menuitem_t menu_format3[] = {
 };
 
 const menuitem_t menu_format2[] = {
-  { MT_ADV_CALLBACK, F_S11|TRC_POLAR,  "POLAR",       menu_format_acb },
+//  { MT_ADV_CALLBACK, F_S11|TRC_POLAR,  "POLAR",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_LINEAR, "LINEAR",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_REAL,   "REAL",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_IMAG,   "IMAG",        menu_format_acb },
@@ -1752,7 +1758,7 @@ const menuitem_t menu_formatS11[] = {
   { MT_ADV_CALLBACK, F_S11|TRC_LOGMAG, "LOGMAG",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_PHASE,  "PHASE",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "DFREQ",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_SMITH, MT_CUSTOM_LABEL, menu_format_acb },
+//  { MT_ADV_CALLBACK, F_S11|TRC_SMITH, MT_CUSTOM_LABEL, menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_SWR,    "SWR",          menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_R,      "RESISTANCE",   menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_X,      "REACTANCE",    menu_format_acb },
@@ -1784,16 +1790,16 @@ const menuitem_t menu_transform[] = {
 
 const menuitem_t menu_bandwidth[] =
 {
-  { MT_ADV_CALLBACK, 0, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 1, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 2, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 3, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 4, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 5, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 6, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 7, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 8, "%u " S_Hz, menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 9, "%u " S_Hz, menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 0, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 1, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 2, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 3, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 4, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 5, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 6, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 7, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 8, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 9, "%.6f " "s", menu_bandwidth_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1817,7 +1823,9 @@ const menuitem_t menu_display[] = {
   { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
   { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %u" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %.5f" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
+
   { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "DUMP\nSAMPLE",   menu_vna_mode_acb },
 #ifdef __USE_SMOOTH__
   { MT_SUBMENU,      0, "DATA SMOOTH",                         menu_smooth_count },
@@ -2333,6 +2341,12 @@ UI_KEYBOARD_CALLBACK(input_ref) {
   set_trace_refpos(current_trace, keyboard_get_float());
 }
 
+UI_KEYBOARD_CALLBACK(input_tau) {
+  (void)data;
+  if (b) {b->p1.f = get_tau(); return; }
+  set_tau(keyboard_get_float());
+}
+
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
   if (b) {b->p1.f = electrical_delay; return;}
@@ -2467,6 +2481,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
+[KM_TAU]            = {KEYPAD_FLOAT,   0,            "TAU",                input_tau      },  // tau
 #endif
 };
 
@@ -3102,7 +3117,10 @@ static bool
 normal_apply_ref_scale(int touch_x, int touch_y){
   int t = current_trace;
   // do not scale invalid or smith chart
-  if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
+  if (t == TRACE_INVALID
+      // || trace[t].type == TRC_SMITH
+      )
+    return FALSE;
   if (touch_x < UI_SCALE_REF_X0 || touch_x > UI_SCALE_REF_X1 ||
       touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
   float ref   = trace[t].refpos;

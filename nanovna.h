@@ -148,7 +148,8 @@
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (384)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -209,6 +210,7 @@
 #elif AUDIO_ADC_FREQ_K == 192
 #define FREQUENCY_OFFSET_STEP    4000
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
+//#define FREQUENCY_IF_K         4
 //#define FREQUENCY_IF_K          8
 #define FREQUENCY_IF_K         12
 //#define FREQUENCY_IF_K         16
@@ -274,8 +276,8 @@ typedef uint32_t freq_t;
 #define POINTS_SET             {51, POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #elif POINTS_COUNT >=51
-#define POINTS_SET_COUNT       2
-#define POINTS_SET             {25, POINTS_COUNT}
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {2,5,10,20,POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
@@ -332,6 +334,9 @@ void   set_sweep_frequency(uint16_t type, freq_t frequency);
 
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
+
+void set_tau(float tau);
+float get_tau(void);
 
 void set_power(uint8_t value);
 
@@ -807,7 +812,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 #define MAX_TRACE_TYPE 30
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DFREQ, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
+  TRC_LOGMAG=0, TRC_PHASE, TRC_DFREQ, TRC_APHASE, TRC_AFREQ, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
   TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
   TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
   TRC_sC, TRC_sL,
@@ -818,7 +823,7 @@ enum trace_type {
   TRC_Qs21
 };
 // Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DFREQ)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
+#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DFREQ)|(1<<TRC_APHASE)|(1<<TRC_AFREQ)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
                               |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
                               |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
                               |(1<<TRC_sC)|(1<<TRC_sL)\
@@ -828,7 +833,7 @@ enum trace_type {
                               |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
                               |(1<<TRC_Qs21))
 
-#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))
+#define ROUND_GRID_MASK 0
 
 // Trace info description structure
 typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback

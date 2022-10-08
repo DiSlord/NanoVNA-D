@@ -120,6 +120,8 @@ uint8_t sweep_mode = SWEEP_ENABLE;
 static uint16_t p_sweep = 0;
 // Sweep measured data
 float measured[2][POINTS_COUNT][2];
+float aver_freq;
+float aver_phase;
 
 #undef VERSION
 #define VERSION "1.2.15"
@@ -1108,7 +1110,7 @@ extern uint16_t timings[16];
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config._bandwidth+2;}
-#define DSP_WAIT         while (wait_count) {__WFI();}
+#define DSP_WAIT         while (wait_count && !(operation_requested && break_on_operation)) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
 #define SWEEP_CH0_MEASURE           0x01
@@ -1268,6 +1270,13 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       // Place some code thats need execute while delay
       //================================================
 #if 1
+
+      calculate_gamma(data);              // Measure all
+      measured[0][p_sweep][0] = data[0];
+      measured[0][p_sweep][1] = data[1];
+      measured[1][p_sweep][0] = data[2];
+      measured[1][p_sweep][1] = data[3];
+#elif 0
       calculate_gamma(data);              // Measure transmission coefficient
       measured[1][p_sweep][0] = data[0];
       measured[1][p_sweep][1] = data[1];
@@ -1362,11 +1371,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   for (int i =0; i<sweep_points-1; i++) {
     v += calc(i, array[i]);                                          // Get value
   }
-  v = v/sweep_points-1;
-  v++;
+  v = v/(sweep_points-1);
+
+  aver_freq = v;
+
   if (v < 20 && v > -20) {
     set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER) - (int)(v*(float)FREQ_SCALE));
   }
+
+  calc = trace_info_list[1].get_value_cb; // dfreq port 1
+  array = measured[1];
+  v = 0;
+  for (int i=0; i<sweep_points; i++) {
+    v += calc(i, array[i]);                                          // Get value
+  }
+  v = v/sweep_points;
+  v++;
+  aver_phase = v;
 
 
   //  STOP_PROFILE;
@@ -1429,6 +1450,20 @@ void set_bandwidth(uint16_t bw_count){
 
 uint32_t get_bandwidth_frequency(uint16_t bw_freq){
   return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
+}
+
+
+void set_tau(float tau){
+  config._bandwidth = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT);
+  if (config._bandwidth < 2)
+    config._bandwidth = 0;
+  else
+    config._bandwidth -= 2;
+  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
+}
+
+float get_tau(void){
+  return (config._bandwidth + 2) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
 }
 
 #define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)
