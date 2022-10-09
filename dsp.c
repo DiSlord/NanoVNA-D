@@ -22,7 +22,7 @@
 #include "nanovna.h"
 
 #ifdef USE_VARIABLE_OFFSET
-static int16_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
+static int32_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
 void generate_DSP_Table(int offset){
   float audio_freq  = AUDIO_ADC_FREQ;
   // N = offset * AUDIO_SAMPLES_COUNT / audio_freq; should be integer
@@ -34,8 +34,8 @@ void generate_DSP_Table(int offset){
     float s, c;
     vna_sincosf(w, &s, &c);
 #if 1
-    sincos_tbl[i][0] = s*32610.0f;
-    sincos_tbl[i][1] = c*32610.0f;
+    sincos_tbl[i][0] = s*(float)(0x7ffffff);
+    sincos_tbl[i][1] = c*(float)(0x7ffffff);
 #else
     sincos_tbl[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
     sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
@@ -166,20 +166,20 @@ dsp_process(audio_sample_t *capture, size_t length)
     i+=2;
   }while (i < length);
 #else
-  int32_t samp_s = 0;
-  int32_t samp_c = 0;
-  int32_t ref_s = 0;
-  int32_t ref_c = 0;
+  int64_t samp_s = 0;
+  int64_t samp_c = 0;
+  int64_t ref_s = 0;
+  int64_t ref_c = 0;
   uint32_t i = 0;
   do{
     int16_t ref = capture[i+0];
     int16_t smp = capture[i+1];
-    int32_t sin = ((int16_t *)sincos_tbl)[i+0];
-    int32_t cos = ((int16_t *)sincos_tbl)[i+1];
-    samp_s+= (smp * sin)/32;
-    samp_c+= (smp * cos)/32;
-    ref_s += (ref * sin)/32;
-    ref_c += (ref * cos)/32;
+    int64_t sin = ((int32_t *)sincos_tbl)[i+0];
+    int64_t cos = ((int32_t *)sincos_tbl)[i+1];
+    samp_s+= (smp * sin);
+    samp_c+= (smp * cos);
+    ref_s += (ref * sin);
+    ref_c += (ref * cos);
     i+=2;
   }while (i < length);
 #endif

@@ -283,7 +283,7 @@ typedef uint32_t freq_t;
 
 extern float measured[1][POINTS_COUNT][4];
 
-#define CAL_TYPE_COUNT  5
+#define CAL_TYPE_COUNT  2
 #define CAL_LOAD        0
 #define CAL_OPEN        1
 #define CAL_SHORT       2
