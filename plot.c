@@ -338,7 +338,7 @@ static float phase_b(int i, const float *v) {
 
 static float phase_d(int i, const float *v) {
   (void) i;
-  float p = v[3] - v[2];
+  float p = v[3];
   if (p > 1)
     p -= 2.0;
   else if (p < -1)
@@ -422,7 +422,7 @@ static float freq_d(int i, const float *v) {
   return (df);
 #endif
 #else
-  float df = (v[5] - v[1])*0.5f;
+  float df = (v[7] - v[3])*0.5f;
   if (df >= 0.5)
     df -= 1.0;
   if (df <= -0.5)
