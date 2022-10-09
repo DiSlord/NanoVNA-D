@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
  * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
@@ -76,6 +75,8 @@ float2int(float v)
   return 0;
 }
 #endif
+
+#if 0
 
 static inline int
 circle_inout(int x, int y, int r)
@@ -211,6 +212,7 @@ smith_grid(int x, int y)
 #endif
 }
 
+
 static void
 cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
 {
@@ -222,7 +224,6 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
     for (x = 0; x < w; x++)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
-
 static void
 cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
 {
@@ -234,6 +235,7 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
     for (x = 0; x < w; x++)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
+#endif
 
 void update_grid(void)
 {
@@ -306,77 +308,55 @@ static float linear(int i, const float *v) {
 //**************************************************************************************
 // LOGMAG = 20*log10f(|S|)
 //**************************************************************************************
-static float logmag(int i, const float *v) {
+static float logmag_a(int i, const float *v) {
   (void) i;
 //  return log10f(get_l(v[0], v[1])) *  10.0f;
 //  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
-  return vna_log10f_x_10(get_l(v[0], v[1]));
+  return 2*vna_log10f_x_10(v[0]) - 180.0f;
 }
+
+static float logmag_b(int i, const float *v) {
+  (void) i;
+//  return log10f(get_l(v[0], v[1])) *  10.0f;
+//  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
+  return 2*vna_log10f_x_10(v[1]) - 180.0f;
+}
+
 
 //**************************************************************************************
 // PHASE angle in degree = atan2(im, re) * 180 / PI
 //**************************************************************************************
-static float phase(int i, const float *v) {
+static float phase_a(int i, const float *v) {
   (void) i;
-#if 0
-  float rs_rc = (float) v[0] / v[1];
-  float sc_rc = (float)v[0+sizeof(measured[0])/sizeof(float)] / v[1];
-  float ss_rc = (float)v[1+sizeof(measured[0])/sizeof(float)] / v[1];
-  float rr = rs_rc * rs_rc + 1.0;
-  float gamma_0, gamma_1;
-  gamma_0 = (sc_rc + ss_rc*rs_rc) / rr;
-  gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
-  return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
-#else
-#if 1
-  float p = v[1] - v[0];
+  return(v[2]*180.0f);
+}
+
+static float phase_b(int i, const float *v) {
+  (void) i;
+  return(v[3]*180.0f);
+}
+
+static float phase_d(int i, const float *v) {
+  (void) i;
+  float p = v[3] - v[2];
   if (p > 1)
     p -= 2.0;
   else if (p < -1)
     p += 2.0;
   return(p*180.0f);
-#else
-  return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
-#endif
-#endif
-}
-
-//**************************************************************************************
-// PHASE angle in degree = atan2(im, re) * 180 / PI
-//**************************************************************************************
-
-extern float aver_phase;
-static float aver_delta_phase(int i, const float *v) {
-  (void) v;
-  (void) i;
-return (aver_phase);
 }
 
 //**************************************************************************************
 // Delta frequency
 //**************************************************************************************
-static float delta_freq(int i, const float *v) {
+static float freq_a(int i, const float *v) {
   (void) i;
-#if 0
-  float rs_rc = (float) v[0] / v[1];
-  float sc_rc = (float)v[0+sizeof(measured[0])/sizeof(float)] / v[1];
-  float ss_rc = (float)v[1+sizeof(measured[0])/sizeof(float)] / v[1];
-  float rr = rs_rc * rs_rc + 1.0;
-  float gamma_0, gamma_1;
-  gamma_0 = (sc_rc + ss_rc*rs_rc) / rr;
-  gamma_1 = (ss_rc - sc_rc*rs_rc) / rr;
-  return (180.0f / VNA_PI) * vna_atan2f(gamma_1, gamma_0);
-#else
   if (i == sweep_points-1){
     i = sweep_points-2;
     v--;
     v--;
   }
-#if 1
-  float df = (v[3] - v[1])*0.5f/VNA_PI;
-#else
-  float df = (vna_atan2f(v[3], v[2]) - vna_atan2f(v[1], v[0]))*0.5/VNA_PI;
-#endif
+  float df = (v[6] - v[2])*0.5f;
   if (df >= 0.5)
     df -= 1.0;
   if (df <= -0.5)
@@ -385,20 +365,75 @@ static float delta_freq(int i, const float *v) {
   df *= AUDIO_ADC_FREQ;
   df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
   return (df);
+}
+
+static float freq_b(int i, const float *v) {
+  (void) i;
+  if (i == sweep_points-1){
+    i = sweep_points-2;
+    v--;
+    v--;
+  }
+  float df = (v[7] - v[3])*0.5f;
+  if (df >= 0.5)
+    df -= 1.0;
+  if (df <= -0.5)
+    df += 1.0;
+
+  df *= AUDIO_ADC_FREQ;
+  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  return (df);
+}
+
+static float freq_d(int i, const float *v) {
+  (void) i;
+  if (i == sweep_points-1){
+    i = sweep_points-2;
+    v--;
+    v--;
+  }
+#if 0
+  float df_a = (v[6] - v[2])*0.5f;
+  if (df_a > 0.5)
+    df_a -= 1.0;
+  if (df_a < -0.5)
+    df_a += 1.0;
+
+  float df_b = (v[7] - v[3])*0.5f;
+  if (df_b > 0.5)
+    df_b -= 1.0;
+  if (df_b < -0.5)
+    df_b += 1.0;
+#if 0
+  df_a *= AUDIO_ADC_FREQ;
+  df_a /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+
+  df_b *= AUDIO_ADC_FREQ;
+  df_b /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+
+
+  float ratio = df_a - df_b;
+  return (ratio);
+#else
+  float df = df_a - df_b;
+
+  df *= AUDIO_ADC_FREQ;
+  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  return (df);
+#endif
+#else
+  float df = (v[5] - v[1])*0.5f;
+  if (df >= 0.5)
+    df -= 1.0;
+  if (df <= -0.5)
+    df += 1.0;
+
+  df *= AUDIO_ADC_FREQ;
+  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  return (df);
+
 #endif
 }
-
-
-//**************************************************************************************
-// Average delta frequency
-//**************************************************************************************
-extern float aver_freq;
-static float aver_delta_freq(int i, const float *v) {
-  (void) v;
-  (void) i;
-  return (aver_freq);
-}
-
 
 //**************************************************************************************
 // Group delay
@@ -647,44 +682,22 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
   *yp = y;
 }
 
-#if MAX_TRACE_TYPE != 30
-#error "Redefined trace_type list, need check format_list"
-#endif
-
-const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
+const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
+{
 // Type          name      format   delta format      symbol         ref   scale  get value
-[TRC_LOGMAG] = {"LOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag               },
-[TRC_PHASE]  = {"PHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase                },
-[TRC_DFREQ]  = {"DFREQ",  "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,     delta_freq           },
-[TRC_APHASE] = {"APHASE", "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, aver_delta_phase     },
-[TRC_AFREQ]  = {"AFREQ",  "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,     aver_delta_freq      },
-[TRC_LINEAR] = {"LINEAR", "%.6f%s", S_DELTA "%.5f%s", "",              0, 0.125f, linear               },
-[TRC_SWR]    = {"SWR",    "%.3f%s", S_DELTA "%.3f%s", "",              0,  0.25f, swr                  },
-[TRC_REAL]   = {"REAL",   "%.6f%s", S_DELTA "%.5f%s", "",       NGRIDY/2,  0.25f, real                 },
-[TRC_IMAG]   = {"IMAG",   "%.6fj%s",S_DELTA "%.5fj%s","",       NGRIDY/2,  0.25f, imag                 },
-[TRC_R]      = {"R",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0, 100.0f, resistance           },
-[TRC_X]      = {"X",      "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, reactance            },
-[TRC_Z]      = {"|Z|",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0,  50.0f, mod_z                },
-[TRC_ZPHASE] = {"Z phase","%.1f%s", S_DELTA "%.2f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_z              },
-[TRC_G]      = {"G",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.01f, conductance          },
-[TRC_B]      = {"B",      "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,NGRIDY/2,  0.01f, susceptance          },
-[TRC_Y]      = {"|Y|",    "%.3F%s", S_DELTA "%.3F%s", S_SIEMENS,       0,  0.02f, mod_y                },
-[TRC_Rp]     = {"Rp",     "%.3F%s", S_DELTA "%.3F%s", S_OHM,           0, 100.0f, parallel_r           },
-[TRC_Xp]     = {"Xp",     "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, parallel_x           },
-[TRC_sC]     = {"sC",     "%.4F%s", S_DELTA "%.4F%s", S_FARAD,  NGRIDY/2,  1e-8f, series_c             },
-[TRC_sL]     = {"sL" ,    "%.4F%s", S_DELTA "%.4F%s", S_HENRY,  NGRIDY/2,  1e-8f, series_l             },
-[TRC_pC]     = {"pC",     "%.4F%s", S_DELTA "%.4F%s", S_FARAD,  NGRIDY/2,  1e-8f, parallel_c           },
-[TRC_pL]     = {"pL" ,    "%.4F%s", S_DELTA "%.4F%s", S_HENRY,  NGRIDY/2,  1e-8f, parallel_l           },
-[TRC_Q]      = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, qualityfactor        },
-[TRC_Rser]   = {"Rser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_r          },
-[TRC_Xser]   = {"Xser",   "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_x          },
-[TRC_Zser]   = {"|Zser|", "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21series_z          },
-[TRC_Rsh]    = {"Rsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_r           },
-[TRC_Xsh]    = {"Xsh",    "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_x           },
-[TRC_Zsh]    = {"|Zsh|",  "%.3F%s", S_DELTA "%.3F%s", S_OHM,    NGRIDY/2, 100.0f, s21shunt_z           },
-[TRC_Qs21]   = {"Q",      "%.4f%s", S_DELTA "%.3f%s", "",              0,  10.0f, s21_qualityfactor    },
+[TRC_ALOGMAG] = {"ALOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag_a               },
+[TRC_BLOGMAG] = {"BLOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag_b               },
+[TRC_APHASE]  = {"APHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_a                },
+[TRC_BPHASE]  = {"BPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_b                },
+[TRC_DPHASE]  = {"DPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_d                },
+[TRC_AFREQ]  = {"AFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_a           },
+[TRC_BFREQ]  = {"BFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_b           },
+[TRC_DFREQ]  = {"DFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_d           },
 };
 
+
+
+#if 0
 const marker_info_t marker_info_list[MS_END] = {
 // Type            name          format                        get real     get imag
 [MS_LIN]       = {"LIN",        "%.2f %+.1f" S_DEGREE,         linear,      phase       },
@@ -699,17 +712,20 @@ const marker_info_t marker_info_list[MS_END] = {
 [MS_SHUNT_RX]  = {"R+jX SHUNT", "%F%+jF" S_OHM,                s21shunt_r,  s21shunt_x  },
 [MS_SERIES_RX] = {"R+jX SERIES","%F%+jF" S_OHM,                s21series_r, s21series_x },
 };
+#endif
 
 const char *get_trace_typename(int t, int marker_smith_format)
 {
+  (void) marker_smith_format;
 //  if (t == TRC_SMITH && ADMIT_MARKER_VALUE(marker_smith_format)) return "ADMIT";
   return trace_info_list[t].name;
 }
-
+#if 0
 const char *get_smith_format_names(int m)
 {
   return marker_info_list[m].name;
 }
+#endif
 
 static void mark_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   x1/= CELLWIDTH;  x2/= CELLWIDTH;
@@ -751,13 +767,11 @@ trace_into_index(int t) {
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
-    if (type & (1<<TRC_SWR))  // For SWR need shift value by 1.0 down
-      refpos+= dscale;
     uint32_t dx = ((WIDTH)<<16) / (sweep_points-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
     int32_t y;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
-      if (c) v = c(i, &array[2*i]);         // Get value
+      if (c) v = c(i, &array[4*i]);         // Get value
       if (v == INFINITY) {
         y = 0;
       } else {
@@ -775,14 +789,14 @@ trace_into_index(int t) {
     const float rscale = P_RADIUS / scale;
     int16_t y, x;
     for (i = start; i <= stop; i++){
-      cartesian_scale(&array[2*i], &x, &y, rscale);
+      cartesian_scale(&array[4*i], &x, &y, rscale);
       mark_set_index(index, i, x, y);
     }
     return;
   }
 #endif
 }
-
+#if 0
 static void
 format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx, uint16_t m)
 {
@@ -801,6 +815,7 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx, uint16_
   }
   cell_printf(xpos, ypos, format, zr, zi, value);
 }
+#endif
 
 static void
 trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
@@ -808,8 +823,8 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   // Check correct input
   uint8_t type = trace[t].type;
   if (type >= MAX_TRACE_TYPE) return;
-  float (*array)[2] = measured[trace[t].channel];
-  float *coeff = array[index];
+  float (*array)[4] = measured[0]; // trace[t].channel;
+//  float *coeff = array[index];
   const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
@@ -819,7 +834,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     }
     v = v/(sweep_points-1);
 //    shell_printf("%f\r\n",v);
-    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
+//    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
 #if 0
@@ -1372,7 +1387,6 @@ static void cell_grid_line_info(int x0, int y0)
   float scale = get_trace_scale(current_trace);
   float   ref = get_trace_refpos(current_trace);
   float     v = (NGRIDY - ref) * scale;
-  if (trace_type&(1 << TRC_SWR)) v+=1.0f;  // For SWR trace, value shift by 1.0
   // Render grid values
   lcd_set_foreground(LCD_TRACE_1_COLOR + current_trace);
   do {
@@ -1453,7 +1467,7 @@ draw_cell(int m, int n)
   c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
   // Generate grid type list
   uint32_t trace_type = 0;
-  bool use_smith = false;
+//  bool use_smith = false;
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
@@ -1759,8 +1773,8 @@ cell_draw_marker_info(int x0, int y0)
       if (t == current_trace)
         cell_printf(xpos, ypos, S_SARROW);
       xpos += FONT_WIDTH;
-      cell_printf(xpos, ypos, get_trace_chname(t));
-      xpos += 4 * FONT_WIDTH - 2;
+//      cell_printf(xpos, ypos, get_trace_chname(t));
+//      xpos += 4 * FONT_WIDTH - 2;
 
       int n = trace_print_info(xpos, ypos, t) + 1;
       xpos += n * FONT_WIDTH - 5;

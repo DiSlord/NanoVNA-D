@@ -84,7 +84,7 @@
 #define __USE_DSP__
 #endif
 // Add measure module option (allow made some measure calculations on data)
-#define __VNA_MEASURE_MODULE__
+//#define __VNA_MEASURE_MODULE__
 // Add Z normalization feature
 //#define __VNA_Z_RENORMALIZATION__
 
@@ -104,13 +104,13 @@
 // If measure module enabled, add submodules
 #ifdef __VNA_MEASURE_MODULE__
 // Add LC match function
-#define __USE_LC_MATCHING__
+//#define __USE_LC_MATCHING__
 // Enable Series measure option
-#define __S21_MEASURE__
+//#define __S21_MEASURE__
 // Enable S11 cable measure option
-#define __S11_CABLE_MEASURE__
+//#define __S11_CABLE_MEASURE__
 // Enable S11 resonance search option
-#define __S11_RESONANCE_MEASURE__
+//#define __S11_RESONANCE_MEASURE__
 #endif
 
 /*
@@ -281,7 +281,7 @@ typedef uint32_t freq_t;
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #endif
 
-extern float measured[2][POINTS_COUNT][2];
+extern float measured[1][POINTS_COUNT][4];
 
 #define CAL_TYPE_COUNT  5
 #define CAL_LOAD        0
@@ -810,29 +810,17 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 30
+//#define  7
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DFREQ, TRC_APHASE, TRC_AFREQ, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
-  TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
-  TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
-  TRC_sC, TRC_sL,
-  TRC_pC, TRC_pL,
-  TRC_Q,
-  TRC_Rser, TRC_Xser, TRC_Zser,
-  TRC_Rsh, TRC_Xsh, TRC_Zsh,
-  TRC_Qs21
-};
-// Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DFREQ)|(1<<TRC_APHASE)|(1<<TRC_AFREQ)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
-                              |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
-                              |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
-                              |(1<<TRC_sC)|(1<<TRC_sL)\
-                              |(1<<TRC_pC)|(1<<TRC_pL)\
-                              |(1<<TRC_Q)\
-                              |(1<<TRC_Rser)|(1<<TRC_Xser)|(1<<TRC_Zser)\
-                              |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
-                              |(1<<TRC_Qs21))
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, MAX_TRACE_TYPE
+  };
+#define GET_DPHASE  4
+#define GET_AFREQ   5
+#define GET_BFREQ   6
+#define GET_DFREQ   7
 
+// Mask for define rectangular plot
+#define RECTANGULAR_GRID_MASK 0xfffffffff
 #define ROUND_GRID_MASK 0
 
 // Trace info description structure
@@ -1007,6 +995,7 @@ typedef struct properties {
   float    _var_delay;
   float    _s21_offset;
   float    _portz;
+  int      pll;
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;

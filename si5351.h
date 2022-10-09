@@ -62,6 +62,10 @@
 #define SI5351_R_DIV_128    (7<<4)
 #define SI5351_R_DIV(n)     ((n)<<4)
 
+#define SI5351_0_PHASE  165
+#define SI5351_1_PHASE  166
+#define SI5351_2_PHASE  167
+
 #define SI5351_REG_177_PLL_RESET    177
 #define SI5351_PLL_RESET_B          (1<<7)
 #define SI5351_PLL_RESET_A          (1<<5)

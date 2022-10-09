@@ -1056,8 +1056,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
   if (data == KM_SCALE) {   // Scale button type auto set
     if ((1<<trace[current_trace].type) & (1<<TRC_DFREQ))
       data = KM_SCALE;
-    else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
-      data = KM_nSCALE;
   } else if (data == KM_VAR) {
     if (lever_mode == LM_EDELAY) data = KM_VAR_DELAY;
   }
@@ -1113,7 +1111,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     { 
       if (current_trace == TRACE_INVALID)
         break;
-      float (*array)[2] = measured[trace[current_trace].channel];
+      float (*array)[4] = measured[trace[current_trace].channel];
       int index = markers[active_marker].index;
       float v = groupdelay_from_array(index, array[index]);
       set_electrical_delay(electrical_delay + v);
@@ -1475,7 +1473,7 @@ static void vna_save_file(char *name, uint8_t format)
       }
       // Write all points data
       for (i = 0; i < sweep_points && res == FR_OK; i++) {
-        size = plot_printf(buf_8, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+        size = plot_printf(buf_8, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[0][i][2], measured[0][i][3]);
 //        total_size+=size;
         res = f_write(fs_file, buf_8, size, &size);
       }
@@ -1706,64 +1704,16 @@ const menuitem_t menu_trace[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
-const menuitem_t menu_format4[] = {
-  { MT_ADV_CALLBACK, F_S21|TRC_Rser,   "SERIES R",   menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Xser,   "SERIES X",   menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Zser,   "SERIES |Z|", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Rsh,    "SHUNT R",    menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Xsh,    "SHUNT X",    menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Zsh,    "SHUNT |Z|",  menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_Qs21,   "Q FACTOR",   menu_format_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
-const menuitem_t menu_formatS21[] = {
-  { MT_ADV_CALLBACK, F_S21|TRC_LOGMAG, "LOGMAG",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_PHASE,  "PHASE",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_DFREQ,  "DFREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_APHASE, "APHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_AFREQ,  "AFREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_LINEAR, "LINEAR",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_REAL,   "REAL",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_IMAG,   "IMAG",        menu_format_acb },
-  { MT_SUBMENU,          0, S_RARROW " MORE",     menu_format4 },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
-const menuitem_t menu_format3[] = {
-  { MT_ADV_CALLBACK, F_S11|TRC_ZPHASE, "Z PHASE",    menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_sC,     "SERIES C",   menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_sL,     "SERIES L",   menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_Rp,     "PARALLEL R", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_Xp,     "PARALLEL X", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_pC,     "PARALLEL C", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_pL,     "PARALLEL L", menu_format_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
-const menuitem_t menu_format2[] = {
-//  { MT_ADV_CALLBACK, F_S11|TRC_POLAR,  "POLAR",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_LINEAR, "LINEAR",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_REAL,   "REAL",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_IMAG,   "IMAG",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_Q,      "Q FACTOR",    menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_G,      "CONDUCTANCE", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_B,      "SUSCEPTANCE", menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_Y,      "|Y|",         menu_format_acb },
-  { MT_SUBMENU,         0, S_RARROW " MORE",     menu_format3 },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
-};
-
-const menuitem_t menu_formatS11[] = {
-  { MT_ADV_CALLBACK, F_S11|TRC_LOGMAG, "LOGMAG",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_PHASE,  "PHASE",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "DFREQ",        menu_format_acb },
-//  { MT_ADV_CALLBACK, F_S11|TRC_SMITH, MT_CUSTOM_LABEL, menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_SWR,    "SWR",          menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_R,      "RESISTANCE",   menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_X,      "REACTANCE",    menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_Z,      "|Z|",          menu_format_acb },
-  { MT_SUBMENU,          0, S_RARROW " MORE",     menu_format2 },
+const menuitem_t menu_formatS11[] =
+{
+  { MT_ADV_CALLBACK, F_S11|TRC_ALOGMAG, "ALOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BLOGMAG, "BLOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_APHASE,  "APHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BPHASE,  "BPHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_DPHASE,  "DPHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_AFREQ,  "AFREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BFREQ,  "BFREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "DFREQ",       menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1818,13 +1768,13 @@ const menuitem_t menu_smooth_count[] = {
 
 const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "TRACE",                               menu_trace },
-  { MT_SUBMENU,      0, "FORMAT\n S11 (REFL)",                 menu_formatS11 },
-  { MT_SUBMENU,      0, "FORMAT\n S21 (THRU)",                 menu_formatS21 },
-  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
+  { MT_SUBMENU,      0, "FORMAT",                              menu_formatS11 },
+//  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
-  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
+//  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
   { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %.5f" S_Hz, menu_bandwidth_sel_acb },
   { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
 
   { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "DUMP\nSAMPLE",   menu_vna_mode_acb },
 #ifdef __USE_SMOOTH__

@@ -119,7 +119,7 @@ uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
 static uint16_t p_sweep = 0;
 // Sweep measured data
-float measured[2][POINTS_COUNT][2];
+float measured[1][POINTS_COUNT][4];
 float aver_freq;
 float aver_phase;
 
@@ -816,7 +816,7 @@ VNA_SHELL_FUNCTION(cmd_data)
 {
   int i;
   int sel = 0;
-  float (*array)[2];
+  float (*array)[4];
   if (argc == 1)
     sel = my_atoi(argv[0]);
   if (sel < 0 || sel >=7)
@@ -916,9 +916,9 @@ properties_t current_props;
 
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
-  { TRUE, TRC_PHASE, 1, MS_REIM, 90.0, NGRIDY/2 },
-  { TRUE, TRC_DFREQ, 0, MS_REIM, 1.0, NGRIDY/2 },
-  { TRUE, TRC_DFREQ,  1, MS_REIM, 1.0,  NGRIDY/2 },
+  { TRUE, TRC_DPHASE, 0, MS_REIM, 90.0, NGRIDY/2 },
+  { TRUE, TRC_AFREQ, 0, MS_REIM, 1.0, NGRIDY/2 },
+  { TRUE, TRC_DFREQ,  0, MS_REIM, 1.0,  NGRIDY/2 },
 //  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
 };
 
@@ -952,8 +952,8 @@ void load_default_properties(void)
 {
 //Magic add on caldata_save
 //current_props.magic = CONFIG_MAGIC;
-  current_props._frequency0       = 1000000350;    // start =  50kHz
-  current_props._frequency1       = 1000000350;    // end   = 900MHz
+  current_props._frequency0       = 10000000;    // start =  50kHz
+  current_props._frequency1       = 10000000;    // end   = 900MHz
   current_props._var_freq         = 0;
   current_props._sweep_points     = POINTS_COUNT_DEFAULT; // Set default points count
   current_props._cal_frequency0   =     50000;    // calibration start =  50kHz
@@ -1174,7 +1174,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
     p_sweep = 0;
 //    float s, c;
-    float data[4];
+//    float data[4];
 //    float c_data[CAL_TYPE_COUNT][2];
     int st_delay = DELAY_SWEEP_START;
 //    int bar_start = 0;
@@ -1186,22 +1186,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
       DSP_WAIT;
-#if 1
-      calculate_gamma(data);              // Measure transmission coefficient
-      measured[1][p_sweep][0] = data[0];
-      measured[1][p_sweep][1] = data[1];
-#else
-      fetch_data(data);              // Measure transmission coefficient
-      measured[0][p_sweep][0] = data[0];
-      measured[0][p_sweep][1] = data[1];
-      measured[1][p_sweep][0] = data[2];
-      measured[1][p_sweep][1] = data[3];
-#endif
-//    int t = 3;
-//    uint8_t type = trace[t].type;
-    float (*array)[2] = measured[1];
+      calculate_gamma(measured[0][p_sweep]);              // Measure transmission coefficient
+    int t = 0;
+    uint8_t type = trace[t].type;
+    float (*array)[4] = measured[0];
     //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-    get_value_cb_t calc = trace_info_list[1].get_value_cb;
+    get_value_cb_t calc = trace_info_list[type].get_value_cb;
     if (calc){                                           // Run standard get value function from table
       //      float v = 0;
       //      for (int i =0; i<sweep_points; i++) {
@@ -1216,8 +1206,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   if (break_on_operation && mask == 0)
     return false;
-  float s, c;
-  float data[4];
+//  float s, c;
+//  float data[4];
 //  float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
   palClearPad(GPIOC, GPIOC_LED);
@@ -1269,27 +1259,9 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       //================================================
       // Place some code thats need execute while delay
       //================================================
-#if 1
 
-      calculate_gamma(data);              // Measure all
-      measured[0][p_sweep][0] = data[0];
-      measured[0][p_sweep][1] = data[1];
-      measured[1][p_sweep][0] = data[2];
-      measured[1][p_sweep][1] = data[3];
-#elif 0
-      calculate_gamma(data);              // Measure transmission coefficient
-      measured[1][p_sweep][0] = data[0];
-      measured[1][p_sweep][1] = data[1];
-      measured[0][p_sweep][0] = data[2];
-      measured[0][p_sweep][1] = data[3];
+      calculate_gamma(measured[0][p_sweep]);              // Measure all
 
-#else
-      fetch_data(data);              // Measure transmission coefficient
-      measured[0][p_sweep][0] = data[0];
-      measured[0][p_sweep][1] = data[1];
-      measured[1][p_sweep][0] = data[2];
-      measured[1][p_sweep][1] = data[3];
-#endif
 #if 0
       (*sample_func)(&data[2]);              // Measure transmission coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
@@ -1349,23 +1321,11 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
-  if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
-
-    get_value_cb_t calc = trace_info_list[1].get_value_cb; // phase
-    float (*array)[2] = measured[1];
-    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-    float v = 0;
-    for (int i =0; i<sweep_points; i++) {
-      v += calc(i, array[i]);                                          // Get value
-    }
-    v = v/sweep_points;
-    shell_printf("%f\r\n",v/(360));
-  }
 
   // -------------------- Auto set CW frequency ----------------------
 
-  get_value_cb_t calc = trace_info_list[2].get_value_cb; // dfreq port 1
-  float (*array)[2] = measured[0];
+  get_value_cb_t calc = trace_info_list[GET_AFREQ].get_value_cb; // dfreq port 1
+  float (*array)[4] = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
   for (int i =0; i<sweep_points-1; i++) {
@@ -1374,13 +1334,17 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   v = v/(sweep_points-1);
 
   aver_freq = v;
-
-  if (v < 20 && v > -20) {
-    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER) - (int)(v*(float)FREQ_SCALE));
+#if 1
+  int new_pll = current_props.pll - v * 260;
+  if (new_pll < 1000 && new_pll > -1000) {
+    current_props.pll = new_pll;
+    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
   }
+#endif
 
-  calc = trace_info_list[1].get_value_cb; // dfreq port 1
-  array = measured[1];
+#if 0
+  calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
+  array = measured[0];
   v = 0;
   for (int i=0; i<sweep_points; i++) {
     v += calc(i, array[i]);                                          // Get value
@@ -1388,7 +1352,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   v = v/sweep_points;
   v++;
   aver_phase = v;
-
+#endif
 
   //  STOP_PROFILE;
   // blink LED while scanning
@@ -1544,6 +1508,7 @@ static bool needInterpolate(freq_t start, freq_t stop, uint16_t points){
   return start != cal_frequency0 || stop != cal_frequency1 || points != cal_sweep_points;
 }
 
+#if 0
 #define SCAN_MASK_OUT_FREQ       0b00000001
 #define SCAN_MASK_OUT_DATA0      0b00000010
 #define SCAN_MASK_OUT_DATA1      0b00000100
@@ -1625,12 +1590,15 @@ VNA_SHELL_FUNCTION(cmd_scan)
     }
   }
 }
+#endif
 
 #ifdef ENABLE_SCANBIN_COMMAND
 VNA_SHELL_FUNCTION(cmd_scan_bin)
 {
+  (void)argc;
+  (void)argv;
   sweep_mode|= SWEEP_BINARY;
-  cmd_scan(argc, argv);
+//  cmd_scan(argc, argv);
   sweep_mode&=~(SWEEP_BINARY);
 }
 #endif
@@ -1658,7 +1626,7 @@ freq_t get_marker_frequency(int marker)
     return 0;
   return markers[marker].frequency;
 }
-
+#if 0
 static void
 update_marker_index(void)
 {
@@ -1686,7 +1654,7 @@ update_marker_index(void)
     set_marker_index(m, idx);
   }
 }
-
+#endif
 static void
 update_frequencies(void)
 {
@@ -2342,7 +2310,7 @@ void set_s21_offset(float offset)
     request_to_redraw(REDRAW_MARKER);
   }
 }
-
+#if 0
 VNA_SHELL_FUNCTION(cmd_trace)
 {
   uint32_t t;
@@ -2421,6 +2389,8 @@ usage:
                "trace {0|1|2|3} [%s]" VNA_SHELL_NEWLINE_STR\
                "trace {0|1|2|3} {%s} {value}" VNA_SHELL_NEWLINE_STR, cmd_type_list, cmd_marker_smith, cmd_scale_ref_list);
 }
+
+#endif
 
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
@@ -3064,7 +3034,7 @@ typedef struct {
 
 static const VNAShellCommand commands[] =
 {
-    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
+//    {"scan"        , cmd_scan        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
 #ifdef ENABLE_SCANBIN_COMMAND
     {"scan_bin"    , cmd_scan_bin    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
 #endif
@@ -3115,7 +3085,7 @@ static const VNAShellCommand commands[] =
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , CMD_RUN_IN_LOAD},
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
-    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
+//    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
     {"marker"      , cmd_marker      , CMD_RUN_IN_LOAD},
     {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
     {"s21offset"   , cmd_s21offset   , CMD_RUN_IN_LOAD},

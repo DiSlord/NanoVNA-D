@@ -376,6 +376,7 @@ tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data)
 
 void tlv320aic3204_select(uint8_t channel)
 {
+  (void)channel;
 #if 0
   // Cache current selected channel
   static uint8_t current_channel = -1;
