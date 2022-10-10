@@ -34,8 +34,13 @@ void generate_DSP_Table(int offset){
     float s, c;
     vna_sincosf(w, &s, &c);
 #if 1
-    sincos_tbl[i][0] = s*(float)(0x7ffffff);
-    sincos_tbl[i][1] = c*(float)(0x7ffffff);
+#ifdef AUDIO_32_BIT
+    sincos_tbl[i][0] = s*(float)(0x7fffff);
+    sincos_tbl[i][1] = c*(float)(0x7fffff);
+#else
+    sincos_tbl[i][0] = s*(float)(0x7ff0);
+    sincos_tbl[i][1] = c*(float)(0x7ff0);
+#endif
 #else
     sincos_tbl[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
     sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
@@ -172,8 +177,13 @@ dsp_process(audio_sample_t *capture, size_t length)
   int64_t ref_c = 0;
   uint32_t i = 0;
   do{
-    int16_t ref = capture[i+0];
-    int16_t smp = capture[i+1];
+#ifdef AUDIO_32_BIT
+    int32_t ref = capture[i+0]>>8;
+    int32_t smp = capture[i+1]>>8;
+#else
+    int32_t ref = capture[i+0];
+    int32_t smp = capture[i+1];
+#endif
     int64_t sin = ((int32_t *)sincos_tbl)[i+0];
     int64_t cos = ((int32_t *)sincos_tbl)[i+1];
     samp_s+= (smp * sin);

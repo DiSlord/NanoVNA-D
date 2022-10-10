@@ -123,8 +123,11 @@
 #define REG_27_INTERFACE_LJF         (3<<6)
 
 // Set the interface mode: 16 bit, BCLK, WCLK as output, DSP mode
+#ifdef AUDIO_32_BIT
+#define REG_27  (REG_27_DATA_32 | REG_27_INTERFACE_DSP | REG_27_WCLK_OUT | REG_27_BCLK_OUT)
+#else
 #define REG_27  (REG_27_DATA_16 | REG_27_INTERFACE_DSP | REG_27_WCLK_OUT | REG_27_BCLK_OUT)
-
+#endif
 static const uint8_t conf_data[] = {
 // reg, data,     // PLL clock config
   0x00, 0x00,     // Initialize to Page 0
@@ -241,7 +244,11 @@ static const uint8_t conf_data[] = {
   0x14, 0x40,     // ADC Oversampling (AOSR) set OSR of ADC to 64
   0x3d,    7,     // Select ADC PRB_R7
   0x1b, REG_27,   // Set the interface mode
+#ifdef AUDIO_32_BIT
+  0x1e, 0x80 + 4, // Enable the BCLKN divider with value 4 (I2S clock = 98.304MHz/(NDAC*4) = 192kHz * (16+16)
+#else
   0x1e, 0x80 + 8, // Enable the BCLKN divider with value 8 (I2S clock = 98.304MHz/(NDAC*8) = 192kHz * (16+16)
+#endif
 #elif AUDIO_ADC_FREQ == 384000
 // Clock config, default fs=384kHz
 // from PLL 98.304MHz/(2*4*32) = 384kHz

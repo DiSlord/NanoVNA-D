@@ -637,7 +637,7 @@ select_lever_mode(int mode)
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY | REDRAW_MARKER);
   return true;
 }
-
+#if 0
 static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
 {
   static const struct {uint8_t mask, next;} c_list[5]={
@@ -705,6 +705,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
   cal_status ^= CALSTAT_APPLY;
   request_to_redraw(REDRAW_CAL_STATUS);
 }
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
 {
@@ -851,7 +852,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 #endif
     set_trace_type(current_trace, format, channel);
 }
-
+#if 0
 static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
 {
   (void)data;
@@ -863,7 +864,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
   }
   set_trace_channel(current_trace, ch^1);
 }
-
+#endif
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
 {
   char *text = "";
@@ -1024,7 +1025,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
   }
   set_sweep_points(p_count);
 }
-
+#if 0
 const menuitem_t menu_power[];
 static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
 {
@@ -1038,6 +1039,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
   }
   menu_push_submenu(menu_power);
 }
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 {
@@ -1611,7 +1613,7 @@ static const menuitem_t menu_sdcard[] = {
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
-
+#if 0
 static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_OPEN,  "OPEN",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_SHORT, "SHORT", menu_calop_acb },
@@ -1623,6 +1625,7 @@ static const menuitem_t menu_calop[] = {
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
+#endif
 
 const menuitem_t menu_save[] = {
 #ifdef __SD_FILE_BROWSER__
@@ -1676,7 +1679,7 @@ const menuitem_t menu_power[] = {
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u m" S_AMPER, menu_power_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
-
+#if 0
 const menuitem_t menu_cal[] = {
   { MT_SUBMENU,      0, "CALIBRATE",     menu_calop },
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
@@ -1686,7 +1689,7 @@ const menuitem_t menu_cal[] = {
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
-
+#endif
 const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 0, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
@@ -2015,7 +2018,7 @@ const menuitem_t menu_top[] = {
   { MT_SUBMENU, 0, "DISPLAY",   menu_display },
   { MT_SUBMENU, 0, "MARKER",    menu_marker },
   { MT_SUBMENU, 0, "STIMULUS",  menu_stimulus },
-  { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
+//  { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
   { MT_SUBMENU, 0, "RECALL",    menu_recall },
 #ifdef __VNA_MEASURE_MODULE__
   { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },

@@ -822,7 +822,7 @@ VNA_SHELL_FUNCTION(cmd_data)
   if (sel < 0 || sel >=7)
     goto usage;
 
-  array = sel < 2 ? measured[sel] : cal_data[sel-2];
+  array = measured[sel];
 
   for (i = 0; i < sweep_points; i++)
     shell_printf("%f %f" VNA_SHELL_NEWLINE_STR, array[i][0], array[i][1]);
@@ -1335,8 +1335,13 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
   aver_freq = v;
 #if 1
-  int new_pll = current_props.pll - v * 260;
-  if (new_pll < 1000 && new_pll > -1000) {
+  int new_pll;
+  if (-0.1 < v && v < 0.1)
+    new_pll = current_props.pll - v * 260;
+  else
+    new_pll = current_props.pll - v * 100;
+
+  if (new_pll < 5000 && new_pll > -5000) {
     current_props.pll = new_pll;
     set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
   }
@@ -1780,7 +1785,7 @@ usage:
                "\tsweep {%s} {freq(Hz)}" VNA_SHELL_NEWLINE_STR, sweep_cmd);
 }
 
-
+#if 0
 static void
 eterm_set(int term, float re, float im)
 {
@@ -2195,6 +2200,7 @@ VNA_SHELL_FUNCTION(cmd_cal)
   }
   shell_printf("usage: cal [%s]" VNA_SHELL_NEWLINE_STR, cmd_cal_list);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_save)
 {
@@ -3082,7 +3088,7 @@ static const VNAShellCommand commands[] =
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
-    {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
+//    {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , CMD_RUN_IN_LOAD},
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 //    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
