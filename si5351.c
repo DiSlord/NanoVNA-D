@@ -602,7 +602,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
       si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * ((freq_t)(config._xtal_freq * FREQ_SCALE + current_props.pll)) * pll_n, (freq + IF_OFFSET)*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
-      si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + current_props.pll)) * pll_n,  (freq + IF_OFFSET) * FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+//      si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + current_props.pll)) * pll_n,  (freq + IF_OFFSET) * FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
 #ifndef DMTD
       si5351_set_frequency_fixedpll( FREQ_CHANNEL, (uint64_t) mul * config._xtal_freq * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
 #endif

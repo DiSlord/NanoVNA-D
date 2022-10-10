@@ -1336,7 +1336,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   aver_freq = v;
 #if 1
   int new_pll = current_props.pll - v * 260;
-  if (new_pll < 1000 && new_pll > -1000) {
+  if (new_pll < 4000 && new_pll > -4000) {
     current_props.pll = new_pll;
     set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
   }
