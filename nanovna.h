@@ -149,8 +149,8 @@
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-#define AUDIO_SAMPLES_COUNT   (192)
-//#define AUDIO_SAMPLES_COUNT   (384)
+//#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (384)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)

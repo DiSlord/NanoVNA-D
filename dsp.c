@@ -247,20 +247,15 @@ calculate_gamma(float gamma[4])
 {
 #if 1
   // calculate reflection coeff. by samp divide by ref
-#if 1
+#if 0
   measure_t rs = acc_ref_s;
   measure_t rc = acc_ref_c;
   measure_t rr = rs * rs + rc * rc;
   //rr = vna_sqrtf(rr) * 1e8;
   measure_t ss = acc_samp_s;
   measure_t sc = acc_samp_c;
-//  gamma[0] =  (sc * rc + ss * rs) / rr;
-//  gamma[1] =  (ss * rc - sc * rs) / rr;
-
-  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s);
-  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s);
-  gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
-  gamma[3] = vna_atan2f((sc * rc + ss * rs) / rr, (ss * rc - sc * rs) / rr) / VNA_PI;
+  gamma[0] =  (sc * rc + ss * rs) / rr;
+  gamma[1] =  (ss * rc - sc * rs) / rr;
 #elif 0
   measure_t rs = acc_ref_s;
   measure_t rc = acc_ref_c;
@@ -274,10 +269,10 @@ calculate_gamma(float gamma[4])
   measure_t sc_rc = (measure_t)acc_samp_c / acc_ref_c;
   measure_t ss_rc = (measure_t)acc_samp_s / acc_ref_c;
   measure_t rr = rs_rc * rs_rc + 1.0;
-  gamma[0] = (sc_rc + ss_rc*rs_rc) / rr;
-  gamma[1] = (ss_rc - sc_rc*rs_rc) / rr;
-  gamma[2] =  acc_ref_s;
-  gamma[3] =  acc_ref_c;
+//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s);
+//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s);
+  gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
+  gamma[3] = vna_atan2f((sc_rc + ss_rc*rs_rc) / rr, (ss_rc - sc_rc*rs_rc) / rr) / VNA_PI;
 #endif
 #elif 0
   gamma[0] =  acc_samp_s;
