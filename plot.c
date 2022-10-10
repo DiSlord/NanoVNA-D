@@ -312,14 +312,14 @@ static float logmag_a(int i, const float *v) {
   (void) i;
 //  return log10f(get_l(v[0], v[1])) *  10.0f;
 //  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
-  return 2*vna_log10f_x_10(v[0]) - 180.0f;
+  return 2*vna_log10f_x_10(v[0]) - 213.0f;
 }
 
 static float logmag_b(int i, const float *v) {
   (void) i;
 //  return log10f(get_l(v[0], v[1])) *  10.0f;
 //  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
-  return 2*vna_log10f_x_10(v[1]) - 180.0f;
+  return 2*vna_log10f_x_10(v[1]) - 223.0f;
 }
 
 
