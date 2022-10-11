@@ -21,15 +21,17 @@
 
 #include "nanovna.h"
 
+typedef int16_t sincos_t;
+
 #ifdef USE_VARIABLE_OFFSET
-static int32_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
+static sincos_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
 void generate_DSP_Table(int offset){
   float audio_freq  = AUDIO_ADC_FREQ;
   // N = offset * AUDIO_SAMPLES_COUNT / audio_freq; should be integer
   // AUDIO_SAMPLES_COUNT = N * audio_freq / offset; N - minimum integer value for get integer AUDIO_SAMPLES_COUNT
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
   float step = offset / audio_freq;
-  float w = step/2;
+  float w = 0; //step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
@@ -146,6 +148,8 @@ static const int16_t sincos_tbl[48][2] = {
 // Define DSP accumulator value type
 typedef float acc_t;
 typedef float measure_t;
+typedef int64_t sum_t;
+
 acc_t acc_samp_s;
 acc_t acc_samp_c;
 acc_t acc_ref_s;
@@ -171,25 +175,27 @@ dsp_process(audio_sample_t *capture, size_t length)
     i+=2;
   }while (i < length);
 #else
-  int64_t samp_s = 0;
-  int64_t samp_c = 0;
-  int64_t ref_s = 0;
-  int64_t ref_c = 0;
+  sum_t samp_s = 0;
+  sum_t samp_c = 0;
+  sum_t ref_s = 0;
+  sum_t ref_c = 0;
   uint32_t i = 0;
   do{
 #ifdef AUDIO_32_BIT
-    int32_t ref = capture[i+0]>>8;
-    int32_t smp = capture[i+1]>>8;
-#else
     int32_t ref = capture[i+0];
     int32_t smp = capture[i+1];
+    ref = ref << 16 | ref >> 16;
+    smp = smp << 16 | smp >> 16;
+#else
+    audio_sample_t ref = capture[i+0];
+    audio_sample_t smp = capture[i+1];
 #endif
-    int64_t sin = ((int32_t *)sincos_tbl)[i+0];
-    int64_t cos = ((int32_t *)sincos_tbl)[i+1];
-    samp_s+= (smp * sin);
-    samp_c+= (smp * cos);
-    ref_s += (ref * sin);
-    ref_c += (ref * cos);
+    sum_t sin = ((sincos_t *)sincos_tbl)[i+0];
+    sum_t cos = ((sincos_t *)sincos_tbl)[i+1];
+    samp_s+= (smp * sin)>>4;
+    samp_c+= (smp * cos)>>4;
+    ref_s += (ref * sin)>>4;
+    ref_c += (ref * cos)>>4;
     i+=2;
   }while (i < length);
 #endif

@@ -149,8 +149,8 @@
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
-#define AUDIO_SAMPLES_COUNT   (384)
+#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (384)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -284,7 +284,7 @@ typedef uint32_t freq_t;
 
 extern float measured[1][POINTS_COUNT][4];
 
-#define CAL_TYPE_COUNT  2
+#define CAL_TYPE_COUNT  1
 #define CAL_LOAD        0
 #define CAL_OPEN        1
 #define CAL_SHORT       2

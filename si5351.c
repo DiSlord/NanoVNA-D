@@ -599,6 +599,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
         si5351_setupPLL(SI5351_REG_PLL_B, PLL_N_2, 0, 1);
         si5351_set_frequency_fixedpll(AUDIO_CODEC_CHANNEL, config._xtal_freq * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       }
+//      si5351_set_frequency_fixedpll(AUDIO_CODEC_CHANNEL, (config._xtal_freq - current_props.pll/FREQ_SCALE) * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
       si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * ((freq_t)(config._xtal_freq * FREQ_SCALE + current_props.pll)) * pll_n, (freq + IF_OFFSET)*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
