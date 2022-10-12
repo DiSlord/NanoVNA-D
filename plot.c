@@ -363,7 +363,7 @@ static float freq_a(int i, const float *v) {
     df += 1.0;
 
   df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -381,7 +381,7 @@ static float freq_b(int i, const float *v) {
     df += 1.0;
 
   df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -429,7 +429,7 @@ static float freq_d(int i, const float *v) {
     df += 1.0;
 
   df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+2) * AUDIO_SAMPLES_COUNT;
+  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 
 #endif

@@ -1092,7 +1092,7 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   audio_sample_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
   if (wait >= config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
     reset_dsp_accumerator();
-  else
+//  else
     dsp_process(p, count);
 #ifdef ENABLED_DUMP_COMMAND
   duplicate_buffer_to_dump(p, count);
@@ -1179,26 +1179,32 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     int st_delay = DELAY_SWEEP_START;
 //    int bar_start = 0;
 //    int interpolation_idx;
-
-    freq_t frequency = getFrequency(p_sweep);
-    int delay = set_frequency(frequency);
-    // CH1:TRANSMISSION, reset and begin measure
+    while (1) {
+#if 0
+      freq_t frequency = getFrequency(p_sweep);
+      int delay = set_frequency(frequency);
+      // CH1:TRANSMISSION, reset and begin measure
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
+#else
+      DSP_START(0);
+#endif
       DSP_WAIT;
       calculate_gamma(measured[0][p_sweep]);              // Measure transmission coefficient
-    int t = 0;
-    uint8_t type = trace[t].type;
-    float (*array)[4] = measured[0];
-    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-    get_value_cb_t calc = trace_info_list[type].get_value_cb;
-    if (calc){                                           // Run standard get value function from table
-      //      float v = 0;
-      //      for (int i =0; i<sweep_points; i++) {
-      float v = calc(p_sweep, array[p_sweep]);                                          // Get value
-      //      }
-      //      v = v/sweep_points;
-      shell_printf("%f\r\n",v/360);
+      int t = 0;
+      uint8_t type = trace[t].type;
+      float (*array)[4] = measured[0];
+      //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+      get_value_cb_t calc = trace_info_list[type].get_value_cb;
+      if (calc){                                           // Run standard get value function from table
+        //      float v = 0;
+        //      for (int i =0; i<sweep_points; i++) {
+        float v = calc(p_sweep, array[p_sweep]);                                          // Get value
+        //      }
+        //      v = v/sweep_points;
+        shell_printf("%f\r\n",v/360);
+      }
+      if (operation_requested && break_on_operation) break;
     }
     return false;
 
@@ -1335,7 +1341,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
   aver_freq = v;
 #if 1
-  int new_pll = current_props.pll - v * 260;
+  int new_pll = current_props.pll - v * 100;
   if (new_pll < 4000 && new_pll > -4000) {
     current_props.pll = new_pll;
     set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
