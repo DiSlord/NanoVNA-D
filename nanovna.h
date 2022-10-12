@@ -149,10 +149,10 @@
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
-#define AUDIO_SAMPLES_COUNT   (384)
+#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (384)
 
-#define SAMPLE_OVERHEAD     3
+#define SAMPLE_OVERHEAD     0
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -485,7 +485,7 @@ typedef int16_t  audio_sample_t;
 #endif
 void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
-void calculate_gamma(float *gamma);
+int calculate_gamma(float *gamma);
 void fetch_amplitude(float *gamma);
 void fetch_amplitude_ref(float *gamma);
 void generate_DSP_Table(int offset);
@@ -819,7 +819,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 //#define  7
 enum trace_type {
-  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, MAX_TRACE_TYPE
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
 #define GET_AFREQ   5

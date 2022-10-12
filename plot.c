@@ -323,6 +323,13 @@ static float logmag_b(int i, const float *v) {
 }
 
 
+
+static float value(int i, const float *v) {
+  (void) i;
+  return(v[0]);
+}
+
+
 //**************************************************************************************
 // PHASE angle in degree = atan2(im, re) * 180 / PI
 //**************************************************************************************
@@ -693,6 +700,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_AFREQ]  = {"AFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_a           },
 [TRC_BFREQ]  = {"BFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_b           },
 [TRC_DFREQ]  = {"DFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_d           },
+[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      value           },
 };
 
 
@@ -1866,7 +1874,7 @@ draw_frequencies(void)
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
-  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"bw:%u" S_Hz " %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
+  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"tau=%Fs %up", AUDIO_SAMPLES_COUNT*(config._bandwidth+SAMPLE_OVERHEAD)/(float)AUDIO_ADC_FREQ, sweep_points);
   lcd_set_font(FONT_NORMAL);
 }
 

@@ -148,12 +148,13 @@ static const int16_t sincos_tbl[48][2] = {
 // Define DSP accumulator value type
 typedef float acc_t;
 typedef float measure_t;
-typedef int64_t sum_t;
+typedef int32_t sum_t;
 
 acc_t acc_samp_s;
 acc_t acc_samp_c;
 acc_t acc_ref_s;
 acc_t acc_ref_c;
+static volatile uint16_t sample_count;
 void
 dsp_process(audio_sample_t *capture, size_t length)
 {
@@ -203,6 +204,7 @@ dsp_process(audio_sample_t *capture, size_t length)
   acc_samp_c += samp_c;
   acc_ref_s += ref_s;
   acc_ref_c += ref_c;
+  sample_count++;
 }
 
 #else
@@ -248,7 +250,7 @@ dsp_process(audio_sample_t *capture, size_t length)
 }
 #endif
 
-void
+int
 calculate_gamma(float gamma[4])
 {
 #if 1
@@ -275,8 +277,8 @@ calculate_gamma(float gamma[4])
   measure_t sc_rc = (measure_t)acc_samp_c / acc_ref_c;
   measure_t ss_rc = (measure_t)acc_samp_s / acc_ref_c;
   measure_t rr = rs_rc * rs_rc + 1.0;
-//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/(config._bandwidth+1);
-//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/(config._bandwidth+1);
+//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/sample_count;
+//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/sample_count;
   gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
   gamma[3] = vna_atan2f((sc_rc + ss_rc*rs_rc) / rr, (ss_rc - sc_rc*rs_rc) / rr) / VNA_PI;
 #endif
@@ -287,6 +289,7 @@ calculate_gamma(float gamma[4])
   gamma[0] =  acc_ref_s;
   gamma[1] =  acc_ref_c;
 #endif
+  return(sample_count);
 }
 
 void
@@ -322,4 +325,5 @@ reset_dsp_accumerator(void)
   acc_ref_c = 0;
   acc_samp_s = 0;
   acc_samp_c = 0;
+  sample_count = 0;
 }

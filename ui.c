@@ -1709,14 +1709,15 @@ const menuitem_t menu_trace[] = {
 
 const menuitem_t menu_formatS11[] =
 {
-  { MT_ADV_CALLBACK, F_S11|TRC_ALOGMAG, "ALOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BLOGMAG, "BLOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_APHASE,  "APHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BPHASE,  "BPHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DPHASE,  "DPHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_AFREQ,  "AFREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BFREQ,  "BFREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "DFREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_ALOGMAG, "A LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BLOGMAG, "B LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_APHASE,  "A PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BPHASE,  "B PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_DPHASE,  "D PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_AFREQ,  "A FREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_BFREQ,  "B FREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "D FREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_VALUE,  "VALUE",       menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 

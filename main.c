@@ -120,6 +120,7 @@ uint8_t sweep_mode = SWEEP_ENABLE;
 static uint16_t p_sweep = 0;
 // Sweep measured data
 float measured[1][POINTS_COUNT][4];
+uint16_t sample_count;
 float aver_freq;
 float aver_phase;
 
@@ -902,7 +903,7 @@ config_t config = {
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
-  ._bandwidth = 0,
+  ._bandwidth = 10,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
@@ -1087,13 +1088,19 @@ static audio_sample_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 void i2s_lld_serve_rx_interrupt(uint32_t flags) {
 //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
-  if (wait == 0 || chVTGetSystemTimeX() < ready_time) return;
+//  palSetPad(GPIOC, GPIOC_LED);
+  if (wait == 0 || chVTGetSystemTimeX() < ready_time) {
+    wait = wait_count = config._bandwidth;
+//    palClearPad(GPIOC, GPIOC_LED);
+//    return;
+  }
   uint16_t count = AUDIO_BUFFER_LEN;
   audio_sample_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
-  if (wait >= config._bandwidth+2)      // At this moment in buffer exist noise data, reset and wait next clean buffer
+  if (wait >= config._bandwidth)      // At this moment in buffer exist noise data, reset and wait next clean buffer
     reset_dsp_accumerator();
-//  else
-    dsp_process(p, count);
+  //else
+  dsp_process(p, count);
+//  palClearPad(GPIOC, GPIOC_LED);
 #ifdef ENABLED_DUMP_COMMAND
   duplicate_buffer_to_dump(p, count);
 #endif
@@ -1110,6 +1117,7 @@ extern uint16_t timings[16];
 #endif
 
 #define DSP_START(delay) {ready_time = chVTGetSystemTimeX() + delay; wait_count = config._bandwidth+2;}
+#define DSP_PREWAIT         while (wait_count == 0 && !(operation_requested && break_on_operation)) {__WFI();}
 #define DSP_WAIT         while (wait_count && !(operation_requested && break_on_operation)) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
@@ -1180,6 +1188,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //    int bar_start = 0;
 //    int interpolation_idx;
     while (1) {
+      palClearPad(GPIOC, GPIOC_LED);
 #if 0
       freq_t frequency = getFrequency(p_sweep);
       int delay = set_frequency(frequency);
@@ -1187,10 +1196,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       tlv320aic3204_select(1);
       DSP_START(delay+st_delay);
 #else
-      DSP_START(0);
+//      DSP_START(0);
 #endif
+      DSP_PREWAIT;
       DSP_WAIT;
-      calculate_gamma(measured[0][p_sweep]);              // Measure transmission coefficient
+      palSetPad(GPIOC, GPIOC_LED);
+      sample_count = calculate_gamma(measured[0][p_sweep]);              // Measure transmission coefficient
       int t = 0;
       uint8_t type = trace[t].type;
       float (*array)[4] = measured[0];
@@ -1216,7 +1227,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //  float data[4];
 //  float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
-  palClearPad(GPIOC, GPIOC_LED);
   int delay = 0;
 //  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
 //  START_PROFILE;
@@ -1229,7 +1239,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   freq_t frequency = getFrequency(p_sweep);
   delay = set_frequency(frequency);
   tlv320aic3204_select(1);
-  DSP_START(delay+st_delay);
+//  DSP_START(delay+st_delay);
   for (; p_sweep < sweep_points; p_sweep++) {
     // Need made measure - set frequency
 //    if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
@@ -1259,14 +1269,19 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     }
 #endif
     // CH1:TRANSMISSION, reset and begin measure
-      DSP_START(0);
+//     palSetPad(GPIOC, GPIOC_LED);
+//     DSP_START(0);
       // Get calibration data, only if not do this in 0 channel wait
+     DSP_PREWAIT;
       DSP_WAIT;
+//      palSetPad(GPIOC, GPIOC_LED);
+
       //================================================
       // Place some code thats need execute while delay
       //================================================
 
-      calculate_gamma(measured[0][p_sweep]);              // Measure all
+      sample_count = calculate_gamma(measured[0][p_sweep]);              // Measure all
+      measured[0][p_sweep][0] = sample_count;
 
 #if 0
       (*sample_func)(&data[2]);              // Measure transmission coefficient
@@ -1362,7 +1377,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
   //  STOP_PROFILE;
   // blink LED while scanning
-  palSetPad(GPIOC, GPIOC_LED);
   return p_sweep == sweep_points;
   }
 }
@@ -1419,21 +1433,21 @@ void set_bandwidth(uint16_t bw_count){
 }
 
 uint32_t get_bandwidth_frequency(uint16_t bw_freq){
-  return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+1);
+  return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+SAMPLE_OVERHEAD);
 }
 
-
+#define MIN_SAMPLES 2
 void set_tau(float tau){
   config._bandwidth = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT);
-  if (config._bandwidth < 2)
-    config._bandwidth = 0;
+  if (config._bandwidth < MIN_SAMPLES + SAMPLE_OVERHEAD)
+    config._bandwidth = MIN_SAMPLES;
   else
-    config._bandwidth -= 2;
+    config._bandwidth -= SAMPLE_OVERHEAD;
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
 }
 
 float get_tau(void){
-  return (config._bandwidth + 2) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
+  return (config._bandwidth + SAMPLE_OVERHEAD) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
 }
 
 #define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)
