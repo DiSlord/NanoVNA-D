@@ -31,11 +31,11 @@ void generate_DSP_Table(int offset){
   // AUDIO_SAMPLES_COUNT = N * audio_freq / offset; N - minimum integer value for get integer AUDIO_SAMPLES_COUNT
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
   float step = offset / audio_freq;
-  float w = 0; //step/2;
+  float w = 0;// step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
-#if 1
+#if 0
 #ifdef AUDIO_32_BIT
     sincos_tbl[i][0] = s*(float)(0x7fffff);
     sincos_tbl[i][1] = c*(float)(0x7fffff);
@@ -146,7 +146,8 @@ static const int16_t sincos_tbl[48][2] = {
 
 #ifndef __USE_DSP__
 // Define DSP accumulator value type
-typedef float acc_t;
+//typedef float acc_t;
+typedef int64_t acc_t;
 typedef float measure_t;
 typedef int32_t sum_t;
 
@@ -193,10 +194,11 @@ dsp_process(audio_sample_t *capture, size_t length)
 #endif
     sum_t sin = ((sincos_t *)sincos_tbl)[i+0];
     sum_t cos = ((sincos_t *)sincos_tbl)[i+1];
-    samp_s+= (smp * sin)>>4;
-    samp_c+= (smp * cos)>>4;
-    ref_s += (ref * sin)>>4;
-    ref_c += (ref * cos)>>4;
+#define SHIFT 4
+    samp_s+= (smp * sin)>>SHIFT;
+    samp_c+= (smp * cos)>>SHIFT;
+    ref_s += (ref * sin)>>SHIFT;
+    ref_c += (ref * cos)>>SHIFT;
     i+=2;
   }while (i < length);
 #endif
@@ -250,6 +252,12 @@ dsp_process(audio_sample_t *capture, size_t length)
 }
 #endif
 
+typedef double calc_t;
+
+volatile float prev_gamma3 = -5.0;
+volatile float curr_gamma3 = -5.0;
+volatile float prev_speed = -5.0;
+volatile float accell = 0;
 int
 calculate_gamma(float gamma[4])
 {
@@ -273,15 +281,62 @@ calculate_gamma(float gamma[4])
   measure_t sc = acc_samp_c;
   gamma[1] =  vna_atan2f( (sc * rc + ss * rs) / rr, (ss * rc - sc * rs) / rr ) / VNA_PI;
 #else
-  measure_t rs_rc = (measure_t) acc_ref_s / acc_ref_c;
-  measure_t sc_rc = (measure_t)acc_samp_c / acc_ref_c;
-  measure_t ss_rc = (measure_t)acc_samp_s / acc_ref_c;
-  measure_t rr = rs_rc * rs_rc + 1.0;
-//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/sample_count;
-//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/sample_count;
   gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
-  gamma[3] = vna_atan2f((sc_rc + ss_rc*rs_rc) / rr, (ss_rc - sc_rc*rs_rc) / rr) / VNA_PI;
+#if 0
+  calc_t rs_rc = (calc_t) acc_ref_s / acc_ref_c;
+  calc_t sc_rc = (calc_t)acc_samp_c / acc_ref_c;
+  calc_t ss_rc = (calc_t)acc_samp_s / acc_ref_c;
+  calc_t rr = rs_rc * rs_rc + 1.0;
+  gamma[3] = vna_atan2f((sc_rc + ss_rc*rs_rc) / rr, (ss_rc - sc_rc*rs_rc)/rr) / VNA_PI;
+#else
+  calc_t rs = acc_ref_s;
+  calc_t rc = acc_ref_c;
+  calc_t rr = rs * rs + rc * rc;
+  rr = vna_sqrtf(rr) * 1e8;
+  calc_t ss = acc_samp_s;
+  calc_t sc = acc_samp_c;
+  gamma[3] = vna_atan2f((sc * rc + ss * rs)/rr, (ss * rc - sc * rs)/rr) / VNA_PI;
+
 #endif
+#endif
+
+
+//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/config._bandwidth;
+//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/config._bandwidth;
+
+#if 0
+  if (prev_gamma3 != 5.0)
+  {
+    curr_gamma3 = gamma[3];
+    float speed = prev_gamma3 - curr_gamma3;
+    if (speed > 1)
+      speed -= 2.0;
+    if (speed < -1)
+      speed += 2.0;
+    if (prev_speed != -5)
+    {
+#if 0
+#define LOG_SIZE 256
+static       int speed_index = 0;
+static      systime_t speed_log[LOG_SIZE];
+static      systime_t prev_time;
+      systime_t cur_time = chVTGetSystemTimeX();
+      speed_log[speed_index++] =  cur_time - prev_time;
+      prev_time = cur_time;
+      if (speed_index >= LOG_SIZE) speed_index = 0;
+#endif
+      accell = speed - prev_speed;
+      if (accell < -0.01 || accell > 0.01)
+      {
+        accell = - accell;
+        accell = - accell;
+      }
+    }
+    prev_speed = speed;
+  }
+  prev_gamma3 = gamma[3];
+#endif
+
 #elif 0
   gamma[0] =  acc_samp_s;
   gamma[1] =  acc_samp_c;

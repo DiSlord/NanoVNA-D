@@ -148,8 +148,8 @@
 
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
-//#define AUDIO_SAMPLES_COUNT   (96)
-#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
 //#define AUDIO_SAMPLES_COUNT   (384)
 
 #define SAMPLE_OVERHEAD     0
@@ -160,7 +160,7 @@
 #define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             51
+#define POINTS_COUNT             101
 #endif
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
@@ -215,10 +215,10 @@
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
 //#define FREQUENCY_IF_K         4
 //#define FREQUENCY_IF_K          8
-#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         12 // <-----
 //#define FREQUENCY_IF_K         16
 //#define FREQUENCY_IF_K         20
-//#define FREQUENCY_IF_K         24
+#define FREQUENCY_IF_K         24
 //#define FREQUENCY_IF_K         28
 
 #elif AUDIO_ADC_FREQ_K == 96
@@ -275,8 +275,8 @@ typedef uint32_t freq_t;
 #define POINTS_SET             {51, 101, POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #elif POINTS_COUNT >=101
-#define POINTS_SET_COUNT       2
-#define POINTS_SET             {51, POINTS_COUNT}
+#define POINTS_SET_COUNT       6
+#define POINTS_SET             {2,5,10,20,50,POINTS_COUNT}
 #define POINTS_COUNT_DEFAULT   POINTS_COUNT
 #elif POINTS_COUNT >=51
 #define POINTS_SET_COUNT       5
@@ -819,7 +819,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 //#define  7
 enum trace_type {
-  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, MAX_TRACE_TYPE
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
 #define GET_AFREQ   5
@@ -889,6 +889,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TD_MARKER_DELTA         (1<<8)
 // Marker delta
 //#define TD_MARKER_LOCK          (1<<9) // reserved
+#define TD_SAMPLE                (1<<9)
 
 // config._mode flags
 // Auto name for files
@@ -1002,7 +1003,7 @@ typedef struct properties {
   float    _var_delay;
   float    _s21_offset;
   float    _portz;
-  int      pll;
+  float    pll;
   float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;

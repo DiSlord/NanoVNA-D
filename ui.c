@@ -893,6 +893,25 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
 
+static UI_FUNCTION_ADV_CALLBACK(menu_sample_acb)
+{
+  (void)data;
+  if(b){
+    if (props_mode & TD_SAMPLE) b->icon = BUTTON_ICON_CHECK;
+    b->p1.text = (props_mode&TD_SAMPLE) ? "ON" : "OFF";
+    return;
+  }
+  props_mode ^= TD_SAMPLE;
+  if (props_mode & TD_SAMPLE) {
+    set_trace_type(0, TRC_ASAMPLE, 0);
+    set_trace_type(2, TRC_BSAMPLE, 0);
+  } else {
+    set_trace_type(0, TRC_DPHASE, 0);
+    set_trace_type(2, TRC_DFREQ, 0);
+  }
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 {
   if(b){
@@ -903,7 +922,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 //  ui_mode_normal();
 }
 
-#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
+#define BANDWIDTH_LIST  1,3,10,33,100,333,1000,3333,10000,33333
 #define BANDWIDTH_COUNT 10
 uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
 
@@ -912,7 +931,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
 {
   (void)data;
   if (b){
-    b->p1.f =  ((float)bandwidth[data]+1.0) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ; // get_bandwidth_frequency(config._bandwidth);
+    b->p1.f =  ((float)bandwidth[data]) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ; // get_bandwidth_frequency(config._bandwidth);
     return;
   }
   menu_push_submenu(menu_bandwidth);
@@ -1718,6 +1737,7 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, F_S11|TRC_BFREQ,  "B FREQ",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "D FREQ",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_VALUE,  "VALUE",       menu_format_acb },
+  { MT_ADV_CALLBACK, 0,  "SAMPLE",                    menu_sample_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 

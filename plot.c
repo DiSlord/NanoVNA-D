@@ -329,6 +329,16 @@ static float value(int i, const float *v) {
   return(v[0]);
 }
 
+static float sample_a(int i, const float *v) {
+  (void) i;
+  return(v[0]);
+}
+
+static float sample_b(int i, const float *v) {
+  (void) i;
+  return(v[1]);
+}
+
 
 //**************************************************************************************
 // PHASE angle in degree = atan2(im, re) * 180 / PI
@@ -346,9 +356,9 @@ static float phase_b(int i, const float *v) {
 static float phase_d(int i, const float *v) {
   (void) i;
   float p = v[3];
-  if (p > 1)
+  while (p > 1)
     p -= 2.0;
-  else if (p < -1)
+  while (p<-1)
     p += 2.0;
   return(p*180.0f);
 }
@@ -363,14 +373,14 @@ static float freq_a(int i, const float *v) {
     v--;
     v--;
   }
-  float df = (v[6] - v[2])*0.5f;
-  if (df >= 0.5)
-    df -= 1.0;
-  if (df <= -0.5)
-    df += 1.0;
+  float df = v[6] - v[2];
+  if (df >= 1.0)
+    df -= 2.0;
+  if (df <= -1.0)
+    df += 2.0;
 
-  df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df *= AUDIO_ADC_FREQ>>1;
+  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -381,14 +391,14 @@ static float freq_b(int i, const float *v) {
     v--;
     v--;
   }
-  float df = (v[7] - v[3])*0.5f;
-  if (df >= 0.5)
-    df -= 1.0;
-  if (df <= -0.5)
-    df += 1.0;
+  float df = v[7] - v[3];
+  if (df >= 1.0)
+    df -= 2.0;
+  if (df <= -1.0)
+    df += 2.0;
 
-  df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df *= AUDIO_ADC_FREQ>>1;
+  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -429,14 +439,14 @@ static float freq_d(int i, const float *v) {
   return (df);
 #endif
 #else
-  float df = (v[7] - v[3])*0.5f;
-  if (df >= 0.5)
-    df -= 1.0;
-  if (df <= -0.5)
-    df += 1.0;
+  float df = v[7] - v[3];
+  if (df >= 1.0)
+    df -= 2.0;
+  if (df < -1.0)
+    df += 2.0;
 
-  df *= AUDIO_ADC_FREQ;
-  df /= (config._bandwidth+1+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df *= AUDIO_ADC_FREQ>>1;   // This is the 0.5 multiplication factor
+  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 
 #endif
@@ -697,10 +707,12 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_APHASE]  = {"APHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_a                },
 [TRC_BPHASE]  = {"BPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_b                },
 [TRC_DPHASE]  = {"DPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_d                },
-[TRC_AFREQ]  = {"AFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_a           },
-[TRC_BFREQ]  = {"BFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_b           },
-[TRC_DFREQ]  = {"DFREQ",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_d           },
-[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      value           },
+[TRC_AFREQ]  = {"AFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_a                },
+[TRC_BFREQ]  = {"BFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_b                },
+[TRC_DFREQ]  = {"DFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_d                },
+[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,      value                 },
+[TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,sample_a             },
+[TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,sample_b             },
 };
 
 
@@ -838,7 +850,8 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   if (c){                                           // Run standard get value function from table
     float v = 0;
     for (int i =0; i<sweep_points-1; i++) {
-      v += c(i, array[i]);                                          // Get value
+      float r = c(i, array[i]);
+      v += r;                                          // Get value
     }
     v = v/(sweep_points-1);
 //    shell_printf("%f\r\n",v);
