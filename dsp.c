@@ -50,6 +50,9 @@ void generate_DSP_Table(int offset){
     w+=step;
   }
 }
+
+static volatile uint16_t sample_count;
+
 #elif FREQUENCY_OFFSET==7000*(AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT/1000)
 // static Table for 28kHz IF and 192kHz ADC (or 7kHz IF and 48kHz ADC) audio ADC
 static const int16_t sincos_tbl[48][2] = {
@@ -243,12 +246,12 @@ dsp_process(audio_sample_t *capture, size_t length)
     acc_ref_c = __smlalbt( acc_ref_c, sr, sc ); //  ref_s+= ref * cos
     i++;
   } while (i < length/2);
-
 // Accumulate result, for faster calc and prevent overflow reduce size to int32_t
 //  acc_samp_s+= (int32_t)(samp_s>>4);
 //  acc_samp_c+= (int32_t)(samp_c>>4);
 //  acc_ref_s += (int32_t)( ref_s>>4);
 //  acc_ref_c += (int32_t)( ref_c>>4);
+  sample_count++;
 }
 #endif
 
@@ -301,8 +304,8 @@ calculate_gamma(float gamma[4])
 #endif
 
 
-//  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/config._bandwidth;
-//  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/config._bandwidth;
+  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/config._bandwidth;
+  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/config._bandwidth;
 
 #if 0
   if (prev_gamma3 != 5.0)

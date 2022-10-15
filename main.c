@@ -1125,7 +1125,7 @@ volatile int kk;
   filled_buffer = p;
   --wait_count;
   if (wait_count == 0) {
-    if (p_sweep < sweep_points)
+    if (p_sweep < sweep_points && !(props_mode & TD_SAMPLE))
       calculate_gamma(measured[0][p_sweep++]);              // Measure transmission coefficient
     if (VNA_MODE(VNA_MODE_DUMP_SAMPLE))
       p_sweep = 0;
@@ -1339,7 +1339,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       //================================================
 
       if (props_mode & TD_SAMPLE) {
-        while (p_sweep < sweep_points) {
+        p_sweep = 0;
+        while (p_sweep < sweep_points && p_sweep < AUDIO_SAMPLES_COUNT) {
           measured[0][p_sweep][0] = (float)*filled_buffer++;
           measured[0][p_sweep][1] = (float)*filled_buffer++;
           p_sweep++;

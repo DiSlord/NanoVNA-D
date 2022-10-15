@@ -20,6 +20,19 @@
  */
 #include "ch.h"
 
+#ifdef NANOVNA_F303
+#undef NANOVNA_F303
+#endif
+
+#define NANOVNA_F303
+
+#ifdef NANOVNA_F303
+#undef ARM_MATH_CM4
+#define ARM_MATH_CM4
+#else
+#define ARM_MATH_CM0
+#endif
+
 // Define LCD display driver and size
 #if defined(NANOVNA_F303)
 #define LCD_DRIVER_ST7796S
@@ -121,14 +134,14 @@
 // Define ADC sample rate in kilobyte (can be 48k, 96k, 192k, 384k)
 //#define AUDIO_ADC_FREQ_K        768
 //#define AUDIO_ADC_FREQ_K        384
-//#define AUDIO_ADC_FREQ_K        192
-#define AUDIO_ADC_FREQ_K        96
+#define AUDIO_ADC_FREQ_K        192
+//#define AUDIO_ADC_FREQ_K        96
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
-#define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (192)
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -152,7 +165,6 @@
 //#define AUDIO_SAMPLES_COUNT   (192)
 //#define AUDIO_SAMPLES_COUNT   (384)
 
-#define SAMPLE_OVERHEAD     0
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -162,6 +174,8 @@
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             101
 #endif
+
+#define SAMPLE_OVERHEAD     0
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
 #ifndef AUDIO_ADC_FREQ_K1
