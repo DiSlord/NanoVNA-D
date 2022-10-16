@@ -197,11 +197,11 @@ dsp_process(audio_sample_t *capture, size_t length)
 #endif
     sum_t sin = ((sincos_t *)sincos_tbl)[i+0];
     sum_t cos = ((sincos_t *)sincos_tbl)[i+1];
-#define SHIFT 4
-    samp_s+= (smp * sin)>>SHIFT;
-    samp_c+= (smp * cos)>>SHIFT;
-    ref_s += (ref * sin)>>SHIFT;
-    ref_c += (ref * cos)>>SHIFT;
+
+    samp_s+= (smp * sin)>>AUDIO_SHIFT;
+    samp_c+= (smp * cos)>>AUDIO_SHIFT;
+    ref_s += (ref * sin)>>AUDIO_SHIFT;
+    ref_c += (ref * cos)>>AUDIO_SHIFT;
     i+=2;
   }while (i < length);
 #endif
@@ -304,8 +304,8 @@ calculate_gamma(float gamma[4])
 #endif
 
 
-  gamma[0] = vna_sqrtf(acc_ref_c * acc_ref_c + acc_ref_s*acc_ref_s)/config._bandwidth;
-  gamma[1] = vna_sqrtf(acc_samp_c * acc_samp_c + acc_samp_s*acc_samp_s)/config._bandwidth;
+  gamma[0] = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
+  gamma[1] = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
 
 #if 0
   if (prev_gamma3 != 5.0)

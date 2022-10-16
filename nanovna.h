@@ -143,6 +143,8 @@
 //#define AUDIO_SAMPLES_COUNT   (96)
 #define AUDIO_SAMPLES_COUNT   (192)
 
+#define AUDIO_SHIFT 0
+
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
@@ -165,6 +167,7 @@
 //#define AUDIO_SAMPLES_COUNT   (192)
 //#define AUDIO_SAMPLES_COUNT   (384)
 
+#define AUDIO_SHIFT 4
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -277,9 +280,9 @@ typedef uint32_t freq_t;
 
 // Optional sweep point (in UI menu)
 #if POINTS_COUNT >=401
-#define POINTS_SET_COUNT       5
-#define POINTS_SET             {51, 101, 201, 301, POINTS_COUNT}
-#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#define POINTS_SET_COUNT       9
+#define POINTS_SET             {2,5,10,20, 51, 101, 201, 301, POINTS_COUNT}
+#define POINTS_COUNT_DEFAULT   101
 #elif POINTS_COUNT >=301
 #define POINTS_SET_COUNT       4
 #define POINTS_SET             {51, 101, 201, POINTS_COUNT}

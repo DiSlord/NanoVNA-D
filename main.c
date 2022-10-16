@@ -1345,6 +1345,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
           measured[0][p_sweep][1] = (float)*filled_buffer++;
           p_sweep++;
         }
+        p_sweep = sweep_points;
         return true;
       } else
       // sample_count =
@@ -1434,6 +1435,26 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   }
 #endif
 
+#if 1
+  {
+    volatile static int l_gain, r_gain;
+    float v_a, v_b;
+    get_value_cb_t calc;
+    calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
+    v_a = calc(p_sweep, measured[0][0]);                                          // Get value
+    calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
+    v_b = calc(p_sweep, measured[0][0]);                                          // Get value
+    l_gain -= v_a - (-10);
+    r_gain -= v_b - (-10);
+    if (l_gain < 0) l_gain = 0;
+    if (l_gain > 60) l_gain = 60;
+    if (r_gain < 0) r_gain = 0;
+    if (r_gain > 60) r_gain = 60;
+    tlv320aic3204_set_gain(l_gain, r_gain);
+  }
+#endif
+
+
 #if 0
   calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
   array = measured[0];
@@ -1507,7 +1528,7 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
   return (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)/(bw_freq+SAMPLE_OVERHEAD);
 }
 
-#define MIN_SAMPLES 2
+#define MIN_SAMPLES 1
 void set_tau(float tau){
   config._bandwidth = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT);
   if (config._bandwidth < MIN_SAMPLES + SAMPLE_OVERHEAD)

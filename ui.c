@@ -1824,6 +1824,18 @@ const menuitem_t menu_sweep_points[] = {
 #if POINTS_SET_COUNT > 4
   { MT_ADV_CALLBACK, 4, "%d point", menu_points_acb },
 #endif
+#if POINTS_SET_COUNT > 5
+  { MT_ADV_CALLBACK, 5, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 6
+  { MT_ADV_CALLBACK, 6, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 7
+  { MT_ADV_CALLBACK, 7, "%d point", menu_points_acb },
+#endif
+#if POINTS_SET_COUNT > 8
+  { MT_ADV_CALLBACK, 8, "%d point", menu_points_acb },
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
