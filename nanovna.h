@@ -912,7 +912,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Auto name for files
 #define VNA_MODE_AUTO_NAME        0
 // Smooth function
-#define VNA_MODE_SMOOTH           1
+#define VNA_MODE_PLL              1
 // Connection flag
 #define VNA_MODE_CONNECTION       2
 #define VNA_MODE_SERIAL           (1<<VNA_MODE_CONNECTION)
@@ -1027,6 +1027,9 @@ typedef struct properties {
 
 extern config_t config;
 extern properties_t current_props;
+extern float amp_a;
+extern float amp_b;
+extern int l_gain, r_gain;
 
 void set_trace_type(int t, int type, int channel);
 void set_trace_channel(int t, int channel);

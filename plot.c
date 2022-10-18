@@ -308,18 +308,23 @@ static float linear(int i, const float *v) {
 //**************************************************************************************
 // LOGMAG = 20*log10f(|S|)
 //**************************************************************************************
+
+float amp_a;
+float amp_b;
+int l_gain = 20,
+    r_gain = 20;
+
+
 static float logmag_a(int i, const float *v) {
   (void) i;
-//  return log10f(get_l(v[0], v[1])) *  10.0f;
-//  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
-  return 2*vna_log10f_x_10(v[0]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+//  return 2*vna_log10f_x_10(v[0]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+  return (2*vna_log10f_x_10(amp_a*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (l_gain-20) / 2.0;
 }
 
 static float logmag_b(int i, const float *v) {
   (void) i;
-//  return log10f(get_l(v[0], v[1])) *  10.0f;
-//  return vna_logf(get_l(v[0], v[1])) * (10.0f / logf(10.0f));
-  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+//  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+  return (2*vna_log10f_x_10(amp_b*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (r_gain-20) / 2.0;
 }
 
 
@@ -345,12 +350,12 @@ static float sample_b(int i, const float *v) {
 //**************************************************************************************
 static float phase_a(int i, const float *v) {
   (void) i;
-  return(v[2]*180.0f);
+  return(v[1]*180.0f);
 }
 
 static float phase_b(int i, const float *v) {
   (void) i;
-  return(v[3]*180.0f);
+  return(v[2]*180.0f);
 }
 
 static float phase_d(int i, const float *v) {
@@ -702,17 +707,17 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 {
 // Type          name      format   delta format      symbol         ref   scale  get value
-[TRC_ALOGMAG] = {"ALOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag_a               },
-[TRC_BLOGMAG] = {"BLOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f, logmag_b               },
-[TRC_APHASE]  = {"APHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_a                },
-[TRC_BPHASE]  = {"BPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_b                },
-[TRC_DPHASE]  = {"DPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f, phase_d                },
-[TRC_AFREQ]  = {"AFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_a                },
-[TRC_BFREQ]  = {"BFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_b                },
-[TRC_DFREQ]  = {"DFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  1,      freq_d                },
-[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,      value                 },
-[TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,sample_a             },
-[TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,sample_b             },
+[TRC_ALOGMAG] = {"ALOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_a               },
+[TRC_BLOGMAG] = {"BLOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_b               },
+[TRC_APHASE]  = {"APHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_a                },
+[TRC_BPHASE]  = {"BPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_b                },
+[TRC_DPHASE]  = {"DPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_d                },
+[TRC_AFREQ]  = {"AFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
+[TRC_BFREQ]  = {"BFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
+[TRC_DFREQ]  = {"DFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.001f,    freq_d                },
+[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,         value                 },
+[TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_a             },
+[TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_b             },
 };
 
 

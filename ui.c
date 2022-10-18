@@ -957,7 +957,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   if (old == config._vna_mode) return;
   static const uint16_t redraw[] = {
     [VNA_MODE_AUTO_NAME]    = REDRAW_BACKUP,
-    [VNA_MODE_SMOOTH]       = REDRAW_BACKUP,
+    [VNA_MODE_PLL]          = REDRAW_AREA,
     [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
     [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
     [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
@@ -990,7 +990,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
 {
   static const char *vna_mode_text[] = {
     [VNA_MODE_AUTO_NAME] = 0,
-    [VNA_MODE_SMOOTH] = "Geom\0Arith",
+    [VNA_MODE_PLL] = 0,
     [VNA_MODE_CONNECTION] = "USB\0SERIAL",
     [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
     [VNA_MODE_SHOW_GRID] = 0,
@@ -2015,6 +2015,7 @@ const menuitem_t menu_device[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
 #endif
+  { MT_ADV_CALLBACK, VNA_MODE_PLL, "PLL",                                      menu_vna_mode_acb},
 #ifdef __USE_BACKUP__
   { MT_ADV_CALLBACK, VNA_MODE_BACKUP,"REMEMBER\nSTATE",                        menu_vna_mode_acb},
 #endif

@@ -918,8 +918,8 @@ properties_t current_props;
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
   { TRUE, TRC_DPHASE, 0, MS_REIM, 90.0, NGRIDY/2 },
-  { TRUE, TRC_AFREQ, 0, MS_REIM, 1.0, NGRIDY/2 },
-  { TRUE, TRC_DFREQ,  0, MS_REIM, 1.0,  NGRIDY/2 },
+  { TRUE, TRC_AFREQ, 0, MS_REIM, 0.01, NGRIDY/2 },
+  { TRUE, TRC_DFREQ,  0, MS_REIM, 0.001,  NGRIDY/2 },
 //  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
 };
 
@@ -1247,7 +1247,18 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         //      }
         //      v = v/sweep_points;
 #if 1
+#if 1
         shell_printf("%f\r\n",v/360);
+#else
+        shell_printf("CHA %f\r\n",v/360);
+        calc = trace_info_list[TRC_APHASE].get_value_cb;
+        v = calc(p_sweep, array[p_sweep]);
+        shell_printf("CHB %f\r\n",v/360);
+        calc = trace_info_list[TRC_BPHASE].get_value_cb;
+        v = calc(p_sweep, array[p_sweep]);
+        shell_printf("CHC %f\r\n",v/360);
+#endif
+
 #else
         v /= 180;
         volatile float df = v - prev_v;
@@ -1423,7 +1434,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   v = v/(sweep_points-1);
 
   aver_freq = v;
-#if 1
+  if (VNA_MODE(VNA_MODE_PLL)) {
   float new_pll;
   if (-0.02 < v && v < 0.02)
     new_pll = current_props.pll - v * 100;       // Slow speed when close
@@ -1433,19 +1444,28 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     current_props.pll = new_pll;
 //    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
   }
-#endif
+  }
 
 #if 1
   {
-    volatile static int l_gain, r_gain;
     float v_a, v_b;
+    int old_l_gain = l_gain, old_r_gain = r_gain;
+    l_gain = 0;
+    r_gain = 0;
     get_value_cb_t calc;
     calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
     v_a = calc(p_sweep, measured[0][0]);                                          // Get value
     calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
     v_b = calc(p_sweep, measured[0][0]);                                          // Get value
-    l_gain -= v_a - (-10);
-    r_gain -= v_b - (-10);
+    l_gain = old_l_gain;
+    r_gain = old_r_gain;
+#ifdef NANOVNA_F303
+#define ADC_TARGET_LEVEL    10
+#else
+#define ADC_TARGET_LEVEL    -30
+#endif
+    l_gain -= 2.0*(v_a - (ADC_TARGET_LEVEL));
+    r_gain -= 2.0*(v_b - (ADC_TARGET_LEVEL));
     if (l_gain < 0) l_gain = 0;
     if (l_gain > 60) l_gain = 60;
     if (r_gain < 0) r_gain = 0;
@@ -1535,12 +1555,12 @@ void set_tau(float tau){
     config._bandwidth = MIN_SAMPLES;
   else
     config._bandwidth -= SAMPLE_OVERHEAD;
-  if (tau >= 0.1)
+  if (tau < 1.0/101.0)
+    set_sweep_points(101);
+  else if (tau >= 0.5)
     set_sweep_points(2);
-  else if (tau >= 0.01)
-    set_sweep_points(10);
   else
-    set_sweep_points(51);
+    set_sweep_points((int)(1/tau));
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
 }
 

@@ -284,6 +284,8 @@ calculate_gamma(float gamma[4])
   measure_t sc = acc_samp_c;
   gamma[1] =  vna_atan2f( (sc * rc + ss * rs) / rr, (ss * rc - sc * rs) / rr ) / VNA_PI;
 #else
+
+  gamma[1] = vna_atan2f(acc_samp_s,acc_samp_c) / VNA_PI;
   gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
 #if 0
   calc_t rs_rc = (calc_t) acc_ref_s / acc_ref_c;
@@ -303,9 +305,13 @@ calculate_gamma(float gamma[4])
 #endif
 #endif
 
+  extern float amp_a;
+  extern float amp_b;
 
-  gamma[0] = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
-  gamma[1] = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
+  // gamma[0] =
+  amp_a = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
+//  gamma[1] =
+  amp_b = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
 
 #if 0
   if (prev_gamma3 != 5.0)
