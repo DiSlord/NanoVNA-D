@@ -148,7 +148,7 @@ static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
 static int8_t  kp_index = 0;
-static uint8_t menu_current_level = 0;
+static uint8_t menu_current_level = 1;
 static int8_t  selection = -1;
 
 // UI menu structure
@@ -1796,7 +1796,8 @@ const menuitem_t menu_display[] = {
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %.5f" S_Hz, menu_bandwidth_sel_acb },
+//  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %.5f" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
 
@@ -2067,7 +2068,7 @@ const menuitem_t menu_top[] = {
 
 #define MENU_STACK_DEPTH_MAX 5
 const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
-  menu_top, NULL, NULL, NULL, NULL
+  menu_top, menu_display, NULL, NULL, NULL
 };
 
 static const menuitem_t *menu_next_item(const menuitem_t *m){

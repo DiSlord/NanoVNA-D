@@ -20,18 +20,20 @@
  */
 #include "ch.h"
 
-#ifdef NANOVNA_F303
-#undef NANOVNA_F303
-#endif
+//#ifdef NANOVNA_F303
+//#undef NANOVNA_F303
+//#undef ARM_MATH_CM4
+//#else
+//#undef ARM_MATH_CM0
+//#endif
 
-#define NANOVNA_F303
+//#define NANOVNA_F303
 
-#ifdef NANOVNA_F303
-#undef ARM_MATH_CM4
-#define ARM_MATH_CM4
-#else
-#define ARM_MATH_CM0
-#endif
+//#ifdef NANOVNA_F303
+//#define ARM_MATH_CM4
+//#else
+//#define ARM_MATH_CM0
+//#endif
 
 // Define LCD display driver and size
 #if defined(NANOVNA_F303)
