@@ -147,7 +147,7 @@
  *
  * @note    The default is @p TRUE.
  */
-#define CH_CFG_USE_REGISTRY                 FALSE
+#define CH_CFG_USE_REGISTRY                 TRUE
 
 /**
  * @brief   Threads synchronization APIs.

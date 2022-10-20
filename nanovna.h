@@ -142,8 +142,10 @@
 
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
-//#define AUDIO_SAMPLES_COUNT   (96)
-#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (384)
+
 
 #define AUDIO_SHIFT 0
 
@@ -504,7 +506,9 @@ typedef int16_t  audio_sample_t;
 #endif
 void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
-int calculate_gamma(float *gamma);
+void reset_averaging(void);
+int calculate_gamma(float *gamma, uint16_t tau);
+void calculate_vectors(void);
 void fetch_amplitude(float *gamma);
 void fetch_amplitude_ref(float *gamma);
 void generate_DSP_Table(int offset);
@@ -991,6 +995,7 @@ typedef struct config {
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
   float    _measure_r;
+  uint16_t tau;
   uint8_t  _lever_mode;
   uint8_t  _digit_separator;
   uint8_t  _band_mode;

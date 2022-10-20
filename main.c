@@ -60,7 +60,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 
 #define ENABLED_DUMP_COMMAND
 // Allow get threads debug info
-//#define ENABLE_THREADS_COMMAND
+#define ENABLE_THREADS_COMMAND
 // Enable vbat_offset command, allow change battery voltage correction in config
 #define ENABLE_VBAT_OFFSET_COMMAND
 // Info about NanoVNA, need fore soft
@@ -899,15 +899,16 @@ config_t config = {
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._IF_freq    = FREQUENCY_OFFSET,
   ._touch_cal  = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
+  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX | VNA_MODE_PLL,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
-  ._bandwidth = 10,
+  ._bandwidth = 2,
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
+  . tau = 10,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
   ._band_mode = 0,
@@ -1082,6 +1083,8 @@ duplicate_buffer_to_dump(audio_sample_t *p, size_t n)
 static systime_t ready_time = 0;
 // sweep operation variables
 volatile uint16_t wait_count = 0;
+//volatile uint16_t tau_count = 0;
+volatile uint16_t tau_current = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
 static audio_sample_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 static audio_sample_t *filled_buffer;
@@ -1109,12 +1112,16 @@ volatile int kk;
 
    //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
-//  palSetPad(GPIOC, GPIOC_LED);
+  //  palSetPad(GPIOC, GPIOC_LED);
   if ((!VNA_MODE(VNA_MODE_DUMP_SAMPLE) )&& p_sweep == sweep_points)
     return;
   if (wait == 0 || chVTGetSystemTimeX() < ready_time) {
-    wait = wait_count = config._bandwidth;
     reset_dsp_accumerator();
+    wait = wait_count = config._bandwidth;
+  }
+  if (tau_current == 0) {
+    tau_current = config.tau;
+    reset_averaging();
   }
   uint16_t count = AUDIO_BUFFER_LEN;
   audio_sample_t *p = (flags & STM32_DMA_ISR_TCIF) ? rx_buffer + AUDIO_BUFFER_LEN : rx_buffer; // Full or Half transfer complete
@@ -1124,13 +1131,16 @@ volatile int kk;
 #endif
   filled_buffer = p;
   --wait_count;
+
   if (wait_count == 0) {
-    if (p_sweep < sweep_points && !(props_mode & TD_SAMPLE))
-      calculate_gamma(measured[0][p_sweep++]);              // Measure transmission coefficient
+    calculate_vectors();
+    -- tau_current;
+    if (tau_current == 0 && p_sweep < sweep_points && !(props_mode & TD_SAMPLE))
+      calculate_gamma(measured[0][p_sweep++], config.tau);              // Measure transmission coefficient
     if (VNA_MODE(VNA_MODE_DUMP_SAMPLE))
       p_sweep = 0;
 //    palSetPad(GPIOC, GPIOC_LED);
-    dsp_ready = true;
+    if (tau_current == 0) dsp_ready = true;
   }
 //  stat.callback_count++;
 }
@@ -1540,7 +1550,9 @@ static int set_frequency(freq_t freq)
 
 
 void set_bandwidth(uint16_t bw_count){
+  float old_tau = get_tau();
   config._bandwidth = bw_count;
+  set_tau(old_tau);
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
 }
 
@@ -1550,11 +1562,17 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
 
 #define MIN_SAMPLES 1
 void set_tau(float tau){
+#if 0
   config._bandwidth = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT);
   if (config._bandwidth < MIN_SAMPLES + SAMPLE_OVERHEAD)
     config._bandwidth = MIN_SAMPLES;
   else
     config._bandwidth -= SAMPLE_OVERHEAD;
+#else
+  config.tau = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT) / config._bandwidth;
+  if (config.tau < 1)
+    config.tau = 1;
+#endif
   if (tau < 1.0/101.0)
     set_sweep_points(101);
   else if (tau >= 0.5)
@@ -1565,7 +1583,7 @@ void set_tau(float tau){
 }
 
 float get_tau(void){
-  return (config._bandwidth + SAMPLE_OVERHEAD) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
+  return ( config.tau * (config._bandwidth + SAMPLE_OVERHEAD)) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
 }
 
 #define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)

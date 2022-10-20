@@ -257,103 +257,90 @@ dsp_process(audio_sample_t *capture, size_t length)
 
 typedef double calc_t;
 
-volatile float prev_gamma3 = -5.0;
-volatile float curr_gamma3 = -5.0;
-volatile float prev_speed = -5.0;
-volatile float accell = 0;
-int
-calculate_gamma(float gamma[4])
-{
-#if 1
-  // calculate reflection coeff. by samp divide by ref
-#if 0
-  measure_t rs = acc_ref_s;
-  measure_t rc = acc_ref_c;
-  measure_t rr = rs * rs + rc * rc;
-  //rr = vna_sqrtf(rr) * 1e8;
-  measure_t ss = acc_samp_s;
-  measure_t sc = acc_samp_c;
-  gamma[0] =  (sc * rc + ss * rs) / rr;
-  gamma[1] =  (ss * rc - sc * rs) / rr;
-#elif 0
-  measure_t rs = acc_ref_s;
-  measure_t rc = acc_ref_c;
-  measure_t rr = rs * rs + rc * rc;
-    //rr = vna_sqrtf(rr) * 1e8;
-  measure_t ss = acc_samp_s;
-  measure_t sc = acc_samp_c;
-  gamma[1] =  vna_atan2f( (sc * rc + ss * rs) / rr, (ss * rc - sc * rs) / rr ) / VNA_PI;
-#else
+//volatile float prev_gamma3 = -5.0;
+//volatile float curr_gamma3 = -5.0;
+//volatile float prev_speed = -5.0;
+//volatile float accell = 0;
+volatile float gamma_aver[4];
+extern float amp_a;
+extern float amp_b;
+float prev_gamma1, prev_gamma2, prev_gamma3;
 
-  gamma[1] = vna_atan2f(acc_samp_s,acc_samp_c) / VNA_PI;
-  gamma[2] = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
-#if 0
-  calc_t rs_rc = (calc_t) acc_ref_s / acc_ref_c;
-  calc_t sc_rc = (calc_t)acc_samp_c / acc_ref_c;
-  calc_t ss_rc = (calc_t)acc_samp_s / acc_ref_c;
-  calc_t rr = rs_rc * rs_rc + 1.0;
-  gamma[3] = vna_atan2f((sc_rc + ss_rc*rs_rc) / rr, (ss_rc - sc_rc*rs_rc)/rr) / VNA_PI;
-#else
+#define LOG_SIZE    100
+volatile float phase_log[LOG_SIZE];
+int log_index = 0;
+
+#define HALF_PHASE  1.0
+#define FULL_PHASE  2.0
+
+void
+calculate_vectors(void)
+{
+
+  // calculate reflection coeff. by samp divide by ref
+  float new_gamma;
+
+  new_gamma = vna_atan2f(acc_samp_s,acc_samp_c) / VNA_PI;
+  if ((new_gamma - prev_gamma1) < -HALF_PHASE)
+    new_gamma = new_gamma + FULL_PHASE;
+  if ((new_gamma - prev_gamma1) > HALF_PHASE)
+    new_gamma = new_gamma - FULL_PHASE;
+  gamma_aver[1] += new_gamma;
+  prev_gamma1 = new_gamma;
+
+  phase_log[log_index++] = new_gamma;
+  if (log_index >= LOG_SIZE) log_index = 0;
+
+
+  new_gamma = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
+  if ((new_gamma - prev_gamma2) < -HALF_PHASE)
+    new_gamma = new_gamma + FULL_PHASE;
+  if ((new_gamma - prev_gamma2) > HALF_PHASE)
+    new_gamma = new_gamma - FULL_PHASE;
+  gamma_aver[2] += new_gamma;
+  prev_gamma2 = new_gamma;
+
+
   calc_t rs = acc_ref_s;
   calc_t rc = acc_ref_c;
   calc_t rr = rs * rs + rc * rc;
   rr = vna_sqrtf(rr) * 1e8;
   calc_t ss = acc_samp_s;
   calc_t sc = acc_samp_c;
-  gamma[3] = vna_atan2f((sc * rc + ss * rs)/rr, (ss * rc - sc * rs)/rr) / VNA_PI;
-
-#endif
-#endif
-
-  extern float amp_a;
-  extern float amp_b;
+  new_gamma = vna_atan2f((sc * rc + ss * rs)/rr, (ss * rc - sc * rs)/rr) / VNA_PI;
+  if ((new_gamma - prev_gamma3) < -HALF_PHASE)
+    new_gamma = new_gamma + FULL_PHASE;
+  if ((new_gamma - prev_gamma3) > HALF_PHASE)
+    new_gamma = new_gamma - FULL_PHASE;
+  gamma_aver[3] += new_gamma;
+  prev_gamma3 = new_gamma;
 
   // gamma[0] =
   amp_a = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
 //  gamma[1] =
   amp_b = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
+}
 
-#if 0
-  if (prev_gamma3 != 5.0)
-  {
-    curr_gamma3 = gamma[3];
-    float speed = prev_gamma3 - curr_gamma3;
-    if (speed > 1)
-      speed -= 2.0;
-    if (speed < -1)
-      speed += 2.0;
-    if (prev_speed != -5)
-    {
-#if 0
-#define LOG_SIZE 256
-static       int speed_index = 0;
-static      systime_t speed_log[LOG_SIZE];
-static      systime_t prev_time;
-      systime_t cur_time = chVTGetSystemTimeX();
-      speed_log[speed_index++] =  cur_time - prev_time;
-      prev_time = cur_time;
-      if (speed_index >= LOG_SIZE) speed_index = 0;
-#endif
-      accell = speed - prev_speed;
-      if (accell < -0.01 || accell > 0.01)
-      {
-        accell = - accell;
-        accell = - accell;
-      }
-    }
-    prev_speed = speed;
-  }
-  prev_gamma3 = gamma[3];
-#endif
 
-#elif 0
-  gamma[0] =  acc_samp_s;
-  gamma[1] =  acc_samp_c;
-#else
-  gamma[0] =  acc_ref_s;
-  gamma[1] =  acc_ref_c;
-#endif
-  return(sample_count);
+int
+calculate_gamma(float gamma[4], uint16_t tau)
+{
+  gamma[1] = gamma_aver[1]/tau;
+  while (gamma[1] > HALF_PHASE)
+    gamma[1] -= FULL_PHASE;
+  while (gamma[1] < -HALF_PHASE)
+    gamma[1] += FULL_PHASE;
+  gamma[2] = gamma_aver[2]/tau;
+  while (gamma[2] > HALF_PHASE)
+    gamma[2] -= FULL_PHASE;
+  while (gamma[2] < -HALF_PHASE)
+    gamma[2] += FULL_PHASE;
+  gamma[3] = gamma_aver[3]/tau;
+  while (gamma[3] > HALF_PHASE)
+    gamma[3] -= FULL_PHASE;
+  while (gamma[3] < -HALF_PHASE)
+    gamma[3] += FULL_PHASE;
+  return(tau);
 }
 
 void
@@ -390,4 +377,16 @@ reset_dsp_accumerator(void)
   acc_samp_s = 0;
   acc_samp_c = 0;
   sample_count = 0;
+}
+
+void
+reset_averaging(void)
+{
+  gamma_aver[0] = 0.0;
+  gamma_aver[1] = 0.0;
+  gamma_aver[2] = 0.0;
+  gamma_aver[3] = 0.0;
+  prev_gamma1 = 0;
+  prev_gamma2 = 0;
+  prev_gamma3 = 0;
 }

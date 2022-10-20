@@ -922,7 +922,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 //  ui_mode_normal();
 }
 
-#define BANDWIDTH_LIST  1,3,10,33,100,333,1000,3333,10000,33333
+#define BANDWIDTH_LIST  1,2,5,10,20,50,100,200,500,1000
 #define BANDWIDTH_COUNT 10
 uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
 
@@ -931,7 +931,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
 {
   (void)data;
   if (b){
-    b->p1.f =  ((float)bandwidth[data]) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ; // get_bandwidth_frequency(config._bandwidth);
+    b->p1.f = ( (float)config._bandwidth * (float) AUDIO_SAMPLES_COUNT ) /  (float) AUDIO_ADC_FREQ ; // get_bandwidth_frequency(config._bandwidth);
     return;
   }
   menu_push_submenu(menu_bandwidth);
@@ -942,7 +942,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 {
   if (b){
     b->icon = config._bandwidth == bandwidth[data] ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
-    b->p1.f =  ((float)bandwidth[data]+1.0) * (float) AUDIO_SAMPLES_COUNT/(float) AUDIO_ADC_FREQ;
+    b->p1.f =  ( (float)bandwidth[data] * (float) AUDIO_SAMPLES_COUNT ) /  (float) AUDIO_ADC_FREQ ;
     return;
   }
   set_bandwidth( bandwidth[data]);
@@ -1764,16 +1764,16 @@ const menuitem_t menu_transform[] = {
 
 const menuitem_t menu_bandwidth[] =
 {
-  { MT_ADV_CALLBACK, 0, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 1, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 2, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 3, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 4, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 5, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 6, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 7, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 8, "%.6f " "s", menu_bandwidth_acb },
-  { MT_ADV_CALLBACK, 9, "%.6f " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 0, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 1, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 2, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 3, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 4, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 5, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 6, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 7, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 8, "%b.6F " "s", menu_bandwidth_acb },
+  { MT_ADV_CALLBACK, 9, "%b.6F " "s", menu_bandwidth_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1796,7 +1796,7 @@ const menuitem_t menu_display[] = {
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-//  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %.5f" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %b.5Fs" , menu_bandwidth_sel_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },

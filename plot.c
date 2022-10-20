@@ -368,6 +368,7 @@ static float phase_d(int i, const float *v) {
   return(p*180.0f);
 }
 
+volatile dddf;
 //**************************************************************************************
 // Delta frequency
 //**************************************************************************************
@@ -375,6 +376,8 @@ static float freq_a(int i, const float *v) {
   (void) i;
   if (i == sweep_points-1){
     i = sweep_points-2;
+    v--;
+    v--;
     v--;
     v--;
   }
@@ -385,7 +388,7 @@ static float freq_a(int i, const float *v) {
     df += 2.0;
 
   df *= AUDIO_ADC_FREQ>>1;
-  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -393,6 +396,8 @@ static float freq_b(int i, const float *v) {
   (void) i;
   if (i == sweep_points-1){
     i = sweep_points-2;
+    v--;
+    v--;
     v--;
     v--;
   }
@@ -403,7 +408,7 @@ static float freq_b(int i, const float *v) {
     df += 2.0;
 
   df *= AUDIO_ADC_FREQ>>1;
-  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 }
 
@@ -411,6 +416,8 @@ static float freq_d(int i, const float *v) {
   (void) i;
   if (i == sweep_points-1){
     i = sweep_points-2;
+    v--;
+    v--;
     v--;
     v--;
   }
@@ -451,7 +458,7 @@ static float freq_d(int i, const float *v) {
     df += 2.0;
 
   df *= AUDIO_ADC_FREQ>>1;   // This is the 0.5 multiplication factor
-  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  df /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
   return (df);
 
 #endif
@@ -1892,7 +1899,7 @@ draw_frequencies(void)
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
-  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"tau=%Fs %up", AUDIO_SAMPLES_COUNT*(config._bandwidth+SAMPLE_OVERHEAD)/(float)AUDIO_ADC_FREQ, sweep_points);
+  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"tau=%Fs %up", AUDIO_SAMPLES_COUNT*config.tau*(config._bandwidth+SAMPLE_OVERHEAD)/(float)AUDIO_ADC_FREQ, sweep_points);
   lcd_set_font(FONT_NORMAL);
 }
 
