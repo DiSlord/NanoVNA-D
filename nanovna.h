@@ -20,22 +20,25 @@
  */
 #include "ch.h"
 
-//#ifdef NANOVNA_F303
-//#undef NANOVNA_F303
-//#undef ARM_MATH_CM4
-//#else
-//#undef ARM_MATH_CM0
-//#endif
+#if 1
+#ifdef NANOVNA_F303
+#undef NANOVNA_F303
+#undef ARM_MATH_CM4
+#else
+#undef ARM_MATH_CM0
+#endif
 
-//#define NANOVNA_F303
+#define NANOVNA_F303
 
-//#ifdef NANOVNA_F303
-//#define ARM_MATH_CM4
-//#else
-//#define ARM_MATH_CM0
-//#endif
+#ifdef NANOVNA_F303
+#define ARM_MATH_CM4
+#else
+#define ARM_MATH_CM0
+#endif
+#endif
 
 // Define LCD display driver and size
+
 #if defined(NANOVNA_F303)
 #define LCD_DRIVER_ST7796S
 #define LCD_480x320
@@ -142,8 +145,8 @@
 
 // Define sample count for one step measure
 //#define AUDIO_SAMPLES_COUNT   (48)
-#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (96)
+#define AUDIO_SAMPLES_COUNT   (192)
 //#define AUDIO_SAMPLES_COUNT   (384)
 
 
@@ -549,7 +552,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
 #define OFFSETX                      10
-#define OFFSETY                       0
+#define OFFSETY                      0
 
 // Grid count, must divide
 //#define NGRIDY                     10
@@ -604,7 +607,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
 #define OFFSETX                      15
-#define OFFSETY                       0
+#define OFFSETY                      0
 
 // Grid count, must divide
 //#define NGRIDY                     10
@@ -613,7 +616,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area WIDTH better be n*(POINTS_COUNT-1)
 #define WIDTH                       455
 // Plot area HEIGHT = NGRIDY * GRIDY
-#define HEIGHT                      304
+#define HEIGHT                      (LCD_HEIGHT - 16 - OFFSETY)
 
 // GRIDX calculated depends from frequency span
 // GRIDY depend from HEIGHT and NGRIDY, must be integer
@@ -641,7 +644,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           (LCD_WIDTH - 22 * sFONT_WIDTH)
 #define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 14 * sFONT_WIDTH / 2)
-#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2)
+#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2 + OFFSETY)
 #endif // end 480x320 display plot definitions
 
 // UI size defines
@@ -660,7 +663,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define MENU_BUTTON_Y_OFFSET          1
 // Menu buttons size = 21 for icon and 10 chars
 #define MENU_BUTTON_WIDTH           (7 + 12 * FONT_WIDTH)
-#define MENU_BUTTON_HEIGHT(n)       (AREA_HEIGHT_NORMAL/(n))
+#define MENU_BUTTON_HEIGHT(n)       ((LCD_HEIGHT - 12 )/(n))
 #define MENU_BUTTON_BORDER            1
 #define KEYBOARD_BUTTON_BORDER        1
 #define BROWSER_BUTTON_BORDER         1
@@ -935,6 +938,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_BACKUP           6
 // Flip display
 #define VNA_MODE_FLIP_DISPLAY     7
+#define VNA_MODE_PULLING          8
 
 
 #ifdef __VNA_MEASURE_MODULE__
@@ -986,7 +990,7 @@ typedef struct config {
   uint32_t _harmonic_freq_threshold;
   int32_t  _IF_freq;
   int16_t  _touch_cal[4];
-  uint8_t  _vna_mode;
+  uint16_t  _vna_mode;
   uint8_t  _brightness;
   uint16_t _dac_value;
   uint16_t _vbat_offset;

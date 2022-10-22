@@ -290,6 +290,7 @@ rectangular_grid_y(int y)
 #define PORT_Z 50.0f
 #endif
 // Help functions
+#if 0
 static float get_l(float re, float im) {return (re*re + im*im);}
 static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
 static float get_s11_r(float re, float im, float z) {return vna_fabsf(2.0f * z * re / get_l(re, im) - z);}
@@ -304,7 +305,7 @@ static float linear(int i, const float *v) {
   (void) i;
   return vna_sqrtf(get_l(v[0], v[1]));
 }
-
+#endif
 //**************************************************************************************
 // LOGMAG = 20*log10f(|S|)
 //**************************************************************************************
@@ -317,16 +318,17 @@ int l_gain = 20,
 
 static float logmag_a(int i, const float *v) {
   (void) i;
+  (void) v;
 //  return 2*vna_log10f_x_10(v[0]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
   return (2*vna_log10f_x_10(amp_a*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (l_gain-20) / 2.0;
 }
 
 static float logmag_b(int i, const float *v) {
   (void) i;
+  (void) v;
 //  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
   return (2*vna_log10f_x_10(amp_b*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (r_gain-20) / 2.0;
 }
-
 
 
 static float value(int i, const float *v) {
@@ -368,7 +370,6 @@ static float phase_d(int i, const float *v) {
   return(p*180.0f);
 }
 
-volatile dddf;
 //**************************************************************************************
 // Delta frequency
 //**************************************************************************************
@@ -464,6 +465,7 @@ static float freq_d(int i, const float *v) {
 #endif
 }
 
+#if 0
 //**************************************************************************************
 // Group delay
 //**************************************************************************************
@@ -620,6 +622,7 @@ static float parallel_x(int i, const float *v) {
 #endif
 }
 
+
 //**************************************************************************************
 // Use w = 2 * pi * frequency
 // Get Parallel L and C from B
@@ -688,7 +691,6 @@ static float s21_qualityfactor(int i, const float *v) {
   (void) i;
   return vna_fabsf(v[1] / (v[0] - get_l(v[0], v[1])));
 }
-
 //**************************************************************************************
 // Group delay
 //**************************************************************************************
@@ -698,6 +700,7 @@ float groupdelay_from_array(int i, const float *v) {
   freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((sweep_points - 1) / (top - bottom));
   return groupdelay(&v[2*bottom], &v[2*top], deltaf);
 }
+#endif
 
 static inline void
 cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
@@ -852,6 +855,8 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx, uint16_
 static void
 trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 {
+  (void) index_ref;
+  (void) index;
   // Check correct input
   uint8_t type = trace[t].type;
   if (type >= MAX_TRACE_TYPE) return;
@@ -921,11 +926,15 @@ static inline void force_set_markmap(void) {
 /*
  * Force region of screen update
  */
-static void invalidate_rect_func(int x0, int y0, int x1, int y1) {
-  uint32_t mask = ((1 << (x1 - x0 + 1)) - 1) << x0;
+void invalidate_rect_func(int x0, int y0, int x1, int y1)
+{
+  if (y0 < 0            ) y0 = 0;
+  if (y1 >=MAX_MARKMAP_Y) y1 = MAX_MARKMAP_Y-1;
+  uint32_t mask = 0;
+  for (; x0 <= x1; x0++) mask|= 1 << x0;
   for (; y0 <= y1; y0++)
     if ((uint32_t)y0 < MAX_MARKMAP_Y)
-        markmap[y0]|= mask;
+      markmap[y0]|= mask;
 }
 #define invalidate_rect(x0, y0, x1, y1) invalidate_rect_func((x0)/CELLWIDTH, (y0)/CELLHEIGHT, (x1)/CELLWIDTH, (y1)/CELLHEIGHT)
 
@@ -1880,7 +1889,7 @@ draw_frequencies(void)
   // Draw frequency string
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, HEIGHT + 1, LCD_WIDTH, LCD_HEIGHT - HEIGHT - 1);
+  lcd_fill(0, HEIGHT + 1 + OFFSETY, LCD_WIDTH, LCD_HEIGHT - HEIGHT - 1 - OFFSETY);
   lcd_set_font(FONT_SMALL);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {

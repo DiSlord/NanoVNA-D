@@ -322,7 +322,7 @@ static const uint8_t conf_data_unmute[] = {
   0x52, 0x00,     // Unmute Left and Right ADC Digital Volume Control
   0x00, 0x01,     // Select Page 1 (should be set as default)
 };
-
+#if 0
 static const uint8_t conf_data_ch3_select[] = {
 // reg, data,
 //0x00,   0x01,                       // Select Page 1 (should be set as default)
@@ -330,7 +330,7 @@ static const uint8_t conf_data_ch3_select[] = {
 /*0x38,*/ 0x00,                       // Reserved
 /*0x39,*/ REG_39_IN3L_TO_RIGHT_N_10k, // Route IN3L to RIGHT_N with input impedance of 10K
 };
-
+#endif
 static const uint8_t conf_data_ch1_select[] = {
 // reg, data,
 //0x00,   0x01,                       // Select Page 1 (should be set as default)

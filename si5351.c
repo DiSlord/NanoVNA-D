@@ -588,9 +588,9 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   }
   uint32_t mul  = band_s[band].mul;
   uint32_t omul = band_s[band].omul;
-  uint8_t  ds   = drive_strength;
+//  uint8_t  ds   = drive_strength;
   uint8_t ods   = drive_strength;
-  if (drive_strength > SI5351_CLK_DRIVE_STRENGTH_8MA) {ds = band_s[band].pow; ods = band_s[band].opow;}
+  if (drive_strength > SI5351_CLK_DRIVE_STRENGTH_8MA) { /* ds = band_s[band].pow; */ ods = band_s[band].opow;}
   switch (band_s[band].mode) {
                            // 800Hz to 10kHz   PLLN =  8
     case SI5351_FIXED_PLL: // 10kHz to 100MHz  PLLN = 32

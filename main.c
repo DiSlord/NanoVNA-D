@@ -823,7 +823,7 @@ VNA_SHELL_FUNCTION(cmd_data)
   if (sel < 0 || sel >=7)
     goto usage;
 
-  array = sel < 2 ? measured[sel] : cal_data[sel-2];
+  array = measured[sel];
 
   for (i = 0; i < sweep_points; i++)
     shell_printf("%f %f" VNA_SHELL_NEWLINE_STR, array[i][0], array[i][1]);
@@ -1258,7 +1258,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         //      v = v/sweep_points;
 #if 1
 #if 1
-        shell_printf("%f\r\n",v/360);
+         float correction = 0.0;
+         if (VNA_MODE(VNA_MODE_PULLING)) correction =
+             sinf((v/360.0) * 2.0 * VNA_PI) * 1.35e-5 +
+             sinf(2.0*(v/360.0) * 2.0 * VNA_PI) * 2.1e-6 -
+             cosf((v/360.0) * 2.0 * VNA_PI) * 1.57e-6;
+         shell_printf("%f\r\n",v/360 + correction);
 #else
         shell_printf("CHA %f\r\n",v/360);
         calc = trace_info_list[TRC_APHASE].get_value_cb;
@@ -1304,17 +1309,17 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //  float data[4];
 //  float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
-  int delay = 0;
+//  int delay = 0;
 //  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   // Wait some time for stable power
-  int st_delay = DELAY_SWEEP_START;
+//  int st_delay = DELAY_SWEEP_START;
   int bar_start = 0;
 //  int interpolation_idx;
 
   freq_t frequency = getFrequency(p_sweep);
-  delay = set_frequency(frequency);
+  set_frequency(frequency);
   tlv320aic3204_select(1);
   chThdSleepMilliseconds(100);
 //  DSP_START(delay+st_delay);
@@ -1415,7 +1420,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 #endif
 
     if (operation_requested && break_on_operation) break;
-    st_delay = 0;
+//    st_delay = 0;
     // Display SPI made noise on measurement (can see in CW mode), use reduced update
 #if 0
     if (config._bandwidth >= BANDWIDTH_100){
@@ -1936,7 +1941,7 @@ usage:
                "\tsweep {%s} {freq(Hz)}" VNA_SHELL_NEWLINE_STR, sweep_cmd);
 }
 
-
+#if 0
 static void
 eterm_set(int term, float re, float im)
 {
@@ -2038,7 +2043,7 @@ eterm_calc_et(void)
   cal_status &= ~CALSTAT_THRU;
   cal_status |= CALSTAT_ET;
 }
-
+#endif
 #if 0
 void apply_error_term(void)
 {
@@ -2120,8 +2125,7 @@ static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   data[0] = (s11mr * err + s11mi * eri) / sq;
   data[1] = (s11mi * err - s11mr * eri) / sq;
 }
-#endif
-#if 0
+
 static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
   // CAUTION: Et is inversed for efficiency
@@ -2132,7 +2136,7 @@ static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   data[2] = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
   data[3] = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
 }
-#endif
+
 void
 cal_collect(uint16_t type)
 {
@@ -2243,7 +2247,7 @@ cal_done(void)
   lastsaveid = NO_SAVE_SLOT;
   request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS);
 }
-#if 0
+
 static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   int eterm;
   uint16_t src_points = cal_sweep_points - 1;
@@ -2300,7 +2304,6 @@ copy_point:
   }
   return;
 }
-#endif
 
 VNA_SHELL_FUNCTION(cmd_cal)
 {
@@ -2351,6 +2354,7 @@ VNA_SHELL_FUNCTION(cmd_cal)
   }
   shell_printf("usage: cal [%s]" VNA_SHELL_NEWLINE_STR, cmd_cal_list);
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_save)
 {
@@ -3238,7 +3242,7 @@ static const VNAShellCommand commands[] =
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
-    {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
+ //   {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , CMD_RUN_IN_LOAD},
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 //    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
