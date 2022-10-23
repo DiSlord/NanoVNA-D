@@ -360,6 +360,20 @@ static float phase_b(int i, const float *v) {
   return(v[2]*180.0f);
 }
 
+static float get_phase(float v)
+{
+  float p = v;
+  while (p > 1.0)
+    p -= 2.0;
+  while (p<-1.0)
+    p += 2.0;
+  p /= 2.0;
+  float f = sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+  p +=  f;
+  p += sinf( (2*p)*2.0*VNA_PI+ config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  return p;
+}
+
 static float phase_d(int i, const float *v) {
   (void) i;
   float p = v[3];
@@ -367,8 +381,35 @@ static float phase_d(int i, const float *v) {
     p -= 2.0;
   while (p<-1)
     p += 2.0;
-  return(p*180.0f);
+  p /= 2.0;
+  float f = sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+  p +=  f;
+  p += sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  return(p*360.0f);
 }
+
+static float wraps = 0;
+static float r_start;
+
+static float residue(int i, const float *v) {
+  (void) i;
+  float p = get_phase(v[3]);
+  if (i == 0) {
+    wraps = 0;
+    r_start = p;
+    return(p);
+  }
+  float pp = get_phase(v[-1]);
+  if (p > pp + 0.5) {
+    wraps--;
+  }
+  if (p < pp - 0.5) {
+    wraps++;
+  }
+  return p + wraps - i * aver_freq_d * config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT / AUDIO_ADC_FREQ - r_start;
+}
+
+
 
 //**************************************************************************************
 // Delta frequency
@@ -728,6 +769,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,         value                 },
 [TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_a             },
 [TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_b             },
+[TRC_RESIDUE] = {"RESIDUE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0.000001,  residue              },
 };
 
 

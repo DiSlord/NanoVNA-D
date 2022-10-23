@@ -121,8 +121,9 @@ static uint16_t p_sweep = 0;
 // Sweep measured data
 float measured[1][POINTS_COUNT][4];
 //uint16_t sample_count;
-float aver_freq;
+float aver_freq_a;
 float aver_phase;
+float aver_freq_d;
 
 #undef VERSION
 #define VERSION "1.2.15"
@@ -731,6 +732,23 @@ VNA_SHELL_FUNCTION(cmd_power)
 //  set_frequency(frequency);
 }
 
+VNA_SHELL_FUNCTION(cmd_pull)
+{
+  if (argc == 0) {
+    for (int i=0;i<MAX_PULL;i++) {
+      shell_printf("pull: %d %f" VNA_SHELL_NEWLINE_STR, i, config.pull[i]);
+    }
+    return;
+  }
+  if (argc == 2) {
+    int i = my_atoi(argv[0]);
+    config.pull[i] = my_atof(argv[1]);
+    shell_printf("pull: %d %f" VNA_SHELL_NEWLINE_STR,i , config.pull[i]);
+    return;
+  }
+//  set_frequency(frequency);
+}
+
 #ifdef __USE_RTC__
 VNA_SHELL_FUNCTION(cmd_time)
 {
@@ -908,6 +926,7 @@ config_t config = {
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
+  .pull = {-0.59, 1.4e-5, 0.614, -7.154e-7 },
   . tau = 10,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
@@ -920,7 +939,8 @@ properties_t current_props;
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
   { TRUE, TRC_DPHASE, 0, MS_REIM, 90.0, NGRIDY/2 },
   { TRUE, TRC_AFREQ, 0, MS_REIM, 0.01, NGRIDY/2 },
-  { TRUE, TRC_DFREQ,  0, MS_REIM, 0.001,  NGRIDY/2 },
+//  { TRUE, TRC_DFREQ,  0, MS_REIM, 0.001,  NGRIDY/2 },
+  { TRUE, TRC_RESIDUE,  0, MS_REIM, 0.00001,  NGRIDY/2 },
 //  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, NGRIDY/2 }
 };
 
@@ -1259,10 +1279,13 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 #if 1
 #if 1
          float correction = 0.0;
+#if 0
          if (VNA_MODE(VNA_MODE_PULLING)) correction =
-             sinf((v/360.0) * 2.0 * VNA_PI) * 1.35e-5 +
-             sinf(2.0*(v/360.0) * 2.0 * VNA_PI) * 2.1e-6 -
-             cosf((v/360.0) * 2.0 * VNA_PI) * 1.57e-6;
+             sinf((v/360.0 + config.pull[PULL_OFFSET]) * 2.0 * VNA_PI) * config.pull[PULL_FUNDAMENTAL] // 1.35e-5
+             //+ sinf(2.0*(v/360.0) * 2.0 * VNA_PI) * 2.1e-6
+             //+ cosf((v/360.0) * 2.0 * VNA_PI) * - 1.57e-6
+             ;
+#endif
          shell_printf("%f\r\n",v/360 + correction);
 #else
         shell_printf("CHA %f\r\n",v/360);
@@ -1437,6 +1460,19 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
 
+  // -------------------- Average D freq  ----------------------
+  {
+  get_value_cb_t calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
+  float (*array)[4] = measured[0];
+  //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+  float v = 0;
+  for (int i =0; i<sweep_points-1; i++) {
+    v += calc(i, array[i]);                                          // Get value
+  }
+  v = v/(sweep_points-1);
+
+  aver_freq_d = v;
+  }
   // -------------------- Auto set CW frequency ----------------------
 
   get_value_cb_t calc = trace_info_list[GET_AFREQ].get_value_cb; // dfreq port 1
@@ -1448,7 +1484,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   }
   v = v/(sweep_points-1);
 
-  aver_freq = v;
+  aver_freq_a = v;
   if (VNA_MODE(VNA_MODE_PLL)) {
   float new_pll;
   if (-0.02 < v && v < 0.02)
@@ -3203,6 +3239,7 @@ static const VNAShellCommand commands[] =
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"power"       , cmd_power       , CMD_RUN_IN_LOAD},
+    {"pull"        , cmd_pull        , CMD_RUN_IN_LOAD},
 #ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif

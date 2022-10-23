@@ -264,6 +264,10 @@
 #endif
 #endif
 
+
+extern float aver_freq_a;
+extern float aver_phase;
+extern float aver_freq_d;
 /*
  * CPU Hardware depend functions declaration
  */
@@ -845,7 +849,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 //#define  7
 enum trace_type {
-  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, MAX_TRACE_TYPE
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
 #define GET_AFREQ   5
@@ -985,6 +989,8 @@ typedef struct marker {
   freq_t   frequency;
 } marker_t;
 
+enum {PULL_OFFSET, PULL_FUNDAMENTAL, PULL_SECOND_SHIFT, PULL_SECOND, MAX_PULL};
+
 typedef struct config {
   uint32_t magic;
   uint32_t _harmonic_freq_threshold;
@@ -999,6 +1005,7 @@ typedef struct config {
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
   float    _measure_r;
+  float     pull[MAX_PULL];
   uint16_t tau;
   uint8_t  _lever_mode;
   uint8_t  _digit_separator;

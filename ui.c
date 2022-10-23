@@ -104,7 +104,11 @@ enum {
 #endif
   KM_TAU,
 #endif
-  KM_NONE
+  KM_PULL_1,
+  KM_PULL_2,
+  KM_PULL_3,
+  KM_PULL_4,
+    KM_NONE
 };
 
 typedef struct {
@@ -1732,16 +1736,17 @@ const menuitem_t menu_trace[] = {
 
 const menuitem_t menu_formatS11[] =
 {
-  { MT_ADV_CALLBACK, F_S11|TRC_ALOGMAG, "A LOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BLOGMAG, "B LOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_APHASE,  "A PHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BPHASE,  "B PHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DPHASE,  "D PHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_AFREQ,  "A FREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_BFREQ,  "B FREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_DFREQ,  "D FREQ",       menu_format_acb },
-//  { MT_ADV_CALLBACK, F_S11|TRC_VALUE,  "VALUE",       menu_format_acb },
-  { MT_ADV_CALLBACK, 0,  "SAMPLE",                    menu_sample_acb },
+  { MT_ADV_CALLBACK, TRC_ALOGMAG, "A LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_BLOGMAG, "B LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_APHASE,  "A PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_BPHASE,  "B PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_DPHASE,  "D PHASE",      menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_AFREQ,   "A FREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_BFREQ,   "B FREQ",       menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_DFREQ,   "D FREQ",       menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_VALUE,  "VALUE",       menu_format_acb },
+  { MT_ADV_CALLBACK, 0,  "SAMPLE",                menu_sample_acb },
+  { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1801,6 +1806,11 @@ const menuitem_t menu_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK,      0,            "SWEEP POINTS\n" R_LINK_COLOR " %u",        menu_points_sel_acb },
+  { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_4,         "PULL 4\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1855,6 +1865,14 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+const menuitem_t menu_pull[] = {
+  { MT_ADV_CALLBACK, KM_PULL_1, "PULL_1",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_2, "PULL_2",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_3, "PULL_3",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_PULL_4, "PULL_4",         menu_keyboard_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2317,6 +2335,11 @@ UI_KEYBOARD_CALLBACK(input_freq) {
   set_sweep_frequency(data, keyboard_get_freq());
 }
 
+UI_KEYBOARD_CALLBACK(input_pull) {
+  if (b) {b->p1.f = config.pull[data-KM_PULL_1]; return; }
+  config.pull[data-KM_PULL_1]= keyboard_get_float();
+}
+
 UI_KEYBOARD_CALLBACK(input_var_delay) {
   (void)data;
   if (b) {
@@ -2479,6 +2502,10 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #endif
 [KM_TAU]            = {KEYPAD_FLOAT,   0,            "TAU",                input_tau      },  // tau
 #endif
+[KM_PULL_1]         = {KEYPAD_FLOAT,   KM_PULL_1,    "PULL 1",             input_pull     }, // pull 1
+[KM_PULL_2]         = {KEYPAD_FLOAT,   KM_PULL_2,    "PULL 2",             input_pull     }, // pull 1
+[KM_PULL_3]         = {KEYPAD_FLOAT,   KM_PULL_3,    "PULL 3",             input_pull     }, // pull 1
+[KM_PULL_4]         = {KEYPAD_FLOAT,   KM_PULL_4,    "PULL 4",             input_pull     }, // pull 1
 };
 
 static void
