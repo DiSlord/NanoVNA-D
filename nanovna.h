@@ -266,8 +266,10 @@
 
 
 extern float aver_freq_a;
-extern float aver_phase;
+extern float aver_phase_d;
 extern float aver_freq_d;
+extern float level_a;
+extern float level_b;
 /*
  * CPU Hardware depend functions declaration
  */
@@ -556,7 +558,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
 #define OFFSETX                      10
-#define OFFSETY                      0
+#define OFFSETY                      64
 
 // Grid count, must divide
 //#define NGRIDY                     10
@@ -605,7 +607,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Used marker image settings
 #define _USE_MARKER_SET_              2
 // Used font settings
-#define _USE_FONT_                    2
+#define _USE_FONT_                    3
 #define _USE_SMALL_FONT_              2
 
 // Plot area size settings

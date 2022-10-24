@@ -13,3 +13,4 @@ TAGS
 .project
 *.xml
 .settings/org.eclipse.core.resources.prefs
+desktop.ini

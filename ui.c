@@ -1801,11 +1801,11 @@ const menuitem_t menu_smooth_count[] = {
 
 const menuitem_t menu_settings[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,                 "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
+  { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
 #endif
   { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK,      0,            "SWEEP POINTS\n" R_LINK_COLOR " %u",        menu_points_sel_acb },
+  { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
   { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
@@ -2199,18 +2199,20 @@ menu_invoke(int item)
 #define KP_9          9
 #define KP_PERIOD    10
 #define KP_MINUS     11
-#define KP_X1        12
-#define KP_K         13
-#define KP_M         14
-#define KP_G         15
-#define KP_BS        16
-#define KP_INF       17
-#define KP_DB        18
-#define KP_PLUSMINUS 19
-#define KP_KEYPAD    20
-#define KP_N         21
-#define KP_P         22
-#define KP_ENTER     23
+#define KP_u         12
+#define KP_m         13
+#define KP_X1        14
+#define KP_K         15
+#define KP_M         16
+#define KP_G         17
+#define KP_BS        18
+#define KP_INF       19
+#define KP_DB        20
+#define KP_PLUSMINUS 21
+#define KP_KEYPAD    22
+#define KP_N         23
+#define KP_P         24
+#define KP_ENTER     25
 
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
 // Keyboard size and position data
@@ -2257,7 +2259,7 @@ static const keypads_t keypads_ufloat[] = { //
 };
 
 static const keypads_t keypads_float[] = {
-  { 14, NUM_KEYBOARD },   // size and position
+  { 16, NUM_KEYBOARD },   // size and position
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },
   { 0x02, KP_1 },
@@ -2269,6 +2271,8 @@ static const keypads_t keypads_float[] = {
   { 0x00, KP_7 },
   { 0x10, KP_8 },
   { 0x20, KP_9 },
+  { 0x30, KP_u },
+  { 0x31, KP_m },
   { 0x32, KP_MINUS },
   { 0x33, KP_ENTER },
   { 0x23, KP_BS }
@@ -2836,12 +2840,14 @@ static int
 num_keypad_click(int c)
 {
   if (c == KP_ENTER) c = KP_X1;
-  if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
+  if ((c >= KP_u && c <= KP_G) || c == KP_N || c == KP_P) {
     if (kp_index == 0)
       return KP_CANCEL;
     uint16_t scale = 0;
     if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
     if (c == KP_N) scale = 1;
+    if (c == KP_m) kp_buf[kp_index++] = 'm';
+    if (c == KP_u) kp_buf[kp_index++] = 'u';
     if (scale){
       scale+= (scale<<1);
       int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;

@@ -122,8 +122,11 @@ static uint16_t p_sweep = 0;
 float measured[1][POINTS_COUNT][4];
 //uint16_t sample_count;
 float aver_freq_a;
-float aver_phase;
+float aver_phase_d;
 float aver_freq_d;
+float level_a;
+float level_b;
+
 
 #undef VERSION
 #define VERSION "1.2.15"
@@ -654,6 +657,14 @@ my_atof(const char *p)
       x /= 10;
       exp++;
     }
+  }
+  if (*p == 'm'){
+    x *= 0.001;
+    p++;
+  }
+  if (*p == 'u'){
+    x *= 0.000001;
+    p++;
   }
   if (neg)
     x = -x;
@@ -1499,15 +1510,14 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
 #if 1
   {
-    float v_a, v_b;
     int old_l_gain = l_gain, old_r_gain = r_gain;
     l_gain = 0;
     r_gain = 0;
     get_value_cb_t calc;
     calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
-    v_a = calc(p_sweep, measured[0][0]);                                          // Get value
+    level_a = calc(p_sweep, measured[0][0]);                                          // Get value
     calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
-    v_b = calc(p_sweep, measured[0][0]);                                          // Get value
+    level_b = calc(p_sweep, measured[0][0]);                                          // Get value
     l_gain = old_l_gain;
     r_gain = old_r_gain;
 #ifdef NANOVNA_F303
@@ -1515,18 +1525,22 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 #else
 #define ADC_TARGET_LEVEL    -30
 #endif
-    l_gain -= 2.0*(v_a - (ADC_TARGET_LEVEL));
-    r_gain -= 2.0*(v_b - (ADC_TARGET_LEVEL));
+    l_gain -= 2.0*(level_a - (ADC_TARGET_LEVEL));
+    r_gain -= 2.0*(level_b - (ADC_TARGET_LEVEL));
     if (l_gain < 0) l_gain = 0;
     if (l_gain > 60) l_gain = 60;
     if (r_gain < 0) r_gain = 0;
     if (r_gain > 60) r_gain = 60;
     tlv320aic3204_set_gain(l_gain, r_gain);
+    calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
+    level_a = calc(p_sweep, measured[0][0]);                                          // Get value
+    calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
+    level_b = calc(p_sweep, measured[0][0]);                                          // Get value
   }
 #endif
 
 
-#if 0
+#if 1
   calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
   array = measured[0];
   v = 0;
@@ -1535,7 +1549,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   }
   v = v/sweep_points;
   v++;
-  aver_phase = v;
+  aver_phase_d = v;
 #endif
 
   //  STOP_PROFILE;

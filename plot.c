@@ -368,9 +368,10 @@ static float get_phase(float v)
   while (p<-1.0)
     p += 2.0;
   p /= 2.0;
-  float f = sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
-  p +=  f;
-  p += sinf( (2*p)*2.0*VNA_PI+ config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  if (VNA_MODE(VNA_MODE_PULLING)) {
+    p += sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+    p += sinf( (2*p)*2.0*VNA_PI+ config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  }
   return p;
 }
 
@@ -382,9 +383,10 @@ static float phase_d(int i, const float *v) {
   while (p<-1)
     p += 2.0;
   p /= 2.0;
-  float f = sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
-  p +=  f;
-  p += sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  if (VNA_MODE(VNA_MODE_PULLING)) {
+    p += sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+    p += sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  }
   return(p*360.0f);
 }
 
@@ -758,14 +760,14 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 {
 // Type          name      format   delta format      symbol         ref   scale  get value
-[TRC_ALOGMAG] = {"ALOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_a               },
-[TRC_BLOGMAG] = {"BLOGMAG", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_b               },
-[TRC_APHASE]  = {"APHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_a                },
-[TRC_BPHASE]  = {"BPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_b                },
-[TRC_DPHASE]  = {"DPHASE",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_d                },
-[TRC_AFREQ]  = {"AFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
-[TRC_BFREQ]  = {"BFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
-[TRC_DFREQ]  = {"DFREQ",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.001f,    freq_d                },
+[TRC_ALOGMAG] = {"ADB", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_a               },
+[TRC_BLOGMAG] = {"BDB", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_b               },
+[TRC_APHASE]  = {"AP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_a                },
+[TRC_BPHASE]  = {"BP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_b                },
+[TRC_DPHASE]  = {"DP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_d                },
+[TRC_AFREQ]  = {"AF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
+[TRC_BFREQ]  = {"BF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
+[TRC_DFREQ]  = {"DF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.001f,    freq_d                },
 [TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,         value                 },
 [TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_a             },
 [TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_b             },
@@ -1030,6 +1032,7 @@ static int marker_area_max(void) {
   if (current_props._portz != 50.0f) extra+= 2;
 #endif
   if (extra < 2) extra = 2;
+  extra = 4;
   cnt = (cnt + extra + 1)>>1;
   return cnt * FONT_STR_HEIGHT;
 }
@@ -1817,6 +1820,7 @@ cell_draw_marker_info(int x0, int y0)
   int active_marker_idx = markers[active_marker].index;
   int j = 0;
   // Marker (for current selected trace) display mode (selected more then 1 marker, and minimum one trace)
+#if 0
   if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
     t = current_trace;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
@@ -1846,7 +1850,9 @@ cell_draw_marker_info(int x0, int y0)
       lcd_set_foreground(LCD_FG_COLOR);
       trace_print_value_string(xpos, ypos, t, mk_index, delta_index);
     }
-  } else /*if (active_marker != MARKER_INVALID)*/{ // Trace display mode
+  } else
+#endif
+  /*if (active_marker != MARKER_INVALID)*/{ // Trace display mode
     for (t = 0; t < TRACES_MAX; t++) {
       if (!trace[t].enabled)
         continue;
@@ -1866,7 +1872,20 @@ cell_draw_marker_info(int x0, int y0)
       trace_print_value_string(xpos, ypos, t, active_marker_idx, -1);
     }
   }
-
+#if 1
+  lcd_set_foreground(LCD_FG_COLOR);
+  // Marker frequency data print
+  xpos =  1 + CELLOFFSETX - x0;
+  ypos =  1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
+  cell_printf(xpos,             ypos, "D:%.8F" S_Hz, aver_freq_d);
+  cell_printf(xpos+(WIDTH/2),   ypos, "D:%.8F" S_SECOND, (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  ypos+= FONT_STR_HEIGHT;
+  cell_printf(xpos,             ypos, "A:%.8F" S_Hz, aver_freq_a);
+  cell_printf(xpos+(WIDTH/2),   ypos, "PLL:%F", current_props.pll);
+  ypos+= FONT_STR_HEIGHT;
+  cell_printf(xpos,             ypos, "A:%.1FdBm", level_a);
+  cell_printf(xpos+(WIDTH/2),   ypos, "B:%.1FdBm", level_b);
+#else
   lcd_set_foreground(LCD_FG_COLOR);
   // Marker frequency data print
   xpos = 21 + (WIDTH/2) + CELLOFFSETX   - x0;
@@ -1920,6 +1939,7 @@ cell_draw_marker_info(int x0, int y0)
     cell_printf(xpos, ypos, "PORT-Z: 50 " S_RARROW " %F" S_OHM, current_props._portz);
     ypos+= FONT_STR_HEIGHT;
   }
+#endif
 #endif
 }
 
