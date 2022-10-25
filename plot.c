@@ -27,6 +27,9 @@
 static void cell_draw_marker_info(int x0, int y0);
 static void draw_battery_status(void);
 static void draw_cal_status(void);
+#ifndef MEASUREMENT_IN_GRID
+static void draw_measurements(void);
+#endif
 static void draw_frequencies(void);
 static int  cell_printf(int16_t x, int16_t y, const char *fmt, ...);
 static void markmap_all_markers(void);
@@ -1026,13 +1029,17 @@ static int marker_area_max(void) {
   for (i = 0; i < MARKERS_MAX; i++) if (markers[i].enabled) m_count++;
   int cnt = t_count > m_count ? t_count : m_count;
   int extra = 0;
+#if 0
   if (electrical_delay != 0.0f) extra+= 2;
   if (s21_offset != 0.0f) extra+= 2;
 #ifdef __VNA_Z_NORMALIZATION__
   if (current_props._portz != 50.0f) extra+= 2;
 #endif
   if (extra < 2) extra = 2;
+#endif
+#ifdef MEASUREMENT_IN_GRID
   extra = 4;
+#endif
   cnt = (cnt + extra + 1)>>1;
   return cnt * FONT_STR_HEIGHT;
 }
@@ -1760,8 +1767,12 @@ draw_all(void)
     if (redraw_request & REDRAW_GRID_VALUE) markmap_grid_values();
 #endif
   }
-  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_GRID_VALUE | REDRAW_REFERENCE | REDRAW_AREA))
+  if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_GRID_VALUE | REDRAW_REFERENCE | REDRAW_AREA)) {
     draw_all_cells();
+#ifndef MEASUREMENT_IN_GRID
+    draw_measurements();
+#endif
+  }
   if (redraw_request & REDRAW_FREQUENCY)
     draw_frequencies();
   if (redraw_request & REDRAW_CAL_STATUS)
@@ -1873,18 +1884,20 @@ cell_draw_marker_info(int x0, int y0)
     }
   }
 #if 1
+#ifdef MEASUREMENT_IN_GRID
   lcd_set_foreground(LCD_FG_COLOR);
   // Marker frequency data print
   xpos =  1 + CELLOFFSETX - x0;
   ypos =  1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
-  cell_printf(xpos,             ypos, "D:%.8F" S_Hz, aver_freq_d);
-  cell_printf(xpos+(WIDTH/2),   ypos, "D:%.8F" S_SECOND, (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  cell_printf(xpos,             ypos, "DF:%.8F" S_Hz, aver_freq_d);
+  cell_printf(xpos+(WIDTH/2),   ypos, "DP:%.8F" S_SECOND, (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   ypos+= FONT_STR_HEIGHT;
-  cell_printf(xpos,             ypos, "A:%.8F" S_Hz, aver_freq_a);
+  cell_printf(xpos,             ypos, "AF:%.8F" S_Hz, aver_freq_a);
   cell_printf(xpos+(WIDTH/2),   ypos, "PLL:%F", current_props.pll);
   ypos+= FONT_STR_HEIGHT;
-  cell_printf(xpos,             ypos, "A:%.1FdBm", level_a);
-  cell_printf(xpos+(WIDTH/2),   ypos, "B:%.1FdBm", level_b);
+  cell_printf(xpos,             ypos, "AL:%.1FdBm", level_a);
+  cell_printf(xpos+(WIDTH/2),   ypos, "BL:%.1FdBm", level_b);
+#endif
 #else
   lcd_set_foreground(LCD_FG_COLOR);
   // Marker frequency data print
@@ -1942,6 +1955,25 @@ cell_draw_marker_info(int x0, int y0)
 #endif
 #endif
 }
+
+#ifndef MEASUREMENT_IN_GRID
+static void
+draw_measurements(void)
+{
+  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_background(LCD_BG_COLOR);
+  int xpos = OFFSETX;
+  int ypos = 0;
+  lcd_printf(xpos,             ypos, "DF:%.8FHz        ", aver_freq_d);
+  lcd_printf(xpos+(WIDTH/2),   ypos, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  ypos+= FONT_STR_HEIGHT;
+  lcd_printf(xpos,             ypos, "AF:%.8FHz        ", aver_freq_a);
+  lcd_printf(xpos+(WIDTH/2),   ypos, "PLL:%F           ", current_props.pll);
+  ypos+= FONT_STR_HEIGHT;
+  lcd_printf(xpos,             ypos, "AL:%.1FdBm       ", level_a);
+  lcd_printf(xpos+(WIDTH/2),   ypos, "BL:%.1FdBm       ", level_b);
+}
+#endif
 
 static void
 draw_frequencies(void)

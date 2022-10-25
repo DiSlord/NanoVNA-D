@@ -49,6 +49,7 @@
 
 
 #define DMTD
+#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  100
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
@@ -613,8 +614,11 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
 #define OFFSETX                      15
+#ifdef MEASUREMENT_IN_GRID
 #define OFFSETY                      0
-
+#else
+#define OFFSETY                      64
+#endif
 // Grid count, must divide
 //#define NGRIDY                     10
 #define NGRIDY                        8
@@ -928,6 +932,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_AUTO_NAME        0
 // Smooth function
 #define VNA_MODE_PLL              1
+#define VNA_MODE_PLL_ON           (1<<VNA_MODE_PLL)
 // Connection flag
 #define VNA_MODE_CONNECTION       2
 #define VNA_MODE_SERIAL           (1<<VNA_MODE_CONNECTION)
