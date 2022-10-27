@@ -31,7 +31,7 @@ void generate_DSP_Table(int offset){
   // AUDIO_SAMPLES_COUNT = N * audio_freq / offset; N - minimum integer value for get integer AUDIO_SAMPLES_COUNT
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
   float step = offset / audio_freq;
-  float w = 0;// step/2;
+  float w = 0; //= step/2;
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
@@ -300,6 +300,7 @@ calculate_vectors(void)
   gamma_aver[2] += new_gamma;
   prev_gamma2 = new_gamma;
 
+#ifdef CALC_GAMMA_3
 #if 1
   calc_t rs = acc_ref_s;
   calc_t rc = acc_ref_c;
@@ -318,6 +319,7 @@ calculate_vectors(void)
     new_gamma = new_gamma - FULL_PHASE;
   gamma_aver[3] += new_gamma;
   prev_gamma3 = new_gamma;
+#endif
 
   // gamma[0] =
   amp_a = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
@@ -339,7 +341,7 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[2] -= FULL_PHASE;
   while (gamma[2] < -HALF_PHASE)
     gamma[2] += FULL_PHASE;
-#if 0
+#ifdef CALC_GAMMA_3
   gamma[3] = gamma_aver[3]/tau;
 #else
   gamma[3] = gamma[1] - gamma[2];

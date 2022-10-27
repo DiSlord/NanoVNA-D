@@ -372,8 +372,8 @@ static float get_phase(float v)
     p += 2.0;
   p /= 2.0;
   if (VNA_MODE(VNA_MODE_PULLING)) {
-    p += sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
-    p += sinf( (2*p)*2.0*VNA_PI+ config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+    p -= sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+    p -= sinf( (2*p)*2.0*VNA_PI+ config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
   }
   return p;
 }
@@ -387,14 +387,22 @@ static float phase_d(int i, const float *v) {
     p += 2.0;
   p /= 2.0;
   if (VNA_MODE(VNA_MODE_PULLING)) {
-    p += sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
-    p += sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+    p -= sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+    p -= sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
   }
   return(p*360.0f);
 }
 
 static float wraps = 0;
 static float r_start;
+
+static float correction(int i, const float *v) {
+  (void) i;
+  float p = get_phase(v[3]);
+  float c = sinf( p*2.0*VNA_PI + config.pull[PULL_OFFSET]) * config.pull[PULL_FUNDAMENTAL];
+  c += sinf( (2*p)*2.0*VNA_PI + config.pull[PULL_SECOND_SHIFT]) * config.pull[PULL_SECOND];
+  return(c);
+}
 
 static float residue(int i, const float *v) {
   (void) i;
@@ -448,7 +456,7 @@ static float freq_b(int i, const float *v) {
     v--;
     v--;
   }
-  float df = v[7] - v[3];
+  float df = v[5] - v[1];
   if (df >= 1.0)
     df -= 2.0;
   if (df <= -1.0)
@@ -768,13 +776,14 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_APHASE]  = {"AP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_a                },
 [TRC_BPHASE]  = {"BP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_b                },
 [TRC_DPHASE]  = {"DP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_d                },
-[TRC_AFREQ]  = {"AF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
-[TRC_BFREQ]  = {"BF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
+[TRC_AFREQ]  = {"AF",    "%.3F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
+[TRC_BFREQ]  = {"BF",    "%.3F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
 [TRC_DFREQ]  = {"DF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.001f,    freq_d                },
 [TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,         value                 },
 [TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_a             },
 [TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_b             },
-[TRC_RESIDUE] = {"RESIDUE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0.000001,  residue              },
+[TRC_RESIDUE] = {"RESIDUE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0.00001,  residue              },
+[TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",     "",       NGRIDY/2,  0.00001,  correction           },
 };
 
 

@@ -1747,6 +1747,7 @@ const menuitem_t menu_formatS11[] =
 //  { MT_ADV_CALLBACK, TRC_VALUE,  "VALUE",       menu_format_acb },
   { MT_ADV_CALLBACK, 0,  "SAMPLE",                menu_sample_acb },
   { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2007,10 +2008,12 @@ const menuitem_t menu_offset[] = {
   { MT_ADV_CALLBACK, 1, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 2, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 3, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK, 4, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 5, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK, 6, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 7, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 9, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,11, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,13, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,15, "%d" S_Hz, menu_offset_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 #endif

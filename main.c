@@ -937,7 +937,7 @@ config_t config = {
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
-  .pull = {-0.59, 1.4e-5, 0.614, -7.154e-7 },
+  .pull = {1.996, 1.423e-5, -0.379, 1.188e-6 },
   . tau = 10,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
@@ -1248,11 +1248,50 @@ static void applyOffset(float data[2], float offset){
 
 float prev_v;
 
+#define PHASE_BUCKETS  50
+float phase_correction[PHASE_BUCKETS];
+
+void add_correction(float phase, float value)
+{
+  int index = (phase+0.5) * PHASE_BUCKETS;
+  if (index > PHASE_BUCKETS-1)
+    index = PHASE_BUCKETS -1;
+  if (index < 0)
+    index = 0;
+//  if (phase_correction[index] == 0)
+//    phase_correction[index] = value;
+//  else
+    phase_correction[index] = (phase_correction[index]*9 + value)/10;
+}
+
+void clear_correction(void)
+{
+  for (int i=0;i<PHASE_BUCKETS;i++)
+    phase_correction[i] = 0;
+}
+
+float get_correction(float phase)
+{
+  int index = (phase+0.5) * PHASE_BUCKETS;
+  if (index > PHASE_BUCKETS-1)
+    index = PHASE_BUCKETS -1;
+  if (index < 0)
+    index = 0;
+  return(phase_correction[index]);
+}
+
+
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
   if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
     p_sweep = 0;
+    int dirty = 2;
+    float aver_freq=0;
+    float phase, prev_phase=0, freq=0, residue=0, aver_residue=0, aver_aver_residue = 0, sum_residue;
+    int wraps = 0;
+    int sample_count=0, sum_count=0;
+    clear_correction();
     while (1) {
 //      palClearPad(GPIOC, GPIOC_LED);
       DSP_PREWAIT;
@@ -1283,8 +1322,56 @@ static bool sweep(bool break_on_operation, uint16_t mask)
          }
 #endif
 
+#define  RUNTIME_RESIDUE
+
+#ifdef RUNTIME_RESIDUE
+         v /= 360;
+         phase = v;
+         if (dirty == 2) {
+           wraps = 0;
+         } else {
+           if (phase + wraps > prev_phase + 0.5) {          // Unwrap
+             wraps--;
+           }
+           if (phase + wraps < prev_phase - 0.5) {
+             wraps++;
+           }
+           phase += wraps;
+
+           freq =  (phase - prev_phase) * AUDIO_ADC_FREQ;
+           freq /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+
+           if (dirty == 1) {
+             aver_freq = freq;
+           } else {
+             aver_freq = (aver_freq * 199 + freq)/200;
+           }
 
 
+           residue = phase - (sample_count++) * aver_freq * config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT / AUDIO_ADC_FREQ;
+           if (sample_count == 190)
+             aver_residue = residue;
+#if 0
+           if (dirty == 1) {
+             aver_residue = residue;
+           } else {
+             aver_residue = (aver_residue * 199.0 + residue ) / 200.0;
+           }
+
+           if (sample_count == 100) {
+             aver_aver_residue = residue-aver_residue;
+           } else if (sample_count > 100){
+             aver_aver_residue = ((aver_aver_residue) * 99.0 + residue-aver_residue ) / 100.0;
+           }
+#endif
+
+         }
+         if (dirty >0)
+           dirty--;
+         if (sample_count > 200)
+           add_correction(v,residue-aver_residue);
+         prev_phase = phase;
+#endif
         //      }
         //      v = v/sweep_points;
 #if 1
@@ -1297,7 +1384,11 @@ static bool sweep(bool break_on_operation, uint16_t mask)
              //+ cosf((v/360.0) * 2.0 * VNA_PI) * - 1.57e-6
              ;
 #endif
-         shell_printf("%f\r\n",v/360 + correction);
+
+//#ifndef RUNTIME_RESIDUE
+         shell_printf("%f\r\n", v /*- get_correction(v) */);
+//         shell_printf("%f %d %f %f %f %f %f %f %f %f %f %f\r\n",phase, wraps, prev_phase, freq, aver_freq, residue, aver_residue, residue-aver_residue, get_correction(v),residue-aver_residue-get_correction(v),phase_correction[0],phase_correction[1]  );
+//#endif
 #else
         shell_printf("CHA %f\r\n",v/360);
         calc = trace_info_list[TRC_APHASE].get_value_cb;
@@ -3670,7 +3761,7 @@ THD_FUNCTION(myshellThread, p)
 // Stack maximum usage = 472 bytes (need test more and run all commands), free stack = 40 bytes
 //
 int main(void)
-{
+ {
 /*
  * Initialize ChibiOS systems
  */
