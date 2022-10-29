@@ -50,7 +50,7 @@
 
 #define DMTD
 //#define MEASUREMENT_IN_GRID
-#define FREQ_SCALE  100
+#define FREQ_SCALE  (int64_t)100
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__

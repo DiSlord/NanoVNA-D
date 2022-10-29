@@ -312,21 +312,21 @@ si5351_setupMultisynth(uint32_t  channel,
 
 // Find better approximate values for n/d
 #define MAX_DENOMINATOR ((1 << 20) - 1)
-static void approximate_fraction(uint32_t *n, uint32_t *d)
+static void approximate_fraction(uint64_t *n, uint64_t *d)
 {
 #if 1
   // cf. https://github.com/python/cpython/blob/master/Lib/fractions.py#L227
-  uint32_t denom = *d;
+  uint64_t denom = *d;
   if (denom > MAX_DENOMINATOR) {
-    uint32_t num = *n;
+    uint64_t num = *n;
     uint32_t p0 = 0, q0 = 1, p1 = 1, q1 = 0;
     while (denom != 0) {
-      uint32_t a = num / denom;
-      uint32_t b = num % denom;
-      uint32_t q2 = q0 + a*q1;
+      uint64_t a = num / denom;
+      uint64_t b = num % denom;
+      uint64_t q2 = q0 + a*q1;
       if (q2 > MAX_DENOMINATOR)
         break;
-      uint32_t p2 = p0 + a*p1;
+      uint64_t p2 = p0 + a*p1;
       p0 = p1; q0 = q1; p1 = p2; q1 = q2;
       num = denom; denom = b;
     }
@@ -343,25 +343,25 @@ static void approximate_fraction(uint32_t *n, uint32_t *d)
 
 // Setup Multisynth divider for get correct output freq if fixed PLL = pllfreq
 static void
-si5351_set_frequency_fixedpll(uint32_t channel, uint64_t pllfreq, uint32_t freq, uint32_t rdiv, uint8_t chctrl)
+si5351_set_frequency_fixedpll(uint32_t channel, uint64_t pllfreq, uint64_t freq, uint32_t rdiv, uint8_t chctrl)
 {
   uint32_t div = pllfreq / freq; // range: 8 ~ 1800
-  uint32_t num = pllfreq % freq;
-  uint32_t denom = freq;
+  uint64_t num = pllfreq % freq;
+  uint64_t denom = freq;
   approximate_fraction(&num, &denom);
-  si5351_setupMultisynth(channel, div, num, denom, rdiv, chctrl);
+  si5351_setupMultisynth(channel, div, (uint32_t)num, (uint32_t)denom, rdiv, chctrl);
 }
 
 // Setup PLL freq if Multisynth divider fixed = div (need get output =  freq/mul)
 static void
 si5351_setupPLL_freq(uint32_t pllSource, uint64_t pllfreq, uint32_t div)
 {
-  uint32_t xtal  = config._xtal_freq * div;
+  uint64_t xtal  = config._xtal_freq * div;
   uint32_t multi = pllfreq / xtal;
-  uint32_t num   = pllfreq % xtal;
-  uint32_t denom = xtal;
+  uint64_t num   = pllfreq % xtal;
+  uint64_t denom = xtal;
   approximate_fraction(&num, &denom);
-  si5351_setupPLL(pllSource, multi, num, denom);
+  si5351_setupPLL(pllSource, multi, (uint32_t)num, (uint32_t)denom);
 }
 
 #if 0
@@ -574,6 +574,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
 
   if (freq == current_freq &&  ((int)current_props.pll )== current_pll)
     return DELAY_CHANNEL_CHANGE;
+
+  current_pll = (int)current_props.pll;
 
   if (current_band != band) {
 //   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);

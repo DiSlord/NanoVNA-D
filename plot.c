@@ -850,7 +850,7 @@ static void mark_set_index(index_t *index, uint16_t i, uint16_t x, uint16_t y) {
 static void
 trace_into_index(int t) {
   uint16_t start = 0, stop = sweep_points - 1, i;
-  float *array = &measured[trace[t].channel][0][0];
+//  float *array = &measured[trace[t].channel][0][0];
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
@@ -862,7 +862,8 @@ trace_into_index(int t) {
     int32_t y;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
-      if (c) v = c(i, &array[4*i]);         // Get value
+//      if (c) v = c(i, &array[4*i]);         // Get value
+      if (c) v = c(i, measured[trace[t].channel][i]);         // Get value
       if (v == INFINITY) {
         y = 0;
       } else {
@@ -1967,12 +1968,12 @@ cell_draw_marker_info(int x0, int y0)
 
 #ifndef MEASUREMENT_IN_GRID
 
-int draw_three_digits(int v, int x, int y){
-  lcd_drawfont( v/100, x, y);
+int draw_three_digits(int v, int x, int y, int dash){
+  lcd_drawfont( (dash?KP_MINUS: v/100), x, y);
   x+=NUM_FONT_GET_WIDTH;
-  lcd_drawfont( (v/10)%10, x, y);
+  lcd_drawfont( (dash?KP_MINUS: (v/10)%10), x, y);
   x+=NUM_FONT_GET_WIDTH;
-  lcd_drawfont( v%10, x, y);
+  lcd_drawfont( (dash?KP_MINUS: v%10), x, y);
   x+=NUM_FONT_GET_WIDTH;
   return x;
 }
@@ -1984,50 +1985,56 @@ draw_measurements(void)
   lcd_set_background(LCD_BG_COLOR);
   int x = OFFSETX + 5;
   int y = 0;
+  int dash = false;
+
+
   lcd_set_right_border(area_width + OFFSETX);
 
+  lcd_printf(x,      y, "AL:%.1FdBm       ", level_a);
+  lcd_printf(x+80,   y, "BL:%.1FdBm       ", level_b);
+  lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_freq_a);
+  lcd_printf(x+250,  y, "PLL:%F           ", current_props.pll);
+  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  y+= FONT_STR_HEIGHT*2 ;
+
+  x = OFFSETX + 80;
+
+  if (level_a < -60 || level_b < -60) dash = true;
+
   double f = aver_freq_d;
-  if (f < 0) {
+  if (f < 0 || dash) {
     f = -f;
     lcd_drawfont(KP_MINUS, x, y);
   } else
     lcd_drawfont(KP_PLUS, x, y);
   x+=NUM_FONT_GET_WIDTH;
 
-  x = draw_three_digits((int)f,x,y);
+  x = draw_three_digits((int)f,x,y, dash);
   lcd_drawfont(KP_PERIOD, x, y);
   x+=NUM_FONT_GET_WIDTH;
 
   f -= (int)f;
   f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y);
+  x = draw_three_digits((int)f,x,y,dash);
   lcd_drawfont(KP_SPACE, x, y);
   x+=NUM_FONT_GET_WIDTH;
 
   f -= (int)f;
   f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y);
+  x = draw_three_digits((int)f,x,y, dash);
   lcd_drawfont(KP_SPACE, x, y);
   x+=NUM_FONT_GET_WIDTH;
 
   f -= (int)f;
   f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y);
+  x = draw_three_digits((int)f,x,y, dash);
   lcd_drawfont(KP_SPACE, x, y);
   x+=NUM_FONT_GET_WIDTH;
 
   lcd_printf(x,y, "Hz");
 
-  y += NUM_FONT_GET_HEIGHT + 5; // Extra space
+  y += NUM_FONT_GET_HEIGHT + FONT_STR_HEIGHT; // Extra space
   x = OFFSETX+5;
-//  lcd_printf(x,             y, "DF:%.8FHz        ", aver_freq_d);
-  lcd_printf(x,   y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
-  y+= FONT_STR_HEIGHT;
-  lcd_printf(x,             y, "AF:%.8FHz        ", aver_freq_a);
-  lcd_printf(x+(WIDTH/2),   y, "PLL:%F           ", current_props.pll);
-  y+= FONT_STR_HEIGHT;
-  lcd_printf(x,             y, "AL:%.1FdBm       ", level_a);
-  lcd_printf(x+(WIDTH/2),   y, "BL:%.1FdBm       ", level_b);
   lcd_reset_right_border();
 }
 #endif
