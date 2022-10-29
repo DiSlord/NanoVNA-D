@@ -68,7 +68,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable color command, allow change config color for traces, grid, menu
 #define ENABLE_COLOR_COMMAND
 // Enable transform command
-#define ENABLE_TRANSFORM_COMMAND
+//#define ENABLE_TRANSFORM_COMMAND
 // Enable sample command
 //#define ENABLE_SAMPLE_COMMAND
 // Enable I2C command for send data to AIC3204, used for debug
@@ -76,7 +76,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable LCD command for send data to LCD screen, used for debug
 //#define ENABLE_LCD_COMMAND
 // Enable output debug data on screen on hard fault
-//#define ENABLE_HARD_FAULT_HANDLER_DEBUG
+#define ENABLE_HARD_FAULT_HANDLER_DEBUG
 // Enable test command, used for debug
 //#define ENABLE_TEST_COMMAND
 // Enable stat command, used for debug
@@ -92,7 +92,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 // Enable band setting command, used for debug
 //#define ENABLE_BAND_COMMAND
 // Enable scan_bin command (need use ex scan in future)
-#define ENABLE_SCANBIN_COMMAND
+//#define ENABLE_SCANBIN_COMMAND
 // Enable debug for console command
 //#define DEBUG_CONSOLE_SHOW
 // Enable usart command
@@ -937,7 +937,7 @@ config_t config = {
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
-  .pull = {1.996, 1.423e-5, -0.379, 1.188e-6 },
+  .pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
   . tau = 10,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
@@ -1281,6 +1281,83 @@ float get_correction(float phase)
 }
 
 
+uint32_t reg_n;
+int32_t reg_xi;
+float reg_yi;
+int32_t reg_sum_xi;
+double reg_sum_yi;
+double reg_sum_xiyi;
+int32_t reg_sum_xi2;
+double reg_sum_yi2;
+volatile double res_freq, res_phase;
+//double freq;
+
+//int wrap;
+float reg_prev_phase, reg_start_phase;
+
+void reset_regression(void) {
+  reg_n = 0;
+  reg_xi = reg_yi = 0;
+  reg_sum_xi = reg_sum_yi = 0;
+  reg_sum_xiyi = reg_sum_xi2 = reg_sum_yi2 = 0;
+}
+
+void add_regression(float v) {
+  float delta_phase;
+  reg_n++;
+  if (reg_n != 1) {
+    if (v> reg_prev_phase + 0.5) {          // Unwrap
+      delta_phase = v - reg_prev_phase - 1;
+//      wrap--;
+    } else if (v < reg_prev_phase - 0.5) {
+      delta_phase = v - reg_prev_phase + 1;
+//      wrap++;
+    } else
+      delta_phase = v - reg_prev_phase;
+  } else {
+    reg_start_phase = v;
+    reg_prev_phase = v;
+    return;
+  }
+  reg_prev_phase = v;
+//  v += wrap;
+//  v -= reg_start_phase;
+
+  reg_xi++;
+  reg_yi += delta_phase;
+  reg_sum_xi += reg_xi;
+  reg_sum_yi += reg_yi;
+  reg_sum_xiyi += ((double)reg_xi)*(double)reg_yi;
+  reg_sum_xi2  += reg_xi*reg_xi;
+  reg_sum_yi2  += ((double)reg_yi)*(double)reg_yi;
+//  shell_printf("%d %d %f %d %f %f %d %f\r\n", reg_n, reg_xi, reg_yi, reg_sum_xi, reg_sum_yi, reg_sum_xiyi, reg_sum_xi2, reg_sum_yi2 );
+
+}
+
+float finalize_regression(void) {
+  volatile double freq = AUDIO_ADC_FREQ / (config.tau * (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT );
+  if(reg_n >=10) {
+    reg_n--;
+    int32_t reg_divisor = reg_n*((double)reg_sum_xi2) - ((double)reg_sum_xi)*((double)reg_sum_xi);
+    if (reg_divisor == 0.0) goto no_regression;
+
+    double fraction = (((double)reg_n)*(double)reg_sum_xiyi - ((double)reg_sum_xi) * (double)reg_sum_yi) / reg_divisor;
+    res_freq = freq * fraction;
+#if 0
+    double stderryxn2 = ((double)reg_sum_yi2) - ((double)reg_sum_xiyi)/((double)reg_sum_xi2) *((double)reg_sum_xiyi);
+    res_stderryx = sqrt(stderryxn2/(double)(reg_n-2)) * ((double) freq) / (double) reg_xi;
+    //          double cycles = ( abs_time - reg_yi) * res_freq / ref_freq; // cycles till start of measurement
+#endif
+    res_phase = ((double)reg_sum_yi* (double) reg_sum_xi2 - ((double)reg_sum_xi) * (double)reg_sum_xiyi)/ reg_divisor;
+  } else {
+no_regression:
+    res_freq = ((double)reg_xi)/ freq;
+    res_freq = (double)reg_yi / res_freq;
+    res_phase = 0;
+  }
+  return(res_freq);
+}
+
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
@@ -1288,9 +1365,9 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     p_sweep = 0;
     int dirty = 2;
     float aver_freq=0;
-    float phase, prev_phase=0, freq=0, residue=0, aver_residue=0, aver_aver_residue = 0, sum_residue;
+    float phase, prev_phase=0, freq=0, residue=0, aver_residue=0;
     int wraps = 0;
-    int sample_count=0, sum_count=0;
+    int sample_count=0;
     clear_correction();
     while (1) {
 //      palClearPad(GPIOC, GPIOC_LED);
@@ -1309,6 +1386,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         //      float v = 0;
         //      for (int i =0; i<sweep_points; i++) {
         float v = calc(p_sweep, array[p_sweep]);                                          // Get value
+        v /= 360;
 
 #if 0
         systime_t cur_time = chVTGetSystemTimeX();
@@ -1325,7 +1403,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 #define  RUNTIME_RESIDUE
 
 #ifdef RUNTIME_RESIDUE
-         v /= 360;
          phase = v;
          if (dirty == 2) {
            wraps = 0;
@@ -1375,51 +1452,19 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         //      }
         //      v = v/sweep_points;
 #if 1
-#if 1
-         float correction = 0.0;
-#if 0
-         if (VNA_MODE(VNA_MODE_PULLING)) correction =
-             sinf((v/360.0 + config.pull[PULL_OFFSET]) * 2.0 * VNA_PI) * config.pull[PULL_FUNDAMENTAL] // 1.35e-5
-             //+ sinf(2.0*(v/360.0) * 2.0 * VNA_PI) * 2.1e-6
-             //+ cosf((v/360.0) * 2.0 * VNA_PI) * - 1.57e-6
-             ;
-#endif
 
 //#ifndef RUNTIME_RESIDUE
-         shell_printf("%f\r\n", v /*- get_correction(v) */);
+         shell_printf("%f\r\n", v);
 //         shell_printf("%f %d %f %f %f %f %f %f %f %f %f %f\r\n",phase, wraps, prev_phase, freq, aver_freq, residue, aver_residue, residue-aver_residue, get_correction(v),residue-aver_residue-get_correction(v),phase_correction[0],phase_correction[1]  );
 //#endif
 #else
-        shell_printf("CHA %f\r\n",v/360);
+        shell_printf("CHA %f\r\n",v);
         calc = trace_info_list[TRC_APHASE].get_value_cb;
         v = calc(p_sweep, array[p_sweep]);
         shell_printf("CHB %f\r\n",v/360);
         calc = trace_info_list[TRC_BPHASE].get_value_cb;
         v = calc(p_sweep, array[p_sweep]);
         shell_printf("CHC %f\r\n",v/360);
-#endif
-
-#else
-        v /= 180;
-        volatile float df = v - prev_v;
-        if (df >= 1.0)
-          df -= 2.0;
-        if (df < -1.0)
-          df += 2.0;
-
-        df *= AUDIO_ADC_FREQ>>1;   // This is the 0.5 multiplication factor
-        df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
-
-
-
-        prev_v = v;
-        shell_printf("%f\r\n",df);
-
-        df += 30;
-        if ((df < 30 && df > 10) || (df < -10 && df > -30)) {
-          df++;
-          df--;
-        }
 #endif
       }
       if (operation_requested && break_on_operation)
@@ -1430,19 +1475,9 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   } else {
   if (break_on_operation && mask == 0)
     return false;
-//  float s, c;
-//  float data[4];
-//  float c_data[CAL_TYPE_COUNT][2];
-  // Blink LED while scanning
-//  int delay = 0;
-//  float offset = vna_expf(s21_offset * (logf(10.0f) / 20.0f));
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
-  // Wait some time for stable power
-//  int st_delay = DELAY_SWEEP_START;
   int bar_start = 0;
-//  int interpolation_idx;
-
   freq_t frequency = getFrequency(p_sweep);
   set_frequency(frequency);
   tlv320aic3204_select(1);
@@ -1450,40 +1485,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //  DSP_START(delay+st_delay);
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   for (; p_sweep < sweep_points; /* p_sweep++ */) {
-    // Need made measure - set frequency
-//    if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
-//      interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
-      // Edelay calibration
-//      if (mask & SWEEP_APPLY_EDELAY)
-//        vna_sincosf(electrical_delay * frequency, &s, &c);
-//    }
-#if 0
-    // CH0:REFLECTION, reset and begin measure
-    if (mask & SWEEP_CH0_MEASURE) {
-      tlv320aic3204_select(0);
-      DSP_START(delay+st_delay);
-      delay = DELAY_CHANNEL_CHANGE;
-      // Get calibration data
-      if (mask & SWEEP_APPLY_CALIBRATION)
-        cal_interpolate(interpolation_idx, frequency, c_data);
-      //================================================
-      // Place some code thats need execute while delay
-      //================================================
-      DSP_WAIT;
-      (*sample_func)(&data[0]);             // calculate reflection coefficient
-      if (mask & SWEEP_APPLY_CALIBRATION)   // Apply calibration
-        apply_CH0_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY)        // Apply e-delay
-        applyEDelay(&data[0], s, c);
-    }
-#endif
-    // CH1:TRANSMISSION, reset and begin measure
 //     palSetPad(GPIOC, GPIOC_LED);
 //     DSP_START(0);
-      // Get calibration data, only if not do this in 0 channel wait
      DSP_PREWAIT;
       DSP_WAIT;
 //      palSetPad(GPIOC, GPIOC_LED);
+//      shell_printf("%d %f %f %f\r\n", p_sweep,  measured[0][p_sweep-1][1],  measured[0][p_sweep-1][2],  measured[0][p_sweep-1][3]);
 
       //================================================
       // Place some code thats need execute while delay
@@ -1498,64 +1505,13 @@ static bool sweep(bool break_on_operation, uint16_t mask)
         }
         p_sweep = sweep_points;
         return true;
-      } else
+      }
+      // else
       // sample_count =
- //        calculate_gamma(measured[0][p_sweep]);              // Measure all
+      //        calculate_gamma(measured[0][p_sweep]);              // Measure all
 
-#if 0
-      (*sample_func)(&data[2]);              // Measure transmission coefficient
-      if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
-        apply_CH1_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY)         // Apply e-delay
-        applyEDelay(&data[2], s, c);
-      if (mask & SWEEP_APPLY_S21_OFFSET)
-        applyOffset(&data[2], offset);
-    }
-#ifdef __VNA_Z_RENORMALIZATION__
-    if (mask & SWEEP_USE_RENORMALIZATION)
-      apply_renormalization(data, mask);
-#endif
-    if (p_sweep < POINTS_COUNT){
-      if (mask & SWEEP_CH0_MEASURE){
-        measured[0][p_sweep][0] = data[0];
-        measured[0][p_sweep][1] = data[1];
-      }
-      if (mask & SWEEP_CH1_MEASURE){
-        measured[1][p_sweep][0] = data[2];
-        measured[1][p_sweep][1] = data[3];
-      }
-    }
-#endif
-#if 0
-    if (!VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
-    int t = 3;
-    uint8_t type = trace[t].type;
-    float (*array)[2] = measured[1];
-  //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-    get_value_cb_t calc = trace_info_list[1].get_value_cb;
-    if (calc){                                           // Run standard get value function from table
-//      float v = 0;
-//      for (int i =0; i<sweep_points; i++) {
-        float v = calc(p_sweep, array[p_sweep]);                                          // Get value
-//      }
-//      v = v/sweep_points;
-      shell_printf("%f\r\n",v/360);
-    }
-    }
-#endif
 
     if (operation_requested && break_on_operation) break;
-//    st_delay = 0;
-    // Display SPI made noise on measurement (can see in CW mode), use reduced update
-#if 0
-    if (config._bandwidth >= BANDWIDTH_100){
-      int current_bar =  (p_sweep * WIDTH)/(sweep_points-1);
-      if (current_bar - bar_start > 0){
-        lcd_fill(OFFSETX+CELLOFFSETX + bar_start, OFFSETY, current_bar - bar_start, 1);
-        bar_start = current_bar;
-      }
-    }
-#endif
   }
   if (bar_start){
     lcd_set_background(LCD_GRID_COLOR);
@@ -1563,6 +1519,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   }
 
   // -------------------- Average D freq  ----------------------
+#if 0
   {
   get_value_cb_t calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
   float (*array)[4] = measured[0];
@@ -1575,6 +1532,23 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 
   aver_freq_d = v;
   }
+#else
+  {
+    reset_regression();
+      get_value_cb_t calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
+    float (*array)[4] = measured[0];
+    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+    for (int i =0; i<sweep_points; i++) {
+      float v = calc(i, array[i])/360;                                          // Get value
+      add_regression(v);
+    }
+    aver_freq_d = finalize_regression();
+  }
+
+
+#endif
+
+
   // -------------------- Auto set CW frequency ----------------------
 
   get_value_cb_t calc = trace_info_list[GET_AFREQ].get_value_cb; // dfreq port 1
@@ -1707,6 +1681,7 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq){
 }
 
 #define MIN_SAMPLES 1
+#define TAU_SCALE 100000
 void set_tau(float tau){
 #if 0
   config._bandwidth = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT);
@@ -1715,12 +1690,12 @@ void set_tau(float tau){
   else
     config._bandwidth -= SAMPLE_OVERHEAD;
 #else
-  config.tau = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT) / config._bandwidth;
+  config.tau = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT + (config._bandwidth-1)) / config._bandwidth;
   if (config.tau < 1)
     config.tau = 1;
 #endif
-  if (tau < 1.0/101.0)
-    set_sweep_points(101);
+  if (tau < 1.0/401.0)
+    set_sweep_points(401);
   else if (tau >= 0.5)
     set_sweep_points(2);
   else
@@ -3761,7 +3736,7 @@ THD_FUNCTION(myshellThread, p)
 // Stack maximum usage = 472 bytes (need test more and run all commands), free stack = 40 bytes
 //
 int main(void)
- {
+{
 /*
  * Initialize ChibiOS systems
  */

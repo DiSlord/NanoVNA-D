@@ -300,19 +300,10 @@ calculate_vectors(void)
   gamma_aver[2] += new_gamma;
   prev_gamma2 = new_gamma;
 
+#define CALC_GAMMA_3
 #ifdef CALC_GAMMA_3
-#if 1
-  calc_t rs = acc_ref_s;
-  calc_t rc = acc_ref_c;
-  calc_t rr = rs * rs + rc * rc;
-  rr = vna_sqrtf(rr) * 1e8;
-  calc_t ss = acc_samp_s;
-  calc_t sc = acc_samp_c;
-  new_gamma = vna_atan2f((sc * rc + ss * rs)/rr, (ss * rc - sc * rs)/rr) / VNA_PI;
-#else
-  new_gamma = prev_gamma2 - prev_gamma1;
-#endif
-
+  new_gamma =  - vna_atan2f((acc_samp_c * (float)acc_ref_c + acc_samp_s * (float)acc_ref_s),
+                         (acc_samp_s * (double)acc_ref_c - acc_samp_c * (double)acc_ref_s)) / VNA_PI;
   if ((new_gamma - prev_gamma3) < -HALF_PHASE)
     new_gamma = new_gamma + FULL_PHASE;
   if ((new_gamma - prev_gamma3) > HALF_PHASE)
@@ -344,7 +335,7 @@ calculate_gamma(float gamma[4], uint16_t tau)
 #ifdef CALC_GAMMA_3
   gamma[3] = gamma_aver[3]/tau;
 #else
-  gamma[3] = gamma[1] - gamma[2];
+  gamma[3] = gamma[2] - gamma[1];
 #endif
   while (gamma[3] > HALF_PHASE)
     gamma[3] -= FULL_PHASE;

@@ -1966,21 +1966,69 @@ cell_draw_marker_info(int x0, int y0)
 }
 
 #ifndef MEASUREMENT_IN_GRID
+
+int draw_three_digits(int v, int x, int y){
+  lcd_drawfont( v/100, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+  lcd_drawfont( (v/10)%10, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+  lcd_drawfont( v%10, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+  return x;
+}
+
 static void
 draw_measurements(void)
 {
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
-  int xpos = OFFSETX;
-  int ypos = 0;
-  lcd_printf(xpos,             ypos, "DF:%.8FHz        ", aver_freq_d);
-  lcd_printf(xpos+(WIDTH/2),   ypos, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
-  ypos+= FONT_STR_HEIGHT;
-  lcd_printf(xpos,             ypos, "AF:%.8FHz        ", aver_freq_a);
-  lcd_printf(xpos+(WIDTH/2),   ypos, "PLL:%F           ", current_props.pll);
-  ypos+= FONT_STR_HEIGHT;
-  lcd_printf(xpos,             ypos, "AL:%.1FdBm       ", level_a);
-  lcd_printf(xpos+(WIDTH/2),   ypos, "BL:%.1FdBm       ", level_b);
+  int x = OFFSETX + 5;
+  int y = 0;
+  lcd_set_right_border(area_width + OFFSETX);
+
+  double f = aver_freq_d;
+  if (f < 0) {
+    f = -f;
+    lcd_drawfont(KP_MINUS, x, y);
+  } else
+    lcd_drawfont(KP_PLUS, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  x = draw_three_digits((int)f,x,y);
+  lcd_drawfont(KP_PERIOD, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  lcd_printf(x,y, "Hz");
+
+  y += NUM_FONT_GET_HEIGHT + 5; // Extra space
+  x = OFFSETX+5;
+//  lcd_printf(x,             y, "DF:%.8FHz        ", aver_freq_d);
+  lcd_printf(x,   y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  y+= FONT_STR_HEIGHT;
+  lcd_printf(x,             y, "AF:%.8FHz        ", aver_freq_a);
+  lcd_printf(x+(WIDTH/2),   y, "PLL:%F           ", current_props.pll);
+  y+= FONT_STR_HEIGHT;
+  lcd_printf(x,             y, "AL:%.1FdBm       ", level_a);
+  lcd_printf(x+(WIDTH/2),   y, "BL:%.1FdBm       ", level_b);
+  lcd_reset_right_border();
 }
 #endif
 
@@ -2114,7 +2162,13 @@ request_to_draw_cells_behind_menu(void)
 {
   // Values Hardcoded from ui.c
   invalidate_rect(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
+#ifndef MEASUREMENT_IN_GRID
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_BG_COLOR);
+  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, OFFSETY);
+#endif
   request_to_redraw(REDRAW_CELLS);
+
 }
 
 /*
@@ -2125,6 +2179,11 @@ request_to_draw_cells_behind_numeric_input(void)
 {
   // Values Hardcoded from ui.c
   invalidate_rect(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, LCD_HEIGHT-1);
+#ifndef MEASUREMENT_IN_GRID
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_foreground(LCD_BG_COLOR);
+  lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, OFFSETY);
+#endif
   request_to_redraw(REDRAW_CELLS);
 }
 

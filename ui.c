@@ -2186,37 +2186,6 @@ menu_invoke(int item)
     draw_menu(-1);
 }
 
-//
-// KEYBOARD input functions
-//
-// Key names (use numfont16x22.c glyph)
-#define KP_0          0
-#define KP_1          1
-#define KP_2          2
-#define KP_3          3
-#define KP_4          4
-#define KP_5          5
-#define KP_6          6
-#define KP_7          7
-#define KP_8          8
-#define KP_9          9
-#define KP_PERIOD    10
-#define KP_MINUS     11
-#define KP_u         12
-#define KP_m         13
-#define KP_X1        14
-#define KP_K         15
-#define KP_M         16
-#define KP_G         17
-#define KP_BS        18
-#define KP_INF       19
-#define KP_DB        20
-#define KP_PLUSMINUS 21
-#define KP_KEYPAD    22
-#define KP_N         23
-#define KP_P         24
-#define KP_ENTER     25
-
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
 // Keyboard size and position data
 static const keypad_pos_t key_pos[] = {

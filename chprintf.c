@@ -192,12 +192,12 @@ static char *ftoa(char *p, float num, int precision) {
 static char *ftoaS(char *p, float num, int16_t precision) {
   char prefix=0;
   const char *ptr;
-  if (num >= 1000.0f){
+  if (num >= 990.0f){
     for (ptr = bigPrefix+1; *ptr && num >= 1000.0f; num/=1000.0f, ptr++)
       ;
     prefix = ptr[-1];
   }
-  else if (num < 1.0f){
+  else if (num < 0.99f){
     for (ptr = smallPrefix; *ptr && num < 1.0f; num*=1000.0f, ptr++)
       ;
     prefix = num > 1e-3 ? ptr[-1] : 0;

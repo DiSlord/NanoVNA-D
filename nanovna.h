@@ -49,7 +49,7 @@
 
 
 #define DMTD
-#define MEASUREMENT_IN_GRID
+//#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  100
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
@@ -608,7 +608,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Used marker image settings
 #define _USE_MARKER_SET_              2
 // Used font settings
-#define _USE_FONT_                    3
+#define _USE_FONT_                    2
 #define _USE_SMALL_FONT_              2
 
 // Plot area size settings
@@ -800,6 +800,40 @@ extern const uint8_t numfont16x22[];
 #define NUM_FONT_GET_WIDTH      16
 #define NUM_FONT_GET_HEIGHT     22
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*2*NUM_FONT_GET_HEIGHT])
+
+//
+// KEYBOARD input functions
+//
+// Key names (use numfont16x22.c glyph)
+#define KP_0          0
+#define KP_1          1
+#define KP_2          2
+#define KP_3          3
+#define KP_4          4
+#define KP_5          5
+#define KP_6          6
+#define KP_7          7
+#define KP_8          8
+#define KP_9          9
+#define KP_PERIOD    10
+#define KP_MINUS     11
+#define KP_u         12
+#define KP_m         13
+#define KP_X1        14
+#define KP_K         15
+#define KP_M         16
+#define KP_G         17
+#define KP_BS        18
+#define KP_INF       19
+#define KP_DB        20
+#define KP_PLUSMINUS 21
+#define KP_KEYPAD    22
+#define KP_N         23
+#define KP_P         24
+#define KP_ENTER     25
+#define KP_SPACE     26
+#define KP_PLUS     27
+
 
 /*
  * LC match text output settings
@@ -1282,6 +1316,8 @@ void lcd_bulk_finish(void);                             // wait DMA complete (ne
 void lcd_set_foreground(uint16_t fg_idx);
 void lcd_set_background(uint16_t bg_idx);
 void lcd_clear_screen(void);
+void lcd_set_right_border(uint16_t t);
+void lcd_reset_right_border(void);
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void lcd_drawchar(uint8_t ch, int x, int y);
 #if 0
