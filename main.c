@@ -113,11 +113,10 @@ static void update_frequencies(void);
 static int  set_frequency(freq_t freq);
 static void set_frequencies(freq_t start, freq_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t ch_mask);
-static void transform_domain(uint16_t ch_mask);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
-static uint16_t p_sweep = 0;
+uint16_t p_sweep = 0;
 // Sweep measured data
 float measured[1][POINTS_COUNT][4];
 //uint16_t sample_count;
@@ -269,7 +268,7 @@ static THD_FUNCTION(Thread1, arg)
 //    STOP_PROFILE;
 #endif
 //      START_PROFILE
-      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
+//      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       request_to_redraw(REDRAW_PLOT);
@@ -299,7 +298,7 @@ toggle_sweep(void)
 {
   sweep_mode ^= SWEEP_ENABLE;
 }
-
+#if 0 // Disable transform
 #if 0
 //
 // Original kaiser_window functions
@@ -483,6 +482,8 @@ transform_domain(uint16_t ch_mask)
     memcpy(measured[ch], tmp, sizeof(measured[0]));
   }
 }
+#endif
+
 
 // Shell commands output
 int shell_printf(const char *fmt, ...)
@@ -938,7 +939,7 @@ config_t config = {
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
   .pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
-  . tau = 10,
+  . tau = 5,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
   ._band_mode = 0,
@@ -1363,11 +1364,11 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 {
   if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) {
     p_sweep = 0;
-    int dirty = 2;
-    float aver_freq=0;
-    float phase, prev_phase=0, freq=0, residue=0, aver_residue=0;
-    int wraps = 0;
-    int sample_count=0;
+//    int dirty = 2;
+//    float aver_freq=0;
+//    float phase, prev_phase=0, freq=0, residue=0, aver_residue=0;
+//    int wraps = 0;
+//    int sample_count=0;
     clear_correction();
     while (1) {
 //      palClearPad(GPIOC, GPIOC_LED);
@@ -1378,10 +1379,10 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //      calculate_gamma(measured[0][p_sweep]);              // Measure transmission coefficient
 //      palClearPad(GPIOC, GPIOC_LED);
       int t = 0;
-      uint8_t type = trace[t].type;
+//      uint8_t type = trace[t].type;
       float (*array)[4] = measured[0];
       //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-      get_value_cb_t calc = trace_info_list[type].get_value_cb;
+      get_value_cb_t calc = trace_info_list[GET_DPHASE].get_value_cb;
       if (calc){                                           // Run standard get value function from table
         //      float v = 0;
         //      for (int i =0; i<sweep_points; i++) {
@@ -1400,7 +1401,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
          }
 #endif
 
-#define  RUNTIME_RESIDUE
+//#define  RUNTIME_RESIDUE
 
 #ifdef RUNTIME_RESIDUE
          phase = v;
@@ -1478,11 +1479,17 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   int bar_start = 0;
-  freq_t frequency = getFrequency(p_sweep);
-  set_frequency(frequency);
-  tlv320aic3204_select(1);
-  chThdSleepMilliseconds(100);
+//  freq_t frequency = getFrequency(p_sweep);
+//  set_frequency(frequency);
+//  tlv320aic3204_select(1);
+//  chThdSleepMilliseconds(100);
 //  DSP_START(delay+st_delay);
+
+
+  if (! VNA_MODE(VNA_MODE_SCROLLING)) {
+    p_sweep = 0;
+  }
+
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   for (; p_sweep < sweep_points; /* p_sweep++ */) {
 //     palSetPad(GPIOC, GPIOC_LED);
@@ -1511,7 +1518,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       //        calculate_gamma(measured[0][p_sweep]);              // Measure all
 
 
-    if (operation_requested && break_on_operation) break;
+      if (VNA_MODE(VNA_MODE_SCROLLING) && p_sweep >=2) break;
+      if (operation_requested && break_on_operation) break;
   }
   if (bar_start){
     lcd_set_background(LCD_GRID_COLOR);
@@ -1538,11 +1546,13 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       get_value_cb_t calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
     float (*array)[4] = measured[0];
     //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-    for (int i =0; i<sweep_points; i++) {
+    for (int i =0; i<p_sweep; i++) {
       float v = calc(i, array[i])/360;                                          // Get value
       add_regression(v);
     }
     aver_freq_d = finalize_regression();
+ //   shell_printf("%f\r\n", aver_freq_d);
+
   }
 
 
@@ -1555,21 +1565,24 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   float (*array)[4] = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
-  for (int i =0; i<sweep_points-1; i++) {
+  for (int i =0; i<p_sweep-1; i++) {
     v += calc(i, array[i]);                                          // Get value
   }
-  v = v/(sweep_points-1);
+  v = v/(p_sweep-1);
 
   aver_freq_a = v;
   if (VNA_MODE(VNA_MODE_PLL)) {
   float new_pll;
+  v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
   if (-0.02 < v && v < 0.02)
     new_pll = current_props.pll - v * 100;       // Slow speed when close
   else
     new_pll = current_props.pll - v * 260;
-  if (new_pll < 4000 && new_pll > -4000) {
+  if (new_pll < 2000 && new_pll > -2000) {
     current_props.pll = new_pll;
-//    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
+    int old_p_sweep = p_sweep;
+    set_sweep_frequency(ST_CW, get_sweep_frequency(ST_CENTER));
+    p_sweep = old_p_sweep;
   }
   }
 
@@ -1609,14 +1622,25 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
   array = measured[0];
   v = 0;
-  for (int i=0; i<sweep_points; i++) {
+  for (int i=0; i<p_sweep; i++) {
     v += calc(i, array[i]);                                          // Get value
   }
-  v = v/sweep_points;
-  v++;
+  v = v/p_sweep;
   aver_phase_d = v;
 #endif
 
+  if (VNA_MODE(VNA_MODE_SCROLLING)) {
+    if (p_sweep == sweep_points) {
+      for (int i=0;i<sweep_points-1;i++) {
+        measured[0][i][0] = measured[0][i+1][0];
+        measured[0][i][1] = measured[0][i+1][1];
+        measured[0][i][2] = measured[0][i+1][2];
+        measured[0][i][3] = measured[0][i+1][3];
+      }
+      p_sweep--;
+    }
+    return true;
+  }
   //  STOP_PROFILE;
   // blink LED while scanning
   return p_sweep == sweep_points;
@@ -1694,13 +1718,17 @@ void set_tau(float tau){
   if (config.tau < 1)
     config.tau = 1;
 #endif
-  if (tau < 1.0/401.0)
-    set_sweep_points(401);
-  else if (tau >= 0.5)
-    set_sweep_points(2);
-  else
-    set_sweep_points((int)(1/tau));
-  request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
+  RESET_SWEEP
+  if (! VNA_MODE(VNA_MODE_SCROLLING)) {
+    sweep_points = (int) (1/tau);
+    if (sweep_points < 2) sweep_points = 2;
+    if (sweep_points > POINTS_COUNT) sweep_points = POINTS_COUNT;
+    set_sweep_points(sweep_points);
+  }
+  else {
+    set_sweep_points(POINTS_COUNT);
+    request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
+  }
 }
 
 float get_tau(void){
@@ -1940,6 +1968,10 @@ update_frequencies(void)
 
   set_frequencies(start, stop, sweep_points);
 
+  set_frequency(start);
+  tlv320aic3204_select(1);
+  chThdSleepMilliseconds(100);
+
   //update_marker_index();
   // set grid layout
   update_grid();
@@ -1950,7 +1982,7 @@ update_frequencies(void)
     cal_status&= ~CALSTAT_INTERPOLATED;
 
   request_to_redraw(REDRAW_BACKUP | REDRAW_PLOT | REDRAW_CAL_STATUS | REDRAW_FREQUENCY | REDRAW_AREA);
-  RESET_SWEEP;
+//  RESET_SWEEP;
 }
 
 void
@@ -3795,6 +3827,7 @@ int main(void)
 #ifdef USE_VARIABLE_OFFSET
   si5351_set_frequency_offset(IF_OFFSET);
 #endif
+  update_frequencies();
 /*
  * Init Shell console connection data
  */

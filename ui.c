@@ -969,6 +969,8 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
     [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY,
     [VNA_MODE_PULLING]      = REDRAW_BACKUP,
+    [VNA_MODE_SCROLLING]    = REDRAW_AREA,
+    [VNA_MODE_NULL_PHASE]   = REDRAW_AREA,
   };
   request_to_redraw(redraw[idx]);
   // Custom processing after apply
@@ -987,6 +989,12 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
       lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
       draw_all();
     break;
+    case VNA_MODE_PLL:
+      if (VNA_MODE(VNA_MODE_PLL)) current_props.pll = 0;
+      break;
+    case VNA_MODE_NULL_PHASE:
+      if (VNA_MODE(VNA_MODE_NULL_PHASE)) set_null_phase(-aver_phase_d);
+      else set_null_phase(0);
 #endif
   }
 }
@@ -1002,7 +1010,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_DUMP_SAMPLE] = 0,
     [VNA_MODE_BACKUP] = 0,
     [VNA_MODE_FLIP_DISPLAY] = 0,
-    [VNA_MODE_PULLING] = 0
+    [VNA_MODE_PULLING] = 0,
+    [VNA_MODE_SCROLLING] = 0,
+    [VNA_MODE_NULL_PHASE] = 0
   };
   if (b){
     if (vna_mode_text[data] == 0)
@@ -1731,6 +1741,8 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 2, "%s TRACE C", menu_stored_trace_acb},
 #endif
 #endif
+  { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
+
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1804,6 +1816,8 @@ const menuitem_t menu_settings[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
 #endif
+  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
   { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
@@ -1821,11 +1835,10 @@ const menuitem_t menu_display[] = {
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-  { MT_ADV_CALLBACK, 0, "BANDWIDTH\n" R_LINK_COLOR " %b.5Fs" , menu_bandwidth_sel_acb },
-  { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "DUMP\nSAMPLE",   menu_vna_mode_acb },
-  { MT_SUBMENU,      0, "SETTINGS",                              menu_settings },
+  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "LOG\nPHASE",      menu_vna_mode_acb },
+  { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2338,7 +2351,7 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 
 UI_KEYBOARD_CALLBACK(input_tau) {
   (void)data;
-  if (b) {b->p1.f = get_tau(); return; }
+  if (b) {b->p1.f = get_tau()+0.0000000005; return; }
   set_tau(keyboard_get_float());
 }
 

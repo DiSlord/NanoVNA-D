@@ -220,6 +220,7 @@ static acc_t acc_samp_s;
 static acc_t acc_samp_c;
 static acc_t acc_ref_s;
 static acc_t acc_ref_c;
+static float null_phase = 0.5;
 // Cortex M4 DSP instruction use
 #include "dsp.h"
 void
@@ -323,6 +324,9 @@ int
 calculate_gamma(float gamma[4], uint16_t tau)
 {
   gamma[1] = gamma_aver[1]/tau;
+#ifndef CALC_GAMMA_3
+  gamma[1] += null_phase;
+#endif
   while (gamma[1] > HALF_PHASE)
     gamma[1] -= FULL_PHASE;
   while (gamma[1] < -HALF_PHASE)
@@ -333,9 +337,9 @@ calculate_gamma(float gamma[4], uint16_t tau)
   while (gamma[2] < -HALF_PHASE)
     gamma[2] += FULL_PHASE;
 #ifdef CALC_GAMMA_3
-  gamma[3] = gamma_aver[3]/tau;
+  gamma[3] = gamma_aver[3]/tau + null_phase;
 #else
-  gamma[3] = gamma[2] - gamma[1];
+  gamma[3] = gamma[2] - gamma[1] ;
 #endif
   while (gamma[3] > HALF_PHASE)
     gamma[3] -= FULL_PHASE;
@@ -390,4 +394,9 @@ reset_averaging(void)
   prev_gamma1 = 0;
   prev_gamma2 = 0;
   prev_gamma3 = 0;
+}
+
+void set_null_phase(float v)
+{
+  null_phase += v/180.0;
 }

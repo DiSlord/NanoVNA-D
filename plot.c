@@ -381,7 +381,7 @@ static float get_phase(float v)
 static float phase_d(int i, const float *v) {
   (void) i;
   float p = v[3];
-  while (p > 1)
+  while (p >= 1)
     p -= 2.0;
   while (p<-1)
     p += 2.0;
@@ -410,7 +410,7 @@ static float residue(int i, const float *v) {
   if (i == 0) {
     wraps = 0;
     r_start = p;
-    return(p);
+    return(0.0);
   }
   float pp = get_phase(v[-1]);
   if (p > pp + 0.5) {
@@ -429,8 +429,8 @@ static float residue(int i, const float *v) {
 //**************************************************************************************
 static float freq_a(int i, const float *v) {
   (void) i;
-  if (i == sweep_points-1){
-    i = sweep_points-2;
+  if (i == p_sweep-1){
+    i = p_sweep-2;
     v--;
     v--;
     v--;
@@ -449,8 +449,8 @@ static float freq_a(int i, const float *v) {
 
 static float freq_b(int i, const float *v) {
   (void) i;
-  if (i == sweep_points-1){
-    i = sweep_points-2;
+  if (i == p_sweep-1){
+    i = p_sweep-2;
     v--;
     v--;
     v--;
@@ -469,8 +469,8 @@ static float freq_b(int i, const float *v) {
 
 static float freq_d(int i, const float *v) {
   (void) i;
-  if (i == sweep_points-1){
-    i = sweep_points-2;
+  if (i == p_sweep-1){
+    i = p_sweep-2;
     v--;
     v--;
     v--;
@@ -750,8 +750,8 @@ static float s21_qualityfactor(int i, const float *v) {
 //**************************************************************************************
 float groupdelay_from_array(int i, const float *v) {
   int bottom = (i ==              0) ? 0 : -1; // get prev point
-  int top    = (i == sweep_points-1) ? 0 :  1; // get next point
-  freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((sweep_points - 1) / (top - bottom));
+  int top    = (i == p_sweep-1) ? 0 :  1; // get next point
+  freq_t deltaf = get_sweep_frequency(ST_SPAN) / ((p_sweep - 1) / (top - bottom));
   return groupdelay(&v[2*bottom], &v[2*top], deltaf);
 }
 #endif
@@ -849,7 +849,9 @@ static void mark_set_index(index_t *index, uint16_t i, uint16_t x, uint16_t y) {
 // Calculate and cache point coordinates for trace
 static void
 trace_into_index(int t) {
-  uint16_t start = 0, stop = sweep_points - 1, i;
+  if (p_sweep < 2)
+    return;
+  uint16_t start = 0, stop = p_sweep - 1, i;
 //  float *array = &measured[trace[t].channel][0][0];
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
@@ -858,7 +860,7 @@ trace_into_index(int t) {
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
-    uint32_t dx = ((WIDTH)<<16) / (sweep_points-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
+    uint32_t dx = ((WIDTH)<<16) / (p_sweep-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
     int32_t y;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
@@ -912,6 +914,8 @@ format_smith_value(int xpos, int ypos, const float *coeff, uint16_t idx, uint16_
 static void
 trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 {
+  if (p_sweep < 2)
+    return;
   (void) index_ref;
   (void) index;
   // Check correct input
@@ -923,11 +927,11 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
     float v = 0;
-    for (int i =0; i<sweep_points-1; i++) {
+    for (int i =0; i<p_sweep-1; i++) {
       float r = c(i, array[i]);
       v += r;                                          // Get value
     }
-    v = v/(sweep_points-1);
+    v = v/(p_sweep-1);
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
@@ -960,7 +964,7 @@ trace_print_info(int xpos, int ypos, int t)
 static float time_of_index(int idx)
 {
   freq_t span = get_sweep_frequency(ST_SPAN);
-  return (idx * (sweep_points-1)) / ((float)FFT_SIZE * span);
+  return (idx * (p_sweep-1)) / ((float)FFT_SIZE * span);
 }
 
 static float distance_of_index(int idx) {
@@ -1109,7 +1113,7 @@ search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1)
 {
   int i, j;
   int head = 0;
-  int tail = sweep_points;
+  int tail = p_sweep;
   int idx_x;
 
   // Search index point in cell
@@ -1138,7 +1142,7 @@ search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1)
   *i0 = j;
   // Search index right from point
   do {
-    if (i >=sweep_points-1) break;
+    if (i >=p_sweep-1) break;
     i++;
   } while (index[i].x < x2);
   *i1 = i;
@@ -1388,7 +1392,7 @@ marker_search(void)
   index_t *index = trace_index[current_trace];
   // Select compare function (depend from config settings)
   bool (*compare)(int x, int y) = VNA_MODE(VNA_MODE_SEARCH) ? _lesser : _greater;
-  for (i = 1, value = index[0].y; i < sweep_points; i++) {
+  for (i = 1, value = index[0].y; i < p_sweep; i++) {
     if ((*compare)(value, index[i].y)) {
       value = index[i].y;
       found = i;
@@ -1409,13 +1413,13 @@ marker_search_dir(int16_t from, int16_t dir)
   // Select compare function (depend from config settings)
   bool (*compare)(int x, int y) = VNA_MODE(VNA_MODE_SEARCH) ? _lesser : _greater;
   // Search next
-  for (i = from + dir,  value = index[from].y; i >= 0 && i < sweep_points; i+=dir) {
+  for (i = from + dir,  value = index[from].y; i >= 0 && i < p_sweep; i+=dir) {
     if ((*compare)(value, index[i].y))
       break;
     value = index[i].y;
   }
   //
-  for (; i >= 0 && i < sweep_points; i+=dir) {
+  for (; i >= 0 && i < p_sweep; i+=dir) {
     if ((*compare)(index[i].y, value))
       break;
     value = index[i].y;
@@ -1440,7 +1444,7 @@ search_nearest_index(int x, int y, int t)
   int min_i = -1;
   int min_d = MARKER_PICKUP_DISTANCE * MARKER_PICKUP_DISTANCE;
   int i;
-  for (i = 0; i < sweep_points; i++) {
+  for (i = 0; i < p_sweep; i++) {
     int d = distance_to_index(t, i, x , y);
     if (d >= min_d) continue;
     min_d = d;
@@ -1614,6 +1618,7 @@ draw_cell(int m, int n)
 //  PULSE;
 // Draw traces (50-600 system ticks for all screen calls, depend from lines count and size)
 #if 1
+  if (p_sweep >= 2) {
   for (t = TRACE_INDEX_COUNT-1; t >= 0; t--) {
     if (!needProcessTrace(t))
       continue;
@@ -1621,11 +1626,11 @@ draw_cell(int m, int n)
     index_t *index = trace_index[t];
     i0 = i1 = 0;
     // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace && sweep_points > 30){
+    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace && p_sweep > 30){
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
     }else{
       // draw polar plot (check all points)
-      i1 = sweep_points - 1;
+      i1 = p_sweep - 1;
     }
     // Line mode
     for (i = i0; i < i1; i++) {
@@ -1635,6 +1640,7 @@ draw_cell(int m, int n)
       int y2 = index[i + 1].y - y0;
       cell_drawline(x1, y1, x2, y2, c);
     }
+  }
   }
 #else
   for (x = 0; x < area_width; x += 6)
@@ -1650,7 +1656,7 @@ draw_cell(int m, int n)
 #endif
 
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
-#if 1
+#if 0
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
@@ -1697,7 +1703,8 @@ draw_cell(int m, int n)
   cell_draw_measure(x0, y0);
 #endif
 //  PULSE;
-// Draw reference position (<10 system ticks for all screen calls)
+#if 0
+  // Draw reference position (<10 system ticks for all screen calls)
   for (t = 0; t < TRACES_MAX; t++) {
     // Skip draw reference position for disabled/smith/polar traces
     if (!trace[t].enabled || ((1 << trace[t].type) & (ROUND_GRID_MASK)))
@@ -1711,6 +1718,7 @@ draw_cell(int m, int n)
       }
     }
   }
+#endif
 // Need right clip cell render (25 system ticks for all screen calls)
 #if 1
   if (w < CELLWIDTH) {
@@ -1785,8 +1793,8 @@ draw_all(void)
   }
   if (redraw_request & REDRAW_FREQUENCY)
     draw_frequencies();
-  if (redraw_request & REDRAW_CAL_STATUS)
-    draw_cal_status();
+//  if (redraw_request & REDRAW_CAL_STATUS)
+//    draw_cal_status();
   if (redraw_request & REDRAW_BATTERY)
     draw_battery_status();
   redraw_request = 0;
@@ -1983,7 +1991,7 @@ draw_measurements(void)
 {
   lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
-  int x = OFFSETX + 5;
+  int x = 20;
   int y = 0;
   int dash = false;
 
@@ -1994,10 +2002,12 @@ draw_measurements(void)
   lcd_printf(x+80,   y, "BL:%.1FdBm       ", level_b);
   lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_freq_a);
   lcd_printf(x+250,  y, "PLL:%F           ", current_props.pll);
-  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
-  y+= FONT_STR_HEIGHT*2 ;
+//  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
+  y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 
-  x = OFFSETX + 80;
+  lcd_printf(x,y+10               , "B-A Freq:");
+
+  x = 100;
 
   if (level_a < -60 || level_b < -60) dash = true;
 
@@ -2034,7 +2044,45 @@ draw_measurements(void)
   lcd_printf(x,y, "Hz");
 
   y += NUM_FONT_GET_HEIGHT + FONT_STR_HEIGHT; // Extra space
-  x = OFFSETX+5;
+  x = 20;
+  lcd_printf(x,y+10, "B-A Phase:");
+
+  f = (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e6;
+//  lcd_printf(100,y, "%.8Fs         ", f);
+
+
+  x = 100;
+
+  if (f < 0 || dash) {
+    f = -f;
+    lcd_drawfont(KP_MINUS, x, y);
+  } else
+    lcd_drawfont(KP_PLUS, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  x = draw_three_digits((int)f,x,y, dash);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y,dash);
+  lcd_drawfont(KP_PERIOD, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y, dash);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  f -= (int)f;
+  f = f * 1000.0;
+  x = draw_three_digits((int)f,x,y, dash);
+  lcd_drawfont(KP_SPACE, x, y);
+  x+=NUM_FONT_GET_WIDTH;
+
+  lcd_printf(x,y, "ns");
   lcd_reset_right_border();
 }
 #endif
@@ -2062,14 +2110,14 @@ draw_frequencies(void)
     }
   } else {
     lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "START 0" S_SECOND "    VF = %d%%", velocity_factor);
-    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "STOP %F" S_SECOND " (%F" S_METRE ")", time_of_index(sweep_points-1), distance_of_index(sweep_points-1));
+    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "STOP %F" S_SECOND " (%F" S_METRE ")", time_of_index(p_sweep-1), distance_of_index(p_sweep-1));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
-  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"tau=%Fs %up", AUDIO_SAMPLES_COUNT*config.tau*(config._bandwidth+SAMPLE_OVERHEAD)/(float)AUDIO_ADC_FREQ, sweep_points);
+  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"tau=%Fs %up", AUDIO_SAMPLES_COUNT*config.tau*(config._bandwidth+SAMPLE_OVERHEAD)/(float)AUDIO_ADC_FREQ, p_sweep);
   lcd_set_font(FONT_NORMAL);
 }
-
+#if 0
 /*
  * Draw/update calibration status panel
  */
@@ -2122,6 +2170,7 @@ draw_cal_status(void)
 #endif
   lcd_set_font(FONT_NORMAL);
 }
+#endif
 
 /*
  * Draw battery level

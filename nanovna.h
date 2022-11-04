@@ -518,6 +518,7 @@ void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
 void reset_averaging(void);
 int calculate_gamma(float *gamma, uint16_t tau);
+void set_null_phase(float v);
 void calculate_vectors(void);
 void fetch_amplitude(float *gamma);
 void fetch_amplitude_ref(float *gamma);
@@ -613,18 +614,18 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
-#define OFFSETX                      15
+#define OFFSETX                      0
 #ifdef MEASUREMENT_IN_GRID
 #define OFFSETY                      0
 #else
-#define OFFSETY                      64
+#define OFFSETY                      96
 #endif
 // Grid count, must divide
 //#define NGRIDY                     10
 #define NGRIDY                        8
 
 // Plot area WIDTH better be n*(POINTS_COUNT-1)
-#define WIDTH                       455
+#define WIDTH                       (LCD_WIDTH - OFFSETX - 10)
 // Plot area HEIGHT = NGRIDY * GRIDY
 #define HEIGHT                      (LCD_HEIGHT - 16 - OFFSETY)
 
@@ -985,6 +986,10 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_FLIP_DISPLAY     7
 #define VNA_MODE_PULLING          8
 
+#define VNA_MODE_SCROLLING        9
+#define VNA_MODE_SCROLLING_ON     1<<VNA_MODE_SCROLLING
+
+#define VNA_MODE_NULL_PHASE       10
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1084,6 +1089,7 @@ typedef struct properties {
   uint32_t checksum;
 } properties_t;
 
+extern uint16_t p_sweep;
 extern config_t config;
 extern properties_t current_props;
 extern float amp_a;
@@ -1342,7 +1348,6 @@ void     lcd_set_flip(bool flip);
 #ifdef  __USE_SD_CARD__
 #include "../FatFs/ff.h"
 #include "../FatFs/diskio.h"
-
 // Buffers for SD card use spi_buffer
 #if SPI_BUFFER_SIZE < 2048
 #error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
