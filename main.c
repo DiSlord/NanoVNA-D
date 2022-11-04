@@ -1490,7 +1490,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     p_sweep = 0;
   }
 
-  if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
+//  if (p_sweep>=sweep_points || break_on_operation == false)
+//    RESET_SWEEP;
   for (; p_sweep < sweep_points; /* p_sweep++ */) {
 //     palSetPad(GPIOC, GPIOC_LED);
 //     DSP_START(0);
@@ -1565,7 +1566,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   float (*array)[4] = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
-  for (int i =0; i<p_sweep-1; i++) {
+  for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep-2: 0); i<p_sweep-1; i++) {
     v += calc(i, array[i]);                                          // Get value
   }
   v = v/(p_sweep-1);
@@ -1609,11 +1610,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     if (l_gain > 60) l_gain = 60;
     if (r_gain < 0) r_gain = 0;
     if (r_gain > 60) r_gain = 60;
-    tlv320aic3204_set_gain(l_gain, r_gain);
+    if (old_l_gain != l_gain || old_r_gain != r_gain)
+      tlv320aic3204_set_gain(l_gain, r_gain);
     calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
-    level_a = calc(p_sweep, measured[0][0]);                                          // Get value
+    level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
     calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
-    level_b = calc(p_sweep, measured[0][0]);                                          // Get value
+    level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
   }
 #endif
 
@@ -1733,6 +1735,10 @@ void set_tau(float tau){
 
 float get_tau(void){
   return ( config.tau * (config._bandwidth + SAMPLE_OVERHEAD)) * (float)AUDIO_SAMPLES_COUNT / (float) AUDIO_ADC_FREQ;
+}
+
+void reset_sweep(void) {
+  RESET_SWEEP
 }
 
 #define MAX_BANDWIDTH      (AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT)

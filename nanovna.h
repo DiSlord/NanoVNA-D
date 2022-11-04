@@ -371,6 +371,7 @@ uint32_t get_bandwidth_frequency(uint16_t bw_freq);
 
 void set_tau(float tau);
 float get_tau(void);
+void reset_sweep(void);
 
 void set_power(uint8_t value);
 

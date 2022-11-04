@@ -399,4 +399,5 @@ reset_averaging(void)
 void set_null_phase(float v)
 {
   null_phase += v/180.0;
+  reset_sweep();
 }
