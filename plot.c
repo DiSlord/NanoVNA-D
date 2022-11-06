@@ -26,7 +26,7 @@
 
 static void cell_draw_marker_info(int x0, int y0);
 static void draw_battery_status(void);
-static void draw_cal_status(void);
+//static void draw_cal_status(void);
 #ifndef MEASUREMENT_IN_GRID
 static void draw_measurements(void);
 #endif
@@ -770,20 +770,20 @@ cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
 
 const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 {
-// Type          name      format   delta format      symbol         ref   scale  get value
-[TRC_ALOGMAG] = {"ADB", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_a               },
-[TRC_BLOGMAG] = {"BDB", "%.2f%s", S_DELTA "%.2f%s", S_dB,     NGRIDY-1,  10.0f,     logmag_b               },
-[TRC_APHASE]  = {"AP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_a                },
-[TRC_BPHASE]  = {"BP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_b                },
-[TRC_DPHASE]  = {"DP",  "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, NGRIDY/2,  90.0f,     phase_d                },
-[TRC_AFREQ]  = {"AF",    "%.3F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_a                },
-[TRC_BFREQ]  = {"BF",    "%.3F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.01f,     freq_b                },
-[TRC_DFREQ]  = {"DF",    "%.8F%s", "%.4F%s",         "Hz",     NGRIDY/2,  0.00001f,    freq_d                },
-[TRC_VALUE]  = {"VALUE",    "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  1,         value                 },
-[TRC_ASAMPLE] = {"ASAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_a             },
-[TRC_BSAMPLE] = {"BSAMPLE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0x7ffe/4,  sample_b             },
-[TRC_RESIDUE] = {"RESIDUE", "%.4F%s", "%.4F%s",         "",       NGRIDY/2,  0.00001,  residue              },
-[TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",     "",       NGRIDY/2,  0.00001,  correction           },
+// Type          name           format    delta format      symbol    refpos    scale     get value
+[TRC_ALOGMAG] = {"ADB",         "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_a   },
+[TRC_BLOGMAG] = {"BDB",         "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_b   },
+[TRC_APHASE]  = {"AP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_a    },
+[TRC_BPHASE]  = {"BP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_b    },
+[TRC_DPHASE]  = {"DP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_d    },
+[TRC_AFREQ]  =  {"AF",          "%.3F%s", "%.4F%s",         "Hz",     0,        0.01f,    freq_a     },
+[TRC_BFREQ]  =  {"BF",          "%.3F%s", "%.4F%s",         "Hz",     0,        0.01f,    freq_b     },
+[TRC_DFREQ]  =  {"DF",          "%.8F%s", "%.4F%s",         "Hz",     0,        0.00001f, freq_d     },
+[TRC_VALUE]  =  {"VALUE",       "%.4F%s", "%.4F%s",         "",       0,        1,        value      },
+[TRC_ASAMPLE] = {"ASAMPLE",     "%.4F%s", "%.4F%s",         "",       0,        0x7ffe/4, sample_a   },
+[TRC_BSAMPLE] = {"BSAMPLE",     "%.4F%s", "%.4F%s",         "",       0,        0x7ffe/4, sample_b   },
+[TRC_RESIDUE] = {"RESIDUE",     "%.4F%s", "%.4F%s",         "",       0,        0.00001,  residue    },
+[TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",         "",       0,        0.00001,  correction },
 };
 
 
@@ -856,25 +856,38 @@ trace_into_index(int t) {
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
-  float refpos = HEIGHT - (get_trace_refpos(t))*GRIDY + 0.5f; // 0.5 for pixel align
+  float refpos = get_trace_refpos(t);
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
     uint32_t dx = ((WIDTH)<<16) / (p_sweep-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
     int32_t y;
+    float max = -1e30;
+    float min = +1e30;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
 //      if (c) v = c(i, &array[4*i]);         // Get value
       if (c) v = c(i, measured[trace[t].channel][i]);         // Get value
+      if (min > v) min = v;
+      if (max < v) max = v;
       if (v == INFINITY) {
         y = 0;
       } else {
-        y = refpos - v * dscale;
+        y = GRIDY*NGRIDY/2 - (v - refpos)*dscale + 0.5;
              if (y <      0) y = 0;
         else if (y > HEIGHT) y = HEIGHT;
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
     }
+    trace[t].min = min;
+    trace[t].max = max;
+    if (trace[t].auto_scale && max > min) {
+      refpos = (max + min) / 2;
+      scale  = (max - min) / NGRIDY;
+      set_trace_refpos(t,refpos);
+      set_trace_scale(t,scale);
+    }
+
     return;
   }
 #if 0
@@ -949,7 +962,6 @@ trace_print_info(int xpos, int ypos, int t)
   float scale = get_trace_scale(t);
   const char *format;
   int type = trace[t].type;
-  int smith = trace[t].smith_format;
   const char *v = trace_info_list[trace[t].type].symbol;
   switch (type) {
 #if 0
@@ -958,7 +970,7 @@ trace_print_info(int xpos, int ypos, int t)
 #endif
     default:         format = "%s %F%s/"; break;
   }
-  return cell_printf(xpos, ypos, format, get_trace_typename(type, smith), scale, v);
+  return cell_printf(xpos, ypos, format, get_trace_typename(type, false), scale, v);
 }
 
 static float time_of_index(int idx)
@@ -1494,7 +1506,7 @@ static void cell_grid_line_info(int x0, int y0)
   // Get top value
   float scale = get_trace_scale(current_trace);
   float   ref = get_trace_refpos(current_trace);
-  float     v = (NGRIDY - ref) * scale;
+  float     v = ref + NGRIDY/2 * scale;
   // Render grid values
   lcd_set_foreground(LCD_TRACE_1_COLOR + current_trace);
   do {
@@ -1843,13 +1855,14 @@ static const struct {uint16_t x, y;} marker_pos[]={
 static void
 cell_draw_marker_info(int x0, int y0)
 {
-  int t, mk, xpos, ypos;
+  int t, xpos, ypos;
   if (active_marker == MARKER_INVALID)
     return;
   int active_marker_idx = markers[active_marker].index;
   int j = 0;
   // Marker (for current selected trace) display mode (selected more then 1 marker, and minimum one trace)
 #if 0
+  int mk;
   if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
     t = current_trace;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
@@ -2011,7 +2024,7 @@ draw_measurements(void)
 
   if (level_a < -60 || level_b < -60) dash = true;
 
-  double f = aver_freq_d;
+  double f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d);
   if (f < 0 || dash) {
     f = -f;
     lcd_drawfont(KP_MINUS, x, y);
@@ -2047,7 +2060,7 @@ draw_measurements(void)
   x = 20;
   lcd_printf(x,y+10, "B-A Phase:");
 
-  f = (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e6;
+  f = ((VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_phase_d : last_phase_d)/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e6;
 //  lcd_printf(100,y, "%.8Fs         ", f);
 
 

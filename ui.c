@@ -809,7 +809,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
 
 extern const menuitem_t menu_marker_s11smith[];
 extern const menuitem_t menu_marker_s21smith[];
-static uint8_t get_smith_format(void) {return (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;}
+static uint8_t get_smith_format(void) { return false; }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 {
@@ -819,9 +819,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
     return;
   }
   if (current_trace == TRACE_INVALID) return;
-  trace[current_trace].smith_format = data;
+//  trace[current_trace].smith_format = data;
   request_to_redraw(REDRAW_AREA | REDRAW_MARKER);
 }
+
+static UI_FUNCTION_ADV_CALLBACK(menu_auto_scale_acb)
+{
+  (void) data;
+  if (b){
+    b->icon = trace[current_trace].auto_scale ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  trace[current_trace].auto_scale = ! trace[current_trace].auto_scale;
+}
+
 
 #define F_S11     0x00
 #define F_S21     0x80
@@ -971,6 +982,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_PULLING]      = REDRAW_BACKUP,
     [VNA_MODE_SCROLLING]    = REDRAW_AREA,
     [VNA_MODE_NULL_PHASE]   = REDRAW_AREA,
+    [VNA_MODE_TRACE_AVER]   = REDRAW_AREA,
   };
   request_to_redraw(redraw[idx]);
   // Custom processing after apply
@@ -1012,7 +1024,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_FLIP_DISPLAY] = 0,
     [VNA_MODE_PULLING] = 0,
     [VNA_MODE_SCROLLING] = 0,
-    [VNA_MODE_NULL_PHASE] = 0
+    [VNA_MODE_NULL_PHASE] = 0,
+    [VNA_MODE_TRACE_AVER] = 0
   };
   if (b){
     if (vna_mode_text[data] == 0)
@@ -1741,7 +1754,6 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 2, "%s TRACE C", menu_stored_trace_acb},
 #endif
 #endif
-  { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
 
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1771,6 +1783,7 @@ const menuitem_t menu_scale[] = {
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
 #endif
+  { MT_ADV_CALLBACK, 0, "AUTO\nSCALE",              menu_auto_scale_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1812,19 +1825,32 @@ const menuitem_t menu_smooth_count[] = {
 };
 #endif
 
-const menuitem_t menu_settings[] = {
+
+
+const menuitem_t menu_more_settings[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
 #endif
-  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
   { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
   { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_4,         "PULL 4\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+
+
+const menuitem_t menu_settings[] = {
+  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
+  { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
 
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1836,7 +1862,6 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
   { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "LOG\nPHASE",      menu_vna_mode_acb },
   { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
@@ -2351,7 +2376,7 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 
 UI_KEYBOARD_CALLBACK(input_tau) {
   (void)data;
-  if (b) {b->p1.f = get_tau()+0.0000000005; return; }
+  if (b) {b->p1.f = get_tau()*1.00005; return; }
   set_tau(keyboard_get_float());
 }
 
@@ -3091,9 +3116,9 @@ static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
   int mode = -1;
-  if (touch_y > HEIGHT)
+  if (touch_y > HEIGHT+OFFSETY)
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
-  if (touch_y < UI_MARKER_Y0)
+  if (touch_y >= OFFSETY && touch_y < UI_MARKER_Y0 + OFFSETY)
     mode = (touch_x < (LCD_WIDTH / 2) && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
   if (mode == -1) return FALSE;
 

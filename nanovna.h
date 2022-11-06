@@ -269,6 +269,8 @@
 extern float aver_freq_a;
 extern float aver_phase_d;
 extern float aver_freq_d;
+extern float last_phase_d;
+extern float last_freq_d;
 extern float level_a;
 extern float level_b;
 /*
@@ -992,6 +994,9 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define VNA_MODE_NULL_PHASE       10
 
+#define VNA_MODE_TRACE_AVER       11
+#define VNA_MODE_TRACE_AVER_ON    1<<VNA_MODE_TRACE_AVER
+
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
 enum {
@@ -1022,9 +1027,11 @@ typedef struct trace {
   uint8_t enabled;
   uint8_t type;
   uint8_t channel;
-  uint8_t smith_format;
+  uint8_t auto_scale;
   float scale;
   float refpos;
+  float max;
+  float min;
 } trace_t;
 
 // marker 1 to 8
@@ -1402,6 +1409,8 @@ extern uint16_t lastsaveid;
 
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
+//#define set_trace_scale(t,s)    {current_props._trace[t].scale = (s);}
+//#define set_trace_refpos(t,r)   {current_props._trace[t].refpos = (r);}
 
 #define VNA_MODE(idx)        (config._vna_mode&(1<<idx))
 #define lever_mode           config._lever_mode
