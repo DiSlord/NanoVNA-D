@@ -280,7 +280,7 @@ static THD_FUNCTION(Thread1, arg)
 //      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
-      request_to_redraw(REDRAW_PLOT);
+      request_to_redraw(REDRAW_PLOT|REDRAW_FREQUENCY);
     }
     request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
@@ -938,7 +938,7 @@ config_t config = {
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._IF_freq    = FREQUENCY_OFFSET,
   ._touch_cal  = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX | VNA_MODE_PLL_ON ,
+  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX | VNA_MODE_PLL_ON | VNA_MODE_SCROLLING_ON,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
@@ -948,7 +948,7 @@ config_t config = {
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
   .pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
-  . tau = 5,
+  . tau = 50,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
   ._band_mode = 0,
@@ -959,10 +959,10 @@ properties_t current_props;
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] =
 {//enable, type, channel, auto_scale, scale, refpos, min, max
-  { TRUE, TRC_DPHASE, 0, false, 90.0, 0,0,0 },
-  { TRUE, TRC_AFREQ, 0, false, 0.01, 0,0,0 },
-//  { TRUE, TRC_DFREQ,  0, MS_REIM, 0.001, 0,0,0 },
-  { TRUE, TRC_RESIDUE,  0, false, 0.00001,  0,0,0 },
+  { TRUE, TRC_DPHASE, 0, true, 90.0, 0,0,0 },
+  { TRUE, TRC_AFREQ, 0, true, 0.01, 0,0,0 },
+  { TRUE, TRC_DFREQ, 0, true, 0.01, 0,0,0 },
+  { TRUE, TRC_RESIDUE,  0, true, 0.00001,  0,0,0 },
 //  { FALSE, TRC_PHASE,  0, MS_REIM, 90.0, 0,0,0 }
 };
 
@@ -1159,7 +1159,7 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
 
   //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
-  palSetPad(GPIOA, GPIOA_PA4);
+//  palSetPad(GPIOA, GPIOA_PA4);
   //    return;
   if (wait == 0 || chVTGetSystemTimeX() < ready_time) {
     reset_dsp_accumerator();
@@ -1217,7 +1217,7 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
       dsp_ready = true;
     }
   }
-  palClearPad(GPIOA, GPIOA_PA4);
+//  palClearPad(GPIOA, GPIOA_PA4);
   //  stat.callback_count++;
 }
 
@@ -1233,7 +1233,7 @@ extern uint16_t timings[16];
 //#define DSP_PREWAIT         while (wait_count == 0 && !(operation_requested && break_on_operation)) {__WFI();}
 //#define DSP_WAIT         while (wait_count && !(operation_requested && break_on_operation)) {__WFI();}
 #define DSP_PREWAIT      dsp_ready = false
-#define DSP_WAIT         while ((!dsp_ready) && temp_input == temp_output && !(operation_requested && break_on_operation)) {__WFI();}
+#define DSP_WAIT         while ((!dsp_ready) && temp_input == temp_output && !(operation_requested && break_on_operation)) {  /*  palClearPad(GPIOA, GPIOA_PA4); */ __WFI(); /*  palSetPad(GPIOA, GPIOA_PA4); */ }
 #define RESET_SWEEP      {p_sweep = 0; temp_output = temp_input;}
 
 #define SWEEP_CH0_MEASURE           0x01
@@ -1406,7 +1406,8 @@ no_regression:
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
-  if (VNA_MODE(VNA_MODE_USB_LOG)) {
+//  palSetPad(GPIOA, GPIOA_PA4);
+  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.01) {
     RESET_SWEEP;
 //    int dirty = 2;
 //    float aver_freq=0;
@@ -1521,12 +1522,12 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       if (operation_requested && break_on_operation)
         break;
     }
-    return false;
+    goto return_false;
 
   } else {
 fetch_next:
   if (break_on_operation && mask == 0)
-    return false;
+    goto return_false;
 //  START_PROFILE;
   lcd_set_background(LCD_SWEEP_LINE_COLOR);
   int bar_start = 0;
@@ -1547,10 +1548,13 @@ fetch_next:
       DSP_WAIT;
       if (operation_requested && break_on_operation)
         break;
-
+      float v = temp_measured[temp_output][3];
       if (VNA_MODE(VNA_MODE_DISK_LOG))
-        disk_log(temp_measured[temp_output][3]);
-      measured[0][p_sweep][1] = temp_measured[temp_output][1];
+        disk_log(v);
+      if (VNA_MODE(VNA_MODE_USB_LOG))
+        shell_printf("%f\r\n", v);
+
+//      measured[0][p_sweep][1] = temp_measured[temp_output][1];
       measured[0][p_sweep][2] = temp_measured[temp_output][2];
       measured[0][p_sweep++][3] = temp_measured[temp_output++][3];
       temp_output &= TEMP_MASK;
@@ -1559,7 +1563,6 @@ fetch_next:
         if (temp_input != temp_output && !(operation_requested && break_on_operation))
           goto do_compress;
 
-//      palSetPad(GPIOC, GPIOC_LED);
 //      shell_printf("%d %f %f %f\r\n", p_sweep,  measured[0][p_sweep-1][1],  measured[0][p_sweep-1][2],  measured[0][p_sweep-1][3]);
 
       //================================================
@@ -1574,7 +1577,7 @@ fetch_next:
           p_sweep++;
         }
         p_sweep = sweep_points;
-        return true;
+        goto return_true;
       }
       // else
       // sample_count =
@@ -1588,7 +1591,8 @@ fetch_next:
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
   }
-
+  if (operation_requested && break_on_operation) goto return_false;
+//  palSetPad(GPIOA, GPIOA_PA4);
   // -------------------- Average D freq  ----------------------
 #if 0
   {
@@ -1636,23 +1640,27 @@ fetch_next:
   }
   if (!VNA_MODE(VNA_MODE_SCROLLING))
     v = v/(p_sweep-1);
-
   aver_freq_a = v;
-  if (VNA_MODE(VNA_MODE_PLL)) {
+
+  if (VNA_MODE(VNA_MODE_PLL) && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))) {
     float new_pll;
     v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
+    float factor = 260.0;
+    if (VNA_MODE(VNA_MODE_SCROLLING))
+      factor *= get_tau();
     if (-0.02 < v && v < 0.02)
-      new_pll = current_props.pll - v * 100;       // Slow speed when close
+      new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
     else
-      new_pll = current_props.pll - v * 100;
+      new_pll = current_props.pll - v * factor;
     if (new_pll < 2000 && new_pll > -2000) {
       current_props.pll = new_pll;
       set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
     }
   }
-#if 1
+  if (!(operation_requested && break_on_operation))
   {
     int old_l_gain = l_gain, old_r_gain = r_gain;
+    // Get level excluding gain.
     l_gain = 0;
     r_gain = 0;
     get_value_cb_t calc;
@@ -1675,12 +1683,13 @@ fetch_next:
     if (r_gain > 60) r_gain = 60;
     if (old_l_gain != l_gain || old_r_gain != r_gain)
       tlv320aic3204_set_gain(l_gain, r_gain);
+    // Get level including gain
     calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
     level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
     calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
     level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
   }
-#endif
+
 
 
 #if 1
@@ -1699,8 +1708,8 @@ fetch_next:
   do_compress:
     if (p_sweep == sweep_points) {
       for (int i=0;i<sweep_points-1;i++) {
-        measured[0][i][0] = measured[0][i+1][0];
-        measured[0][i][1] = measured[0][i+1][1];
+//        measured[0][i][0] = measured[0][i+1][0];
+//        measured[0][i][1] = measured[0][i+1][1];
         measured[0][i][2] = measured[0][i+1][2];
         measured[0][i][3] = measured[0][i+1][3];
       }
@@ -1708,12 +1717,20 @@ fetch_next:
     }
     if (temp_input != temp_output && !(operation_requested && break_on_operation))
       goto fetch_next;
-    return true;
+    goto return_true;
   }
+
   //  STOP_PROFILE;
   // blink LED while scanning
+//  palClearPad(GPIOA, GPIOA_PA4);
   return p_sweep == sweep_points;
   }
+return_false:
+//  palClearPad(GPIOA, GPIOA_PA4);
+  return false;
+return_true:
+//  palClearPad(GPIOA, GPIOA_PA4);
+  return true;
 }
 
 #ifdef ENABLED_DUMP_COMMAND
@@ -1836,6 +1853,7 @@ void set_sweep_points(uint16_t points){
     return;
   sweep_points = points;
   RESET_SWEEP;
+  request_to_redraw(REDRAW_FREQUENCY);
   update_frequencies();
 }
 
@@ -3940,8 +3958,8 @@ int main(void)
 /*
  * Startup sweep thread
  */
-//  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
-  chThdCreateStatic(waThread1, sizeof(waThread1), HIGHPRIO, Thread1, NULL);
+  chThdCreateStatic(waThread1, sizeof(waThread1), NORMALPRIO-1, Thread1, NULL);
+//  chThdCreateStatic(waThread1, sizeof(waThread1), HIGHPRIO, Thread1, NULL);
 
   while (1) {
     if (shell_check_connect()) {
@@ -3960,11 +3978,11 @@ int main(void)
         if (VNAShell_readLine(shell_line, VNA_SHELL_MAX_LENGTH))
           VNAShell_executeLine(shell_line);
         else
-          chThdSleepMilliseconds(200);
+          chThdSleepMilliseconds(20);
       } while (shell_check_connect());
 #endif
     }
-    chThdSleepMilliseconds(1000);
+    chThdSleepMilliseconds(10);
   }
 }
 

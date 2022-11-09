@@ -613,6 +613,34 @@ show_version(void)
 
   y+=str_height*2;
   // Update battery and time
+
+#if 1
+  static const char *states[] = {CH_STATE_NAMES};
+  thread_t *tp;
+  lcd_printf(x,y, "stklimit|   stack|stk free|    addr|refs|prio|    state|        name");
+  y += str_height;
+  tp = chRegFirstThread();
+  do {
+    uint32_t max_stack_use = 0U;
+#if (CH_DBG_ENABLE_STACK_CHECK == TRUE) || (CH_CFG_USE_DYNAMIC == TRUE)
+    uint32_t stklimit = (uint32_t)tp->wabase;
+#if CH_DBG_FILL_THREADS == TRUE
+    uint8_t *p = (uint8_t *)tp->wabase; while(p[max_stack_use]==CH_DBG_STACK_FILL_VALUE) max_stack_use++;
+#endif
+#else
+    uint32_t stklimit = 0U;
+#endif
+    lcd_printf(x,y, "%08x|%08x|%08x|%08x|%4u|%4u|%9s|%12s",
+               stklimit, (uint32_t)tp->ctx.sp, max_stack_use, (uint32_t)tp,
+               (uint32_t)tp->refs - 1, (uint32_t)tp->prio, states[tp->state],
+               tp->name == NULL ? "" : tp->name);
+    y += str_height;
+    tp = chRegNextThread(tp);
+  } while (tp != NULL);
+#endif
+
+  y+=str_height*2;
+
   uint16_t cnt = 0;
   while (true) {
     if (touch_check() == EVT_TOUCH_PRESSED)
@@ -639,6 +667,7 @@ show_version(void)
     lcd_printf(x, y + str_height, "Batt: %d.%03d" S_VOLT, vbat/1000, vbat%1000);
 #endif
   }
+
 }
 
 #ifdef __DFU_SOFTWARE_MODE__
@@ -1038,7 +1067,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
       break;
     case VNA_MODE_DISK_LOG:
       if (VNA_MODE(VNA_MODE_DISK_LOG)) {
-        if (get_tau() < 0.1) {
+        if (get_tau() < 0.09) {
           drawMessageBox("DISK LOG", "Set Tau >= 0.1 s ", 2000);
           config._vna_mode&=~m;
           return;
@@ -1865,7 +1894,6 @@ const menuitem_t menu_scale[] = {
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
 #endif
-  { MT_ADV_CALLBACK, 0, "AUTO\nSCALE",              menu_auto_scale_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1930,7 +1958,7 @@ const menuitem_t menu_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
-  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0, "AUTO\nSCALE",              menu_auto_scale_acb },
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
   { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
 
@@ -1943,6 +1971,7 @@ const menuitem_t menu_display[] = {
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
+  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
   { MT_ADV_CALLBACK, VNA_MODE_USB_LOG, "USB\nLOG",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DISK_LOG, "DISK\nLOG",     menu_vna_mode_acb },

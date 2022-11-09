@@ -14,3 +14,4 @@ TAGS
 *.xml
 .settings/org.eclipse.core.resources.prefs
 desktop.ini
+dorelease.bat

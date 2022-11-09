@@ -884,6 +884,17 @@ trace_into_index(int t) {
     if (trace[t].auto_scale && max > min) {
       refpos = (max + min) / 2;
       scale  = (max - min) / NGRIDY;
+      int exp = 0;
+      while (scale >= 10) { scale /= 10; exp += 1; }
+      while (scale < 1) { scale *= 10; exp -= 1; }
+      if (scale > 5) scale = 10;
+      else if (scale > 2) scale = 5;
+      else scale = 2;
+      while (exp > 0) { scale *= 10; exp -= 1; }
+      while (exp < 0) { scale /= 10; exp += 1; }
+      refpos /= scale;
+      refpos = (int) refpos;
+      refpos *= scale;
       set_trace_refpos(t,refpos);
       set_trace_scale(t,scale);
     }
@@ -1788,20 +1799,24 @@ draw_all(void)
     lcd_set_background(LCD_BG_COLOR);
     lcd_clear_screen();
   }
-  if (redraw_request & REDRAW_AREA)
+  if (redraw_request & REDRAW_AREA) {
+//    palSetPad(GPIOA, GPIOA_PA4);
     force_set_markmap();
-  else {
+//    palClearPad(GPIOA, GPIOA_PA4);
+  } else {
     if (redraw_request & REDRAW_MARKER) markmap_all_markers();
-    if (redraw_request & REDRAW_REFERENCE) markmap_all_refpos();
+//    if (redraw_request & REDRAW_REFERENCE) markmap_all_refpos();
 #ifdef __USE_GRID_VALUES__
     if (redraw_request & REDRAW_GRID_VALUE) markmap_grid_values();
 #endif
   }
   if (redraw_request & (REDRAW_CELLS | REDRAW_MARKER | REDRAW_GRID_VALUE | REDRAW_REFERENCE | REDRAW_AREA)) {
+//    palSetPad(GPIOA, GPIOA_PA4);
     draw_all_cells();
 #ifndef MEASUREMENT_IN_GRID
     draw_measurements();
 #endif
+//    palClearPad(GPIOA, GPIOA_PA4);
   }
   if (redraw_request & REDRAW_FREQUENCY)
     draw_frequencies();

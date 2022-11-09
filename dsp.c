@@ -274,6 +274,8 @@ int log_index = 0;
 #define HALF_PHASE  1.0
 #define FULL_PHASE  2.0
 
+#define CALC_GAMMA_3
+
 void
 calculate_vectors(void)
 {
@@ -281,6 +283,7 @@ calculate_vectors(void)
   // calculate reflection coeff. by samp divide by ref
   float new_gamma;
 
+#ifndef CALC_GAMMA_3
   new_gamma = vna_atan2f(acc_samp_s,acc_samp_c) / VNA_PI;
   if ((new_gamma - prev_gamma1) < -HALF_PHASE)
     new_gamma = new_gamma + FULL_PHASE;
@@ -291,7 +294,7 @@ calculate_vectors(void)
 
   phase_log[log_index++] = new_gamma;
   if (log_index >= LOG_SIZE) log_index = 0;
-
+#endif
 
   new_gamma = vna_atan2f(acc_ref_s,acc_ref_c) / VNA_PI;
   if ((new_gamma - prev_gamma2) < -HALF_PHASE)
@@ -301,7 +304,6 @@ calculate_vectors(void)
   gamma_aver[2] += new_gamma;
   prev_gamma2 = new_gamma;
 
-#define CALC_GAMMA_3
 #ifdef CALC_GAMMA_3
   new_gamma =  - vna_atan2f((acc_samp_c * (float)acc_ref_c + acc_samp_s * (float)acc_ref_s),
                          (acc_samp_s * (double)acc_ref_c - acc_samp_c * (double)acc_ref_s)) / VNA_PI;
@@ -323,6 +325,7 @@ calculate_vectors(void)
 int
 calculate_gamma(float gamma[4], uint16_t tau)
 {
+#ifndef CALC_GAMMA_3
   gamma[1] = gamma_aver[1]/tau;
 #ifndef CALC_GAMMA_3
   gamma[1] += null_phase;
@@ -331,11 +334,13 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[1] -= FULL_PHASE;
   while (gamma[1] < -HALF_PHASE)
     gamma[1] += FULL_PHASE;
+#endif
   gamma[2] = gamma_aver[2]/tau;
   while (gamma[2] > HALF_PHASE)
     gamma[2] -= FULL_PHASE;
   while (gamma[2] < -HALF_PHASE)
     gamma[2] += FULL_PHASE;
+
 #ifdef CALC_GAMMA_3
   gamma[3] = gamma_aver[3]/tau + null_phase;
 #else
