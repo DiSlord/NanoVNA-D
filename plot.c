@@ -2002,7 +2002,10 @@ int draw_three_digits(int v, int x, int y, int dash){
 static void
 draw_measurements(void)
 {
-  lcd_set_foreground(LCD_FG_COLOR);
+  if (missing_samples)
+    lcd_set_foreground(LCD_LOW_BAT_COLOR);
+  else
+    lcd_set_foreground(LCD_FG_COLOR);
   lcd_set_background(LCD_BG_COLOR);
   int x = 20;
   int y = 0;
@@ -2097,6 +2100,7 @@ draw_measurements(void)
 
   lcd_printf(x,y, "ns");
   lcd_reset_right_border();
+  missing_samples = false;
 }
 #endif
 

@@ -102,6 +102,7 @@ enum {
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   KM_BIN_NAME,
 #endif
+  KM_CSV_NAME,
   KM_TAU,
 #endif
   KM_PULL_1,
@@ -110,6 +111,21 @@ enum {
   KM_PULL_4,
     KM_NONE
 };
+
+#ifdef __USE_SD_CARD__
+// Save format enum
+enum {
+  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  FMT_BIN_FILE,
+#endif
+#ifdef __SD_CARD_LOAD__
+  FMT_CMD_FILE,
+#endif
+  FMT_CSV_FILE,
+};
+#endif
+
 
 typedef struct {
   uint16_t x_offs;
@@ -230,6 +246,16 @@ static void ui_mode_keypad(int _keypad_mode);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
+static void vna_save_file(char *name, uint8_t format);
+static void flush_disk_log(void);
+
+static char append_filename[FF_LFN_BUF];
+
+#define DISK_LOG_SIZE   32
+static float disk_log_data[DISK_LOG_SIZE];
+static int disk_log_index = 0;
+
+
 
 void drawMessageBox(const char *header, const char *text, uint32_t delay);
 
@@ -976,13 +1002,14 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
     [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
     [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_DUMP_SAMPLE]     = REDRAW_BACKUP | REDRAW_AREA,
+    [VNA_MODE_USB_LOG]     = REDRAW_BACKUP | REDRAW_AREA,
     [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
     [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY,
     [VNA_MODE_PULLING]      = REDRAW_BACKUP,
     [VNA_MODE_SCROLLING]    = REDRAW_AREA,
     [VNA_MODE_NULL_PHASE]   = REDRAW_AREA,
     [VNA_MODE_TRACE_AVER]   = REDRAW_AREA,
+    [VNA_MODE_DISK_LOG]     = REDRAW_AREA,
   };
   request_to_redraw(redraw[idx]);
   // Custom processing after apply
@@ -1001,13 +1028,34 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
       lcd_set_flip(VNA_MODE(VNA_MODE_FLIP_DISPLAY));
       draw_all();
     break;
+#endif
     case VNA_MODE_PLL:
       if (VNA_MODE(VNA_MODE_PLL)) current_props.pll = 0;
       break;
     case VNA_MODE_NULL_PHASE:
       if (VNA_MODE(VNA_MODE_NULL_PHASE)) set_null_phase(-aver_phase_d);
       else set_null_phase(0);
-#endif
+      break;
+    case VNA_MODE_DISK_LOG:
+      if (VNA_MODE(VNA_MODE_DISK_LOG)) {
+        if (get_tau() < 0.1) {
+          drawMessageBox("DISK LOG", "Set Tau >= 0.1 s ", 2000);
+          config._vna_mode&=~m;
+          return;
+        }
+        append_filename[0] = 0;         // Prevent writing
+        if (VNA_MODE(VNA_MODE_AUTO_NAME))
+          vna_save_file(NULL, FMT_CSV_FILE);
+        else
+          ui_mode_keypad(KM_CSV_NAME); // If no auto name, call text keyboard input
+//        if (append_filename[0] == 0)
+//          config._vna_mode&=~m; // Failed so disable
+//        disk_log_index = 0;
+      } else {
+        flush_disk_log();
+        append_filename[0] = 0;
+      }
+      break;
   }
 }
 
@@ -1019,13 +1067,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_CONNECTION] = "USB\0SERIAL",
     [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
     [VNA_MODE_SHOW_GRID] = 0,
-    [VNA_MODE_DUMP_SAMPLE] = 0,
+    [VNA_MODE_USB_LOG] = 0,
     [VNA_MODE_BACKUP] = 0,
     [VNA_MODE_FLIP_DISPLAY] = 0,
     [VNA_MODE_PULLING] = 0,
     [VNA_MODE_SCROLLING] = 0,
     [VNA_MODE_NULL_PHASE] = 0,
-    [VNA_MODE_TRACE_AVER] = 0
+    [VNA_MODE_TRACE_AVER] = 0,
+    [VNA_MODE_DISK_LOG] = 0
   };
   if (b){
     if (vna_mode_text[data] == 0)
@@ -1360,17 +1409,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #endif
 
 #ifdef __USE_SD_CARD__
-// Save format enum
-enum {
-  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
-#ifdef __SD_CARD_DUMP_FIRMWARE__
-  FMT_BIN_FILE,
-#endif
-#ifdef __SD_CARD_LOAD__
-  FMT_CMD_FILE,
-#endif
-};
-
 // Save file extension
 static const char *file_ext[] = {
   [FMT_S1P_FILE] = "s1p",
@@ -1383,6 +1421,7 @@ static const char *file_ext[] = {
 #ifdef __SD_CARD_LOAD__
   [FMT_CMD_FILE] = "cmd",
 #endif
+  [FMT_CSV_FILE] = "csv"
 };
 
 //*******************************************************************************************
@@ -1454,6 +1493,19 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
 static void swap_bytes(uint16_t *buf, int size) {
   for (int i = 0; i < size; i++)
     buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
+}
+
+// Create file name from current time
+static FRESULT vna_append_file(char *fs_filename)
+{
+//  shell_printf("S file\r\n");
+  FRESULT res = f_mount(fs_volume, "", 1);
+//  shell_printf("Mount = %d\r\n", res);
+  if (res != FR_OK)
+    return res;
+  res = f_open(fs_file, fs_filename, FA_OPEN_APPEND | FA_READ | FA_WRITE);
+//  shell_printf("Open %s, = %d\r\n", fs_filename, res);
+  return res;
 }
 
 // Create file name from current time
@@ -1567,6 +1619,10 @@ static void vna_save_file(char *name, uint8_t format)
         res = f_write(fs_file, src, total, &size);
       }
       break;
+      case FMT_CSV_FILE:
+        disk_log_index = 0;
+        strcpy(append_filename, fs_filename);       // Signal success
+        break;
 #endif
     }
     f_close(fs_file);
@@ -1588,6 +1644,32 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
   else
     ui_mode_keypad(data + KM_S1P_NAME); // If no auto name, call text keyboard input
 }
+
+void flush_disk_log(void)
+{
+  FRESULT res = vna_append_file(append_filename);
+  if (res != FR_OK)
+    return;
+  for (int i = 0; i < disk_log_index && res == FR_OK; i++) {
+    char *buf_8  = (char *)spi_buffer;
+    UINT size = plot_printf(buf_8, 128, "%f\r\n", disk_log_data[i]);
+//        total_size+=size;
+    res = f_write(fs_file, buf_8, size, &size);
+    if (res != FR_OK) break;
+  }
+  f_close(fs_file);
+  disk_log_index = 0;
+}
+
+void disk_log(float p)
+{
+  if (append_filename[0] == 0)
+    return;
+  disk_log_data[disk_log_index++] = p;
+  if (disk_log_index == DISK_LOG_SIZE)
+    flush_disk_log();
+}
+
 
 #ifdef __SD_FILE_BROWSER__
 #include "vna_modules/vna_browser.c"
@@ -1828,6 +1910,7 @@ const menuitem_t menu_smooth_count[] = {
 
 
 const menuitem_t menu_more_settings[] = {
+   { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO\nNAME", menu_vna_mode_acb},
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
 #endif
@@ -1836,7 +1919,6 @@ const menuitem_t menu_more_settings[] = {
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_4,         "PULL 4\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
-
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1862,7 +1944,8 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
 //  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
   { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SAMPLE , "LOG\nPHASE",      menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_USB_LOG, "USB\nLOG",      menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_DISK_LOG, "DISK\nLOG",     menu_vna_mode_acb },
   { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2514,6 +2597,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
+[KM_CSV_NAME]       = {KEYPAD_TEXT,    FMT_CSV_FILE, "CSV",                input_filename },  // csv filename
 [KM_TAU]            = {KEYPAD_FLOAT,   0,            "TAU",                input_tau      },  // tau
 #endif
 [KM_PULL_1]         = {KEYPAD_FLOAT,   KM_PULL_1,    "PULL 1",             input_pull     }, // pull 1
@@ -3256,7 +3340,7 @@ ui_process(void)
 void handle_button_interrupt(uint16_t channel) {
   (void)channel;
   operation_requested|= OP_LEVER;
-  if (VNA_MODE(VNA_MODE_DUMP_SAMPLE)) apply_VNA_mode(VNA_MODE_DUMP_SAMPLE, VNA_MODE_CLR);
+  if (VNA_MODE(VNA_MODE_USB_LOG)) apply_VNA_mode(VNA_MODE_USB_LOG, VNA_MODE_CLR);
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 

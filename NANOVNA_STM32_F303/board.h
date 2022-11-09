@@ -54,7 +54,7 @@
 #define GPIOA_LEVER1			1
 #define GPIOA_LEVER2			2
 #define GPIOA_PUSH				3
-#define GPIOA_VBUS			    4
+#define GPIOA_PA4			    4
 #define GPIOA_DAC2				5
 #define GPIOA_XP				6
 #define GPIOA_YP				7
@@ -137,7 +137,7 @@
                                      PIN_MODE_INPUT(1U) |           \
                                      PIN_MODE_INPUT(2U) |  			\
                                      PIN_MODE_INPUT(3U) |   		\
-                                     PIN_MODE_INPUT(4U) |           \
+                                     PIN_MODE_OUTPUT(4U) |           \
                                      PIN_MODE_ANALOG(GPIOA_DAC2) |  \
                                      PIN_MODE_ANALOG(GPIOA_XP) |    \
                                      PIN_MODE_ANALOG(GPIOA_YP) |    \
@@ -169,7 +169,7 @@
                                      PIN_OSPEED_2M(1) |          \
                                      PIN_OSPEED_2M(2) |       \
                                      PIN_OSPEED_2M(3) |       \
-                                     PIN_OSPEED_2M(4) |          \
+                                     PIN_OSPEED_100M(4) |          \
                                      PIN_OSPEED_2M(GPIOA_DAC2) |           \
                                      PIN_OSPEED_2M(GPIOA_XP) |          \
                                      PIN_OSPEED_2M(GPIOA_YP) |          \

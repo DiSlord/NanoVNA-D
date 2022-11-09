@@ -273,6 +273,7 @@ extern float last_phase_d;
 extern float last_freq_d;
 extern float level_a;
 extern float level_b;
+extern int missing_samples;
 /*
  * CPU Hardware depend functions declaration
  */
@@ -982,7 +983,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Show grid values
 #define VNA_MODE_SHOW_GRID        4
 // Show grid values
-#define VNA_MODE_DUMP_SAMPLE         5
+#define VNA_MODE_USB_LOG         5
 // Made backup settings (save some settings after power off)
 #define VNA_MODE_BACKUP           6
 // Flip display
@@ -996,6 +997,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define VNA_MODE_TRACE_AVER       11
 #define VNA_MODE_TRACE_AVER_ON    1<<VNA_MODE_TRACE_AVER
+
+#define VNA_MODE_DISK_LOG         12
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1474,6 +1477,7 @@ extern uint8_t operation_requested;
 #define VNA_MODE_TOGGLE  2
 void apply_VNA_mode(uint16_t idx, uint16_t value);
 
+void disk_log(float p);
 /*
  * misclinous
  */
