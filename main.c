@@ -117,6 +117,7 @@ static bool sweep(bool break_on_operation, uint16_t ch_mask);
 uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
 uint16_t p_sweep = 0;
+uint16_t old_p_sweep;
 // Sweep measured data
 float measured[1][POINTS_COUNT][4];
 #define TEMP_COUNT 64
@@ -280,7 +281,7 @@ static THD_FUNCTION(Thread1, arg)
 //      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
-      request_to_redraw(REDRAW_PLOT|REDRAW_FREQUENCY);
+      request_to_redraw(REDRAW_PLOT);
     }
     request_to_redraw(REDRAW_BATTERY);
 #ifndef DEBUG_CONSOLE_SHOW
@@ -1729,6 +1730,10 @@ return_false:
 //  palClearPad(GPIOA, GPIOA_PA4);
   return false;
 return_true:
+  if (old_p_sweep != p_sweep) {
+    old_p_sweep = p_sweep;
+    request_to_redraw(REDRAW_FREQUENCY);
+  }
 //  palClearPad(GPIOA, GPIOA_PA4);
   return true;
 }

@@ -33,7 +33,7 @@ static void draw_measurements(void);
 static void draw_frequencies(void);
 static int  cell_printf(int16_t x, int16_t y, const char *fmt, ...);
 static void markmap_all_markers(void);
-
+static void clear_cache(void);
 static int16_t grid_offset;
 static int16_t grid_width;
 
@@ -1057,6 +1057,7 @@ static bool needProcessTrace(uint16_t idx) {
 void set_area_size(uint16_t w, uint16_t h) {
   area_width  = w;
   area_height = h;
+  clear_cache();
 }
 
 // Calculate marker area size depend from trace/marker count and options
@@ -2004,13 +2005,44 @@ cell_draw_marker_info(int x0, int y0)
 
 #ifndef MEASUREMENT_IN_GRID
 
-int draw_three_digits(int v, int x, int y, int dash){
-  lcd_drawfont( (dash?KP_MINUS: v/100), x, y);
+#define MAX_FONT_CACHE 32
+uint8_t font_cache[MAX_FONT_CACHE];
+
+static void clear_cache(void)
+{
+  for (int i = 0; i < MAX_FONT_CACHE; i++) font_cache[i] = 0;
+}
+
+static int lcd_large(int x, int y, double f, int dash, int index, int dot)
+{
+  uint32_t mask = 0b100100010001000;
+  uint8_t c = KP_PLUS;
+  if (f < 0 || dash) {
+    f = -f;
+    c = KP_MINUS;
+  }
+  if (c+1 != font_cache[index]) {
+    font_cache[index] = c+1;
+    lcd_drawfont(c, x, y);
+  }
+  index++;
   x+=NUM_FONT_GET_WIDTH;
-  lcd_drawfont( (dash?KP_MINUS: (v/10)%10), x, y);
-  x+=NUM_FONT_GET_WIDTH;
-  lcd_drawfont( (dash?KP_MINUS: v%10), x, y);
-  x+=NUM_FONT_GET_WIDTH;
+  while (mask) {
+    if (mask & 1) {
+      c = (index == dot ? KP_PERIOD : KP_SPACE);
+    } else {
+      c = (dash ? KP_MINUS: (int)f);
+      f -= (int)f;
+      f *= 10;
+    }
+    if (c+1 != font_cache[index]) {
+      font_cache[index] = c+1;
+      lcd_drawfont(c,x,y);
+    }
+    index++;
+    mask = mask >> 1;
+    x+=NUM_FONT_GET_WIDTH;
+  }
   return x;
 }
 
@@ -2036,83 +2068,21 @@ draw_measurements(void)
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 
-  lcd_printf(x,y+10               , "B-A Freq:");
-
-  x = 100;
-
   if (level_a < -60 || level_b < -60) dash = true;
-
-  double f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d);
-  if (f < 0 || dash) {
-    f = -f;
-    lcd_drawfont(KP_MINUS, x, y);
-  } else
-    lcd_drawfont(KP_PLUS, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_PERIOD, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y,dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  lcd_printf(x,y, "Hz");
-
-  y += NUM_FONT_GET_HEIGHT + FONT_STR_HEIGHT; // Extra space
-  x = 20;
-  lcd_printf(x,y+10, "B-A Phase:");
-
-  f = ((VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_phase_d : last_phase_d)/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e6;
-//  lcd_printf(100,y, "%.8Fs         ", f);
-
-
+  lcd_printf(x,y   , VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
+  lcd_printf(x,y+10, "B-A Freq:");
   x = 100;
+  double f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d) / 100;
+  x = lcd_large(x, y, f, dash, 0, 4);
+  lcd_printf(x,y, "Hz");
+  y += NUM_FONT_GET_HEIGHT + FONT_STR_HEIGHT; // Extra space
 
-  if (f < 0 || dash) {
-    f = -f;
-    lcd_drawfont(KP_MINUS, x, y);
-  } else
-    lcd_drawfont(KP_PLUS, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y,dash);
-  lcd_drawfont(KP_PERIOD, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
-  f -= (int)f;
-  f = f * 1000.0;
-  x = draw_three_digits((int)f,x,y, dash);
-  lcd_drawfont(KP_SPACE, x, y);
-  x+=NUM_FONT_GET_WIDTH;
-
+  x = 20;
+  lcd_printf(x,y   , VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
+  lcd_printf(x,y+10, "B-A Phase:");
+  x = 100;
+  f = ((VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_phase_d : last_phase_d)/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e4;
+  x = lcd_large(x, y, f, dash, 16, 24);
   lcd_printf(x,y, "ns");
   lcd_reset_right_border();
   missing_samples = false;

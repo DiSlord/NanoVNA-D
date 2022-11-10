@@ -1022,7 +1022,7 @@ enum {
 };
 #endif
 
-#define STORED_TRACES  1
+#define STORED_TRACES  0
 #define TRACES_MAX     4
 #define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
 

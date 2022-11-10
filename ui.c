@@ -1062,8 +1062,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
       if (VNA_MODE(VNA_MODE_PLL)) current_props.pll = 0;
       break;
     case VNA_MODE_NULL_PHASE:
-      if (VNA_MODE(VNA_MODE_NULL_PHASE)) set_null_phase(-aver_phase_d);
-      else set_null_phase(0);
+      set_null_phase(-aver_phase_d);
       break;
     case VNA_MODE_DISK_LOG:
       if (VNA_MODE(VNA_MODE_DISK_LOG)) {
@@ -1101,7 +1100,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_FLIP_DISPLAY] = 0,
     [VNA_MODE_PULLING] = 0,
     [VNA_MODE_SCROLLING] = 0,
-    [VNA_MODE_NULL_PHASE] = 0,
+    [VNA_MODE_NULL_PHASE] = "NULL\nPHASE\0NULL\nPHASE",
     [VNA_MODE_TRACE_AVER] = 0,
     [VNA_MODE_DISK_LOG] = 0
   };
@@ -1766,10 +1765,10 @@ static const menuitem_t menu_sdcard[] = {
 #ifdef __SD_FILE_BROWSER__
   { MT_SUBMENU,              0, "LOAD",       menu_sdcard_browse },
 #endif
-  { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
-  { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
-  { MT_CALLBACK, FMT_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
-  { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
+//  { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
+//  { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
+  { MT_CALLBACK, FMT_BMP_FILE, "SAVE\nSCREENSHOT", menu_sdcard_cb },
+//  { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
   { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
@@ -1855,7 +1854,7 @@ const menuitem_t menu_trace[] = {
   { MT_ADV_CALLBACK, 0, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 1, "TRACE %d", menu_trace_acb },
   { MT_ADV_CALLBACK, 2, "TRACE %d", menu_trace_acb },
-//  { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
+  { MT_ADV_CALLBACK, 3, "TRACE %d", menu_trace_acb },
 #if STORED_TRACES == 1
   { MT_ADV_CALLBACK, 0, "%s TRACE", menu_stored_trace_acb},
 #elif STORED_TRACES > 1
@@ -1871,18 +1870,18 @@ const menuitem_t menu_trace[] = {
 
 const menuitem_t menu_formatS11[] =
 {
-  { MT_ADV_CALLBACK, TRC_ALOGMAG, "A LOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_BLOGMAG, "B LOGMAG",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_APHASE,  "A PHASE",      menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_BPHASE,  "B PHASE",      menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_ALOGMAG, "A LOGMAG",     menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_BLOGMAG, "B LOGMAG",     menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_APHASE,  "A PHASE",      menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_BPHASE,  "B PHASE",      menu_format_acb },
   { MT_ADV_CALLBACK, TRC_DPHASE,  "D PHASE",      menu_format_acb },
   { MT_ADV_CALLBACK, TRC_AFREQ,   "A FREQ",       menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_BFREQ,   "B FREQ",       menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_BFREQ,   "B FREQ",       menu_format_acb },
   { MT_ADV_CALLBACK, TRC_DFREQ,   "D FREQ",       menu_format_acb },
 //  { MT_ADV_CALLBACK, TRC_VALUE,  "VALUE",       menu_format_acb },
   { MT_ADV_CALLBACK, 0,  "SAMPLE",                menu_sample_acb },
   { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2191,11 +2190,11 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",              menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %um" S_VOLT, menu_keyboard_acb },
-#ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
-#endif
-  { MT_ADV_CALLBACK, VNA_MODE_PLL, "PLL",                                      menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_PLL, "CORRECT\nPULLING",                         menu_vna_mode_acb},
+//#ifdef USE_VARIABLE_OFFSET_MENU
+//  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
+//#endif
+//  { MT_ADV_CALLBACK, VNA_MODE_PLL, "PLL",                                      menu_vna_mode_acb},
+//  { MT_ADV_CALLBACK, VNA_MODE_PLL, "CORRECT\nPULLING",                         menu_vna_mode_acb},
 #ifdef __USE_BACKUP__
   { MT_ADV_CALLBACK, VNA_MODE_BACKUP,"REMEMBER\nSTATE",                        menu_vna_mode_acb},
 #endif
@@ -2233,7 +2232,7 @@ const menuitem_t menu_top[] = {
 //  { MT_SUBMENU, 0, "MARKER",    menu_marker },
 //  { MT_SUBMENU, 0, "STIMULUS",  menu_stimulus },
 //  { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
-  { MT_SUBMENU, 0, "RECALL",    menu_recall },
+//  { MT_SUBMENU, 0, "RECALL",    menu_recall },
 #ifdef __VNA_MEASURE_MODULE__
   { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },
 #endif
