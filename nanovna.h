@@ -149,6 +149,7 @@
 //#define AUDIO_SAMPLES_COUNT   (96)
 #define AUDIO_SAMPLES_COUNT   (192)
 //#define AUDIO_SAMPLES_COUNT   (384)
+//#define AUDIO_SAMPLES_COUNT   (384*2)
 
 
 #define AUDIO_SHIFT 0
@@ -999,6 +1000,8 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_TRACE_AVER_ON    1<<VNA_MODE_TRACE_AVER
 
 #define VNA_MODE_DISK_LOG         12
+
+#define VNA_MODE_SPECTRUM         13
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

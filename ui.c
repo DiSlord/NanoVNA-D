@@ -1150,7 +1150,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
   }
   set_sweep_points(p_count);
 }
-#if 0
+#if 1
 const menuitem_t menu_power[];
 static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
 {
@@ -1886,8 +1886,9 @@ const menuitem_t menu_formatS11[] =
 };
 
 const menuitem_t menu_scale[] = {
-  { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0, "AUTO\nSCALE",              menu_auto_scale_acb },
+  { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV\n" R_LINK_COLOR " %b.2F",           menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_REFPOS, "REF POS\n" R_LINK_COLOR " %b.2F", menu_keyboard_acb },
 //  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
 //  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n" R_LINK_COLOR " %b.3F" S_dB, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
@@ -1941,6 +1942,7 @@ const menuitem_t menu_more_settings[] = {
 #ifdef USE_VARIABLE_OFFSET_MENU
   { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
 #endif
+  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
   { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
   { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
@@ -1957,7 +1959,6 @@ const menuitem_t menu_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
-  { MT_ADV_CALLBACK, 0, "AUTO\nSCALE",              menu_auto_scale_acb },
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
   { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
 
@@ -2475,13 +2476,13 @@ UI_KEYBOARD_CALLBACK(input_var_delay) {
 }
 
 UI_KEYBOARD_CALLBACK(input_scale) {
-  if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
+  if (b) {b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;return;}
   set_trace_scale(current_trace, data != KM_SCALE ? keyboard_get_nfloat() : keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
   (void)data;
-  if (b) return;
+  if (b)  {b->p1.f = current_trace != TRACE_INVALID ? get_trace_refpos(current_trace) : 0;return;}
   set_trace_refpos(current_trace, keyboard_get_float());
 }
 

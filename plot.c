@@ -2045,10 +2045,13 @@ static int lcd_large(int x, int y, double f, int dash, int index, int dot)
   }
   return x;
 }
+static prev_missing_samples = false;
 
 static void
 draw_measurements(void)
 {
+  if (prev_missing_samples != missing_samples) clear_cache();
+  prev_missing_samples = missing_samples;
   if (missing_samples)
     lcd_set_foreground(LCD_LOW_BAT_COLOR);
   else
@@ -2064,7 +2067,8 @@ draw_measurements(void)
   lcd_printf(x,      y, "AL:%.1FdBm       ", level_a);
   lcd_printf(x+80,   y, "BL:%.1FdBm       ", level_b);
   lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_freq_a);
-  lcd_printf(x+250,  y, "PLL:%F           ", current_props.pll);
+  lcd_printf(x+240,  y, "PLL:%F           ", current_props.pll);
+  lcd_printf(x+310,  y, "AGC:%d,%d        ", l_gain, r_gain);
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 

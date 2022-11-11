@@ -1549,7 +1549,20 @@ fetch_next:
       DSP_WAIT;
       if (operation_requested && break_on_operation)
         break;
-      float v = temp_measured[temp_output][3];
+
+      if (props_mode & TD_SAMPLE) {
+//        p_sweep = 0;
+        while (p_sweep < sweep_points /* && p_sweep < AUDIO_SAMPLES_COUNT */ ) {
+          measured[0][p_sweep][0] = (float)*filled_buffer++;
+          measured[0][p_sweep][1] = (float)*filled_buffer++;
+          p_sweep++;
+        }
+        if (p_sweep == sweep_points)
+          goto return_true;
+        continue;
+      }
+
+      float v = temp_measured[temp_output][3]/2;
       if (VNA_MODE(VNA_MODE_DISK_LOG))
         disk_log(v);
       if (VNA_MODE(VNA_MODE_USB_LOG))
@@ -1570,16 +1583,6 @@ fetch_next:
       // Place some code thats need execute while delay
       //================================================
 
-      if (props_mode & TD_SAMPLE) {
-        p_sweep = 0;
-        while (p_sweep < sweep_points && p_sweep < AUDIO_SAMPLES_COUNT) {
-          measured[0][p_sweep][0] = (float)*filled_buffer++;
-          measured[0][p_sweep][1] = (float)*filled_buffer++;
-          p_sweep++;
-        }
-        p_sweep = sweep_points;
-        goto return_true;
-      }
       // else
       // sample_count =
       //        calculate_gamma(measured[0][p_sweep]);              // Measure all
@@ -1636,14 +1639,14 @@ fetch_next:
   float (*array)[4] = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
-  for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep-2: 0); i<p_sweep-1; i++) {
+  int cnt=0;
+  for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep/2+2: 0); i<p_sweep-1; i++) {
     v += calc(i, array[i]);                                          // Get value
+    cnt++;
   }
-  if (!VNA_MODE(VNA_MODE_SCROLLING))
-    v = v/(p_sweep-1);
-  aver_freq_a = v;
+  aver_freq_a = v/cnt;
 
-  if (VNA_MODE(VNA_MODE_PLL) && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))) {
+  if (VNA_MODE(VNA_MODE_PLL) /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
     float new_pll;
     v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
     float factor = 260.0;
@@ -1672,7 +1675,7 @@ fetch_next:
     l_gain = old_l_gain;
     r_gain = old_r_gain;
 #ifdef NANOVNA_F303
-#define ADC_TARGET_LEVEL    10
+#define ADC_TARGET_LEVEL    0
 #else
 #define ADC_TARGET_LEVEL    -30
 #endif
