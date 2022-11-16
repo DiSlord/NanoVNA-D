@@ -975,9 +975,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_sample_acb)
   if (props_mode & TD_SAMPLE) {
     set_trace_type(0, TRC_ASAMPLE, 0);
     set_trace_type(2, TRC_BSAMPLE, 0);
+    trace[0].enabled = true;
+    trace[1].enabled = false;
+    trace[2].enabled = true;
+    trace[3].enabled = false;
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
   } else {
     set_trace_type(0, TRC_DPHASE, 0);
     set_trace_type(2, TRC_DFREQ, 0);
+    trace[1].enabled = true;
+    trace[3].enabled = true;
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_SET);
   }
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
@@ -1381,6 +1389,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
     return;
   }
   si5351_set_frequency_offset(offset);
+  si5351_set_frequency(get_sweep_frequency(ST_START), current_props._power);
 }
 
 const menuitem_t menu_offset[];

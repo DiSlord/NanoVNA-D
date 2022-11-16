@@ -1404,6 +1404,39 @@ no_regression:
   return(res_freq);
 }
 
+void do_agc(void)
+{
+  int old_l_gain = l_gain, old_r_gain = r_gain;
+  // Get level excluding gain.
+  l_gain = 0;
+  r_gain = 0;
+  get_value_cb_t calc;
+  calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
+  level_a = calc(p_sweep, measured[0][0]);                                          // Get value
+  calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
+  level_b = calc(p_sweep, measured[0][0]);                                          // Get value
+  l_gain = old_l_gain;
+  r_gain = old_r_gain;
+#ifdef NANOVNA_F303
+#define ADC_TARGET_LEVEL    0
+#else
+#define ADC_TARGET_LEVEL    -30
+#endif
+  l_gain -= 2.0*(level_a - (ADC_TARGET_LEVEL));
+  r_gain -= 2.0*(level_b - (ADC_TARGET_LEVEL));
+  if (l_gain < 0) l_gain = 0;
+  if (l_gain > 60) l_gain = 60;
+  if (r_gain < 0) r_gain = 0;
+  if (r_gain > 60) r_gain = 60;
+  if (old_l_gain != l_gain || old_r_gain != r_gain)
+    tlv320aic3204_set_gain(l_gain, r_gain);
+  // Get level including gain
+  calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
+  level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+  calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
+  level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+}
+
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
@@ -1557,8 +1590,10 @@ fetch_next:
           measured[0][p_sweep][1] = (float)*filled_buffer++;
           p_sweep++;
         }
-        if (p_sweep == sweep_points)
+        if (p_sweep == sweep_points) {
+          do_agc();
           goto return_true;
+        }
         continue;
       }
 
@@ -1639,59 +1674,31 @@ fetch_next:
   float (*array)[4] = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
-  int cnt=0;
-  for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep/2+2: 0); i<p_sweep-1; i++) {
+  for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep-2: 0); i<p_sweep-1; i++) {
     v += calc(i, array[i]);                                          // Get value
-    cnt++;
   }
-  aver_freq_a = v/cnt;
+  if (!VNA_MODE(VNA_MODE_SCROLLING))
+    v = v/(p_sweep-1);
+  aver_freq_a = v;
 
-  if (VNA_MODE(VNA_MODE_PLL) /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
+  if (VNA_MODE(VNA_MODE_PLL)&& level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
     float new_pll;
     v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
     float factor = 260.0;
-    if (VNA_MODE(VNA_MODE_SCROLLING))
-      factor *= get_tau();
+//    if (VNA_MODE(VNA_MODE_SCROLLING))
+//      factor *= get_tau();
     if (-0.02 < v && v < 0.02)
       new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
     else
       new_pll = current_props.pll - v * factor;
-    if (new_pll < 2000 && new_pll > -2000) {
+    if (new_pll < 10000 && new_pll > -10000) {
       current_props.pll = new_pll;
       set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
     }
   }
   if (!(operation_requested && break_on_operation))
   {
-    int old_l_gain = l_gain, old_r_gain = r_gain;
-    // Get level excluding gain.
-    l_gain = 0;
-    r_gain = 0;
-    get_value_cb_t calc;
-    calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
-    level_a = calc(p_sweep, measured[0][0]);                                          // Get value
-    calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
-    level_b = calc(p_sweep, measured[0][0]);                                          // Get value
-    l_gain = old_l_gain;
-    r_gain = old_r_gain;
-#ifdef NANOVNA_F303
-#define ADC_TARGET_LEVEL    0
-#else
-#define ADC_TARGET_LEVEL    -30
-#endif
-    l_gain -= 2.0*(level_a - (ADC_TARGET_LEVEL));
-    r_gain -= 2.0*(level_b - (ADC_TARGET_LEVEL));
-    if (l_gain < 0) l_gain = 0;
-    if (l_gain > 60) l_gain = 60;
-    if (r_gain < 0) r_gain = 0;
-    if (r_gain > 60) r_gain = 60;
-    if (old_l_gain != l_gain || old_r_gain != r_gain)
-      tlv320aic3204_set_gain(l_gain, r_gain);
-    // Get level including gain
-    calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
-    level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
-    calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
-    level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+    do_agc();
   }
 
 

@@ -56,8 +56,9 @@ cdc_linecoding_t linecoding = {
 /*
  * Interface implementation.
  */
-
-#define USB_TIMEOUT 10000
+#ifndef USB_TIMEOUT
+#define USB_TIMEOUT TIME_INFINITE
+#endif
 
 static size_t write(void *ip, const uint8_t *bp, size_t n) {
   if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {

@@ -332,6 +332,8 @@
 #define SERIAL_USB_TX_BUFFERS_NUMBER   4
 #endif
 
+#define USB_TIMEOUT 10000
+
 //#define STM32_USB_USE_FAST_COPY   TRUE
 //#define STM32_USB_USE_ISOCHRONOUS TRUE
 /*===========================================================================*/

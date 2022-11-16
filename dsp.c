@@ -25,6 +25,8 @@ typedef int16_t sincos_t;
 
 #ifdef USE_VARIABLE_OFFSET
 static sincos_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
+static sincos_t sincos_tbl_2[AUDIO_SAMPLES_COUNT][2];
+
 void generate_DSP_Table(int offset){
   float audio_freq  = AUDIO_ADC_FREQ;
   // N = offset * AUDIO_SAMPLES_COUNT / audio_freq; should be integer
