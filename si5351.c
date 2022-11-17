@@ -23,6 +23,7 @@
 #include "si5351.h"
 
 
+extern volatile uint16_t dirty_count;
 
 // audio codec frequency clock
 #define CLK2_FREQUENCY AUDIO_CLOCK_REF

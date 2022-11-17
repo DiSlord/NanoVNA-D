@@ -47,7 +47,7 @@
 #define LCD_320x240
 #endif
 
-
+#define SIDE_CHANNEL
 #define DMTD
 //#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  (int64_t)100LL
@@ -272,6 +272,9 @@ extern float aver_phase_d;
 extern float aver_freq_d;
 extern float last_phase_d;
 extern float last_freq_d;
+#ifdef SIDE_CHANNEL
+extern float aver_phase_s;
+#endif
 extern float level_a;
 extern float level_b;
 extern int missing_samples;
@@ -895,7 +898,7 @@ extern const uint8_t numfont16x22[];
 // trace 
 //#define  7
 enum trace_type {
-  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION, MAX_TRACE_TYPE
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION, TRC_SPHASE, TRC_SLOGMAG, MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
 #define GET_AFREQ   5
@@ -1108,6 +1111,10 @@ extern config_t config;
 extern properties_t current_props;
 extern float amp_a;
 extern float amp_b;
+#ifdef SIDE_CHANNEL
+extern float amp_s;
+#endif
+
 extern int l_gain, r_gain;
 
 void set_trace_type(int t, int type, int channel);

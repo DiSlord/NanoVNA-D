@@ -1126,6 +1126,7 @@ duplicate_buffer_to_dump(audio_sample_t *p, size_t n)
 static systime_t ready_time = 0;
 // sweep operation variables
 volatile uint16_t wait_count = 0;
+volatile uint16_t dirty_count = 0;
 //volatile uint16_t tau_count = 0;
 volatile uint16_t tau_current = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
@@ -1158,6 +1159,10 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   }
 #endif
 
+//  if (dirty_count) {
+//    dirty_count--;
+//    return;
+//  }
   //if ((flags & (STM32_DMA_ISR_TCIF|STM32_DMA_ISR_HTIF)) == 0) return;
   uint16_t wait = wait_count;
 //  palSetPad(GPIOA, GPIOA_PA4);
@@ -1600,10 +1605,19 @@ fetch_next:
       float v = temp_measured[temp_output][3]/2;
       if (VNA_MODE(VNA_MODE_DISK_LOG))
         disk_log(v);
-      if (VNA_MODE(VNA_MODE_USB_LOG))
+      if (VNA_MODE(VNA_MODE_USB_LOG)) {
+#ifdef SIDE_CHANNEL
+        shell_printf("%f ChA\r\n", v);
+        float v2 = temp_measured[temp_output][0]/2;
+        shell_printf("%f ChB\r\n", v-v2);
+#else
         shell_printf("%f\r\n", v);
+#endif
+      }
 
-//      measured[0][p_sweep][1] = temp_measured[temp_output][1];
+#ifdef SIDE_CHANNEL
+      measured[0][p_sweep][0] = temp_measured[temp_output][0];
+#endif
       measured[0][p_sweep][2] = temp_measured[temp_output][2];
       measured[0][p_sweep++][3] = temp_measured[temp_output++][3];
       temp_output &= TEMP_MASK;
@@ -1719,7 +1733,9 @@ fetch_next:
   do_compress:
     if (p_sweep == sweep_points) {
       for (int i=0;i<sweep_points-1;i++) {
-//        measured[0][i][0] = measured[0][i+1][0];
+#ifdef SIDE_CHANNEL
+        measured[0][i][0] = measured[0][i+1][0];
+#endif
 //        measured[0][i][1] = measured[0][i+1][1];
         measured[0][i][2] = measured[0][i+1][2];
         measured[0][i][3] = measured[0][i+1][3];
@@ -3929,6 +3945,7 @@ int main(void)
  * Start si5351
  */
   si5351_init();
+  dirty_count = 10;
 
 /*
  * Set frequency offset

@@ -315,6 +315,9 @@ static float linear(int i, const float *v) {
 
 float amp_a;
 float amp_b;
+#ifdef SIDE_CHANNEL
+float amp_s;
+#endif
 int l_gain = 20,
     r_gain = 20;
 
@@ -333,6 +336,14 @@ static float logmag_b(int i, const float *v) {
   return (2*vna_log10f_x_10(amp_b*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (r_gain-20) / 2.0;
 }
 
+#ifdef SIDE_CHANNEL
+static float logmag_s(int i, const float *v) {
+  (void) i;
+  (void) v;
+//  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+  return (2*vna_log10f_x_10(amp_s*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (l_gain-20) / 2.0;
+}
+#endif
 
 static float value(int i, const float *v) {
   (void) i;
@@ -381,6 +392,9 @@ static float get_phase(float v)
 static float phase_d(int i, const float *v) {
   (void) i;
   float p = v[3];
+//#ifdef SIDE_CHANNEL
+//  p = p - v[0];
+//#endif
   while (p >= 1)
     p -= 2.0;
   while (p<-1)
@@ -392,6 +406,19 @@ static float phase_d(int i, const float *v) {
   }
   return(p*360.0f);
 }
+
+#ifdef SIDE_CHANNEL
+static float phase_s(int i, const float *v) {
+  (void) i;
+  float p = v[0];
+  while (p >= 1)
+    p -= 2.0;
+  while (p<-1)
+    p += 2.0;
+  p /= 2.0;
+  return(p*360.0f);
+}
+#endif
 
 static float wraps = 0;
 static float r_start;
@@ -784,6 +811,8 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_BSAMPLE] = {"BSAMPLE",     "%.4F%s", "%.4F%s",         "",       0,        0x7ffe/4, sample_b   },
 [TRC_RESIDUE] = {"RESIDUE",     "%.4F%s", "%.4F%s",         "",       0,        0.00001,  residue    },
 [TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",         "",       0,        0.00001,  correction },
+[TRC_SPHASE]  = {"SP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_s    },
+[TRC_SLOGMAG] = {"SDB",         "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_s   },
 };
 
 

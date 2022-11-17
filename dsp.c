@@ -25,7 +25,9 @@ typedef int16_t sincos_t;
 
 #ifdef USE_VARIABLE_OFFSET
 static sincos_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
-static sincos_t sincos_tbl_2[AUDIO_SAMPLES_COUNT][2];
+#ifdef SIDE_CHANNEL
+static sincos_t sincos_tbl2[AUDIO_SAMPLES_COUNT][2];
+#endif
 
 void generate_DSP_Table(int offset){
   float audio_freq  = AUDIO_ADC_FREQ;
@@ -34,6 +36,10 @@ void generate_DSP_Table(int offset){
   // Bandwidth on one step = audio_freq / AUDIO_SAMPLES_COUNT
   float step = offset / audio_freq;
   float w = 0; //= step/2;
+#ifdef SIDE_CHANNEL
+  float step2 = offset * 2 / audio_freq / 3;
+  float w2 = 0;
+#endif
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
@@ -50,6 +56,22 @@ void generate_DSP_Table(int offset){
     sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
 #endif
     w+=step;
+#ifdef SIDE_CHANNEL
+    vna_sincosf(w2, &s, &c);
+#if 0
+#ifdef AUDIO_32_BIT
+    sincos_tbl2[i][0] = s*(float)(0x7fffff);
+    sincos_tbl2[i][1] = c*(float)(0x7fffff);
+#else
+    sincos_tbl2[i][0] = s*(float)(0x7ff0);
+    sincos_tbl2[i][1] = c*(float)(0x7ff0);
+#endif
+#else
+    sincos_tbl2[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+    sincos_tbl2[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+#endif
+    w2+=step2;
+#endif
   }
 }
 
@@ -222,6 +244,12 @@ static acc_t acc_samp_s;
 static acc_t acc_samp_c;
 static acc_t acc_ref_s;
 static acc_t acc_ref_c;
+#ifdef SIDE_CHANNEL
+static acc_t acc_samp_s2;
+static acc_t acc_samp_c2;
+static acc_t acc_ref_s2;
+static acc_t acc_ref_c2;
+#endif
 static float null_phase = 0.5;
 // Cortex M4 DSP instruction use
 #include "dsp.h"
@@ -247,6 +275,19 @@ dsp_process(audio_sample_t *capture, size_t length)
     acc_samp_c= __smlaltt(acc_samp_c, sr, sc ); // samp_c+= smp * cos
     acc_ref_s = __smlalbb( acc_ref_s, sr, sc ); //  ref_s+= ref * sin
     acc_ref_c = __smlalbt( acc_ref_c, sr, sc ); //  ref_s+= ref * cos
+#ifdef SIDE_CHANNEL
+    int32_t sc2 = ((int32_t *)sincos_tbl2)[i];
+// int32_t acc DSP functions, but int32 can overflow
+//    samp_s = __smlatb(sr, sc, samp_s); // samp_s+= smp * sin
+//    samp_c = __smlatt(sr, sc, samp_c); // samp_c+= smp * cos
+//    ref_s  = __smlabb(sr, sc, ref_s);  //  ref_s+= ref * sin
+//    ref_c  = __smlabt(sr, sc, ref_c);  //  ref_s+= ref * cos
+// int64_t acc DSP functions
+    acc_samp_s2= __smlaltb(acc_samp_s2, sr, sc2 ); // samp_s+= smp * sin
+    acc_samp_c2= __smlaltt(acc_samp_c2, sr, sc2 ); // samp_c+= smp * cos
+    acc_ref_s2 = __smlalbb( acc_ref_s2, sr, sc2 ); //  ref_s+= ref * sin
+    acc_ref_c2 = __smlalbt( acc_ref_c2, sr, sc2 ); //  ref_s+= ref * cos
+#endif
     i++;
   } while (i < length/2);
 // Accumulate result, for faster calc and prevent overflow reduce size to int32_t
@@ -268,6 +309,10 @@ volatile float gamma_aver[4];
 extern float amp_a;
 extern float amp_b;
 float prev_gamma1, prev_gamma2, prev_gamma3;
+#ifdef SIDE_CHANNEL
+volatile float gamma_aver_s;
+float prev_gammas;
+#endif
 
 #define LOG_SIZE    100
 volatile float phase_log[LOG_SIZE];
@@ -316,11 +361,25 @@ calculate_vectors(void)
   gamma_aver[3] += new_gamma;
   prev_gamma3 = new_gamma;
 #endif
+#ifdef SIDE_CHANNEL
+  new_gamma =  - vna_atan2f((acc_samp_c2 * (float)acc_ref_c2 + acc_samp_s2 * (float)acc_ref_s2),
+                         (acc_samp_s2 * (double)acc_ref_c2 - acc_samp_c2 * (double)acc_ref_s2)) / VNA_PI;
+  if ((new_gamma - prev_gammas) < -HALF_PHASE)
+    new_gamma = new_gamma + FULL_PHASE;
+  if ((new_gamma - prev_gammas) > HALF_PHASE)
+    new_gamma = new_gamma - FULL_PHASE;
+  gamma_aver_s += new_gamma;
+  prev_gammas = new_gamma;
 
+#endif
   // gamma[0] =
   amp_a = vna_sqrtf((float)acc_ref_c * (float)acc_ref_c + (float)acc_ref_s*(float)acc_ref_s);
 //  gamma[1] =
   amp_b = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
+#ifdef SIDE_CHANNEL
+  amp_s = vna_sqrtf((float)acc_ref_c2 * (float)acc_ref_c2 + (float)acc_ref_s2*(float)acc_ref_s2);
+#endif
+
 }
 
 
@@ -352,6 +411,15 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[3] -= FULL_PHASE;
   while (gamma[3] < -HALF_PHASE)
     gamma[3] += FULL_PHASE;
+
+#ifdef SIDE_CHANNEL
+  gamma[0] = gamma_aver_s/tau;
+  while (gamma[0] > HALF_PHASE)
+    gamma[0] -= FULL_PHASE;
+  while (gamma[0] < -HALF_PHASE)
+    gamma[0] += FULL_PHASE;
+#endif
+
   return(tau);
 }
 
@@ -388,6 +456,12 @@ reset_dsp_accumerator(void)
   acc_ref_c = 0;
   acc_samp_s = 0;
   acc_samp_c = 0;
+#ifdef SIDE_CHANNEL
+  acc_ref_s2 = 0;
+  acc_ref_c2 = 0;
+  acc_samp_s2 = 0;
+  acc_samp_c2 = 0;
+#endif
   sample_count = 0;
 }
 
@@ -401,6 +475,10 @@ reset_averaging(void)
   prev_gamma1 = 0;
   prev_gamma2 = 0;
   prev_gamma3 = 0;
+#ifdef SIDE_CHANNEL
+  gamma_aver_s = 0.0;
+  prev_gammas = 0.0;
+#endif
 }
 
 void set_null_phase(float v)

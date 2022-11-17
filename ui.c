@@ -1890,6 +1890,8 @@ const menuitem_t menu_formatS11[] =
 //  { MT_ADV_CALLBACK, TRC_VALUE,  "VALUE",       menu_format_acb },
   { MT_ADV_CALLBACK, 0,  "SAMPLE",                menu_sample_acb },
   { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SPHASE,   "S PHASE",       menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SLOGMAG,  "S LOGMAG",     menu_format_acb },
 //  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
