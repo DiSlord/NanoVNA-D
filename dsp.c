@@ -22,7 +22,7 @@
 #include "nanovna.h"
 
 typedef int16_t sincos_t;
-
+//#define SPLIT_FREQUENCY
 #ifdef USE_VARIABLE_OFFSET
 static sincos_t sincos_tbl[AUDIO_SAMPLES_COUNT][2];
 #ifdef SIDE_CHANNEL
@@ -37,7 +37,7 @@ void generate_DSP_Table(int offset){
   float step = offset / audio_freq;
   float w = 0; //= step/2;
 #ifdef SIDE_CHANNEL
-  float step2 = offset * 2 / audio_freq / 3;
+  float step2 = (offset *2 / 3) / audio_freq;
   float w2 = 0;
 #endif
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
@@ -413,11 +413,15 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[3] += FULL_PHASE;
 
 #ifdef SIDE_CHANNEL
-  gamma[0] = gamma_aver_s/tau;
-  while (gamma[0] > HALF_PHASE)
-    gamma[0] -= FULL_PHASE;
-  while (gamma[0] < -HALF_PHASE)
-    gamma[0] += FULL_PHASE;
+  static float temp, aver;
+  temp = gamma_aver_s/tau;
+  while (temp > HALF_PHASE)
+    temp -= FULL_PHASE;
+  while (temp < -HALF_PHASE)
+    temp += FULL_PHASE;
+#define S_AVER 20
+  aver = (aver * S_AVER + temp) / (S_AVER + 1);
+  gamma[0] = aver;
 #endif
 
   return(tau);

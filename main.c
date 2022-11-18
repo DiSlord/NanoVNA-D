@@ -134,6 +134,9 @@ float last_phase_d;
 float last_freq_d;
 float level_a;
 float level_b;
+#ifdef SIDE_CHANNEL
+float level_s;
+#endif
 int missing_samples = 0;
 
 
@@ -1187,44 +1190,25 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   if (wait_count == 0) {
     calculate_vectors();
     -- tau_current;
-    if (tau_current == 0 && !(props_mode & TD_SAMPLE)) {
-      calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
-      temp_input &= TEMP_MASK;
-      //      shell_printf("in  %d\r\n", temp_input);
-      if (temp_input == temp_output) {
-#if 0
-        temp_input--;
-        temp_input &= TEMP_MASK; // Delete sample.
-#else
-        //       shell_printf("in  reset\r\n", temp_input);
-        temp_output = temp_input;   // Remove all cached samples
-        missing_samples = true;
-        //        config.tau *= 2;
-        //        request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
-#endif
-        //        drawMessageBox("Error", "Sample Overflow", 2000);
-      }
-    }
-    //    if (VNA_MODE(VNA_MODE_USB_LOG))
-    //      p_sweep = 0;
-
     if (tau_current == 0) {
-#if 0           // for debugging timing
-      {
-        systime_t cur_time = chVTGetSystemTimeX();
-        systime_t delta_time = cur_time - log_prev_time;
-        log_prev_time = cur_time;
-        float cur_phase = array[p_sweep-1][3];
-        float delta_phase = cur_phase - log_prev_phase;
-        log_prev_phase = cur_phase;
-        shell_printf("%d %d %f\r\n", (uint32_t)delta_time, p_sweep, delta_phase);
-      }
+      if (!(props_mode & TD_SAMPLE)) {
+        calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
+        temp_input &= TEMP_MASK;
+        //      shell_printf("in  %d\r\n", temp_input);
+        if (temp_input == temp_output) {
+#if 0
+          temp_input--;
+          temp_input &= TEMP_MASK; // Delete sample.
+#else
+          temp_output = temp_input;   // Remove all cached samples
+          missing_samples = true;
 #endif
+        }
+      }
       dsp_ready = true;
     }
   }
 //  palClearPad(GPIOA, GPIOA_PA4);
-  //  stat.callback_count++;
 }
 
 #ifdef ENABLE_SI5351_TIMINGS
@@ -1440,13 +1424,17 @@ void do_agc(void)
   level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
   calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
   level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+#ifdef SIDE_CHANNEL
+  calc = trace_info_list[TRC_SLOGMAG].get_value_cb;
+  level_s = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+#endif
 }
 
 // main loop for measurement
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
 //  palSetPad(GPIOA, GPIOA_PA4);
-  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.01) {
+  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.1) {
     RESET_SWEEP;
 //    int dirty = 2;
 //    float aver_freq=0;
@@ -1695,18 +1683,23 @@ fetch_next:
     v = v/(p_sweep-1);
   aver_freq_a = v;
 
-  if (VNA_MODE(VNA_MODE_PLL)&& level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
-    float new_pll;
-    v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
-    float factor = 260.0;
+  if (VNA_MODE(VNA_MODE_PLL)) {
+    if (level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
+      float new_pll;
+      v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
+      float factor = 260.0;
 //    if (VNA_MODE(VNA_MODE_SCROLLING))
 //      factor *= get_tau();
-    if (-0.02 < v && v < 0.02)
-      new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
-    else
-      new_pll = current_props.pll - v * factor;
-    if (new_pll < 10000 && new_pll > -10000) {
-      current_props.pll = new_pll;
+      if (-0.02 < v && v < 0.02)
+        new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
+      else
+        new_pll = current_props.pll - v * factor;
+      if (new_pll < 10000 && new_pll > -10000) {
+        current_props.pll = new_pll;
+        set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
+      }
+    } else {
+      current_props.pll = 0;
       set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
     }
   }

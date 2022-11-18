@@ -47,7 +47,7 @@
 #define LCD_320x240
 #endif
 
-#define SIDE_CHANNEL
+//#define SIDE_CHANNEL
 #define DMTD
 //#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  (int64_t)100LL
@@ -277,6 +277,9 @@ extern float aver_phase_s;
 #endif
 extern float level_a;
 extern float level_b;
+#ifdef SIDE_CHANNEL
+extern float level_s;
+#endif
 extern int missing_samples;
 /*
  * CPU Hardware depend functions declaration
@@ -898,7 +901,11 @@ extern const uint8_t numfont16x22[];
 // trace 
 //#define  7
 enum trace_type {
-  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION, TRC_SPHASE, TRC_SLOGMAG, MAX_TRACE_TYPE
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION,
+#ifdef SIDE_CHANNEL
+  TRC_SPHASE, TRC_SLOGMAG,
+#endif
+  MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
 #define GET_AFREQ   5

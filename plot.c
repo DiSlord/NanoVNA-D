@@ -811,8 +811,10 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_BSAMPLE] = {"BSAMPLE",     "%.4F%s", "%.4F%s",         "",       0,        0x7ffe/4, sample_b   },
 [TRC_RESIDUE] = {"RESIDUE",     "%.4F%s", "%.4F%s",         "",       0,        0.00001,  residue    },
 [TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",         "",       0,        0.00001,  correction },
+#ifdef SIDE_CHANNEL
 [TRC_SPHASE]  = {"SP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_s    },
 [TRC_SLOGMAG] = {"SDB",         "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_s   },
+#endif
 };
 
 
@@ -2103,6 +2105,9 @@ draw_measurements(void)
   lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_aver_freq_a);
   lcd_printf(x+240,  y, "PLL:%F           ", current_props.pll);
   lcd_printf(x+310,  y, "AGC:%d,%d        ", l_gain, r_gain);
+#ifdef SIDE_CHANNEL
+  lcd_printf(x+400,   y, "SL:%.1FdBm       ", level_s);
+#endif
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 
