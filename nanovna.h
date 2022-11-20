@@ -1211,6 +1211,7 @@ void lcd_bulk_finish(void);                             // wait DMA complete (ne
 
 void lcd_set_foreground(uint16_t fg_idx);
 void lcd_set_background(uint16_t bg_idx);
+void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx);
 void lcd_clear_screen(void);
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void lcd_drawchar(uint8_t ch, int x, int y);

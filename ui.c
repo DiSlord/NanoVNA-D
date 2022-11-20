@@ -489,8 +489,7 @@ touch_wait_pressed(void)
 
 static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *data) {
   // Clear screen and ask for press
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
   lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
@@ -520,8 +519,7 @@ touch_draw_test(void)
 {
   int x0, y0;
   int x1, y1;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
 
@@ -567,8 +565,7 @@ show_version(void)
 {
   int x = 5, y = 5, i = 1;
   int str_height = FONT_STR_HEIGHT + 2;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
 
   lcd_clear_screen();
   uint16_t shift = 0b00010010000;
@@ -616,8 +613,7 @@ enter_dfu(void)
 {
   touch_stop_watchdog();
   int x = 5, y = 20;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   // leave a last message 
   lcd_clear_screen();
   lcd_drawstring(x, y, "DFU: Device Firmware Update Mode\n"
@@ -2090,17 +2086,25 @@ static const menuitem_t *menu_next_item(const menuitem_t *m){
   return m->type == MT_NONE ? (menuitem_t *)m->reference : m;
 }
 
-static const menuitem_t *current_menu_item(int i){
+static const menuitem_t *current_menu_item(int i) {
   const menuitem_t *m = menu_stack[menu_current_level];
   while (i--) m = menu_next_item(m);
   return m;
 }
 
-static int current_menu_get_count(void){
+static int current_menu_get_count(void) {
   int i = 0;
   const menuitem_t *m = menu_stack[menu_current_level];
   while (m){m = menu_next_item(m); i++;}
   return i;
+}
+
+static int get_lines_count(const char *label) {
+  int n = 1;
+  while (*label)
+    if (*label++ == '\n')
+      n++;
+  return n;
 }
 
 static void
@@ -2501,8 +2505,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
     lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
   }
   // Set colors for button and text
-  lcd_set_foreground(b->fg);
-  lcd_set_background(b->bg);
+  lcd_set_colors(b->fg, b->bg);
   if (type & BUTTON_BORDER_NO_FILL) return;
   lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
 }
@@ -2536,8 +2539,7 @@ draw_keypad_button(int id) {
   if (id == selection) {
     button.bg = LCD_MENU_ACTIVE_COLOR;
     button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-  }
-  else{
+  } else{
     button.bg = LCD_MENU_COLOR;
     button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
   }
@@ -2573,13 +2575,12 @@ draw_keypad(void)
 
 static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
 
-static void
-draw_numeric_area_frame(void)
-{
-  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-  lcd_set_background(LCD_INPUT_BG_COLOR);
+static void draw_numeric_area_frame(void) {
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
   lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
-  lcd_drawstring(10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2, keypads_mode_tbl[keypad_mode].name);
+  const char *label = keypads_mode_tbl[keypad_mode].name;
+  int lines = get_lines_count(label);
+  lcd_drawstring(10, LCD_HEIGHT-(FONT_STR_HEIGHT * lines + NUM_INPUT_HEIGHT)/2, label);
 }
 
 static void
@@ -2602,9 +2603,7 @@ draw_numeric_input(const char *buf)
     else// if (c >= '0' && c <= '9')
       c = c - '0';
     if (c < 0) c = 0;
-    lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-    lcd_set_background(LCD_INPUT_BG_COLOR);
-
+    lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
     // Add space before char
     uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
@@ -2621,8 +2620,7 @@ draw_numeric_input(const char *buf)
 static void
 draw_text_input(const char *buf)
 {
-  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-  lcd_set_background(LCD_INPUT_BG_COLOR);
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
 #if 0
   uint16_t x = 14 + 5 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
@@ -2635,16 +2633,6 @@ draw_text_input(const char *buf)
   lcd_fill(x, y, FONT_WIDTH * 20 * n, FONT_GET_HEIGHT*n);
   lcd_drawstring_size(buf, x, y, n);
 #endif
-}
-
-static int
-menu_is_multiline(const char *label)
-{
-  int n = 1;
-  while (*label)
-    if (*label++ == '\n')
-      n++;
-  return n;
 }
 
 static void
@@ -2661,8 +2649,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     if (ui_mode == UI_MENU && i == selection){
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-    }
-    else{
+    } else{
       button.bg = LCD_MENU_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
@@ -2687,7 +2674,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     } else
       text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_TEXT_OFFSET;
     // Draw button text
-    int lines = menu_is_multiline(text);
+    int lines = get_lines_count(text);
 #if _USE_FONT_ != _USE_SMALL_FONT_
     if (menu_button_height < lines*FONT_GET_HEIGHT + 2) {
       lcd_set_font(FONT_SMALL);
@@ -2854,8 +2841,7 @@ full_keypad_click(int c)
     if (kp_index == 0)
       return KP_CANCEL;
     --kp_index;
-  }
-  else if (kp_index < TXTINPUT_LEN) { // any other text input
+  } else if (kp_index < TXTINPUT_LEN) { // any other text input
     kp_buf[kp_index++] = c;
   }
   kp_buf[kp_index] = '\0';
@@ -2987,11 +2973,10 @@ static void
 lever_frequency(uint16_t status, int mode)
 {
   freq_t freq = get_sweep_frequency(mode);
-  if (mode == ST_SPAN){
+  if (mode == ST_SPAN) {
     if (status & EVT_UP  ) freq = var_freq ? (freq + var_freq) : step_round(freq*4 + 1);
     if (status & EVT_DOWN) freq = var_freq ? (freq - var_freq) : step_round(freq   - 1);
-  }
-  else{
+  } else {
     freq_t span = var_freq ? var_freq : step_round(get_sweep_frequency(ST_SPAN) / 4);
     if (status & EVT_UP  ) freq+= span;
     if (status & EVT_DOWN) freq-= span;

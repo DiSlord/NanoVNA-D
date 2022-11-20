@@ -1123,8 +1123,7 @@ static void measure_prepare(void) {
 
 static void cell_draw_measure(int x0, int y0){
   if (measure_cell_handler == NULL) return;
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_LC_MATCH_COLOR);
+  lcd_set_colors(LCD_LC_MATCH_COLOR, LCD_BG_COLOR);
   measure_cell_handler(x0, y0);
 }
 #endif
@@ -1736,9 +1735,8 @@ draw_frequencies(void)
   char lm0 = lever_mode == LM_FREQ_0 ? S_SARROW[0] : ' ';
   char lm1 = lever_mode == LM_FREQ_1 ? S_SARROW[0] : ' ';
   // Draw frequency string
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, HEIGHT + 1, LCD_WIDTH, LCD_HEIGHT - HEIGHT - 1);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
+  lcd_fill(0, HEIGHT + OFFSETY + 1, LCD_WIDTH, LCD_HEIGHT - HEIGHT - OFFSETY - 1);
   lcd_set_font(FONT_SMALL);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
@@ -1770,8 +1768,7 @@ draw_cal_status(void)
   uint32_t i;
   int x = CALIBRATION_INFO_POSX;
   int y = CALIBRATION_INFO_POSY;
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
+  lcd_set_colors(LCD_DISABLE_CAL_COLOR, LCD_BG_COLOR);
   lcd_fill(x, y, OFFSETX - x, 10*(sFONT_STR_HEIGHT));
   lcd_set_font(FONT_SMALL);
   if (cal_status & CALSTAT_APPLY) {
@@ -1827,8 +1824,7 @@ static void draw_battery_status(void)
     return;
   uint8_t string_buf[24];
   // Set battery color
-  lcd_set_foreground(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR, LCD_BG_COLOR);
 //  plot_printf(string_buf, sizeof string_buf, "V:%d", vbat);
 //  lcd_drawstringV(string_buf, 1, 60);
   // Prepare battery bitmap image
