@@ -392,9 +392,6 @@ static float get_phase(float v)
 static float phase_d(int i, const float *v) {
   (void) i;
   float p = v[3];
-//#ifdef SIDE_CHANNEL
-//  p = p - v[0];
-//#endif
   while (p >= 1)
     p -= 2.0;
   while (p<-1)

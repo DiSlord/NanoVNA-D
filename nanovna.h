@@ -47,7 +47,7 @@
 #define LCD_320x240
 #endif
 
-//#define SIDE_CHANNEL
+#define SIDE_CHANNEL
 #define DMTD
 //#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  (int64_t)100LL
@@ -1011,7 +1011,12 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define VNA_MODE_DISK_LOG         12
 
-#define VNA_MODE_SPECTRUM         13
+#define VNA_MODE_SIDE_CHANNEL     13
+#define VNA_MODE_SIDE_CHANNEL_ON  1<<VNA_MODE_SIDE_CHANNEL
+
+#define VNA_MODE_DUMP_SIDE        14
+
+// #define VNA_MODE_SPECTRUM         15
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

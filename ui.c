@@ -1047,6 +1047,8 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_NULL_PHASE]   = REDRAW_AREA,
     [VNA_MODE_TRACE_AVER]   = REDRAW_AREA,
     [VNA_MODE_DISK_LOG]     = REDRAW_AREA,
+    [VNA_MODE_SIDE_CHANNEL] = REDRAW_AREA,
+    [VNA_MODE_DUMP_SIDE]    = REDRAW_AREA,
   };
   request_to_redraw(redraw[idx]);
   // Custom processing after apply
@@ -1110,7 +1112,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_SCROLLING] = 0,
     [VNA_MODE_NULL_PHASE] = "NULL\nPHASE\0NULL\nPHASE",
     [VNA_MODE_TRACE_AVER] = 0,
-    [VNA_MODE_DISK_LOG] = 0
+    [VNA_MODE_DISK_LOG] = 0,
+    [VNA_MODE_SIDE_CHANNEL] = 0,
+    [VNA_MODE_DUMP_SIDE] = 0
   };
   if (b){
     if (vna_mode_text[data] == 0)
@@ -1969,6 +1973,8 @@ const menuitem_t menu_more_settings[] = {
 const menuitem_t menu_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_SIDE_CHANNEL,  "SIDE\nCHANNEL",                         menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "DUMP\nSIDE",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },

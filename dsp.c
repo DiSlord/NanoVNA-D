@@ -402,8 +402,23 @@ calculate_gamma(float gamma[4], uint16_t tau)
   while (gamma[2] < -HALF_PHASE)
     gamma[2] += FULL_PHASE;
 
+#ifdef SIDE_CHANNEL
+  static float temp, aver;
+  temp = gamma_aver_s/tau;
+  while (temp > HALF_PHASE)
+    temp -= FULL_PHASE;
+  while (temp < -HALF_PHASE)
+    temp += FULL_PHASE;
+#define S_AVER 0
+  aver = (aver * S_AVER + temp) / (S_AVER + 1);
+  gamma[0] = aver;
+#endif
+
+
 #ifdef CALC_GAMMA_3
   gamma[3] = gamma_aver[3]/tau + null_phase;
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) && level_s > -30)
+    gamma[3] -= aver;
 #else
   gamma[3] = gamma[2] - gamma[1] ;
 #endif
@@ -412,17 +427,6 @@ calculate_gamma(float gamma[4], uint16_t tau)
   while (gamma[3] < -HALF_PHASE)
     gamma[3] += FULL_PHASE;
 
-#ifdef SIDE_CHANNEL
-  static float temp, aver;
-  temp = gamma_aver_s/tau;
-  while (temp > HALF_PHASE)
-    temp -= FULL_PHASE;
-  while (temp < -HALF_PHASE)
-    temp += FULL_PHASE;
-#define S_AVER 20
-  aver = (aver * S_AVER + temp) / (S_AVER + 1);
-  gamma[0] = aver;
-#endif
 
   return(tau);
 }

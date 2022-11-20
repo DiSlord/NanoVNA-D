@@ -942,7 +942,7 @@ config_t config = {
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._IF_freq    = FREQUENCY_OFFSET,
   ._touch_cal  = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX | VNA_MODE_PLL_ON | VNA_MODE_SCROLLING_ON,
+  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX | VNA_MODE_PLL_ON | VNA_MODE_SCROLLING_ON | VNA_MODE_SIDE_CHANNEL_ON,
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
@@ -1434,7 +1434,7 @@ void do_agc(void)
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
 //  palSetPad(GPIOA, GPIOA_PA4);
-  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.1) {
+  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.01) {
     RESET_SWEEP;
 //    int dirty = 2;
 //    float aver_freq=0;
@@ -1530,21 +1530,14 @@ static bool sweep(bool break_on_operation, uint16_t mask)
 #endif
         //      }
         //      v = v/sweep_points;
-#if 1
 
-//#ifndef RUNTIME_RESIDUE
-         shell_printf("%f\r\n", v);
-//         shell_printf("%f %d %f %f %f %f %f %f %f %f %f %f\r\n",phase, wraps, prev_phase, freq, aver_freq, residue, aver_residue, residue-aver_residue, get_correction(v),residue-aver_residue-get_correction(v),phase_correction[0],phase_correction[1]  );
+//#ifdef SIDE_CHANNEL
+//        shell_printf("%f ChA\r\n", v);
+//        float v2 = temp_measured[temp_output][0]/2;
+//        shell_printf("%f ChB\r\n", v-v2);
+//#else
+        shell_printf("%f\r\n", v);
 //#endif
-#else
-        shell_printf("CHA %f\r\n",v);
-        calc = trace_info_list[TRC_APHASE].get_value_cb;
-        v = calc(p_sweep, array[p_sweep]);
-        shell_printf("CHB %f\r\n",v/360);
-        calc = trace_info_list[TRC_BPHASE].get_value_cb;
-        v = calc(p_sweep, array[p_sweep]);
-        shell_printf("CHC %f\r\n",v/360);
-#endif
       }
       if (operation_requested && break_on_operation)
         break;
@@ -1594,12 +1587,12 @@ fetch_next:
       if (VNA_MODE(VNA_MODE_DISK_LOG))
         disk_log(v);
       if (VNA_MODE(VNA_MODE_USB_LOG)) {
-#ifdef SIDE_CHANNEL
         shell_printf("%f ChA\r\n", v);
-        float v2 = temp_measured[temp_output][0]/2;
-        shell_printf("%f ChB\r\n", v-v2);
-#else
-        shell_printf("%f\r\n", v);
+#ifdef SIDE_CHANNEL
+        if (VNA_MODE(VNA_MODE_DUMP_SIDE)) {
+          float v2 = temp_measured[temp_output][0]/2;
+          shell_printf("%f ChB\r\n", v2);
+        }
 #endif
       }
 
