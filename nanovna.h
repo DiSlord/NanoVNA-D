@@ -529,6 +529,7 @@ void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
 void reset_averaging(void);
 int calculate_gamma(float *gamma, uint16_t tau);
+float get_freq_a(void);
 void set_null_phase(float v);
 void calculate_vectors(void);
 void fetch_amplitude(float *gamma);
@@ -1016,7 +1017,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define VNA_MODE_DUMP_SIDE        14
 
-// #define VNA_MODE_SPECTRUM         15
+#define VNA_MODE_FREEZE_DISPLAY   15
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

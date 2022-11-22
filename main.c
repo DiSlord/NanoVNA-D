@@ -128,6 +128,7 @@ volatile int temp_output = 0;
 
 //uint16_t sample_count;
 float aver_freq_a;
+float aver_freq_sum_a;
 float aver_phase_d;
 float aver_freq_d;
 float last_phase_d;
@@ -1176,6 +1177,7 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   }
   if (tau_current == 0) {
     tau_current = config.tau;
+    aver_freq_sum_a = 0;
     reset_averaging();
   }
   uint16_t count = AUDIO_BUFFER_LEN;
@@ -1189,10 +1191,12 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
 
   if (wait_count == 0) {
     calculate_vectors();
+    aver_freq_sum_a += get_freq_a();
     -- tau_current;
     if (tau_current == 0) {
       if (!(props_mode & TD_SAMPLE)) {
         calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
+        aver_freq_a = aver_freq_sum_a / config.tau;
         temp_input &= TEMP_MASK;
         //      shell_printf("in  %d\r\n", temp_input);
         if (temp_input == temp_output) {
@@ -1434,7 +1438,7 @@ void do_agc(void)
 static bool sweep(bool break_on_operation, uint16_t mask)
 {
 //  palSetPad(GPIOA, GPIOA_PA4);
-  if (VNA_MODE(VNA_MODE_USB_LOG) && get_tau()<0.01) {
+  if (VNA_MODE(VNA_MODE_USB_LOG) && VNA_MODE(VNA_MODE_FREEZE_DISPLAY)) {
     RESET_SWEEP;
 //    int dirty = 2;
 //    float aver_freq=0;
@@ -1664,9 +1668,11 @@ fetch_next:
 
 
   // -------------------- Auto set CW frequency ----------------------
-
-  get_value_cb_t calc = trace_info_list[GET_AFREQ].get_value_cb; // dfreq port 1
-  float (*array)[4] = measured[0];
+  float (*array)[4];
+  get_value_cb_t calc;
+#if 0
+  calc = trace_info_list[GET_AFREQ].get_value_cb; // dfreq port 1
+  array = measured[0];
   //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
   float v = 0;
   for (int i = (VNA_MODE(VNA_MODE_SCROLLING) ?  p_sweep-2: 0); i<p_sweep-1; i++) {
@@ -1675,7 +1681,8 @@ fetch_next:
   if (!VNA_MODE(VNA_MODE_SCROLLING))
     v = v/(p_sweep-1);
   aver_freq_a = v;
-
+#endif
+  float v = aver_freq_a;
   if (VNA_MODE(VNA_MODE_PLL)) {
     if (level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;

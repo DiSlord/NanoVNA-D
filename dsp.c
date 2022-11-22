@@ -244,6 +244,8 @@ static acc_t acc_samp_s;
 static acc_t acc_samp_c;
 static acc_t acc_ref_s;
 static acc_t acc_ref_c;
+static acc_t acc_prev_s;
+static acc_t acc_prev_c;
 #ifdef SIDE_CHANNEL
 static acc_t acc_samp_s2;
 static acc_t acc_samp_c2;
@@ -306,9 +308,10 @@ typedef double calc_t;
 //volatile float prev_speed = -5.0;
 //volatile float accell = 0;
 volatile float gamma_aver[4];
+volatile float gamma_delta_pll;
 extern float amp_a;
 extern float amp_b;
-float prev_gamma1, prev_gamma2, prev_gamma3;
+float prev_gamma1, prev_gamma2, prev_gamma3, prev_gamma_pll;
 #ifdef SIDE_CHANNEL
 volatile float gamma_aver_s;
 float prev_gammas;
@@ -322,6 +325,7 @@ int log_index = 0;
 #define FULL_PHASE  2.0
 
 #define CALC_GAMMA_3
+
 
 void
 calculate_vectors(void)
@@ -380,8 +384,25 @@ calculate_vectors(void)
   amp_s = vna_sqrtf((float)acc_ref_c2 * (float)acc_ref_c2 + (float)acc_ref_s2*(float)acc_ref_s2);
 #endif
 
+  // calculate pll delta phase
+  new_gamma = vna_atan2f(acc_ref_s - acc_prev_s,acc_ref_c-acc_prev_c) / VNA_PI;
+  float delta_gamma = new_gamma - prev_gamma_pll;
+  if ((delta_gamma) < -HALF_PHASE)
+    delta_gamma = delta_gamma + FULL_PHASE;
+  if ((delta_gamma) > HALF_PHASE)
+    delta_gamma = delta_gamma - FULL_PHASE;
+  gamma_delta_pll = delta_gamma;
+  prev_gamma_pll = new_gamma;
+  acc_prev_s = acc_ref_s;
+  acc_prev_c = acc_ref_c;
 }
 
+float get_freq_a(void)
+{
+  float df = gamma_delta_pll * (AUDIO_ADC_FREQ>>1);
+  df /= (config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
+  return (df);
+}
 
 int
 calculate_gamma(float gamma[4], uint16_t tau)
@@ -464,6 +485,8 @@ reset_dsp_accumerator(void)
   acc_ref_c = 0;
   acc_samp_s = 0;
   acc_samp_c = 0;
+  acc_prev_s = 0;           // For PLL
+  acc_prev_c = 0;
 #ifdef SIDE_CHANNEL
   acc_ref_s2 = 0;
   acc_ref_c2 = 0;
@@ -483,6 +506,7 @@ reset_averaging(void)
   prev_gamma1 = 0;
   prev_gamma2 = 0;
   prev_gamma3 = 0;
+//  prev_gamma_pll = 0;
 #ifdef SIDE_CHANNEL
   gamma_aver_s = 0.0;
   prev_gammas = 0.0;

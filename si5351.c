@@ -543,6 +543,9 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   uint32_t fdiv, pll_n;
   uint32_t ofreq = freq + IF_OFFSET;
 
+  if (freq == current_freq &&  ((int)current_props.pll )== current_pll)
+    return DELAY_CHANNEL_CHANGE;
+
   // Select optimal band for prepared freq
   if (freq <  26000U) {
      rdiv = SI5351_R_DIV(7);
@@ -573,9 +576,6 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
     current_power = drive_strength;
   }
 
-  if (freq == current_freq &&  ((int)current_props.pll )== current_pll)
-    return DELAY_CHANNEL_CHANGE;
-
   current_pll = (int)current_props.pll;
 
   if (current_band != band) {
@@ -583,8 +583,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
     if (DELAY_RESET_PLL_BEFORE)
       si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
     // Set new gain values
-    if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain)
-      tlv320aic3204_set_gain(band_s[band].l_gain, band_s[band].r_gain);
+//    if (band_s[current_band].l_gain != band_s[band].l_gain || band_s[current_band].r_gain != band_s[band].r_gain)
+//      tlv320aic3204_set_gain(band_s[band].l_gain, band_s[band].r_gain);
     // Add delay
     if (DELAY_RESET_PLL_BEFORE)
       chThdSleepMicroseconds(DELAY_RESET_PLL_BEFORE);
@@ -607,8 +607,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
 //      si5351_set_frequency_fixedpll(AUDIO_CODEC_CHANNEL, (config._xtal_freq - (int)(current_props.pll/FREQ_SCALE)) * PLL_N_2, CLK2_FREQUENCY, SI5351_R_DIV_1, SI5351_CLK_DRIVE_STRENGTH_2MA | SI5351_CLK_PLL_SELECT_B);
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
-      si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n, (freq + IF_OFFSET)*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
-//      si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n,  (freq + IF_OFFSET) * FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+      si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n, ofreq*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+//      si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n,  freq*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
 #ifndef DMTD
       si5351_set_frequency_fixedpll( FREQ_CHANNEL, (uint64_t) mul * config._xtal_freq * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
 #endif

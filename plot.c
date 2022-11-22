@@ -2075,8 +2075,8 @@ static int lcd_large(int x, int y, double f, int dash, int index, int dot)
 }
 static prev_missing_samples = false;
 
-#define FREQ_A_AVERAGE  5
-static float aver_aver_freq_a = 0;
+//#define FREQ_A_AVERAGE  5
+//static float aver_aver_freq_a = 0;
 
 static void
 draw_measurements(void)
@@ -2092,14 +2092,15 @@ draw_measurements(void)
   int y = 0;
   int dash = false;
 
-  int f_aver = FREQ_A_AVERAGE / get_tau();
-  aver_aver_freq_a = (aver_aver_freq_a * f_aver + aver_freq_a) / (f_aver+1)  ;
+//  int f_aver = FREQ_A_AVERAGE / get_tau();
+//  int f_aver = 0;
+//  aver_aver_freq_a = (aver_aver_freq_a * f_aver + aver_freq_a) / (f_aver+1)  ;
 
   lcd_set_right_border(area_width + OFFSETX);
 
   lcd_printf(x,      y, "AL:%.1FdBm       ", level_a);
   lcd_printf(x+80,   y, "BL:%.1FdBm       ", level_b);
-  lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_aver_freq_a);
+  lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_freq_a);
   lcd_printf(x+240,  y, "PLL:%F           ", current_props.pll);
   lcd_printf(x+310,  y, "AGC:%d,%d        ", l_gain, r_gain);
 #ifdef SIDE_CHANNEL
