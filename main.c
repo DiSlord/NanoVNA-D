@@ -136,7 +136,8 @@ float last_freq_d;
 float level_a;
 float level_b;
 #ifdef SIDE_CHANNEL
-float level_s;
+float level_sa;
+float level_sb;
 #endif
 int missing_samples = 0;
 
@@ -1429,8 +1430,10 @@ void do_agc(void)
   calc = trace_info_list[TRC_BLOGMAG].get_value_cb;
   level_b = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
 #ifdef SIDE_CHANNEL
-  calc = trace_info_list[TRC_SLOGMAG].get_value_cb;
-  level_s = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+  calc = trace_info_list[TRC_SALOGMAG].get_value_cb;
+  level_sa = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
+  calc = trace_info_list[TRC_SBLOGMAG].get_value_cb;
+  level_sb = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
 #endif
 }
 
@@ -1690,11 +1693,11 @@ fetch_next:
       float factor = 260.0;
 //    if (VNA_MODE(VNA_MODE_SCROLLING))
 //      factor *= get_tau();
-      if (-0.02 < v && v < 0.02)
+      if (-0.05 < v && v < 0.05)
         new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
       else
         new_pll = current_props.pll - v * factor;
-      if (new_pll < 10000 && new_pll > -10000) {
+      if (new_pll < 10000 && new_pll > -10000 && ((current_props.pll - new_pll) > 0.5 || (current_props.pll - new_pll) < -0.5)) {
         current_props.pll = new_pll;
         set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
       }

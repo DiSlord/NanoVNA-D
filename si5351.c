@@ -542,6 +542,8 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   uint32_t rdiv = SI5351_R_DIV_1;
   uint32_t fdiv, pll_n;
   uint32_t ofreq = freq + IF_OFFSET;
+  freq += 8050;
+
 
   if (freq == current_freq &&  ((int)current_props.pll )== current_pll)
     return DELAY_CHANNEL_CHANGE;
@@ -608,7 +610,10 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
       delay = DELAY_BAND_1_2;
       // Calculate and set CH0 and CH1 divider
       si5351_set_frequency_fixedpll(OFREQ_CHANNEL, (uint64_t)omul * ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n, ofreq*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
-//      si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n,  freq*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+#ifdef SIDE_CHANNEL
+      if (VNA_MODE(VNA_MODE_SIDE))
+        si5351_set_frequency_fixedpll(FREQ_CHANNEL, (uint64_t)omul *  ((freq_t)(config._xtal_freq * FREQ_SCALE + (int)current_props.pll)) * pll_n,  freq*FREQ_SCALE, rdiv, ods | SI5351_CLK_PLL_SELECT_A);
+#endif
 #ifndef DMTD
       si5351_set_frequency_fixedpll( FREQ_CHANNEL, (uint64_t) mul * config._xtal_freq * pll_n,  freq, rdiv,  ds | SI5351_CLK_PLL_SELECT_A);
 #endif

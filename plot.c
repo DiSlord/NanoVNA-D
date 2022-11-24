@@ -316,7 +316,8 @@ static float linear(int i, const float *v) {
 float amp_a;
 float amp_b;
 #ifdef SIDE_CHANNEL
-float amp_s;
+float amp_sa;
+float amp_sb;
 #endif
 int l_gain = 20,
     r_gain = 20;
@@ -337,11 +338,18 @@ static float logmag_b(int i, const float *v) {
 }
 
 #ifdef SIDE_CHANNEL
-static float logmag_s(int i, const float *v) {
+static float logmag_sa(int i, const float *v) {
   (void) i;
   (void) v;
 //  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
-  return (2*vna_log10f_x_10(amp_s*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (l_gain-20) / 2.0;
+  return (2*vna_log10f_x_10(amp_sa*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (l_gain-20) / 2.0;
+}
+
+static float logmag_sb(int i, const float *v) {
+  (void) i;
+  (void) v;
+//  return 2*vna_log10f_x_10(v[1]*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f;
+  return (2*vna_log10f_x_10(amp_sb*(1<<AUDIO_SHIFT)/config._bandwidth) - 210.0f) - (r_gain-20) / 2.0;
 }
 #endif
 
@@ -810,7 +818,8 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_CORRECTION]={"CORRECTION", "%.4F%s", "%.4F%s",         "",       0,        0.00001,  correction },
 #ifdef SIDE_CHANNEL
 [TRC_SPHASE]  = {"SP",          "%.5f%s", S_DELTA "%.5f%s", S_DEGREE, 0,        90.0f,    phase_s    },
-[TRC_SLOGMAG] = {"SDB",         "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_s   },
+[TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
+[TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
 };
 
@@ -2098,13 +2107,14 @@ draw_measurements(void)
 
   lcd_set_right_border(area_width + OFFSETX);
 
-  lcd_printf(x,      y, "AL:%.1FdBm       ", level_a);
-  lcd_printf(x+80,   y, "BL:%.1FdBm       ", level_b);
-  lcd_printf(x+160,  y, "AF:%.3FHz        ", aver_freq_a);
-  lcd_printf(x+240,  y, "PLL:%F           ", current_props.pll);
-  lcd_printf(x+310,  y, "AGC:%d,%d        ", l_gain, r_gain);
+  lcd_printf(x,      y, "Level:%d,%ddBm      ", (int)level_a, (int)level_b);
+  lcd_printf(x+130,  y, "PLL:%d,%.3FHz        ", (int)current_props.pll, aver_freq_a );
+//  lcd_printf(x+220,  y, "AGC:%d,%d        ", l_gain, r_gain);
 #ifdef SIDE_CHANNEL
-  lcd_printf(x+400,   y, "SL:%.1FdBm       ", level_s);
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL)) {
+    lcd_printf(x+260,   y, "SL:%d,%ddBm       ", (int)level_sa, (int)level_sb);
+  } else
+    lcd_printf(x+260,   y, "                         ");
 #endif
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;

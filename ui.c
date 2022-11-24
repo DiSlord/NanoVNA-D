@@ -1027,8 +1027,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
 }
 
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
-  uint16_t m = 1<<idx;
-  uint16_t old = config._vna_mode;
+  uint32_t m = 1<<idx;
+  uint32_t old = config._vna_mode;
        if (value == VNA_MODE_CLR) config._vna_mode&=~m; // clear
   else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
   else                            config._vna_mode^= m; // toggle
@@ -1050,6 +1050,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
     [VNA_MODE_SIDE_CHANNEL] = REDRAW_AREA,
     [VNA_MODE_DUMP_SIDE]    = REDRAW_AREA,
     [VNA_MODE_FREEZE_DISPLAY] = REDRAW_AREA,
+    [VNA_MODE_SIDE]         = REDRAW_AREA,
   };
   request_to_redraw(redraw[idx]);
   // Custom processing after apply
@@ -1117,6 +1118,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
     [VNA_MODE_SIDE_CHANNEL] = 0,
     [VNA_MODE_DUMP_SIDE] = 0,
     [VNA_MODE_FREEZE_DISPLAY] = 0,
+    [VNA_MODE_SIDE]         = 0,
   };
   if (b){
     if (vna_mode_text[data] == 0)
@@ -1898,7 +1900,8 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
 #ifdef SIDE_CHANNEL
   { MT_ADV_CALLBACK, TRC_SPHASE,   "S PHASE",       menu_format_acb },
-  { MT_ADV_CALLBACK, TRC_SLOGMAG,  "S LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SALOGMAG,  "SA LOGMAG",     menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_SBLOGMAG,  "SB LOGMAG",     menu_format_acb },
 #endif
 //  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
@@ -1967,6 +1970,9 @@ const menuitem_t menu_more_settings[] = {
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_4,         "PULL 4\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
+#ifdef SIDE_CHANNEL
+   { MT_ADV_CALLBACK, VNA_MODE_SIDE, "INTERNAL\nSIDE",                   menu_vna_mode_acb },
+#endif
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1977,7 +1983,7 @@ const menuitem_t menu_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_SIDE_CHANNEL,  "SIDE\nCHANNEL",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_FREEZE_DISPLAY,  "FREEZE\nDISPLAY",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "DUMP\nSIDE",                         menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "LOG\nSIDE",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },

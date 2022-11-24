@@ -381,7 +381,8 @@ calculate_vectors(void)
 //  gamma[1] =
   amp_b = vna_sqrtf((float)acc_samp_c * (float)acc_samp_c + (float)acc_samp_s*(float)acc_samp_s);
 #ifdef SIDE_CHANNEL
-  amp_s = vna_sqrtf((float)acc_ref_c2 * (float)acc_ref_c2 + (float)acc_ref_s2*(float)acc_ref_s2);
+  amp_sa = vna_sqrtf((float)acc_ref_c2 * (float)acc_ref_c2 + (float)acc_ref_s2*(float)acc_ref_s2);
+  amp_sb = vna_sqrtf((float)acc_samp_c2 * (float)acc_samp_c2 + (float)acc_samp_s2*(float)acc_samp_s2);
 #endif
 
   // calculate pll delta phase
@@ -404,6 +405,16 @@ float get_freq_a(void)
   return (df);
 }
 
+inline float my_fabs(float x)
+{
+  if (x<0)
+    return -x;
+  return x;
+}
+
+#ifdef SIDE_CHANNEL
+static float side_aver;
+#endif
 int
 calculate_gamma(float gamma[4], uint16_t tau)
 {
@@ -424,22 +435,26 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[2] += FULL_PHASE;
 
 #ifdef SIDE_CHANNEL
-  static float temp, aver;
-  temp = gamma_aver_s/tau;
-  while (temp > HALF_PHASE)
-    temp -= FULL_PHASE;
-  while (temp < -HALF_PHASE)
-    temp += FULL_PHASE;
-#define S_AVER 0
-  aver = (aver * S_AVER + temp) / (S_AVER + 1);
-  gamma[0] = aver;
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL)) {
+    float temp = gamma_aver_s/tau;
+    while (temp > HALF_PHASE)
+      temp -= FULL_PHASE;
+    while (temp < -HALF_PHASE)
+      temp += FULL_PHASE;
+#define S_AVER 3
+    if (my_fabs(temp - side_aver) > 0.001)
+      side_aver = temp;
+    else
+      side_aver = (side_aver * S_AVER + temp) / (S_AVER + 1);
+    gamma[0] = side_aver;
+  }
 #endif
 
 
 #ifdef CALC_GAMMA_3
   gamma[3] = gamma_aver[3]/tau + null_phase;
-  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) && level_s > -30)
-    gamma[3] -= aver;
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) && level_sa > -30)
+    gamma[3] -= side_aver;
 #else
   gamma[3] = gamma[2] - gamma[1] ;
 #endif

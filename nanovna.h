@@ -278,7 +278,8 @@ extern float aver_phase_s;
 extern float level_a;
 extern float level_b;
 #ifdef SIDE_CHANNEL
-extern float level_s;
+extern float level_sa;
+extern float level_sb;
 #endif
 extern int missing_samples;
 /*
@@ -904,7 +905,7 @@ extern const uint8_t numfont16x22[];
 enum trace_type {
   TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION,
 #ifdef SIDE_CHANNEL
-  TRC_SPHASE, TRC_SLOGMAG,
+  TRC_SPHASE, TRC_SALOGMAG, TRC_SBLOGMAG,
 #endif
   MAX_TRACE_TYPE
   };
@@ -1019,6 +1020,9 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 
 #define VNA_MODE_FREEZE_DISPLAY   15
 
+#define VNA_MODE_SIDE    16
+#define VNA_MODE_SIDE_ON  (1<< VNA_MODE_SIDE)
+
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
 enum {
@@ -1072,7 +1076,7 @@ typedef struct config {
   uint32_t _harmonic_freq_threshold;
   int32_t  _IF_freq;
   int16_t  _touch_cal[4];
-  uint16_t  _vna_mode;
+  uint32_t  _vna_mode;
   uint8_t  _brightness;
   uint16_t _dac_value;
   uint16_t _vbat_offset;
@@ -1125,7 +1129,8 @@ extern properties_t current_props;
 extern float amp_a;
 extern float amp_b;
 #ifdef SIDE_CHANNEL
-extern float amp_s;
+extern float amp_sa;
+extern float amp_sb;
 #endif
 
 extern int l_gain, r_gain;
