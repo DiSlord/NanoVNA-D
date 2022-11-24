@@ -128,6 +128,7 @@ volatile int temp_output = 0;
 
 //uint16_t sample_count;
 float aver_freq_a;
+uint16_t aver_freq_count_a;
 float aver_freq_sum_a;
 float aver_phase_d;
 float aver_freq_d;
@@ -1178,7 +1179,6 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   }
   if (tau_current == 0) {
     tau_current = config.tau;
-    aver_freq_sum_a = 0;
     reset_averaging();
   }
   uint16_t count = AUDIO_BUFFER_LEN;
@@ -1193,12 +1193,15 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   if (wait_count == 0) {
     calculate_vectors();
     aver_freq_sum_a += get_freq_a();
+    aver_freq_count_a++;
     -- tau_current;
     if (tau_current == 0) {
       if (!(props_mode & TD_SAMPLE)) {
         calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
-        aver_freq_a = aver_freq_sum_a / config.tau;
         temp_input &= TEMP_MASK;
+        aver_freq_a = aver_freq_sum_a / aver_freq_count_a;
+        aver_freq_sum_a = 0;
+        aver_freq_count_a = 0;
         //      shell_printf("in  %d\r\n", temp_input);
         if (temp_input == temp_output) {
 #if 0
@@ -1697,10 +1700,12 @@ fetch_next:
         new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
       else
         new_pll = current_props.pll - v * factor;
-      if (new_pll < 10000 && new_pll > -10000 && ((current_props.pll - new_pll) > 0.5 || (current_props.pll - new_pll) < -0.5)) {
+      if (new_pll < 10000 && new_pll > -10000 && ((current_props.pll - new_pll) > 0.2 || (current_props.pll - new_pll) < -0.2)) {
         current_props.pll = new_pll;
         set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
-      }
+        shell_printf("<>%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
+      } else
+        shell_printf("==%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
     } else {
       current_props.pll = 0;
       set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value

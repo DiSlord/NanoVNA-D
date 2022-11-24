@@ -2108,7 +2108,7 @@ draw_measurements(void)
   lcd_set_right_border(area_width + OFFSETX);
 
   lcd_printf(x,      y, "Level:%d,%ddBm      ", (int)level_a, (int)level_b);
-  lcd_printf(x+130,  y, "PLL:%d,%.3FHz        ", (int)current_props.pll, aver_freq_a );
+  lcd_printf(x+130,  y, "PLL:%d, %+.3FHz        ", (int)current_props.pll, aver_freq_a );
 //  lcd_printf(x+220,  y, "AGC:%d,%d        ", l_gain, r_gain);
 #ifdef SIDE_CHANNEL
   if (VNA_MODE(VNA_MODE_SIDE_CHANNEL)) {
