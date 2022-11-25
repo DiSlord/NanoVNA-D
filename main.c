@@ -1703,9 +1703,9 @@ fetch_next:
       if (new_pll < 10000 && new_pll > -10000 && ((current_props.pll - new_pll) > 0.2 || (current_props.pll - new_pll) < -0.2)) {
         current_props.pll = new_pll;
         set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
-        shell_printf("<>%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
-      } else
-        shell_printf("==%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
+//        shell_printf("<>%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
+      }
+//      else shell_printf("==%.3f %.2f\r\n", 1000*aver_freq_a, new_pll);
     } else {
       current_props.pll = 0;
       set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
