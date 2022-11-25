@@ -308,6 +308,8 @@ typedef double calc_t;
 //volatile float prev_speed = -5.0;
 //volatile float accell = 0;
 volatile float gamma_aver[4];
+volatile int gamma_count = 0;
+volatile int decimated_tau;
 volatile float gamma_delta_pll;
 extern float amp_a;
 extern float amp_b;
@@ -334,6 +336,7 @@ calculate_vectors(void)
   // calculate reflection coeff. by samp divide by ref
   float new_gamma;
 
+  if (gamma_count ++  < decimated_tau) {
 #ifndef CALC_GAMMA_3
   new_gamma = vna_atan2f(acc_samp_s,acc_samp_c) / VNA_PI;
   if ((new_gamma - prev_gamma1) < -HALF_PHASE)
@@ -365,6 +368,7 @@ calculate_vectors(void)
   gamma_aver[3] += new_gamma;
   prev_gamma3 = new_gamma;
 #endif
+  }
 #ifdef SIDE_CHANNEL
   new_gamma =  - vna_atan2f((acc_samp_c2 * (float)acc_ref_c2 + acc_samp_s2 * (float)acc_ref_s2),
                          (acc_samp_s2 * (double)acc_ref_c2 - acc_samp_c2 * (double)acc_ref_s2)) / VNA_PI;
@@ -418,6 +422,7 @@ static float side_aver;
 int
 calculate_gamma(float gamma[4], uint16_t tau)
 {
+  decimated_tau = tau / config.decimation;
 #ifndef CALC_GAMMA_3
   gamma[1] = gamma_aver[1]/tau;
 #ifndef CALC_GAMMA_3
@@ -428,11 +433,24 @@ calculate_gamma(float gamma[4], uint16_t tau)
   while (gamma[1] < -HALF_PHASE)
     gamma[1] += FULL_PHASE;
 #endif
-  gamma[2] = gamma_aver[2]/tau;
+  gamma[2] = gamma_aver[2]/decimated_tau;
   while (gamma[2] > HALF_PHASE)
     gamma[2] -= FULL_PHASE;
   while (gamma[2] < -HALF_PHASE)
     gamma[2] += FULL_PHASE;
+
+#ifdef CALC_GAMMA_3
+  gamma[3] = gamma_aver[3]/decimated_tau + null_phase;
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) && level_sa > -30)
+    gamma[3] -= side_aver;
+#else
+  gamma[3] = gamma[2] - gamma[1] ;
+#endif
+  while (gamma[3] > HALF_PHASE)
+    gamma[3] -= FULL_PHASE;
+  while (gamma[3] < -HALF_PHASE)
+    gamma[3] += FULL_PHASE;
+
 
 #ifdef SIDE_CHANNEL
   if (VNA_MODE(VNA_MODE_SIDE_CHANNEL)) {
@@ -450,18 +468,6 @@ calculate_gamma(float gamma[4], uint16_t tau)
   }
 #endif
 
-
-#ifdef CALC_GAMMA_3
-  gamma[3] = gamma_aver[3]/tau + null_phase;
-  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) && level_sa > -30)
-    gamma[3] -= side_aver;
-#else
-  gamma[3] = gamma[2] - gamma[1] ;
-#endif
-  while (gamma[3] > HALF_PHASE)
-    gamma[3] -= FULL_PHASE;
-  while (gamma[3] < -HALF_PHASE)
-    gamma[3] += FULL_PHASE;
 
 
   return(tau);
@@ -518,6 +524,7 @@ reset_averaging(void)
   gamma_aver[1] = 0.0;
   gamma_aver[2] = 0.0;
   gamma_aver[3] = 0.0;
+  gamma_count = 0;
   prev_gamma1 = 0;
   prev_gamma2 = 0;
   prev_gamma3 = 0;

@@ -1087,6 +1087,7 @@ typedef struct config {
   float    _measure_r;
   float     pull[MAX_PULL];
   uint16_t tau;
+  uint16_t decimation;
   uint8_t  _lever_mode;
   uint8_t  _digit_separator;
   uint8_t  _band_mode;

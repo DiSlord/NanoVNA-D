@@ -1026,6 +1026,32 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   set_bandwidth( bandwidth[data]);
 }
 
+#define DECIMATION_LIST  1,2,5,10,20,50,100
+#define DECIMATION_COUNT 7
+uint16_t decimation[DECIMATION_COUNT] = {DECIMATION_LIST};
+
+const menuitem_t menu_decimation[];
+static UI_FUNCTION_ADV_CALLBACK(menu_decimation_sel_acb)
+{
+  (void)data;
+  if (b){
+    b->p1.u = config.decimation;
+    return;
+  }
+  menu_push_submenu(menu_decimation);
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_decimation_acb)
+{
+  if (b){
+    b->icon = config.decimation == decimation[data] ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
+    b->p1.u = decimation[data];
+    return;
+  }
+  config.decimation = decimation[data];
+  set_tau(get_tau());   // Increase Tau if needed for decimation.
+}
+
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
   uint32_t m = 1<<idx;
   uint32_t old = config._vna_mode;
@@ -1944,6 +1970,18 @@ const menuitem_t menu_bandwidth[] =
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
+const menuitem_t menu_decimation[] =
+{
+  { MT_ADV_CALLBACK, 0, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 1, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 2, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 3, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 4, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 5, "%bd", menu_decimation_acb },
+  { MT_ADV_CALLBACK, 6, "%bd", menu_decimation_acb },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
 #ifdef __USE_SMOOTH__
 const menuitem_t menu_smooth_count[] = {
   { MT_ADV_CALLBACK, VNA_MODE_SMOOTH, "SMOOTH\n" R_LINK_COLOR "%s avg",menu_vna_mode_acb },
@@ -1966,6 +2004,7 @@ const menuitem_t menu_more_settings[] = {
 #endif
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
   { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, 0, "DECIMATION\n" R_LINK_COLOR " %bd" ,                        menu_decimation_sel_acb },
   { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },

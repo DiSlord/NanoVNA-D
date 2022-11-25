@@ -954,8 +954,9 @@ config_t config = {
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
-  .pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
+  . pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
   . tau = 50,
+  . decimation = 10,
   ._lever_mode = LM_MARKER,
   ._digit_separator = '.',
   ._band_mode = 0,
@@ -1135,6 +1136,7 @@ volatile uint16_t wait_count = 0;
 volatile uint16_t dirty_count = 0;
 //volatile uint16_t tau_count = 0;
 volatile uint16_t tau_current = 0;
+uint16_t decimation_current = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
 static audio_sample_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 static audio_sample_t *filled_buffer;
@@ -1196,7 +1198,9 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
     aver_freq_count_a++;
     -- tau_current;
     if (tau_current == 0) {
-      if (!(props_mode & TD_SAMPLE)) {
+      if (props_mode & TD_SAMPLE)
+        dsp_ready = true;
+      else {
         calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
         temp_input &= TEMP_MASK;
         aver_freq_a = aver_freq_sum_a / aver_freq_count_a;
@@ -1212,8 +1216,8 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
           missing_samples = true;
 #endif
         }
+        dsp_ready = true;
       }
-      dsp_ready = true;
     }
   }
 //  palClearPad(GPIOA, GPIOA_PA4);
@@ -1833,8 +1837,8 @@ void set_tau(float tau){
     config._bandwidth -= SAMPLE_OVERHEAD;
 #else
   config.tau = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT + (config._bandwidth-1)) / config._bandwidth;
-  if (config.tau < 1)
-    config.tau = 1;
+  if (config.tau < config.decimation)
+    config.tau = config.decimation;
 #endif
   RESET_SWEEP
   if (! VNA_MODE(VNA_MODE_SCROLLING)) {
