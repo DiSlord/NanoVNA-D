@@ -530,6 +530,7 @@ void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
 void reset_averaging(void);
 int calculate_gamma(float *gamma, uint16_t tau);
+void calculate_subsamples(float *gamma, uint16_t tau);
 float get_freq_a(void);
 void set_null_phase(float v);
 void calculate_vectors(void);
@@ -958,6 +959,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define DOMAIN_MODE (1<<0)
 #define DOMAIN_FREQ (0<<0)
 #define DOMAIN_TIME (1<<0)
+#define TD_TRANSFORM            (1<<0)
 // Time domain function
 #define TD_FUNC                 (0b11<<1)
 #define TD_FUNC_BANDPASS        (0b00<<1)
@@ -978,6 +980,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Marker delta
 //#define TD_MARKER_LOCK          (1<<9) // reserved
 #define TD_SAMPLE                (1<<9)
+#define TD_PNA                   (1<<10)
 
 // config._mode flags
 // Auto name for files
@@ -1014,14 +1017,17 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define VNA_MODE_DISK_LOG         12
 
 #define VNA_MODE_SIDE_CHANNEL     13
-#define VNA_MODE_SIDE_CHANNEL_ON  1<<VNA_MODE_SIDE_CHANNEL
+#define VNA_MODE_SIDE_CHANNEL_ON  (1<<VNA_MODE_SIDE_CHANNEL)
 
 #define VNA_MODE_DUMP_SIDE        14
 
 #define VNA_MODE_FREEZE_DISPLAY   15
 
-#define VNA_MODE_SIDE    16
-#define VNA_MODE_SIDE_ON  (1<< VNA_MODE_SIDE)
+#define VNA_MODE_SIDE             16
+#define VNA_MODE_SIDE_ON          (1<< VNA_MODE_SIDE)
+
+#define VNA_MODE_PNA              17
+#define VNA_MODE_PNA_ON           (1<<VNA_MODE_PNA)
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

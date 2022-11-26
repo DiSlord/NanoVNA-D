@@ -1431,12 +1431,13 @@ markmap_all_markers(void)
   markmap_upperarea();
 }
 
+#if 0
 static void
 markmap_all_refpos(void)
 {
   invalidate_rect(OFFSETX, OFFSETY, CELLOFFSETX+1, AREA_HEIGHT_NORMAL);
 }
-
+#endif
 //
 // Marker search functions
 //
@@ -2082,7 +2083,7 @@ static int lcd_large(int x, int y, double f, int dash, int index, int dot)
   }
   return x;
 }
-static prev_missing_samples = false;
+static int prev_missing_samples = false;
 
 //#define FREQ_A_AVERAGE  5
 //static float aver_aver_freq_a = 0;

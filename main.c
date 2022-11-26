@@ -1193,14 +1193,25 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   --wait_count;
 
   if (wait_count == 0) {
-    calculate_vectors();
-    aver_freq_sum_a += get_freq_a();
-    aver_freq_count_a++;
+    if (!(props_mode & TD_SAMPLE) && !(props_mode & TD_PNA)) {
+      calculate_vectors();
+      aver_freq_sum_a += get_freq_a();
+      aver_freq_count_a++;
+    }
     -- tau_current;
     if (tau_current == 0) {
-      if (props_mode & TD_SAMPLE)
+      if (props_mode & TD_SAMPLE){
         dsp_ready = true;
-      else {
+      } else if (props_mode & TD_PNA) {
+        calculate_subsamples(temp_measured[temp_input++], config.tau);
+        temp_input &= TEMP_MASK;
+        if (temp_input == temp_output) {
+          temp_output = temp_input;   // Remove all cached samples
+          missing_samples = true;
+        }
+        dsp_ready = true;
+
+      } else {
         calculate_gamma(temp_measured[temp_input++], config.tau);              // Measure transmission coefficient
         temp_input &= TEMP_MASK;
         aver_freq_a = aver_freq_sum_a / aver_freq_count_a;
@@ -1592,6 +1603,19 @@ fetch_next:
         }
         if (p_sweep == sweep_points) {
           do_agc();
+          goto return_true;
+        }
+        continue;
+      }
+
+      if (props_mode & TD_PNA) {
+        while (p_sweep < sweep_points /* && p_sweep < AUDIO_SAMPLES_COUNT */ ) {
+          measured[0][p_sweep][0] = temp_measured[temp_output][2];
+          measured[0][p_sweep][1] = temp_measured[temp_output++][3];
+          temp_output &= TEMP_MASK;
+          p_sweep++;
+        }
+        if (p_sweep == sweep_points) {
           goto return_true;
         }
         continue;

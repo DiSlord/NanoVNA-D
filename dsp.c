@@ -258,6 +258,15 @@ static float null_phase = 0.5;
 void
 dsp_process(audio_sample_t *capture, size_t length)
 {
+  if (props_mode & TD_PNA) {
+    length /= 2;
+    while (length-- > 0) {
+      acc_samp_s += *capture++;
+      acc_ref_s  += *capture++;
+    }
+    sample_count++;
+    return;
+  }
   uint32_t i = 0;
 //  int64_t samp_s = 0;
 //  int64_t samp_c = 0;
@@ -332,7 +341,6 @@ int log_index = 0;
 void
 calculate_vectors(void)
 {
-
   // calculate reflection coeff. by samp divide by ref
   float new_gamma;
 
@@ -471,6 +479,13 @@ calculate_gamma(float gamma[4], uint16_t tau)
 
 
   return(tau);
+}
+
+void calculate_subsamples(float gamma[4], uint16_t tau)
+{
+  decimated_tau = (AUDIO_BUFFER_LEN/2) * tau / config.decimation;
+  gamma[2] = (float)acc_samp_s/(float)decimated_tau;
+  gamma[3] = (float)acc_ref_s/(float)decimated_tau;
 }
 
 void

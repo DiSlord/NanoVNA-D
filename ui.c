@@ -990,6 +990,33 @@ static UI_FUNCTION_ADV_CALLBACK(menu_sample_acb)
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
 
+static UI_FUNCTION_ADV_CALLBACK(menu_pna_acb)
+{
+  (void)data;
+  if(b){
+    if (props_mode & TD_PNA) b->icon = BUTTON_ICON_CHECK;
+    b->p1.text = (props_mode&TD_PNA) ? "ON" : "OFF";
+    return;
+  }
+  props_mode ^= TD_PNA;
+  if (props_mode & TD_PNA) {
+    set_trace_type(0, TRC_ASAMPLE, 0);
+    set_trace_type(2, TRC_BSAMPLE, 0);
+    trace[0].enabled = true;
+    trace[1].enabled = false;
+    trace[2].enabled = true;
+    trace[3].enabled = false;
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
+  } else {
+    set_trace_type(0, TRC_DPHASE, 0);
+    set_trace_type(2, TRC_DFREQ, 0);
+    trace[1].enabled = true;
+    trace[3].enabled = true;
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_SET);
+  }
+  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 {
   if(b){
@@ -1923,6 +1950,7 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, TRC_DFREQ,   "D FREQ",       menu_format_acb },
 //  { MT_ADV_CALLBACK, TRC_VALUE,  "VALUE",       menu_format_acb },
   { MT_ADV_CALLBACK, 0,  "SAMPLE",                menu_sample_acb },
+  { MT_ADV_CALLBACK, 0,  "PNA",                   menu_pna_acb },
   { MT_ADV_CALLBACK, TRC_RESIDUE,  "RESIDUE",     menu_format_acb },
 #ifdef SIDE_CHANNEL
   { MT_ADV_CALLBACK, TRC_SPHASE,   "S PHASE",       menu_format_acb },
@@ -2037,7 +2065,7 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "FORMAT",                              menu_formatS11 },
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
-//  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
+  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
   { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
   { MT_ADV_CALLBACK, VNA_MODE_USB_LOG, "USB\nLOG",      menu_vna_mode_acb },
