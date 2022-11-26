@@ -959,6 +959,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     return;
   }
   props_mode ^= DOMAIN_TIME;
+  if (props_mode & TD_TRANSFORM) {
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
+    set_sweep_points(401);
+    set_bandwidth(1);
+    config.decimation = 1;
+    set_tau(0);
+    set_sweep_points(401);
+    set_trace_type(3, TRC_TRANSFORM, 0);
+    trace[0].enabled = false;
+    trace[1].enabled = false;
+    trace[2].enabled = false;
+  } else {
+
+  }
   select_lever_mode(LM_MARKER);
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
@@ -1957,7 +1971,7 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, TRC_SALOGMAG,  "SA LOGMAG",     menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SBLOGMAG,  "SB LOGMAG",     menu_format_acb },
 #endif
-//  { MT_ADV_CALLBACK, TRC_CORRECTION,"CORRECTION", menu_format_acb },
+  { MT_ADV_CALLBACK, TRC_TRANSFORM, "FFT",        menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 

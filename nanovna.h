@@ -908,6 +908,7 @@ enum trace_type {
 #ifdef SIDE_CHANNEL
   TRC_SPHASE, TRC_SALOGMAG, TRC_SBLOGMAG,
 #endif
+  TRC_TRANSFORM,
   MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4

@@ -454,6 +454,15 @@ static float residue(int i, const float *v) {
   return p + wraps - i * aver_freq_d * config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT / AUDIO_ADC_FREQ - r_start;
 }
 
+static float transform_d(int i, const float *v) {
+  (void)i;
+  float t = v[1];
+  if (t < 0)
+    t = -t;
+  if (t == 0)
+    return -140;
+  return (2*vna_log10f_x_10(t) + 10);
+}
 
 
 //**************************************************************************************
@@ -821,6 +830,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
+[TRC_TRANSFORM]={"TRANSFORM",   "%.4F%s", "%.4F%s",         "",       0,        90.0f,    transform_d },
 };
 
 
@@ -915,6 +925,10 @@ trace_into_index(int t) {
         else if (y > HEIGHT) y = HEIGHT;
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
+    }
+    if (trace[t].type == TRC_TRANSFORM) {
+      min = -120;
+      max = -40;
     }
     trace[t].min = min;
     trace[t].max = max;
@@ -2163,8 +2177,8 @@ draw_frequencies(void)
       lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
-    lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "START 0" S_SECOND "    VF = %d%%", velocity_factor);
-    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "STOP %F" S_SECOND " (%F" S_METRE ")", time_of_index(p_sweep-1), distance_of_index(p_sweep-1));
+    lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
+    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%d Hz", (int)(0.5/get_tau()));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);

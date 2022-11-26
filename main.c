@@ -107,7 +107,7 @@ static volatile vna_shellcmd_t  shell_function = 0;
 //static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
 //static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2]);
 //static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]);
-
+static void transform_domain(uint16_t ch_mask);
 static uint16_t get_sweep_mask(void);
 static void update_frequencies(void);
 static int  set_frequency(freq_t freq);
@@ -265,6 +265,9 @@ static THD_FUNCTION(Thread1, arg)
     } else {
       __WFI();
     }
+//    if (completed && (props_mode & TD_TRANSFORM)) {
+//      transform_domain(mask);
+//    }
     // Run Shell command in sweep thread
     while (shell_function) {
       shell_function(shell_nargs - 1, &shell_args[1]);
@@ -284,7 +287,7 @@ static THD_FUNCTION(Thread1, arg)
 //    STOP_PROFILE;
 #endif
 //      START_PROFILE
-//      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
+      if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) transform_domain(mask);
 //      STOP_PROFILE;
       // Prepare draw graphics, cache all lines, mark screen cells for redraw
       request_to_redraw(REDRAW_PLOT);
@@ -314,7 +317,7 @@ toggle_sweep(void)
 {
   sweep_mode ^= SWEEP_ENABLE;
 }
-#if 0 // Disable transform
+
 #if 0
 //
 // Original kaiser_window functions
@@ -394,6 +397,7 @@ kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta)
 static void
 transform_domain(uint16_t ch_mask)
 {
+  (void)ch_mask;
   // use spi_buffer as temporary buffer and calculate ifft for time domain
   // Need 2 * sizeof(float) * FFT_SIZE bytes for work
 #if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
@@ -406,7 +410,6 @@ transform_domain(uint16_t ch_mask)
 //  case TD_FUNC_BANDPASS:
 //    break;
     case TD_FUNC_LOWPASS_IMPULSE:
-    case TD_FUNC_LOWPASS_STEP:
       is_lowpass = TRUE;
       offset = sweep_points;
       break;
@@ -455,8 +458,9 @@ transform_domain(uint16_t ch_mask)
 #endif
   }
   // Made Time Domain Calculations
-  for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
-    if ((ch_mask&1)==0) continue;
+//  for (int ch = 0; ch < 2; ch++,ch_mask>>=1) {
+  {
+    int ch = 0;
     // Prepare data in tmp buffer (use spi_buffer), apply window function and constant correction factor
     float* tmp  = (float*)spi_buffer;
     float *data = measured[ch][0];
@@ -466,8 +470,8 @@ transform_domain(uint16_t ch_mask)
 #else
       float w = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
 #endif
-      tmp[i * 2 + 0] = data[i * 2 + 0] * w;
-      tmp[i * 2 + 1] = data[i * 2 + 1] * w;
+      tmp[i * 2 + 0] = data[i * 4 + 3] * w;
+      tmp[i * 2 + 1] = 0; //data[i * 4 + 1] * w;
     }
     // Fill zeroes last
     for (; i < FFT_SIZE; i++) {
@@ -477,29 +481,22 @@ transform_domain(uint16_t ch_mask)
     // For lowpass mode swap
     if (is_lowpass) {
       for (i = 1; i < sweep_points; i++) {
-        tmp[(FFT_SIZE - i) * 2 + 0] =  tmp[i * 2 + 0];
-        tmp[(FFT_SIZE - i) * 2 + 1] = -tmp[i * 2 + 1];
+        tmp[(FFT_SIZE - i) * 2 + 0] =  tmp[i * 4 + 3];
+        tmp[(FFT_SIZE - i) * 2 + 1] = 0; //-tmp[i * 4 + 1];
       }
     }
     // Made iFFT in temp buffer
-    fft_inverse((float(*)[2])tmp);
-    // set img part as zero
-    if (is_lowpass){
-      for (i = 0; i < sweep_points; i++)
-        tmp[i*2+1] = 0.0f;
-    }
-    if (domain_func == TD_FUNC_LOWPASS_STEP) {
-      for (i = 1; i < sweep_points; i++) {
-        tmp[i*2+0]+= tmp[i*2+0-2];
-//      tmp[i*2+1]+= tmp[i*2+1-2];  // already zero as is_lowpass
-      }
-    }
+    fft_forward((float(*)[2])tmp);
     // Copy data back
-    memcpy(measured[ch], tmp, sizeof(measured[0]));
+    for (i = 0; i < FFT_SIZE/2; i++) {
+      float re = tmp[i * 2 + 0];
+      float im = tmp[i * 2 + 1];
+      float f =  vna_sqrtf(re*re+im*im);
+      #define LPF 0
+      data[i * 4 + 1] =  (data[i * 4 + 1] * LPF + f) / ( LPF+1);
+    }
   }
 }
-#endif
-
 
 // Shell commands output
 int shell_printf(const char *fmt, ...)
@@ -1024,7 +1021,7 @@ void load_default_properties(void)
   current_props._current_trace   = 0;
   current_props._active_marker   = 0;
   current_props._previous_marker = MARKER_INVALID;
-  current_props._mode            = 0;
+  current_props._mode            = TD_WINDOW_MAXIMUM;
   current_props._reserved = 0;
   current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
@@ -1606,9 +1603,7 @@ fetch_next:
           goto return_true;
         }
         continue;
-      }
-
-      if (props_mode & TD_PNA) {
+      } else if (props_mode & TD_PNA) {
         while (p_sweep < sweep_points /* && p_sweep < AUDIO_SAMPLES_COUNT */ ) {
           measured[0][p_sweep][0] = temp_measured[temp_output][2];
           measured[0][p_sweep][1] = temp_measured[temp_output++][3];
@@ -1865,6 +1860,7 @@ void set_tau(float tau){
     config.tau = config.decimation;
 #endif
   RESET_SWEEP
+#if 0
   if (! VNA_MODE(VNA_MODE_SCROLLING)) {
     sweep_points = (int) (1/tau);
     if (sweep_points < 2) sweep_points = 2;
@@ -1877,6 +1873,7 @@ void set_tau(float tau){
       request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY);
     }
   }
+#endif
 }
 
 float get_tau(void){
