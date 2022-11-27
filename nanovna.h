@@ -355,10 +355,14 @@ extern float measured[1][POINTS_COUNT][4];
 #define ETERM_ET 3 /* error term transmission tracking */
 #define ETERM_EX 4 /* error term isolation */
 
+#if 0
 #if   POINTS_COUNT <= 256
 #define FFT_SIZE   256
 #elif POINTS_COUNT <= 512
 #define FFT_SIZE   512
+#endif
+#else
+#define FFT_SIZE  1024
 #endif
 
 void cal_collect(uint16_t type);
@@ -527,6 +531,9 @@ typedef int32_t  audio_sample_t;
 #else
 typedef int16_t  audio_sample_t;
 #endif
+#define HALF_PHASE  1.0
+#define FULL_PHASE  2.0
+
 void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
 void reset_averaging(void);
@@ -1339,7 +1346,7 @@ typedef uint16_t pixel_t;
 extern pixel_t foreground_color;
 extern pixel_t background_color;
 
-extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE*2];
 
 typedef struct {
   uint8_t transparent : 1;

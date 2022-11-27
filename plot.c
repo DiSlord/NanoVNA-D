@@ -2186,7 +2186,7 @@ draw_frequencies(void)
     }
   } else {
     lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
-    lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%d Hz", (int)(0.5/get_tau()));
+    lcd_printf(FREQUENCIES_XPOS2+80, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);

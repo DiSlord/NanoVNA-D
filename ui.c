@@ -961,11 +961,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   props_mode ^= DOMAIN_TIME;
   if (props_mode & TD_TRANSFORM) {
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
-    set_sweep_points(401);
+    set_sweep_points(POINTS_COUNT);
     set_bandwidth(1);
     config.decimation = 1;
     set_tau(0);
-    set_sweep_points(401);
+    set_sweep_points(POINTS_COUNT);
     set_trace_type(3, TRC_TRANSFORM, 0);
     trace[0].enabled = false;
     trace[1].enabled = false;

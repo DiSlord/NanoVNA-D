@@ -332,8 +332,8 @@ float prev_gammas;
 volatile float phase_log[LOG_SIZE];
 int log_index = 0;
 
-#define HALF_PHASE  1.0
-#define FULL_PHASE  2.0
+//#define HALF_PHASE  1.0
+//#define FULL_PHASE  2.0
 
 #define CALC_GAMMA_3
 
@@ -380,9 +380,9 @@ calculate_vectors(void)
 #ifdef SIDE_CHANNEL
   new_gamma =  - vna_atan2f((acc_samp_c2 * (float)acc_ref_c2 + acc_samp_s2 * (float)acc_ref_s2),
                          (acc_samp_s2 * (double)acc_ref_c2 - acc_samp_c2 * (double)acc_ref_s2)) / VNA_PI;
-  if ((new_gamma - prev_gammas) < -HALF_PHASE)
+  while ((new_gamma - prev_gammas) < -HALF_PHASE)
     new_gamma = new_gamma + FULL_PHASE;
-  if ((new_gamma - prev_gammas) > HALF_PHASE)
+  while ((new_gamma - prev_gammas) > HALF_PHASE)
     new_gamma = new_gamma - FULL_PHASE;
   gamma_aver_s += new_gamma;
   prev_gammas = new_gamma;

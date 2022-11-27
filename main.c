@@ -113,6 +113,7 @@ static void update_frequencies(void);
 static int  set_frequency(freq_t freq);
 static void set_frequencies(freq_t start, freq_t stop, uint16_t points);
 static bool sweep(bool break_on_operation, uint16_t ch_mask);
+int shell_printf(const char *fmt, ...);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
@@ -398,9 +399,10 @@ static void
 transform_domain(uint16_t ch_mask)
 {
   (void)ch_mask;
+  int fft_points = FFT_SIZE;
   // use spi_buffer as temporary buffer and calculate ifft for time domain
   // Need 2 * sizeof(float) * FFT_SIZE bytes for work
-#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#if 2*4*FFT_SIZE > (2*SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
 #error "Need increase spi_buffer or use less FFT_SIZE value"
 #endif
   int i;
@@ -411,10 +413,10 @@ transform_domain(uint16_t ch_mask)
 //    break;
     case TD_FUNC_LOWPASS_IMPULSE:
       is_lowpass = TRUE;
-      offset = sweep_points;
+      offset = fft_points;
       break;
   }
-  uint16_t window_size = sweep_points + offset;
+  uint16_t window_size = fft_points + offset;
   uint16_t beta = 0;
   switch (domain_window) {
 //    case TD_WINDOW_MINIMUM:
@@ -434,14 +436,14 @@ transform_domain(uint16_t ch_mask)
   static float window_scale = 0.0f;
   static uint16_t td_cache = 0;
   // Check mode cache data
-  uint16_t td_check = (props_mode & (TD_WINDOW|TD_FUNC))|(sweep_points<<5);
+  uint16_t td_check = (props_mode & (TD_WINDOW|TD_FUNC))|(fft_points<<5);
   if (td_cache!=td_check){
     td_cache = td_check;
     if (domain_func == TD_FUNC_LOWPASS_STEP)
       window_scale = 1.0f / (FFT_SIZE * bessel0_ext(beta*beta/4.0f));
     else {
       window_scale = 0.0f;
-      for (int i = 0; i < sweep_points; i++)
+      for (int i = 0; i < fft_points; i++)
         window_scale += kaiser_window_ext(i + offset, window_size, beta);
       if (domain_func == TD_FUNC_BANDPASS) window_scale = 1.0f / (       window_scale);
       else                                 window_scale = 1.0f / (2.0f * window_scale);
@@ -453,7 +455,7 @@ transform_domain(uint16_t ch_mask)
 #ifdef USE_FFT_WINDOW_BUFFER
     // Cache window function data to static buffer
     static float kaiser_data[FFT_SIZE];
-    for (i = 0; i < sweep_points; i++)
+    for (i = 0; i < fft_points; i++)
       kaiser_data[i] = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
 #endif
   }
@@ -464,7 +466,19 @@ transform_domain(uint16_t ch_mask)
     // Prepare data in tmp buffer (use spi_buffer), apply window function and constant correction factor
     float* tmp  = (float*)spi_buffer;
     float *data = measured[ch][0];
-    for (i = 0; i < sweep_points; i++) {
+#if 1
+    for (i = 0; i < FFT_SIZE; i++) {
+#ifdef USE_FFT_WINDOW_BUFFER
+      float w = kaiser_data[i];
+#else
+      float w = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
+#endif
+      tmp[i * 2 + 0] *= w;
+//      shell_printf("%d %f\r\n", i, tmp[i * 2 + 0]);
+
+    }
+#else
+    for (i = 0; i < fft_points; i++) {
 #ifdef USE_FFT_WINDOW_BUFFER
       float w = kaiser_data[i];
 #else
@@ -480,15 +494,19 @@ transform_domain(uint16_t ch_mask)
     }
     // For lowpass mode swap
     if (is_lowpass) {
-      for (i = 1; i < sweep_points; i++) {
+      for (i = 1; i < fft_points; i++) {
         tmp[(FFT_SIZE - i) * 2 + 0] =  tmp[i * 4 + 3];
         tmp[(FFT_SIZE - i) * 2 + 1] = 0; //-tmp[i * 4 + 1];
       }
     }
+#endif
     // Made iFFT in temp buffer
     fft_forward((float(*)[2])tmp);
     // Copy data back
-    for (i = 0; i < FFT_SIZE/2; i++) {
+    fft_points = FFT_SIZE/2;
+    if (fft_points > sweep_points)
+      fft_points = sweep_points;
+    for (i = 0; i < fft_points; i++) {
       float re = tmp[i * 2 + 0];
       float im = tmp[i * 2 + 1];
       float f =  vna_sqrtf(re*re+im*im);
@@ -1583,7 +1601,12 @@ fetch_next:
   if (! VNA_MODE(VNA_MODE_SCROLLING)) {
     RESET_SWEEP;
   }
-  for (; p_sweep < sweep_points; /* p_sweep++ */) {
+  int requested_points = sweep_points;
+  if (trace[3].type==TRC_TRANSFORM)
+    requested_points = FFT_SIZE;
+  float prev_phase = 0;
+  float phase_wraps = 0;
+  for (; p_sweep < requested_points; /* p_sweep++ */) {
 //     palSetPad(GPIOC, GPIOC_LED);
 //     DSP_START(0);
      DSP_PREWAIT;
@@ -1628,12 +1651,32 @@ fetch_next:
         }
 #endif
       }
-
+      if (trace[3].type==TRC_TRANSFORM) {
+        float* tmp  = (float*)spi_buffer;
+        float phase = temp_measured[temp_output][3] + phase_wraps;
+        float delta_phase = phase - prev_phase;
+        if (delta_phase > HALF_PHASE) {
+           phase_wraps -= FULL_PHASE;
+           phase -= FULL_PHASE;
+        }
+        if (delta_phase < -HALF_PHASE) {
+           phase_wraps += FULL_PHASE;
+           phase += FULL_PHASE;
+        }
+        prev_phase = phase;
+        tmp[p_sweep * 2 + 0] = phase;
+        tmp[p_sweep * 2 + 1] = 0;
+//        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
+      }
+      if (p_sweep < sweep_points) {
 #ifdef SIDE_CHANNEL
-      measured[0][p_sweep][0] = temp_measured[temp_output][0];
+        measured[0][p_sweep][0] = temp_measured[temp_output][0];
 #endif
-      measured[0][p_sweep][2] = temp_measured[temp_output][2];
-      measured[0][p_sweep++][3] = temp_measured[temp_output++][3];
+        measured[0][p_sweep][2] = temp_measured[temp_output][2];
+        measured[0][p_sweep][3] = temp_measured[temp_output][3];
+      }
+      p_sweep++;
+      temp_output++;
       temp_output &= TEMP_MASK;
 //      shell_printf("out %d\r\n", temp_output);
       if (VNA_MODE(VNA_MODE_SCROLLING))
@@ -1654,6 +1697,8 @@ fetch_next:
       if (VNA_MODE(VNA_MODE_SCROLLING) && p_sweep >=2) break;
       if (operation_requested && break_on_operation) break;
   }
+  if (p_sweep >= sweep_points)
+    p_sweep = sweep_points;
   if (bar_start){
     lcd_set_background(LCD_GRID_COLOR);
     lcd_fill(OFFSETX+CELLOFFSETX, OFFSETY, bar_start, 1);
