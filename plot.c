@@ -830,7 +830,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
-[TRC_TRANSFORM]={"TRANSFORM",   "%.4F%s", "%.4F%s",         "",       0,        90.0f,    transform_d },
+[TRC_TRANSFORM]={"TRANSFORM",   "%.4FdBc %dHz", "%.4F",   "",       0,        90.0f,    transform_d },
 };
 
 
@@ -915,8 +915,10 @@ trace_into_index(int t) {
       float v = 0;
 //      if (c) v = c(i, &array[4*i]);         // Get value
       if (c) v = c(i, measured[trace[t].channel][i]);         // Get value
-      if (min > v) min = v;
-      if (max < v) max = v;
+      if (stop<10 || i > 5) {
+        if (min > v) min = v;
+        if (max < v) max = v;
+      }
       if (v == INFINITY) {
         y = 0;
       } else {
@@ -992,7 +994,6 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   if (p_sweep < 2)
     return;
   (void) index_ref;
-  (void) index;
   // Check correct input
   uint8_t type = trace[t].type;
   if (type >= MAX_TRACE_TYPE) return;
@@ -1002,14 +1003,21 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
     float v = 0;
-    for (int i =0; i<p_sweep-1; i++) {
-      float r = c(i, array[i]);
-      v += r;                                          // Get value
+    if (type == TRC_TRANSFORM) {
+      v = c(index, array[index]);
+    } else {
+      for (int i =0; i<p_sweep-1; i++) {
+        float r = c(i, array[i]);
+        v += r;                                          // Get value
+      }
+      v = v/(p_sweep-1);
     }
-    v = v/(p_sweep-1);
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
-    cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
+    if (type == TRC_TRANSFORM)
+      cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
+    else
+      cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
 #if 0
   else { // Need custom marker format for SMITH / POLAR
@@ -1732,13 +1740,13 @@ draw_cell(int m, int n)
 #endif
 
 // draw marker symbols on each trace (<10 system ticks for all screen calls)
-#if 0
+#if 1
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
     int mk_idx = markers[i].index;
     for (t = 0; t < TRACES_MAX; t++) {
-      if (!trace[t].enabled)
+      if (!trace[t].enabled || trace[t].type != TRC_TRANSFORM)
         continue;
       index_t *index = trace_index[t];
       int x, y;

@@ -1716,7 +1716,7 @@ fetch_next:
     if (level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;
       v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
-      float factor = 260.0;
+      float factor = PLL_SCALE;
 //    if (VNA_MODE(VNA_MODE_SCROLLING))
 //      factor *= get_tau();
       if (-0.05 < v && v < 0.05)
