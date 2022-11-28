@@ -2812,7 +2812,7 @@ ui_mode_keypad(int _keypad_mode)
 static int
 num_keypad_click(int c)
 {
-  if (c == KP_ENTER) c = KP_X1;
+  if (c == KP_ENTER || c == KP_PERCENT) c = KP_X1;
   if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
     if (kp_index == 0)
       return KP_CANCEL;
