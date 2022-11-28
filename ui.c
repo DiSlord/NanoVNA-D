@@ -109,6 +109,7 @@ enum {
   KM_PULL_2,
   KM_PULL_3,
   KM_PULL_4,
+  KM_MAX_AVER,
     KM_NONE
 };
 
@@ -934,7 +935,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
   }
   set_trace_channel(current_trace, ch^1);
 }
-#endif
+
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
 {
   char *text = "";
@@ -949,13 +950,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
   }
   props_mode = (props_mode & ~TD_WINDOW) | data;
 }
+#endif
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
 {
   (void)data;
   if(b){
-    if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK;
-    b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
+    if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK; else b->icon = BUTTON_ICON_NOCHECK;
+//    b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
     return;
   }
   props_mode ^= DOMAIN_TIME;
@@ -970,11 +972,25 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     trace[0].enabled = false;
     trace[1].enabled = false;
     trace[2].enabled = false;
+    transform_count = 0;
   } else {
 
   }
   select_lever_mode(LM_MARKER);
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
+}
+
+static UI_FUNCTION_ADV_CALLBACK(menu_average_acb)
+{
+  (void)data;
+  if(b){
+    if (props_mode & TD_AVERAGE) b->icon = BUTTON_ICON_CHECK; else b->icon = BUTTON_ICON_NOCHECK;
+//    b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
+    return;
+  }
+  props_mode ^= TD_AVERAGE;
+  transform_count = 0;
+//  request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_sample_acb)
@@ -1030,7 +1046,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pna_acb)
   }
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
-
+#if 0
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 {
   if(b){
@@ -1040,7 +1056,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
   props_mode = (props_mode & ~TD_FUNC) | data;
 //  ui_mode_normal();
 }
-
+#endif
 #define BANDWIDTH_LIST  1,2,5,10,20,50,100,200,500,1000
 #define BANDWIDTH_COUNT 10
 uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
@@ -1988,12 +2004,15 @@ const menuitem_t menu_scale[] = {
 };
 
 const menuitem_t menu_transform[] = {
-  { MT_ADV_CALLBACK, 0,                       "TRANSFORM\n%s",      menu_transform_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, 0,                       "WINDOW\n" R_LINK_COLOR " %s", menu_transform_window_acb },
-  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR" R_LINK_COLOR " %d%%%%", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,                       "TRANSFORM",          menu_transform_acb },
+  { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
+  { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
+
+//  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
+//  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
+//  { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
+//  { MT_ADV_CALLBACK, 0,                       "WINDOW\n" R_LINK_COLOR " %s", menu_transform_window_acb },
+//  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR" R_LINK_COLOR " %d%%%%", menu_keyboard_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2575,6 +2594,13 @@ UI_KEYBOARD_CALLBACK(input_pull) {
   config.pull[data-KM_PULL_1]= keyboard_get_float();
 }
 
+UI_KEYBOARD_CALLBACK(input_max_aver) {
+  (void)data;
+  if (b) {b->p1.u = max_average_count; return; }
+  max_average_count = keyboard_get_uint();
+  transform_count = 0;
+}
+
 UI_KEYBOARD_CALLBACK(input_var_delay) {
   (void)data;
   if (b) {
@@ -2742,6 +2768,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_PULL_2]         = {KEYPAD_FLOAT,   KM_PULL_2,    "PULL 2",             input_pull     }, // pull 1
 [KM_PULL_3]         = {KEYPAD_FLOAT,   KM_PULL_3,    "PULL 3",             input_pull     }, // pull 1
 [KM_PULL_4]         = {KEYPAD_FLOAT,   KM_PULL_4,    "PULL 4",             input_pull     }, // pull 1
+[KM_MAX_AVER]       = {KEYPAD_FREQ,    KM_MAX_AVER,  "MAX AVER",           input_max_aver }, // max aver
 };
 
 static void

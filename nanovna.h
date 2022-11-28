@@ -283,6 +283,9 @@ extern float level_sa;
 extern float level_sb;
 #endif
 extern int missing_samples;
+extern uint32_t transform_count;
+extern uint32_t max_average_count;
+
 /*
  * CPU Hardware depend functions declaration
  */
@@ -990,6 +993,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 //#define TD_MARKER_LOCK          (1<<9) // reserved
 #define TD_SAMPLE                (1<<9)
 #define TD_PNA                   (1<<10)
+#define TD_AVERAGE               (1<<11)
 
 // config._mode flags
 // Auto name for files

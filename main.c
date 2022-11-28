@@ -142,7 +142,8 @@ float level_sa;
 float level_sb;
 #endif
 int missing_samples = 0;
-
+uint32_t transform_count = 0;
+uint32_t max_average_count = 5;
 
 #undef VERSION
 #define VERSION "1.2.15"
@@ -407,15 +408,15 @@ transform_domain(uint16_t ch_mask)
 #endif
   int i;
   uint16_t offset = 0;
-  uint8_t is_lowpass = FALSE;
-  switch (domain_func) {
+//  uint8_t is_lowpass = FALSE;
+//  switch (domain_func) {
 //  case TD_FUNC_BANDPASS:
 //    break;
-    case TD_FUNC_LOWPASS_IMPULSE:
-      is_lowpass = TRUE;
-      offset = fft_points;
-      break;
-  }
+//    case TD_FUNC_LOWPASS_IMPULSE:
+//      is_lowpass = TRUE;
+//      offset = fft_points;
+//      break;
+//  }
   uint16_t window_size = fft_points + offset;
   uint16_t beta = 0;
   switch (domain_window) {
@@ -510,9 +511,10 @@ transform_domain(uint16_t ch_mask)
       float re = tmp[i * 2 + 0];
       float im = tmp[i * 2 + 1];
       float f =  vna_sqrtf(re*re+im*im);
-      #define LPF 0
-      data[i * 4 + 1] =  (data[i * 4 + 1] * LPF + f) / ( LPF+1);
+      data[i * 4 + 1] =  (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
     }
+    if ((props_mode & TD_AVERAGE) && transform_count < max_average_count)
+      transform_count++;
   }
 }
 

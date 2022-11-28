@@ -907,7 +907,7 @@ trace_into_index(int t) {
   float scale = get_trace_scale(t);
   if (type & RECTANGULAR_GRID_MASK) {                         // Run build for rect grid
     const float dscale = GRIDY / scale;
-    uint32_t dx = ((WIDTH)<<16) / (p_sweep-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000;
+    uint32_t dx = ((WIDTH)<<16) / (p_sweep-1), x = (CELLOFFSETX<<16) + dx * start + 0x8000; //Linear frequency scale
     int32_t y;
     float max = -1e30;
     float min = +1e30;
@@ -1049,9 +1049,11 @@ static float time_of_index(int idx)
   return (idx * (p_sweep-1)) / ((float)FFT_SIZE * span);
 }
 
+#if 0
 static float distance_of_index(int idx) {
   return velocity_factor * (SPEED_OF_LIGHT / 200.0f) * time_of_index(idx);
 }
+#endif
 
 static inline void clear_markmap(void) {
   int n = MAX_MARKMAP_Y - 1;
