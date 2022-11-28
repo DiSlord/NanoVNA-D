@@ -2202,6 +2202,7 @@ menu_invoke(int item)
 #define KP_N         21
 #define KP_P         22
 #define KP_ENTER     23
+#define KP_PERCENT   24
 
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
 // Keyboard size and position data
@@ -2244,6 +2245,23 @@ static const keypads_t keypads_ufloat[] = { //
   { 0x10, KP_8 },
   { 0x20, KP_9 },
   { 0x33, KP_ENTER },
+  { 0x23, KP_BS }
+};
+
+static const keypads_t keypads_percent[] = { //
+  { 13, NUM_KEYBOARD },   // size and position
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },
+  { 0x02, KP_1 },
+  { 0x12, KP_2 },
+  { 0x22, KP_3 },
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x33, KP_PERCENT },
   { 0x23, KP_BS }
 };
 
@@ -2302,10 +2320,11 @@ static const keypads_t keypads_text[] = {
 };
 #endif
 
-enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
+enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
 static const keypads_t *keypad_type_list[] = {
   [KEYPAD_FREQ]   = keypads_freq,   // frequency input
   [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
+  [KEYPAD_PERCENT]= keypads_percent,// unsigned float input in percent
   [KEYPAD_FLOAT]  = keypads_float,  // signed float input
   [KEYPAD_NFLOAT] = keypads_nfloat, // signed pico/nano float input
   [KEYPAD_TEXT]   = keypads_text    // text input
@@ -2458,7 +2477,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
 [KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
 [KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
-[KM_VELOCITY_FACTOR] = {KEYPAD_UFLOAT, 0,             "VELOCITY%%",         input_velocity }, // velocity factor
+[KM_VELOCITY_FACTOR] = {KEYPAD_PERCENT,0,             "VELOCITY%%",         input_velocity }, // velocity factor
 [KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
 [KM_THRESHOLD]       = {KEYPAD_FREQ,   0,             "THRESHOLD",          input_harmonic }, // Harmonic threshold frequency
 [KM_VBAT]            = {KEYPAD_UFLOAT, 0,             "BAT OFFSET",         input_vbat     }, // Vbat offset input in mV
