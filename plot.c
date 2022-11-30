@@ -461,7 +461,7 @@ static float transform_d(int i, const float *v) {
     t = -t;
   if (t == 0)
     return -140;
-  return (2*vna_log10f_x_10(t) + 10);
+  return (2*vna_log10f_x_10(t) + 16);
 }
 
 
@@ -830,7 +830,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
-[TRC_TRANSFORM]={"TRANSFORM",   "%.4FdBc %dHz", "%.4F",   "",       0,        90.0f,    transform_d },
+[TRC_TRANSFORM]={"TRANSFORM",   "%.1FdBc %dHz", "%.4F",   "",       0,        90.0f,    transform_d },
 };
 
 
@@ -1043,13 +1043,13 @@ trace_print_info(int xpos, int ypos, int t)
   return cell_printf(xpos, ypos, format, get_trace_typename(type, false), scale, v);
 }
 
+#if 0
 static float time_of_index(int idx)
 {
   freq_t span = get_sweep_frequency(ST_SPAN);
   return (idx * (p_sweep-1)) / ((float)FFT_SIZE * span);
 }
 
-#if 0
 static float distance_of_index(int idx) {
   return velocity_factor * (SPEED_OF_LIGHT / 200.0f) * time_of_index(idx);
 }

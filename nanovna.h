@@ -119,7 +119,7 @@
 // Allow dump firmware to SD card
 #define __SD_CARD_DUMP_FIRMWARE__
 // Enable SD card file browser, and allow load files from it
-//#define __SD_FILE_BROWSER__
+#define __SD_FILE_BROWSER__
 #endif
 
 // If measure module enabled, add submodules

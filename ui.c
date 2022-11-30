@@ -116,7 +116,9 @@ enum {
 #ifdef __USE_SD_CARD__
 // Save format enum
 enum {
-  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
+//  FMT_S1P_FILE=0, FMT_S2P_FILE,
+  FMT_BMP_FILE,
+//  FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   FMT_BIN_FILE,
 #endif
@@ -1169,11 +1171,12 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
         append_filename[0] = 0;         // Prevent writing
         if (VNA_MODE(VNA_MODE_AUTO_NAME))
           vna_save_file(NULL, FMT_CSV_FILE);
-        else
+        else {
           ui_mode_keypad(KM_CSV_NAME); // If no auto name, call text keyboard input
-//        if (append_filename[0] == 0)
-//          config._vna_mode&=~m; // Failed so disable
-//        disk_log_index = 0;
+//          if (append_filename[0] == 0)
+//            config._vna_mode&=~m; // Failed so enable
+          disk_log_index = 0;
+        }
       } else {
         flush_disk_log();
         append_filename[0] = 0;
@@ -1539,10 +1542,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #ifdef __USE_SD_CARD__
 // Save file extension
 static const char *file_ext[] = {
-  [FMT_S1P_FILE] = "s1p",
-  [FMT_S2P_FILE] = "s2p",
+//  [FMT_S1P_FILE] = "s1p",
+//  [FMT_S2P_FILE] = "s2p",
   [FMT_BMP_FILE] = "bmp",
-  [FMT_CAL_FILE] = "cal",
+//  [FMT_CAL_FILE] = "cal",
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   [FMT_BIN_FILE] = "bin",
 #endif
@@ -1551,7 +1554,7 @@ static const char *file_ext[] = {
 #endif
   [FMT_CSV_FILE] = "csv"
 };
-
+#if 0
 //*******************************************************************************************
 // S1P and S2P file headers, and data structures
 //*******************************************************************************************
@@ -1568,7 +1571,7 @@ static const char s2_file_header[] =
 
 static const char s2_file_param[] =
   "%10u % f % f % f % f 0 0 0 0\r\n";
-
+#endif
 //*******************************************************************************************
 // Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
 //*******************************************************************************************
@@ -1651,9 +1654,9 @@ static FRESULT vna_create_file(char *fs_filename)
 
 static void vna_save_file(char *name, uint8_t format)
 {
-  char *buf_8;
+//  char *buf_8;
   uint16_t *buf_16;
-  int i, y;
+  int y;
   UINT size;
   char fs_filename[FF_LFN_BUF];
   // For screenshot need back to normal mode and redraw screen before capture!!
@@ -1681,8 +1684,9 @@ static void vna_save_file(char *name, uint8_t format)
   // Prepare filename = .s1p / .s2p / .bmp and open for write
   FRESULT res = vna_create_file(fs_filename);
   if (res == FR_OK) {
-    const char *s_file_format;
+//    const char *s_file_format;
     switch(format) {
+#if 0
       /*
        *  Save touchstone file for VNA (use rev 1.1 format)
        *  https://en.wikipedia.org/wiki/Touchstone_file
@@ -1710,6 +1714,7 @@ static void vna_save_file(char *name, uint8_t format)
         res = f_write(fs_file, buf_8, size, &size);
       }
       break;
+#endif
       /*
        *  Save bitmap file (use v4 format allow set RGB mask)
        */
@@ -1726,6 +1731,7 @@ static void vna_save_file(char *name, uint8_t format)
         lcd_fill(LCD_WIDTH-1, y, 1, 1);
       }
       break;
+#if 0
       /*
        *  Save calibration
        */
@@ -1736,6 +1742,7 @@ static void vna_save_file(char *name, uint8_t format)
         res = f_write(fs_file, src, total, &size);
       }
       break;
+#endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
       /*
        * Dump firmware to SD card as bin file image
@@ -1800,7 +1807,7 @@ void disk_log(float p)
 
 
 #ifdef __SD_FILE_BROWSER__
-#include "vna_modules/vna_browser.c"
+#include "vna_browser.c"
 #endif
 #endif // __USE_SD_CARD__
 
@@ -1850,29 +1857,20 @@ static const menuitem_t menu_back[] = {
   { MT_NONE,     0, NULL, NULL } // sentinel
 };
 
-#ifdef __USE_SD_CARD__
-#ifdef __SD_FILE_BROWSER__
-static const menuitem_t menu_sdcard_browse[] = {
-  { MT_CALLBACK, FMT_BMP_FILE, "LOAD BMP", menu_sdcard_browse_cb },
-  { MT_CALLBACK, FMT_S1P_FILE, "LOAD S1P", menu_sdcard_browse_cb },
-  { MT_CALLBACK, FMT_S2P_FILE, "LOAD S2P", menu_sdcard_browse_cb },
-  { MT_CALLBACK, FMT_CAL_FILE, "LOAD CAL", menu_sdcard_browse_cb },
-  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
-};
-#endif
-
 static const menuitem_t menu_sdcard[] = {
+  { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
+  { MT_CALLBACK, FMT_BMP_FILE, "SAVE\nSCREENSHOT", menu_sdcard_cb },
 #ifdef __SD_FILE_BROWSER__
-  { MT_SUBMENU,              0, "LOAD",       menu_sdcard_browse },
+  { MT_CALLBACK, FMT_BMP_FILE, "LOAD BMP", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_CSV_FILE, "SEND CSV", menu_sdcard_browse_cb },
 #endif
 //  { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
 //  { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
-  { MT_CALLBACK, FMT_BMP_FILE, "SAVE\nSCREENSHOT", menu_sdcard_cb },
 //  { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
-  { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
   { MT_NONE,     0, NULL, menu_back } // next-> menu_back
 };
-#endif
+
+
 #if 0
 static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_OPEN,  "OPEN",  menu_calop_acb },
@@ -1889,7 +1887,7 @@ static const menuitem_t menu_calop[] = {
 
 const menuitem_t menu_save[] = {
 #ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO\n SD CARD", menu_sdcard_cb },
+//  { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO\n SD CARD", menu_sdcard_cb },
 #endif
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_save_acb },
   { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_save_acb },
@@ -1911,7 +1909,7 @@ const menuitem_t menu_save[] = {
 
 const menuitem_t menu_recall[] = {
 #ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_CAL_FILE, "LOAD FROM\n SD CARD", menu_sdcard_browse_cb },
+//  { MT_CALLBACK, FMT_CAL_FILE, "LOAD FROM\n SD CARD", menu_sdcard_browse_cb },
 #endif
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_recall_acb },
   { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_recall_acb },
@@ -2754,10 +2752,10 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\n HHMMSS",  input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
-[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
-[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
+//[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
+//[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
 [KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
-[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
+//[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
 #endif
@@ -3505,7 +3503,7 @@ ui_process(void)
 void handle_button_interrupt(uint16_t channel) {
   (void)channel;
   operation_requested|= OP_LEVER;
-  if (VNA_MODE(VNA_MODE_USB_LOG)) apply_VNA_mode(VNA_MODE_USB_LOG, VNA_MODE_CLR);
+//  if (VNA_MODE(VNA_MODE_USB_LOG)) apply_VNA_mode(VNA_MODE_USB_LOG, VNA_MODE_CLR);
   //cur_button = READ_PORT() & BUTTON_MASK;
 }
 
