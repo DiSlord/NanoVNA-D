@@ -1856,7 +1856,7 @@ request_to_draw_cells_behind_menu(void)
 {
   // Values Hardcoded from ui.c
   invalidate_rect(LCD_WIDTH-MENU_BUTTON_WIDTH-OFFSETX, 0, LCD_WIDTH-OFFSETX, LCD_HEIGHT-1);
-  request_to_redraw(REDRAW_CELLS);
+  request_to_redraw(REDRAW_CELLS | REDRAW_FREQUENCY);
 }
 
 /*
@@ -1867,7 +1867,7 @@ request_to_draw_cells_behind_numeric_input(void)
 {
   // Values Hardcoded from ui.c
   invalidate_rect(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH-1, LCD_HEIGHT-1);
-  request_to_redraw(REDRAW_CELLS);
+  request_to_redraw(REDRAW_CELLS | REDRAW_FREQUENCY);
 }
 
 /*

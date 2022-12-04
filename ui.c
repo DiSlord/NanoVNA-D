@@ -1296,7 +1296,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #endif
 
 #ifdef __USE_SD_CARD__
-// Save format enum
+// Save/Load format enum
 enum {
   FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
@@ -1307,7 +1307,7 @@ enum {
 #endif
 };
 
-// Save file extension
+// Save/Load file extension
 static const char *file_ext[] = {
   [FMT_S1P_FILE] = "s1p",
   [FMT_S2P_FILE] = "s2p",
@@ -1572,8 +1572,8 @@ static UI_FUNCTION_CALLBACK(menu_back_cb)
 
 // Back button submenu list
 static const menuitem_t menu_back[] = {
-  { MT_CALLBACK,   0, S_LARROW" BACK", menu_back_cb },
-  { MT_NONE,     0, NULL, NULL } // sentinel
+  { MT_CALLBACK,   0, S_LARROW " BACK", menu_back_cb },
+  { MT_NONE,       0, NULL,             NULL } // sentinel
 };
 
 #ifdef __USE_SD_CARD__
@@ -2174,8 +2174,50 @@ menu_invoke(int item)
     draw_menu(-1);
 }
 
+// Draw button function
+static void
+draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
+{
+  uint16_t type = b->border;
+  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
+  // Draw border if width > 0
+  if (bw) {
+    uint16_t br = LCD_RISE_EDGE_COLOR;
+    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
+    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
+    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
+    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
+    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
+  }
+  // Set colors for button and text
+  lcd_set_colors(b->fg, b->bg);
+  if (type & BUTTON_BORDER_NO_FILL) return;
+  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
+}
+
+// Draw message box function
+void drawMessageBox(const char *header, const char *text, uint32_t delay){
+  button_t b;
+  int x , y;
+  b.bg = LCD_MENU_COLOR;
+  b.fg = LCD_MENU_TEXT_COLOR;
+  b.border = BUTTON_BORDER_FLAT|1;
+  // Draw header
+  draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
+  y = LCD_HEIGHT/2-40 + 5;
+  lcd_drawstring(x, y, header);
+  // Draw window
+  lcd_set_background(LCD_FG_COLOR);
+  lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
+  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
+  y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
+  lcd_drawstring(x, y, text);
+  chThdSleepMilliseconds(delay);
+}
+
 //
-// KEYBOARD input functions
+// KEYBOARD functions
 //
 // Key names (use numfont16x22.c glyph)
 #define KP_0          0
@@ -2212,12 +2254,12 @@ static const keypad_pos_t key_pos[] = {
 };
 
 static const keypads_t keypads_freq[] = {
-  { 16 ,  NUM_KEYBOARD },   // size and position
+  { 16 ,  NUM_KEYBOARD },   // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9 G
+  { 0x02, KP_1 },           // 4 5 6 M
+  { 0x12, KP_2 },           // 1 2 3 k
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2232,12 +2274,12 @@ static const keypads_t keypads_freq[] = {
 };
 
 static const keypads_t keypads_ufloat[] = { //
-  { 13, NUM_KEYBOARD },   // size and position
+  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2249,12 +2291,12 @@ static const keypads_t keypads_ufloat[] = { //
 };
 
 static const keypads_t keypads_percent[] = { //
-  { 13, NUM_KEYBOARD },   // size and position
+  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3
+  { 0x22, KP_3 },           // 0 . < %
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2266,12 +2308,12 @@ static const keypads_t keypads_percent[] = { //
 };
 
 static const keypads_t keypads_float[] = {
-  { 14, NUM_KEYBOARD },   // size and position
+  { 14, NUM_KEYBOARD },     // 14 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3 -
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2284,12 +2326,12 @@ static const keypads_t keypads_float[] = {
 };
 
 static const keypads_t keypads_nfloat[] = {
-  { 15, NUM_KEYBOARD },   // size and position
+  { 15, NUM_KEYBOARD },     // 15 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6 n
+  { 0x12, KP_2 },           // 1 2 3 p
+  { 0x22, KP_3 },           // 0 . < -
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2303,16 +2345,18 @@ static const keypads_t keypads_nfloat[] = {
 };
 
 #if 0
+//  ADCD keyboard
 static const keypads_t keypads_text[] = {
-  {40, TXT_KEYBOARD },   // size and position
+  {40, TXT_KEYBOARD },   // 40 buttons TXT keyboard (10x4 size)
   {0x00, '0'}, {0x10, '1'}, {0x20, '2'}, {0x30, '3'}, {0x40, '4'}, {0x50, '5'}, {0x60, '6'}, {0x70, '7'}, {0x80, '8'}, {0x90, '9'},
   {0x01, 'A'}, {0x11, 'B'}, {0x21, 'C'}, {0x31, 'D'}, {0x41, 'E'}, {0x51, 'F'}, {0x61, 'G'}, {0x71, 'H'}, {0x81, 'I'}, {0x91, 'J'},
   {0x02, 'K'}, {0x12, 'L'}, {0x22, 'M'}, {0x32, 'N'}, {0x42, 'O'}, {0x52, 'P'}, {0x62, 'Q'}, {0x72, 'R'}, {0x82, 'S'}, {0x92, 'T'},
   {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, S_ENTER[0]},
 };
 #else
+// QWERTY keyboard
 static const keypads_t keypads_text[] = {
-  {40, TXT_KEYBOARD },   // size and position
+  {40, TXT_KEYBOARD },   // 40 buttons TXT keyboard (10x4 size)
   {0x00, '1'}, {0x10, '2'}, {0x20, '3'}, {0x30, '4'}, {0x40, '5'}, {0x50, '6'}, {0x60, '7'}, {0x70, '8'}, {0x80, '9'}, {0x90, '0'},
   {0x01, 'Q'}, {0x11, 'W'}, {0x21, 'E'}, {0x31, 'R'}, {0x41, 'T'}, {0x51, 'Y'}, {0x61, 'U'}, {0x71, 'I'}, {0x81, 'O'}, {0x91, 'P'},
   {0x02, 'A'}, {0x12, 'S'}, {0x22, 'D'}, {0x32, 'F'}, {0x42, 'G'}, {0x52, 'H'}, {0x62, 'J'}, {0x72, 'K'}, {0x82, 'L'}, {0x92, '_'},
@@ -2330,12 +2374,13 @@ static const keypads_t *keypad_type_list[] = {
   [KEYPAD_TEXT]   = keypads_text    // text input
 };
 
+// Get value from keyboard functions
 float keyboard_get_float(void)   {return my_atof(kp_buf);}
 float keyboard_get_nfloat(void)  {return my_atof(kp_buf) * 1e-12;}
 freq_t keyboard_get_freq(void)   {return my_atoui(kp_buf);}
 uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 
-// Call back functions for MT_CALLBACK type
+// Keyboard call back functions, allow get value for Keyboard menu button (see menu_keyboard_acb) and apply on finish input
 UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
     if (data == ST_VAR)
@@ -2464,6 +2509,7 @@ UI_KEYBOARD_CALLBACK(input_filename) {
 #endif
 
 const keypads_list keypads_mode_tbl[KM_NONE] = {
+//                      key format     data for cb    text at bottom        callback function
 [KM_START]           = {KEYPAD_FREQ,   ST_START,      "START",              input_freq     }, // start
 [KM_STOP]            = {KEYPAD_FREQ,   ST_STOP,       "STOP",               input_freq     }, // stop
 [KM_CENTER]          = {KEYPAD_FREQ,   ST_CENTER,     "CENTER",             input_freq     }, // center
@@ -2488,16 +2534,16 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_Z_PORT]          = {KEYPAD_UFLOAT, 0,             "PORT Z 50" S_RARROW, input_portz    }, // Port Z renormalization impedance
 #endif
 #ifdef __USE_RTC__
-[KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\n YYMMDD",  input_date_time}, // Date
-[KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\n HHMMSS",  input_date_time}, // Time
+[KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\nYY MM DD", input_date_time}, // Date
+[KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\nHH MM SS", input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
-[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
-[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
-[KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
-[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
+[KM_S1P_NAME]        = {KEYPAD_TEXT,   FMT_S1P_FILE,  "S1P",                input_filename }, // s1p filename
+[KM_S2P_NAME]        = {KEYPAD_TEXT,   FMT_S2P_FILE,  "S2P",                input_filename }, // s2p filename
+[KM_BMP_NAME]        = {KEYPAD_TEXT,   FMT_BMP_FILE,  "BMP",                input_filename }, // bmp filename
+[KM_CAL_NAME]        = {KEYPAD_TEXT,   FMT_CAL_FILE,  "CAL",                input_filename }, // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-[KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
+[KM_BIN_NAME]        = {KEYPAD_TEXT,   FMT_BIN_FILE,  "BIN",                input_filename }, // bin filename
 #endif
 #endif
 };
@@ -2507,46 +2553,6 @@ keypad_set_value(void)
 {
   const keyboard_cb_t cb = keypads_mode_tbl[keypad_mode].cb;
   if (cb) cb(keypads_mode_tbl[keypad_mode].data, NULL);
-}
-
-static void
-draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
-{
-  uint16_t type = b->border;
-  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
-  // Draw border if width > 0
-  if (bw) {
-    uint16_t br = LCD_RISE_EDGE_COLOR;
-    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
-    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
-    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
-    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
-    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
-  }
-  // Set colors for button and text
-  lcd_set_colors(b->fg, b->bg);
-  if (type & BUTTON_BORDER_NO_FILL) return;
-  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
-}
-
-void drawMessageBox(const char *header, const char *text, uint32_t delay){
-  button_t b;
-  int x , y;
-  b.bg = LCD_MENU_COLOR;
-  b.fg = LCD_MENU_TEXT_COLOR;
-  b.border = BUTTON_BORDER_FLAT|1;
-  // Draw header
-  draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
-  y = LCD_HEIGHT/2-40 + 5;
-  lcd_drawstring(x, y, header);
-  // Draw window
-  lcd_set_background(LCD_FG_COLOR);
-  lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
-  y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
-  lcd_drawstring(x, y, text);
-  chThdSleepMilliseconds(delay);
 }
 
 static void
@@ -2592,7 +2598,7 @@ draw_keypad(void)
     draw_keypad_button(i);
 }
 
-static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
+static int period_pos(void) {int j; for (j = 0; kp_buf[j] && kp_buf[j] != '.'; j++); return j;}
 
 static void draw_numeric_area_frame(void) {
   lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
@@ -2614,21 +2620,18 @@ draw_numeric_input(const char *buf)
   else
 #endif
     xsim = (0b00100100100100100 >>(2-(period_pos()%3)))&(~1);
-  int c;
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
   while(*buf) {
-    c = *buf++;
+    int c = *buf++;
          if (c == '.'){c = KP_PERIOD;xsim<<=4;}
     else if (c == '-'){c = KP_MINUS; xsim&=~3;}
-    else// if (c >= '0' && c <= '9')
-      c = c - '0';
-    if (c < 0) c = 0;
-    lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
+    else if (c >= '0' && c <= '9') c-= '0';
+    else continue;
     // Add space before char
     uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
     lcd_fill(x, y, space, NUM_FONT_GET_HEIGHT);
     x+=space;
-    if (c < 0) continue; // c is number
     lcd_drawfont(c, x, y);
     x+=NUM_FONT_GET_WIDTH;
   }
@@ -2654,6 +2657,150 @@ draw_text_input(const char *buf)
 #endif
 }
 
+/*
+ * Keyboard UI processing
+ */
+static int
+num_keypad_click(int c)
+{
+  if (c == KP_ENTER || c == KP_PERCENT) c = KP_X1;
+  if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
+    if (kp_index == 0)
+      return KP_CANCEL;
+    uint16_t scale = 0;
+    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
+    if (c == KP_N) scale = 1;
+    if (scale) { // Apply scale on input text (add zeroes and shift . right)
+      scale+= (scale<<1);
+      int i = period_pos(); if (scale + i > NUMINPUT_LEN) scale = NUMINPUT_LEN - i;
+      while (scale--) {
+        char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
+        kp_buf[i+1] = kp_buf[i];
+        kp_buf[i  ] = v;
+        i++;
+      }
+    }
+    return KP_DONE;
+  }
+#ifdef __USE_RTC__
+  int8_t maxlength = (1<<keypad_mode)&((1<<KM_RTC_DATE)|(1<<KM_RTC_TIME)) ? 6 : NUMINPUT_LEN;
+#else
+  int8_t maxlength = NUMINPUT_LEN;
+#endif
+  if (c == KP_BS) {
+    if (kp_index == 0) return KP_CANCEL;
+      --kp_index;
+  } else if (c == KP_MINUS) {
+    uint16_t i;
+    if (kp_buf[0] == '-') {for (i = 0; i < NUMINPUT_LEN+1; i++) kp_buf[i] = kp_buf[i+1]; --kp_index;}
+    else                  {for (i = NUMINPUT_LEN+1; i > 0; i--) kp_buf[i] = kp_buf[i-1]; kp_buf[0] = '-';if (kp_index < maxlength) ++kp_index;}
+//    if (kp_index == 0)
+//      kp_buf[kp_index++] = '-';
+  } else if (kp_index < maxlength) {
+    if (c <= KP_9)
+      kp_buf[kp_index++] = '0' + c;
+    else if (c == KP_PERIOD && kp_index == period_pos() && maxlength == NUMINPUT_LEN) // append period if there are no period anf for num input (skip for date/time)
+      kp_buf[kp_index++] = '.';
+  }
+
+  kp_buf[kp_index] = '\0';
+  draw_numeric_input(kp_buf);
+  return KP_CONTINUE;
+}
+
+static int
+txt_keypad_click(int c)
+{
+  if (c == S_ENTER[0]) {  // Enter
+    return kp_index == 0 ? KP_CANCEL : KP_DONE;
+  }
+  if (c == S_LARROW[0]) { // Backspace
+    if (kp_index == 0)
+      return KP_CANCEL;
+    --kp_index;
+  } else if (kp_index < TXTINPUT_LEN) { // any other text input
+    kp_buf[kp_index++] = c;
+  }
+  kp_buf[kp_index] = '\0';
+  draw_text_input(kp_buf);
+  return KP_CONTINUE;
+}
+
+static void
+ui_mode_keypad(int _keypad_mode)
+{
+  if (ui_mode == UI_KEYPAD)
+    return;
+  set_area_size(0, 0);
+  // keypads array
+  keypad_mode = _keypad_mode;
+  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
+  selection = -1;
+  kp_index = 0;
+  ui_mode = UI_KEYPAD;
+  draw_menu(-1);
+  draw_keypad();
+  draw_numeric_area_frame();
+}
+
+static void
+keypad_click(int key) {
+  int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
+  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c) : txt_keypad_click(c);
+  if (result == KP_DONE) keypad_set_value(); // apply input done
+  // Exit loop on done or cancel
+  if (result != KP_CONTINUE)
+    ui_mode_normal();
+}
+
+static void
+ui_keypad_touch(int touch_x, int touch_y)
+{
+  const keypad_pos_t *p = &key_pos[keypads[0].c];
+  if (touch_x < p->x_offs || touch_y < p->y_offs) return;
+  // Calculate key position from touch x and y
+  touch_x-= p->x_offs; touch_x/= p->width;
+  touch_y-= p->y_offs; touch_y/= p->height;
+  uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
+  for (int i = 0; i < keypads[0].pos; i++) {
+    if (keypads[i+1].pos != pos) continue;
+    int old = selection;
+    draw_keypad_button(selection = i);  // draw new focus
+    draw_keypad_button(old);            // Erase old focus
+    touch_wait_release();
+    selection = -1;
+    draw_keypad_button(i);              // erase new focus
+    keypad_click(i);                    // Process input
+    return;
+  }
+  return;
+}
+
+static void
+ui_keypad_lever(uint16_t status)
+{
+  if (status == EVT_BUTTON_SINGLE_CLICK) {
+    if (selection >= 0) // Process input
+      keypad_click(selection);
+    return;
+  }
+  int keypads_last_index = keypads[0].pos - 1;
+  do {
+    int old = selection;
+    if ((status & EVT_DOWN) && --selection < 0)
+      selection = keypads_last_index;
+    if ((status & EVT_UP)   && ++selection > keypads_last_index)
+        selection = 0;
+    draw_keypad_button(old);
+    draw_keypad_button(selection);
+    chThdSleepMilliseconds(100);
+  } while ((status = btn_wait_release()) != 0);
+}
+//========================== end keyboard input =======================
+
+//
+// UI Menu functions
+//
 static void
 draw_menu_buttons(const menuitem_t *m, uint32_t mask)
 {
@@ -2730,9 +2877,7 @@ erase_menu_buttons(void)
 }
 #endif
 
-/*
- * Menu mode processing
- */
+//  Menu mode processing
 static void
 ui_mode_menu(void)
 {
@@ -2747,7 +2892,7 @@ ui_mode_menu(void)
 }
 
 static void
-ui_process_menu_lever(uint16_t status)
+ui_menu_lever(uint16_t status)
 {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     menu_invoke(selection);
@@ -2769,7 +2914,7 @@ ui_process_menu_lever(uint16_t status)
 }
 
 static void
-menu_apply_touch(int touch_x, int touch_y)
+ui_menu_touch(int touch_x, int touch_y)
 {
   if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
     int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
@@ -2790,140 +2935,6 @@ menu_apply_touch(int touch_x, int touch_y)
 //================== end menu processing =================================
 
 /*
- * Keyboard processing
- */
-static void
-ui_mode_keypad(int _keypad_mode)
-{
-  if (ui_mode == UI_KEYPAD)
-    return;
-  set_area_size(0, 0);
-  // keypads array
-  keypad_mode = _keypad_mode;
-  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
-  selection = -1;
-  kp_index = 0;
-  ui_mode = UI_KEYPAD;
-  draw_menu(-1);
-  draw_keypad();
-  draw_numeric_area_frame();
-}
-
-static int
-num_keypad_click(int c)
-{
-  if (c == KP_ENTER || c == KP_PERCENT) c = KP_X1;
-  if ((c >= KP_X1 && c <= KP_G) || c == KP_N || c == KP_P) {
-    if (kp_index == 0)
-      return KP_CANCEL;
-    uint16_t scale = 0;
-    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
-    if (c == KP_N) scale = 1;
-    if (scale){
-      scale+= (scale<<1);
-      int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;
-      while (scale--) {
-        char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
-        kp_buf[i+1] = kp_buf[i];
-        kp_buf[i  ] = v;
-        i++;
-      }
-    }
-    return KP_DONE;
-  }
-
-  if (c == KP_BS) {
-    if (kp_index == 0) return KP_CANCEL;
-      --kp_index;
-  } else if (c == KP_MINUS) {
-    if (kp_index == 0)
-      kp_buf[kp_index++] = '-';
-  } else if (kp_index < NUMINPUT_LEN) {
-    if (c <= KP_9)
-      kp_buf[kp_index++] = '0' + c;
-    else if (c == KP_PERIOD && kp_index == period_pos()) // append period if there are no period
-      kp_buf[kp_index++] = '.';
-  }
-
-  kp_buf[kp_index] = '\0';
-  draw_numeric_input(kp_buf);
-  return KP_CONTINUE;
-}
-
-static int
-full_keypad_click(int c)
-{
-  if (c == S_ENTER[0]) { // Enter
-    return kp_index == 0 ? KP_CANCEL : KP_DONE;
-  }
-  if (c == S_LARROW[0]) { // Backspace
-    if (kp_index == 0)
-      return KP_CANCEL;
-    --kp_index;
-  } else if (kp_index < TXTINPUT_LEN) { // any other text input
-    kp_buf[kp_index++] = c;
-  }
-  kp_buf[kp_index] = '\0';
-  draw_text_input(kp_buf);
-  return KP_CONTINUE;
-}
-
-static void
-keypad_click(int key) {
-  int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
-  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c) : full_keypad_click(c);
-  if (result == KP_DONE) keypad_set_value(); // apply input done
-  // Exit loop on done or cancel
-  if (result != KP_CONTINUE)
-    ui_mode_normal();
-}
-
-static void
-keypad_apply_touch(int touch_x, int touch_y)
-{
-  const keypad_pos_t *p = &key_pos[keypads[0].c];
-  if (touch_x < p->x_offs || touch_y < p->y_offs) return;
-  // Calculate key position from touch x and y
-  touch_x-= p->x_offs; touch_x/= p->width;
-  touch_y-= p->y_offs; touch_y/= p->height;
-  uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
-  for (int i = 0; i < keypads[0].pos; i++) {
-    if (keypads[i+1].pos != pos) continue;
-    int old = selection;
-    draw_keypad_button(selection = i);  // draw new focus
-    draw_keypad_button(old);            // Erase old focus
-    touch_wait_release();
-    selection = -1;
-    draw_keypad_button(i);              // erase new focus
-    keypad_click(i);                    // Process input
-    return;
-  }
-  return;
-}
-
-static void
-ui_process_keypad_lever(uint16_t status)
-{
-  if (status == EVT_BUTTON_SINGLE_CLICK) {
-    if (selection >= 0) // Process input
-      keypad_click(selection);
-    return;
-  }
-  int keypads_last_index = keypads[0].pos - 1;
-  do {
-    int old = selection;
-    if ((status & EVT_DOWN) && --selection < 0)
-      selection = keypads_last_index;
-    if ((status & EVT_UP)   && ++selection > keypads_last_index)
-        selection = 0;
-    draw_keypad_button(old);
-    draw_keypad_button(selection);
-    chThdSleepMilliseconds(100);
-  } while ((status = btn_wait_release()) != 0);
-}
-//========================== end keyboard input =======================
-
-/*
  * Normal plot processing
  */
 static void
@@ -2941,7 +2952,6 @@ ui_mode_normal(void)
   if (ui_mode == UI_KEYPAD)
     request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 #endif
-  request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
 }
 
@@ -3094,7 +3104,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
 }
 
 static void
-ui_process_normal_lever(uint16_t status)
+ui_normal_lever(uint16_t status)
 {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     ui_mode_menu();
@@ -3112,7 +3122,7 @@ ui_process_normal_lever(uint16_t status)
 }
 
 static bool
-normal_apply_ref_scale(int touch_x, int touch_y){
+touch_apply_ref_scale(int touch_x, int touch_y) {
   int t = current_trace;
   // do not scale invalid or smith chart
   if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
@@ -3134,8 +3144,7 @@ normal_apply_ref_scale(int touch_x, int touch_y){
 
 #ifdef __USE_SD_CARD__
 static bool
-made_screenshot(int touch_x, int touch_y)
-{
+touch_made_screenshot(int touch_x, int touch_y) {
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
   touch_wait_release();
@@ -3145,16 +3154,16 @@ made_screenshot(int touch_x, int touch_y)
 #endif
 
 static void
-normal_apply_touch(int touch_x, int touch_y){
+ui_normal_touch(int touch_x, int touch_y) {
   // Try drag marker
   if (touch_pickup_marker(touch_x, touch_y))
     return;
 #ifdef __USE_SD_CARD__
   // Try made screenshot
-  if (made_screenshot(touch_x, touch_y))
+  if (touch_made_screenshot(touch_x, touch_y))
     return;
 #endif
-  if (normal_apply_ref_scale(touch_x, touch_y))
+  if (touch_apply_ref_scale(touch_x, touch_y))
     return;
   // Try select lever mode (top and bottom screen)
   if (touch_lever_mode_select(touch_x, touch_y))
@@ -3168,11 +3177,11 @@ static const struct {
   void (*button)(uint16_t status);
   void (*touch)(int touch_x, int touch_y);
 } ui_handler[UI_END] = {
-  [UI_NORMAL ] = {ui_process_normal_lever , normal_apply_touch},
-  [UI_MENU   ] = {ui_process_menu_lever   , menu_apply_touch},
-  [UI_KEYPAD ] = {ui_process_keypad_lever , keypad_apply_touch},
+  [UI_NORMAL ] = {ui_normal_lever , ui_normal_touch},
+  [UI_MENU   ] = {ui_menu_lever   , ui_menu_touch},
+  [UI_KEYPAD ] = {ui_keypad_lever , ui_keypad_touch},
 #ifdef __SD_FILE_BROWSER__
-  [UI_BROWSER] = {ui_process_browser_lever, browser_apply_touch},
+  [UI_BROWSER] = {ui_browser_lever, ui_browser_touch},
 #endif
 };
 
