@@ -145,7 +145,7 @@ smith_grid(int x, int y)
 
   if (y < 0) y = -y; // mirror by y axis
   if (x >= 0) {                       // valid only if x >= 0
-    if (x >= r/2){                    // valid only if x >= P_RADIUS/2
+    if (x >= P_RADIUS/2){             // valid only if x >= P_RADIUS/2
       // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
       if (circle_inout(x - P_RADIUS, y - P_RADIUS/2, P_RADIUS/2) == 0) return 1;
 
@@ -216,8 +216,8 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
 {
   int x, y;
   // offset to center
-  x0 -= P_CENTER_X;
-  y0 -= P_CENTER_Y;
+  x0-= P_CENTER_X;
+  y0-= P_CENTER_Y;
   for (y = 0; y < h; y++)
     for (x = 0; x < w; x++)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
@@ -228,8 +228,8 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
 {
   int x, y;
   // offset to center
-  x0  = P_CENTER_X - x0;
-  y0 -= P_CENTER_Y;
+  x0 = P_CENTER_X - x0;
+  y0-= P_CENTER_Y;
   for (y = 0; y < h; y++)
     for (x = 0; x < w; x++)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
@@ -1059,14 +1059,14 @@ typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 static measure_cell_cb_t    measure_cell_handler = NULL;
 static uint8_t data_update = 0;
 
-#define MESAURE_NONE 0
-#define MESAURE_S11  1
-#define MESAURE_S21  2
-#define MESAURE_ALL  3
+#define MESAURE_NONE       0
+#define MESAURE_S11        1                            // For calculate need only S11 data
+#define MESAURE_S21        2                            // For calculate need only S21 data
+#define MESAURE_ALL        (MESAURE_S11 | MESAURE_S21)  // For calculate need S11 and S21 data
 
-#define MEASURE_UPD_SWEEP  1
-#define MEASURE_UPD_FREQ   2
-#define MEASURE_UPD_ALL    3
+#define MEASURE_UPD_SWEEP  1                            // Recalculate on sweep done
+#define MEASURE_UPD_FREQ   2                            // Recalculate on marker change position
+#define MEASURE_UPD_ALL    (MEASURE_UPD_SWEEP | MEASURE_UPD_FREQ)
 
 // Include L/C match functions
 #ifdef __USE_LC_MATCHING__
@@ -1078,7 +1078,7 @@ static const struct {
   uint8_t update;
   measure_cell_cb_t    measure_cell;
   measure_prepare_cb_t measure_prepare;
-} measure[]={
+} measure[] = {
   [MEASURE_NONE]        = {MESAURE_NONE,                0,               NULL,             NULL },
 #ifdef __USE_LC_MATCHING__
   [MEASURE_LC_MATH]     = {MESAURE_NONE,  MEASURE_UPD_ALL,      draw_lc_match, prepare_lc_match },
@@ -1297,10 +1297,8 @@ static void markmap_grid_values(void) {
 #endif
 
 static void
-draw_cell(int m, int n)
+draw_cell(int x0, int y0)
 {
-  int x0 = m * CELLWIDTH;
-  int y0 = n * CELLHEIGHT;
   int w = CELLWIDTH;
   int h = CELLHEIGHT;
   int x, y;
@@ -1331,26 +1329,26 @@ draw_cell(int m, int n)
   int count = h*CELLWIDTH / 8;
   uint32_t *p = (uint32_t *)cell_buffer;
   uint32_t clr = GET_PALTETTE_COLOR(LCD_BG_COLOR) | (GET_PALTETTE_COLOR(LCD_BG_COLOR) << 16);
-  while (count--) {
+  do {
     p[0] = clr;
     p[1] = clr;
     p[2] = clr;
     p[3] = clr;
     p += 4;
-  }
+  } while(--count);
 #elif  LCD_PIXEL_SIZE == 1
   // Set DEFAULT_BG_COLOR for 16 pixels in one cycle
   int count = h*CELLWIDTH / 16;
   uint32_t *p = (uint32_t *)cell_buffer;
   uint32_t clr = (GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 0)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 8) |
                  (GET_PALTETTE_COLOR(LCD_BG_COLOR)<<16)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<<24);
-  while (count--) {
+  do {
     p[0] = clr;
     p[1] = clr;
     p[2] = clr;
     p[3] = clr;
     p += 4;
-  }
+  } while(--count);
 #else
 #error "Write cell fill for different  LCD_PIXEL_SIZE"
 #endif
@@ -1431,7 +1429,7 @@ draw_cell(int m, int n)
 
 #ifdef __USE_GRID_VALUES__
   // Only right cells
-  if (VNA_MODE(VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+  if (VNA_MODE(VNA_MODE_SHOW_GRID) && x0 > (GRID_X_TEXT - CELLWIDTH))
     cell_grid_line_info(x0, y0);
 #endif
 
@@ -1474,7 +1472,7 @@ draw_cell(int m, int n)
 
 #if 1
   // Draw trace and marker info on the top
-  if (n <= marker_area_max() / CELLHEIGHT)
+  if (y0 <= marker_area_max())
     cell_draw_marker_info(x0, y0);
 #endif
 
@@ -1523,7 +1521,7 @@ draw_all_cells(void)
     map_t update_map = markmap[n];
     for (m = 0; update_map; update_map>>=1, m++)
       if (update_map & 1)
-        draw_cell(m, n);
+        draw_cell(m * CELLWIDTH, n * CELLHEIGHT);
   }
 
 #if 0
@@ -1594,7 +1592,7 @@ redraw_marker(int8_t marker) {
 }
 
 // Marker and trace data position
-static const struct {uint16_t x, y;} marker_pos[]={
+static const struct {uint16_t x, y;} marker_pos[MARKERS_MAX] = {
   { 1 +             CELLOFFSETX, 1                    }, { 1 + (WIDTH/2) + CELLOFFSETX, 1                    },
   { 1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
   { 1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
