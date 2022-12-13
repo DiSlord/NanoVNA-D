@@ -1753,7 +1753,7 @@ draw_frequencies(void)
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);
-  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"bw:%u" S_Hz " %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
+  lcd_printf(FREQUENCIES_XPOS3, FREQUENCIES_YPOS,"IFBW:%u" S_Hz " %up", get_bandwidth_frequency(config._bandwidth), sweep_points);
   lcd_set_font(FONT_NORMAL);
 }
 

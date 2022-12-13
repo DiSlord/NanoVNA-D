@@ -295,8 +295,8 @@ static uint16_t btn_wait_release(void)
 }
 
 #if 0
-static void btn_wait(void){
-  while (READ_PORT() & BUTTON_MASK) chThdSleepMilliseconds(10);
+static void btn_wait(void) {
+  while (READ_PORT()) chThdSleepMilliseconds(10);
 }
 #endif
 
@@ -912,6 +912,36 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
   set_bandwidth(data);
 }
 
+#pragma pack(push, 2)
+typedef struct {
+  const char* text;
+  uint16_t update_flag;
+} vna_mode_data_t;
+#pragma pack(pop)
+
+const vna_mode_data_t vna_mode_data[] = {
+//                        text (if 0 use checkbox) Redraw flags on change
+  [VNA_MODE_AUTO_NAME]   = {0,                     REDRAW_BACKUP},
+#ifdef __USE_SMOOTH__
+  [VNA_MODE_SMOOTH]      = {"Geom\0Arith",         REDRAW_BACKUP},
+#endif
+#ifdef __USE_SERIAL_CONSOLE__
+  [VNA_MODE_CONNECTION]  = {"USB\0SERIAL",         REDRAW_BACKUP},
+#endif
+  [VNA_MODE_SEARCH]      = {"MAXIMUM\0MINIMUM",    REDRAW_BACKUP},
+  [VNA_MODE_SHOW_GRID]   = {0,                     REDRAW_BACKUP | REDRAW_AREA},
+  [VNA_MODE_DOT_GRID]    = {0,                     REDRAW_BACKUP | REDRAW_AREA},
+#ifdef __USE_BACKUP__
+  [VNA_MODE_BACKUP]      = {0,                     REDRAW_BACKUP},
+#endif
+#ifdef __FLIP_DISPLAY__
+  [VNA_MODE_FLIP_DISPLAY]= {0,                     REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY},
+#endif
+#ifdef __DIGIT_SEPARATOR__
+  [VNA_MODE_SEPARATOR]   = {" DOT '.'\0 COMMA ','",REDRAW_BACKUP | REDRAW_MARKER | REDRAW_FREQUENCY},
+#endif
+};
+
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
   uint16_t m = 1<<idx;
   uint16_t old = config._vna_mode;
@@ -919,17 +949,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
   else                            config._vna_mode^= m; // toggle
   if (old == config._vna_mode) return;
-  static const uint16_t redraw[] = {
-    [VNA_MODE_AUTO_NAME]    = REDRAW_BACKUP,
-    [VNA_MODE_SMOOTH]       = REDRAW_BACKUP,
-    [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
-    [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
-    [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_DOT_GRID]     = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
-    [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY
-  };
-  request_to_redraw(redraw[idx]);
+  request_to_redraw(vna_mode_data[idx].update_flag);
   // Custom processing after apply
   switch(idx) {
 #ifdef __USE_SERIAL_CONSOLE__
@@ -952,23 +972,12 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
 {
-  static const char *vna_mode_text[] = {
-    [VNA_MODE_AUTO_NAME] = 0,
-    [VNA_MODE_SMOOTH] = "Geom\0Arith",
-    [VNA_MODE_CONNECTION] = "USB\0SERIAL",
-    [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
-    [VNA_MODE_SHOW_GRID] = 0,
-    [VNA_MODE_DOT_GRID] = 0,
-    [VNA_MODE_BACKUP] = 0,
-    [VNA_MODE_FLIP_DISPLAY] = 0
-  };
-  if (b){
-    if (vna_mode_text[data] == 0)
+  if (b) {
+    const char *t = vna_mode_data[data].text;
+    if (t == 0)
       b->icon = VNA_MODE(data) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    else {
-      const char *t = vna_mode_text[data];
+    else
       b->p1.text = VNA_MODE(data) ? t + strlen(t) + 1 : t;
-    }
     return;
   }
   apply_VNA_mode(data, VNA_MODE_TOGGLE);
@@ -1538,18 +1547,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
   si5351_set_band_mode(config._band_mode);
 }
 
-#ifdef __DIGIT_SEPARATOR__
-static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
-{
-  (void)data;
-  if (b){
-    b->p1.text = DIGIT_SEPARATOR == '.' ? " DOT '.'" : " COMMA ','";
-    return;
-  }
-  DIGIT_SEPARATOR = DIGIT_SEPARATOR == '.' ? ',' : '.';
-}
-#endif
-
 #if STORED_TRACES > 0
 static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
 {
@@ -2000,7 +1997,7 @@ const menuitem_t menu_offset[] = {
 const menuitem_t menu_device1[] = {
   { MT_ADV_CALLBACK, 0,            "MODE\n" R_LINK_COLOR " %s",          menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n" R_LINK_COLOR "%s",      menu_separator_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n" R_LINK_COLOR "%s", menu_vna_mode_acb },
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   { MT_CALLBACK, FMT_BIN_FILE,     "DUMP\nFIRMWARE",     menu_sdcard_cb },

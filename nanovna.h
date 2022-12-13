@@ -845,9 +845,9 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TRACE_INVALID        -1
 
 // properties flags
-#define DOMAIN_MODE (1<<0)
-#define DOMAIN_FREQ (0<<0)
-#define DOMAIN_TIME (1<<0)
+#define DOMAIN_MODE             (1<<0)
+#define DOMAIN_FREQ             (0<<0)
+#define DOMAIN_TIME             (1<<0)
 // Time domain function
 #define TD_FUNC                 (0b11<<1)
 #define TD_FUNC_BANDPASS        (0b00<<1)
@@ -868,27 +868,35 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 // Marker delta
 //#define TD_MARKER_LOCK          (1<<9) // reserved
 
-// config._mode flags
-// Auto name for files
-#define VNA_MODE_AUTO_NAME        0
-// Smooth function
-#define VNA_MODE_SMOOTH           1
-// Connection flag
-#define VNA_MODE_CONNECTION       2
-#define VNA_MODE_SERIAL           (1<<VNA_MODE_CONNECTION)
-#define VNA_MODE_USB              (0<<VNA_MODE_CONNECTION)
-// Marker search mode
-#define VNA_MODE_SEARCH           3
-#define VNA_MODE_SEARCH_MIN       (1<<VNA_MODE_SEARCH)
-#define VNA_MODE_SEARCH_MAX       (0<<VNA_MODE_SEARCH)
-// Show grid values
-#define VNA_MODE_SHOW_GRID        4
-// Show grid values
-#define VNA_MODE_DOT_GRID         5
-// Made backup settings (save some settings after power off)
-#define VNA_MODE_BACKUP           6
-// Flip display
-#define VNA_MODE_FLIP_DISPLAY     7
+//
+// config._mode flags (16 bit field)
+//
+enum {
+  VNA_MODE_AUTO_NAME = 0,// Auto name for files
+#ifdef __USE_SMOOTH__
+  VNA_MODE_SMOOTH,       // Smooth function (0: Geom, 1: Arith)
+#endif
+#ifdef __USE_SERIAL_CONSOLE__
+  VNA_MODE_CONNECTION,   // Connection flag (0: USB, 1: SERIAL)
+#endif
+  VNA_MODE_SEARCH,       // Marker search mode (0: max, 1: min)
+  VNA_MODE_SHOW_GRID,    // Show grid values
+  VNA_MODE_DOT_GRID,     // Dotted grid lines
+#ifdef __USE_BACKUP__
+  VNA_MODE_BACKUP,       // Made backup settings (save some settings after power off)
+#endif
+#ifdef __FLIP_DISPLAY__
+  VNA_MODE_FLIP_DISPLAY, // Flip display
+#endif
+#ifdef __DIGIT_SEPARATOR__
+  VNA_MODE_SEPARATOR,    // Comma or dot digit separator (0: dot, 1: comma)
+#endif
+};
+// Update config._vna_mode flags function
+#define VNA_MODE_CLR     0
+#define VNA_MODE_SET     1
+#define VNA_MODE_TOGGLE  2
+void apply_VNA_mode(uint16_t idx, uint16_t value);
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -939,7 +947,7 @@ typedef struct config {
   uint32_t _harmonic_freq_threshold;
   int32_t  _IF_freq;
   int16_t  _touch_cal[4];
-  uint8_t  _vna_mode;
+  uint16_t _vna_mode;
   uint8_t  _brightness;
   uint16_t _dac_value;
   uint16_t _vbat_offset;
@@ -949,7 +957,6 @@ typedef struct config {
   uint32_t _xtal_freq;
   float    _measure_r;
   uint8_t  _lever_mode;
-  uint8_t  _digit_separator;
   uint8_t  _band_mode;
   uint32_t checksum;
 } config_t;
@@ -1254,7 +1261,7 @@ void testLog(void);        // debug log
 /*
  * flash.c
  */
-#define CONFIG_MAGIC 0x434f4e55 // Config magic value (allow reset on new config version)
+#define CONFIG_MAGIC 0x434f4e56 // Config magic value (allow reset on new config version)
 #define PROPS_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
@@ -1296,7 +1303,7 @@ extern uint16_t lastsaveid;
 #define lever_mode           config._lever_mode
 #define IF_OFFSET            config._IF_freq
 #ifdef __DIGIT_SEPARATOR__
-#define DIGIT_SEPARATOR      config._digit_separator
+#define DIGIT_SEPARATOR      (VNA_MODE(VNA_MODE_SEPARATOR) ? ',' : '.')
 #else
 #define DIGIT_SEPARATOR      '.'
 #endif
@@ -1347,13 +1354,6 @@ void enter_dfu(void);
 extern uint8_t operation_requested;
 
 #define TOUCH_THRESHOLD 2000
-
-// Update config._vna_mode flags
-#define VNA_MODE_CLR     0
-#define VNA_MODE_SET     1
-#define VNA_MODE_TOGGLE  2
-void apply_VNA_mode(uint16_t idx, uint16_t value);
-
 /*
  * misclinous
  */

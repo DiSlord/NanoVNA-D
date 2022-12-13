@@ -668,12 +668,31 @@ VNA_SHELL_FUNCTION(cmd_smooth)
 #endif
 
 #ifdef ENABLE_CONFIG_COMMAND
-VNA_SHELL_FUNCTION(cmd_config)
-{
-  static const char cmd_mode_list[] = "auto|avg|connection|mode|grid|dot|bk|flip";
+VNA_SHELL_FUNCTION(cmd_config) {
+  static const char cmd_mode_list[] =
+    "auto"
+#ifdef __USE_SMOOTH__
+    "|avg"
+#endif
+#ifdef __USE_SERIAL_CONSOLE__
+    "|connection"
+#endif
+    "|mode"
+    "|grid"
+    "|dot"
+#ifdef __USE_BACKUP__
+    "|bk"
+#endif
+#ifdef __FLIP_DISPLAY__
+    "|flip"
+#endif
+#ifdef __DIGIT_SEPARATOR__
+    "|separator"
+#endif
+  ;
   int idx;
   if (argc == 2 && (idx = get_str_index(argv[0], cmd_mode_list)) >= 0) {
-	apply_VNA_mode(idx, my_atoui(argv[1]));
+    apply_VNA_mode(idx, my_atoui(argv[1]));
   }
   else
     shell_printf("usage: config {%s} [0|1]" VNA_SHELL_NEWLINE_STR, cmd_mode_list);
@@ -895,7 +914,7 @@ config_t config = {
   ._harmonic_freq_threshold = FREQUENCY_THRESHOLD,
   ._IF_freq    = FREQUENCY_OFFSET,
   ._touch_cal  = DEFAULT_TOUCH_CONFIG,
-  ._vna_mode   = VNA_MODE_USB | VNA_MODE_SEARCH_MAX,
+  ._vna_mode   = 0, // USB mode, search max
   ._brightness = DEFAULT_BRIGHTNESS,
   ._dac_value   = 1922,
   ._vbat_offset = 420,
@@ -905,7 +924,6 @@ config_t config = {
   ._xtal_freq = XTALFREQ,
   ._measure_r = MEASURE_DEFAULT_R,
   ._lever_mode = LM_MARKER,
-  ._digit_separator = '.',
   ._band_mode = 0,
 };
 
@@ -2342,20 +2360,6 @@ VNA_SHELL_FUNCTION(cmd_marker)
   shell_printf("marker [n] [%s|{index}]" VNA_SHELL_NEWLINE_STR, cmd_marker_list);
 }
 
-#if 0
-VNA_SHELL_FUNCTION(cmd_grid)
-{
-  if (argc != 1) {
-    shell_printf("grid %s" VNA_SHELL_NEWLINE_STR, config._mode&VNA_MODE_SHOW_GRID ? "on" : "off");
-    return;
-  }
-  if (my_atoi(argv[0]))
-    config._mode|= VNA_MODE_SHOW_GRID;
-  else
-    config._mode&=~VNA_MODE_SHOW_GRID;
-}
-#endif
-
 VNA_SHELL_FUNCTION(cmd_touchcal)
 {
   (void)argc;
@@ -2761,7 +2765,7 @@ result:
 VNA_SHELL_FUNCTION(cmd_usart)
 {
   uint32_t time = MS2ST(200); // 200ms wait answer by default
-  if (argc == 0 || argc > 2 || VNA_MODE(VNA_MODE_SERIAL)) return;
+  if (argc == 0 || argc > 2 || VNA_MODE(VNA_MODE_CONNECTION)) return; // Not work in serial mode
   if (argc == 2) time = MS2ST(my_atoui(argv[1]));
   sdWriteTimeout(&SD1, (uint8_t *)argv[0], strlen(argv[0]), time);
   sdWriteTimeout(&SD1, (uint8_t *)VNA_SHELL_NEWLINE_STR, sizeof(VNA_SHELL_NEWLINE_STR)-1, time);
