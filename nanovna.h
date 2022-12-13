@@ -948,16 +948,17 @@ typedef struct config {
   int32_t  _IF_freq;
   int16_t  _touch_cal[4];
   uint16_t _vna_mode;
-  uint8_t  _brightness;
   uint16_t _dac_value;
   uint16_t _vbat_offset;
   uint16_t _bandwidth;
+  uint8_t  _lever_mode;
+  uint8_t  _brightness;
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
   float    _measure_r;
-  uint8_t  _lever_mode;
   uint8_t  _band_mode;
+  uint8_t  _reserved[3];
   uint32_t checksum;
 } config_t;
 
