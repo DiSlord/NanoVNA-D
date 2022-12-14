@@ -1586,10 +1586,10 @@ void
 set_sweep_frequency(uint16_t type, freq_t freq)
 {
   // Check frequency for out of bounds (minimum SPAN can be any value)
-  if (type < ST_SPAN && freq < START_MIN)
-    freq = START_MIN;
-  if (freq > STOP_MAX)
-    freq = STOP_MAX;
+  if (type < ST_SPAN && freq < FREQUENCY_MIN)
+    freq = FREQUENCY_MIN;
+  if (freq > FREQUENCY_MAX)
+    freq = FREQUENCY_MAX;
   freq_t center, span;
   switch (type) {
     case ST_START:
@@ -1608,10 +1608,10 @@ set_sweep_frequency(uint16_t type, freq_t freq)
       FREQ_CENTERSPAN();
       center = freq;
       span   = (frequency1 - frequency0)>>1;
-      if (span > center - START_MIN)
-        span = (center - START_MIN);
-      if (span > STOP_MAX - center)
-        span = (STOP_MAX - center);
+      if (span > center - FREQUENCY_MIN)
+        span = (center - FREQUENCY_MIN);
+      if (span > FREQUENCY_MAX - center)
+        span = (FREQUENCY_MAX - center);
       frequency0 = center - span;
       frequency1 = center + span;
       break;
@@ -1619,10 +1619,10 @@ set_sweep_frequency(uint16_t type, freq_t freq)
       FREQ_CENTERSPAN();
       center = (frequency0>>1) + (frequency1>>1);
       span = freq>>1;
-      if (center < START_MIN + span)
-        center = START_MIN + span;
-      if (center > STOP_MAX - span)
-        center = STOP_MAX - span;
+      if (center < FREQUENCY_MIN + span)
+        center = FREQUENCY_MIN + span;
+      if (center > FREQUENCY_MAX - span)
+        center = FREQUENCY_MAX - span;
       frequency0 = center - span;
       frequency1 = center + span;
       break;

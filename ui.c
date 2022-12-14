@@ -3005,7 +3005,7 @@ lever_frequency(uint16_t status) {
     if (status & EVT_DOWN) freq-= step;
   }
   while (btn_wait_release() != 0);
-  if (freq > STOP_MAX || freq < START_MIN) return;
+  if (freq > FREQUENCY_MAX || freq < FREQUENCY_MIN) return;
   set_sweep_frequency(mode, freq);
 }
 

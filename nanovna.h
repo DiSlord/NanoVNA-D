@@ -164,9 +164,9 @@
  * main.c
  */
 // Minimum frequency set
-#define START_MIN                800
+#define FREQUENCY_MIN            800
 // Maximum frequency set
-#define STOP_MAX                 2700000000U
+#define FREQUENCY_MAX            2700000000U
 // Frequency threshold (max frequency for si5351, harmonic mode after)
 #define FREQUENCY_THRESHOLD      300000100U
 // XTAL frequency on si5351
