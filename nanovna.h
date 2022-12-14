@@ -869,7 +869,7 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 //#define TD_MARKER_LOCK          (1<<9) // reserved
 
 //
-// config._mode flags (16 bit field)
+// config.vna_mode flags (16 bit field)
 //
 enum {
   VNA_MODE_AUTO_NAME = 0,// Auto name for files

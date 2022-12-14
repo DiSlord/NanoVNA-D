@@ -71,7 +71,6 @@ enum {
 #ifdef __SD_FILE_BROWSER__
   UI_BROWSER,
 #endif
-  UI_END
 };
 
 typedef struct {
@@ -773,7 +772,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   }
   if (caldata_save(data) == 0) {
     menu_move_back(true);
-    request_to_redraw(REDRAW_CAL_STATUS);
+    request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS);
   }
 }
 
@@ -1066,8 +1065,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
   (void)data;
   if (b){
-    b->p1.text = sweep_mode&SWEEP_ENABLE ? "PAUSE" : "RESUME";
-    b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
+    b->p1.text = (sweep_mode & SWEEP_ENABLE) ? "PAUSE" : "RESUME";
+    b->icon = (sweep_mode & SWEEP_ENABLE) ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
   }
   toggle_sweep();
@@ -1103,7 +1102,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     }
     break;
   case UI_MARKER_EDELAY:
-    { 
+    {
       if (current_trace == TRACE_INVALID)
         break;
       float (*array)[2] = measured[trace[current_trace].channel];
@@ -1930,7 +1929,7 @@ const menuitem_t menu_marker_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
-  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl =" R_LINK_COLOR " %b.4F"S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl =" R_LINK_COLOR " %b.4F" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -3172,7 +3171,7 @@ ui_normal_touch(int touch_x, int touch_y) {
 static const struct {
   void (*button)(uint16_t status);
   void (*touch)(int touch_x, int touch_y);
-} ui_handler[UI_END] = {
+} ui_handler[] = {
   [UI_NORMAL ] = {ui_normal_lever , ui_normal_touch},
   [UI_MENU   ] = {ui_menu_lever   , ui_menu_touch},
   [UI_KEYPAD ] = {ui_keypad_lever , ui_keypad_touch},
