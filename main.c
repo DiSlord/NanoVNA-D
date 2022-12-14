@@ -630,7 +630,7 @@ my_atof(const char *p)
   float x = my_atoi(p);
   while (_isdigit((int)*p))
     p++;
-  if (*p == '.') {
+  if (*p == '.' || *p == ',') {
     float d = 1.0f;
     p++;
     while (_isdigit((int)*p)) {
