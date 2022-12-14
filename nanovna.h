@@ -251,19 +251,19 @@
 typedef uint32_t freq_t;
 
 // Optional sweep point (in UI menu)
-#if POINTS_COUNT >=401
+#if SWEEP_POINTS_MAX >=401
 #define POINTS_SET_COUNT       5
 #define POINTS_SET             {51, 101, 201, 301, SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
-#elif POINTS_COUNT >=301
+#elif SWEEP_POINTS_MAX >=301
 #define POINTS_SET_COUNT       4
 #define POINTS_SET             {51, 101, 201, SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
-#elif POINTS_COUNT >=201
+#elif SWEEP_POINTS_MAX >=201
 #define POINTS_SET_COUNT       3
 #define POINTS_SET             {51, 101, SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
-#elif POINTS_COUNT >=101
+#elif SWEEP_POINTS_MAX >=101
 #define POINTS_SET_COUNT       2
 #define POINTS_SET             {51, SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
@@ -297,9 +297,9 @@ extern float measured[2][SWEEP_POINTS_MAX][2];
 #define ETERM_ET 3 /* error term transmission tracking */
 #define ETERM_EX 4 /* error term isolation */
 
-#if   POINTS_COUNT <= 256
+#if   SWEEP_POINTS_MAX <= 256
 #define FFT_SIZE   256
-#elif POINTS_COUNT <= 512
+#elif SWEEP_POINTS_MAX <= 512
 #define FFT_SIZE   512
 #endif
 

@@ -59,8 +59,8 @@ static map_t markmap[MAX_MARKMAP_Y];
 
 // Trace data cache, for faster redraw cells
 typedef struct {
-  uint16_t y;
   uint16_t x;
+  uint16_t y;
 } index_t;
 static index_t trace_index[TRACE_INDEX_COUNT][SWEEP_POINTS_MAX];
 

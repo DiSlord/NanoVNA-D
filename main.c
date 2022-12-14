@@ -1002,7 +1002,7 @@ void load_default_properties(void)
 // Backup registers support, allow save data on power off (while vbat power enabled)
 //
 #ifdef __USE_BACKUP__
-#if POINTS_COUNT > 511 || SAVEAREA_MAX > 15
+#if SWEEP_POINTS_MAX > 511 || SAVEAREA_MAX > 15
 #error "Check backup data limits!!"
 #endif
 
