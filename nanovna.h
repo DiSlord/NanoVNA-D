@@ -131,7 +131,7 @@
 #define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             401
+#define SWEEP_POINTS_MAX         401
 
 #define AUDIO_ADC_FREQ_K1        384
 #else
@@ -152,7 +152,7 @@
 //#define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
-#define POINTS_COUNT             101
+#define SWEEP_POINTS_MAX         101
 #endif
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
@@ -253,23 +253,23 @@ typedef uint32_t freq_t;
 // Optional sweep point (in UI menu)
 #if POINTS_COUNT >=401
 #define POINTS_SET_COUNT       5
-#define POINTS_SET             {51, 101, 201, 301, POINTS_COUNT}
-#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#define POINTS_SET             {51, 101, 201, 301, SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #elif POINTS_COUNT >=301
 #define POINTS_SET_COUNT       4
-#define POINTS_SET             {51, 101, 201, POINTS_COUNT}
-#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#define POINTS_SET             {51, 101, 201, SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #elif POINTS_COUNT >=201
 #define POINTS_SET_COUNT       3
-#define POINTS_SET             {51, 101, POINTS_COUNT}
-#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#define POINTS_SET             {51, 101, SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #elif POINTS_COUNT >=101
 #define POINTS_SET_COUNT       2
-#define POINTS_SET             {51, POINTS_COUNT}
-#define POINTS_COUNT_DEFAULT   POINTS_COUNT
+#define POINTS_SET             {51, SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #endif
 
-extern float measured[2][POINTS_COUNT][2];
+extern float measured[2][SWEEP_POINTS_MAX][2];
 
 #define CAL_TYPE_COUNT  5
 #define CAL_LOAD        0
@@ -987,7 +987,7 @@ typedef struct properties {
   float    _var_delay;
   float    _s21_offset;
   float    _portz;
-  float    _cal_data[CAL_TYPE_COUNT][POINTS_COUNT][2]; // Put at the end for faster access to others data from struct
+  float    _cal_data[CAL_TYPE_COUNT][SWEEP_POINTS_MAX][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
 

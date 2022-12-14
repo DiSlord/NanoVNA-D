@@ -119,7 +119,7 @@ uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
 static uint16_t p_sweep = 0;
 // Sweep measured data
-float measured[2][POINTS_COUNT][2];
+float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
 #define VERSION "1.2.16"
@@ -134,7 +134,7 @@ const char *info_about[]={
 //  "  https://paypal.me/DiSlord",
   "  WebMoney: Z313822869119",
   "Version: " VERSION " ["\
-  "p:"define_to_STR(POINTS_COUNT)", "\
+  "p:"define_to_STR(SWEEP_POINTS_MAX)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
   "ADC:"define_to_STR(AUDIO_ADC_FREQ_K1)"k, "\
   "Lcd:"define_to_STR(LCD_WIDTH)"x"define_to_STR(LCD_HEIGHT)\
@@ -938,27 +938,27 @@ static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith for
 };
 
 static const marker_t def_markers[MARKERS_MAX] = {
-  { TRUE, 0, 10*POINTS_COUNT/100-1, 0 },
+  { TRUE, 0, 10*SWEEP_POINTS_MAX/100-1, 0 },
 #if MARKERS_MAX > 1
-  {FALSE, 0, 20*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 20*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 2
-  {FALSE, 0, 30*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 30*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 3
-  {FALSE, 0, 40*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 40*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 4
-  {FALSE, 0, 50*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 50*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 5
-  {FALSE, 0, 60*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 60*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 6
-  {FALSE, 0, 70*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 70*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 #if MARKERS_MAX > 7
-  {FALSE, 0, 80*POINTS_COUNT/100-1, 0 },
+  {FALSE, 0, 80*SWEEP_POINTS_MAX/100-1, 0 },
 #endif
 };
 
@@ -1254,7 +1254,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     if (mask & SWEEP_USE_RENORMALIZATION)
       apply_renormalization(data, mask);
 #endif
-    if (p_sweep < POINTS_COUNT){
+    if (p_sweep < SWEEP_POINTS_MAX){
       if (mask & SWEEP_CH0_MEASURE){
         measured[0][p_sweep][0] = data[0];
         measured[0][p_sweep][1] = data[1];
@@ -1362,7 +1362,7 @@ result:
 }
 
 void set_sweep_points(uint16_t points){
-  if (points == sweep_points || points > POINTS_COUNT)
+  if (points == sweep_points || points > SWEEP_POINTS_MAX)
     return;
   sweep_points = points;
   update_frequencies();
@@ -1372,7 +1372,7 @@ void set_sweep_points(uint16_t points){
  * Frequency list functions
  */
 #ifdef __USE_FREQ_TABLE__
-static freq_t frequencies[POINTS_COUNT];
+static freq_t frequencies[SWEEP_POINTS_MAX];
 static void
 set_frequencies(freq_t start, freq_t stop, uint16_t points)
 {
@@ -1387,7 +1387,7 @@ set_frequencies(freq_t start, freq_t stop, uint16_t points)
     if ((df+=error) >= step) {f++; df-= step;}
   }
   // disable at out of sweep range
-  for (; i < POINTS_COUNT; i++)
+  for (; i < SWEEP_POINTS_MAX; i++)
     frequencies[i] = 0;
 }
 #define _c_start    frequencies[0]
@@ -1443,8 +1443,8 @@ VNA_SHELL_FUNCTION(cmd_scan)
   }
   if (argc >= 3) {
     points = my_atoui(argv[2]);
-    if (points == 0 || points > POINTS_COUNT) {
-      shell_printf("sweep points exceeds range " define_to_STR(POINTS_COUNT) VNA_SHELL_NEWLINE_STR);
+    if (points == 0 || points > SWEEP_POINTS_MAX) {
+      shell_printf("sweep points exceeds range " define_to_STR(SWEEP_POINTS_MAX) VNA_SHELL_NEWLINE_STR);
       return;
     }
     sweep_points = points;
