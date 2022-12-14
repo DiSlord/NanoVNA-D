@@ -837,7 +837,7 @@ static int marker_area_max(void) {
   int extra = 0;
   if (electrical_delay != 0.0f) extra+= 2;
   if (s21_offset != 0.0f) extra+= 2;
-#ifdef __VNA_Z_NORMALIZATION__
+#ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) extra+= 2;
 #endif
   if (extra < 2) extra = 2;
