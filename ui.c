@@ -91,7 +91,7 @@ typedef struct {
 // Enum for keypads_list
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
-  KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
+  KM_POINTS, KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
   KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
@@ -1827,6 +1827,7 @@ const menuitem_t menu_display[] = {
 };
 
 const menuitem_t menu_sweep_points[] = {
+  { MT_ADV_CALLBACK, KM_POINTS, "SET POINTS\n " R_LINK_COLOR "%d", (const void *)menu_keyboard_acb },
   { MT_ADV_CALLBACK, 0, "%d point", menu_points_acb },
 #if POINTS_SET_COUNT > 1
   { MT_ADV_CALLBACK, 1, "%d point", menu_points_acb },
@@ -2391,6 +2392,13 @@ UI_KEYBOARD_CALLBACK(input_var_delay) {
   current_props._var_delay = keyboard_get_nfloat();
 }
 
+// Call back functions for MT_CALLBACK type
+UI_KEYBOARD_CALLBACK(input_points) {
+  (void)data;
+  if (b) {b->p1.u = sweep_points; return;}
+  set_sweep_points(keyboard_get_uint());
+}
+
 UI_KEYBOARD_CALLBACK(input_scale) {
   if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
   set_trace_scale(current_trace, data != KM_SCALE ? keyboard_get_nfloat() : keyboard_get_float());
@@ -2508,6 +2516,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_SPAN]            = {KEYPAD_FREQ,   ST_SPAN,       "SPAN",               input_freq     }, // span
 [KM_CW]              = {KEYPAD_FREQ,   ST_CW,         "CW FREQ",            input_freq     }, // cw freq
 [KM_VAR]             = {KEYPAD_FREQ,   ST_VAR,        "JOG STEP",           input_freq     }, // VAR freq step
+[KM_POINTS]          = {KEYPAD_UFLOAT, 0,             "POINTS",             input_points   }, // Points num
 [KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale
 [KM_nSCALE]          = {KEYPAD_NFLOAT, KM_nSCALE,     "SCALE",              input_scale    }, // nano / pico scale value
 [KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value

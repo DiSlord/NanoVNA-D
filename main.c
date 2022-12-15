@@ -1361,8 +1361,10 @@ result:
   shell_printf("bandwidth %d (%uHz)" VNA_SHELL_NEWLINE_STR, config._bandwidth, get_bandwidth_frequency(config._bandwidth));
 }
 
-void set_sweep_points(uint16_t points){
-  if (points == sweep_points || points > SWEEP_POINTS_MAX)
+void set_sweep_points(uint16_t points) {
+  if (points > SWEEP_POINTS_MAX) points = SWEEP_POINTS_MAX;
+  if (points < SWEEP_POINTS_MIN) points = SWEEP_POINTS_MIN;
+  if (points == sweep_points)
     return;
   sweep_points = points;
   update_frequencies();

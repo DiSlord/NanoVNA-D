@@ -154,6 +154,8 @@
 // Maximum sweep point count (limit by flash and RAM size)
 #define SWEEP_POINTS_MAX         101
 #endif
+// Minimum sweep point count
+#define SWEEP_POINTS_MIN         21
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
 #ifndef AUDIO_ADC_FREQ_K1
