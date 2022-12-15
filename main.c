@@ -145,18 +145,15 @@ int missing_samples = 0;
 uint32_t transform_count = 0;
 uint32_t max_average_count = 5;
 
-#undef VERSION
-#define VERSION "1.2.15"
+//#undef VERSION
+//#define VERSION "1.2.15"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2019-2022 Copyright @DiSlord (based on @edy555 source)",
+  "2019-2022 Copyright @ErikKaashoek (based on @edy555/DiSlord source)",
   "Licensed under GPL.",
-  "  https://github.com/DiSlord/NanoVNA-D",
-  "Donate support:",
-//  "  https://paypal.me/DiSlord",
-  "  WebMoney: Z313822869119",
+  "  https://github.com/erikkaashoek/NanoVNA-D",
   "Version: " VERSION " ["\
   "p:"define_to_STR(POINTS_COUNT)", "\
   "IF:"define_to_STR(FREQUENCY_IF_K)"k, "\
@@ -1903,8 +1900,10 @@ void set_tau(float tau){
     config._bandwidth -= SAMPLE_OVERHEAD;
 #else
   config.tau = (tau * (float) AUDIO_ADC_FREQ / (float) AUDIO_SAMPLES_COUNT + (config._bandwidth-1)) / config._bandwidth;
-  if (config.tau < config.decimation)
-    config.tau = config.decimation;
+  if (config.tau < 1)
+    config.tau = 1;
+  if (config.decimation > config.tau)
+    config.decimation = config.tau;
 #endif
   RESET_SWEEP
 #if 0

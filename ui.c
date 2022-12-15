@@ -171,7 +171,7 @@ static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
 static int8_t  kp_index = 0;
-static uint8_t menu_current_level = 1;
+static uint8_t menu_current_level = 0;
 static int8_t  selection = -1;
 
 // UI menu structure
@@ -1857,20 +1857,6 @@ static const menuitem_t menu_back[] = {
   { MT_NONE,     0, NULL, NULL } // sentinel
 };
 
-static const menuitem_t menu_sdcard[] = {
-  { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
-  { MT_CALLBACK, FMT_BMP_FILE, "SAVE\nSCREENSHOT", menu_sdcard_cb },
-#ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_BMP_FILE, "LOAD BMP", menu_sdcard_browse_cb },
-  { MT_CALLBACK, FMT_CSV_FILE, "SEND CSV", menu_sdcard_browse_cb },
-#endif
-//  { MT_CALLBACK, FMT_S1P_FILE, "SAVE S1P",   menu_sdcard_cb },
-//  { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
-//  { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
-  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
-};
-
-
 #if 0
 static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_OPEN,  "OPEN",  menu_calop_acb },
@@ -2002,7 +1988,7 @@ const menuitem_t menu_scale[] = {
 };
 
 const menuitem_t menu_transform[] = {
-  { MT_ADV_CALLBACK, 0,                       "TRANSFORM",          menu_transform_acb },
+  { MT_ADV_CALLBACK, 0,                       "FFT",          menu_transform_acb },
   { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
   { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
 
@@ -2057,13 +2043,8 @@ const menuitem_t menu_smooth_count[] = {
 
 
 const menuitem_t menu_more_settings[] = {
-   { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO\nNAME", menu_vna_mode_acb},
-#ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
-#endif
+
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
-  { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
-  { MT_ADV_CALLBACK, 0, "DECIMATION\n" R_LINK_COLOR " %bd" ,                        menu_decimation_sel_acb },
   { MT_ADV_CALLBACK, KM_PULL_1,         "PULL 1\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_2,         "PULL 2\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3,         "PULL 3\n" R_LINK_COLOR " %b.7F",           menu_keyboard_acb },
@@ -2076,34 +2057,64 @@ const menuitem_t menu_more_settings[] = {
 
 
 
-const menuitem_t menu_settings[] = {
-  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_SIDE_CHANNEL,  "SIDE\nCHANNEL",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_FREEZE_DISPLAY,  "FREEZE\nDISPLAY",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "LOG\nSIDE",                         menu_vna_mode_acb},
-  { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
+const menuitem_t menu_display_settings[] = {
+//  { MT_ADV_CALLBACK, VNA_MODE_FREEZE_DISPLAY,  "FREEZE\nDISPLAY",                         menu_vna_mode_acb},
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
-  { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
-
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
+const menuitem_t menu_measure_settings[] = {
+  { MT_ADV_CALLBACK, VNA_MODE_PLL,      "PLL",                                      menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_SIDE_CHANNEL,  "SIDE\nCHANNEL",                         menu_vna_mode_acb},
+#ifdef USE_VARIABLE_OFFSET_MENU
+  { MT_ADV_CALLBACK, 0,                 "IF\n" R_LINK_COLOR " %d" S_Hz,             menu_offset_sel_acb },
+#endif
+//  { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
+  { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+const menuitem_t menu_measure[] = {
+  { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0, "DECIMATION\n" R_LINK_COLOR " %bd" ,                        menu_decimation_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
+  { MT_SUBMENU,      0, "SETTINGS",                            menu_measure_settings },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
+
 const menuitem_t menu_display[] = {
+//  { MT_ADV_CALLBACK, VNA_MODE_FREEZE_DISPLAY,  "FREEZE\nDISPLAY",                         menu_vna_mode_acb},
+  { MT_SUBMENU,      0, "PHASE\nFFT",                          menu_transform },
+  { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLL\nTRACE",     menu_vna_mode_acb },
   { MT_SUBMENU,      0, "TRACE",                               menu_trace },
   { MT_SUBMENU,      0, "FORMAT",                              menu_formatS11 },
 //  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
-  { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_USB_LOG, "USB\nLOG",      menu_vna_mode_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_DISK_LOG, "DISK\nLOG",     menu_vna_mode_acb },
-  { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
+  { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
+
+const menuitem_t menu_output[] = {
+  { MT_ADV_CALLBACK,    VNA_MODE_USB_LOG,       "USB\nLOG",         menu_vna_mode_acb },
+  { MT_ADV_CALLBACK,    VNA_MODE_DISK_LOG,      "DISK\nLOG",        menu_vna_mode_acb },
+  { MT_ADV_CALLBACK,    VNA_MODE_AUTO_NAME,     "AUTO\nNAME",       menu_vna_mode_acb},
+  { MT_CALLBACK,        FMT_BMP_FILE,           "SAVE\nSCREENSHOT", menu_sdcard_cb },
+#ifdef __SD_FILE_BROWSER__
+  { MT_CALLBACK,        FMT_BMP_FILE,           "LOAD BMP",         menu_sdcard_browse_cb },
+  { MT_CALLBACK,        FMT_CSV_FILE,           "SEND CSV",         menu_sdcard_browse_cb },
+#endif
+  { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "LOG\nSIDE",                         menu_vna_mode_acb},
+
+//  { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
+  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+};
+
 
 const menuitem_t menu_sweep_points[] = {
   { MT_ADV_CALLBACK, 0, "%d point", menu_points_acb },
@@ -2355,25 +2366,21 @@ const menuitem_t menu_config[] = {
 };
 
 const menuitem_t menu_top[] = {
+  { MT_SUBMENU, 0, "MEASURE",   menu_measure },
   { MT_SUBMENU, 0, "DISPLAY",   menu_display },
+  { MT_SUBMENU, 0, "OUTPUT",   menu_output },
 //  { MT_SUBMENU, 0, "MARKER",    menu_marker },
 //  { MT_SUBMENU, 0, "STIMULUS",  menu_stimulus },
 //  { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
 //  { MT_SUBMENU, 0, "RECALL",    menu_recall },
-#ifdef __VNA_MEASURE_MODULE__
-  { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },
-#endif
-#ifdef __USE_SD_CARD__
-  { MT_SUBMENU, 0, "SD CARD",   menu_sdcard },
-#endif
   { MT_SUBMENU, 0, "CONFIG",    menu_config },
-  { MT_ADV_CALLBACK, 0, "%s\nSWEEP", menu_pause_acb },
+  { MT_ADV_CALLBACK, 0, "%s\nDISPLAY", menu_pause_acb },
   { MT_NONE, 0, NULL, NULL } // sentinel
 };
 
 #define MENU_STACK_DEPTH_MAX 5
 const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
-  menu_top, menu_display, NULL, NULL, NULL
+  menu_top, NULL , NULL, NULL, NULL
 };
 
 static const menuitem_t *menu_next_item(const menuitem_t *m){

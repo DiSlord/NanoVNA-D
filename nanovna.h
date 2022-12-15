@@ -163,7 +163,7 @@
 // Maximum sweep point count (limit by flash and RAM size)
 #define POINTS_COUNT             401
 
-#define AUDIO_ADC_FREQ_K1        384
+//#define AUDIO_ADC_FREQ_K1        384
 #else
 //#define AUDIO_ADC_FREQ_K        768
 //#define AUDIO_ADC_FREQ_K        384

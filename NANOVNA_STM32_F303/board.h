@@ -25,7 +25,7 @@
  * Board identifier.
  */
 #define BOARD_NANOVNA_STM32_F303
-#define BOARD_NAME              "NanoVNA-H 4"
+#define BOARD_NAME              "tinyDMTD on NanoVNA-H4"
 
 /*
  * Board frequencies.
