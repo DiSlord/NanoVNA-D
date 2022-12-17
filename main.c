@@ -46,6 +46,9 @@ threads_queue_t shell_thread;
 #define VNA_SHELL_MAX_ARGUMENTS   4
 // Shell max command line size
 #define VNA_SHELL_MAX_LENGTH     48
+// Shell frequency printf format
+//#define VNA_FREQ_FMT_STR         "%lu"
+#define VNA_FREQ_FMT_STR         "%u"
 
 // Shell command functions prototypes
 typedef void (*vna_shellcmd_t)(int argc, char *argv[]);
@@ -1490,10 +1493,9 @@ VNA_SHELL_FUNCTION(cmd_scan)
         if (mask & SCAN_MASK_OUT_DATA0) shell_write(&measured[0][i][0], sizeof(float)* 2);             // 4+4 bytes .. S11 real/imag
         if (mask & SCAN_MASK_OUT_DATA1) shell_write(&measured[1][i][0], sizeof(float)* 2);             // 4+4 bytes .. S21 real/imag
       }
-    }
-    else{
+    } else {
       for (int i = 0; i < points; i++) {
-        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf("%u ", getFrequency(i));
+        if (mask & SCAN_MASK_OUT_FREQ ) shell_printf(VNA_FREQ_FMT_STR " ", getFrequency(i));
         if (mask & SCAN_MASK_OUT_DATA0) shell_printf("%f %f ", measured[0][i][0], measured[0][i][1]);
         if (mask & SCAN_MASK_OUT_DATA1) shell_printf("%f %f ", measured[1][i][0], measured[1][i][1]);
         shell_printf(VNA_SHELL_NEWLINE_STR);
@@ -1651,7 +1653,7 @@ void reset_sweep_frequency(void){
 VNA_SHELL_FUNCTION(cmd_sweep)
 {
   if (argc == 0) {
-    shell_printf("%u %u %d" VNA_SHELL_NEWLINE_STR, get_sweep_frequency(ST_START), get_sweep_frequency(ST_STOP), sweep_points);
+    shell_printf(VNA_FREQ_FMT_STR " " VNA_FREQ_FMT_STR " %d" VNA_SHELL_NEWLINE_STR, get_sweep_frequency(ST_START), get_sweep_frequency(ST_STOP), sweep_points);
     return;
   } else if (argc > 3) {
     goto usage;
@@ -2321,7 +2323,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
       if (markers[t].enabled) {
-        shell_printf("%d %d %u" VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
+        shell_printf("%d %d " VNA_FREQ_FMT_STR VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
       }
     }
     return;
@@ -2340,7 +2342,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (t < 0 || t >= MARKERS_MAX)
     goto usage;
   if (argc == 1) {
-    shell_printf("%d %d %u" VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
+    shell_printf("%d %d " VNA_FREQ_FMT_STR VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
     active_marker = t;
     // select active marker
     markers[t].enabled = TRUE;
@@ -2387,7 +2389,7 @@ VNA_SHELL_FUNCTION(cmd_frequencies)
   (void)argc;
   (void)argv;
   for (i = 0; i < sweep_points; i++) {
-    shell_printf("%u" VNA_SHELL_NEWLINE_STR, getFrequency(i));
+    shell_printf(VNA_FREQ_FMT_STR VNA_SHELL_NEWLINE_STR, getFrequency(i));
   }
 }
 

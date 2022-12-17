@@ -223,8 +223,7 @@ static void ui_mode_keypad(int _keypad_mode);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
-
-void drawMessageBox(const char *header, const char *text, uint32_t delay);
+static void drawMessageBox(const char *header, const char *text, uint32_t delay);
 
 // Icons for UI
 #include "icons_menu.c"
@@ -937,7 +936,7 @@ const vna_mode_data_t vna_mode_data[] = {
   [VNA_MODE_FLIP_DISPLAY]= {0,                     REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY},
 #endif
 #ifdef __DIGIT_SEPARATOR__
-  [VNA_MODE_SEPARATOR]   = {" DOT '.'\0 COMMA ','",REDRAW_BACKUP | REDRAW_MARKER | REDRAW_FREQUENCY},
+  [VNA_MODE_SEPARATOR]   = {"DOT '.'\0COMMA ','",  REDRAW_BACKUP | REDRAW_MARKER | REDRAW_FREQUENCY},
 #endif
 };
 
@@ -1599,7 +1598,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_LOAD,  "LOAD",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NEXT,     0, NULL, menu_back } // next-> menu_back
@@ -1749,8 +1748,8 @@ const menuitem_t menu_formatS11[] = {
 const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n" R_LINK_COLOR " %b.3F" S_dB, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n " R_LINK_COLOR "%b.3F" S_dB, menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
@@ -1763,8 +1762,8 @@ const menuitem_t menu_transform[] = {
   { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
   { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
   { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
-  { MT_ADV_CALLBACK, 0,                       "WINDOW\n" R_LINK_COLOR " %s", menu_transform_window_acb },
-  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR" R_LINK_COLOR " %d%%%%", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,                       "WINDOW\n " R_LINK_COLOR "%s", menu_transform_window_acb },
+  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR,      "VELOCITY F.\n " R_LINK_COLOR "%d%%%%", menu_keyboard_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1798,7 +1797,7 @@ const menuitem_t menu_bandwidth[] = {
 
 #ifdef __USE_SMOOTH__
 const menuitem_t menu_smooth_count[] = {
-  { MT_ADV_CALLBACK, VNA_MODE_SMOOTH, "SMOOTH\n" R_LINK_COLOR "%s avg",menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SMOOTH, "SMOOTH\n " R_LINK_COLOR "%s avg",menu_vna_mode_acb },
   { MT_ADV_CALLBACK, 0, "SMOOTH\nOFF",menu_smooth_acb },
   { MT_ADV_CALLBACK, 1, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 2, "x%d", menu_smooth_acb },
@@ -1813,15 +1812,15 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "TRACE",                               menu_trace },
   { MT_SUBMENU,      0, "FORMAT\n S11 (REFL)",                 menu_formatS11 },
   { MT_SUBMENU,      0, "FORMAT\n S21 (THRU)",                 menu_formatS21 },
-  { MT_ADV_CALLBACK, 0, "CHANNEL\n" R_LINK_COLOR " %s",        menu_channel_acb },
+  { MT_ADV_CALLBACK, 0, "CHANNEL\n " R_LINK_COLOR "%s",        menu_channel_acb },
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
   { MT_SUBMENU,      0, "TRANSFORM",                           menu_transform },
-  { MT_ADV_CALLBACK, 0, "IF BANDWIDTH\n" R_LINK_COLOR " %u" S_Hz, menu_bandwidth_sel_acb },
+  { MT_ADV_CALLBACK, 0, "IF BANDWIDTH\n " R_LINK_COLOR "%u" S_Hz, menu_bandwidth_sel_acb },
 #ifdef __USE_SMOOTH__
   { MT_SUBMENU,      0, "DATA SMOOTH",                         menu_smooth_count },
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
-  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n" R_LINK_COLOR " 50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n " R_LINK_COLOR "50 " S_RARROW "%bF" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1851,7 +1850,7 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
-  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n " R_LINK_COLOR "%u",  menu_points_sel_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -1930,7 +1929,7 @@ const menuitem_t menu_marker_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
-  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl =" R_LINK_COLOR " %b.4F" S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl = " R_LINK_COLOR "%b.4F" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1938,9 +1937,9 @@ const menuitem_t menu_marker_measure[] = {
 
 const menuitem_t menu_marker[] = {
   { MT_SUBMENU,                0,   "SELECT\nMARKER",              menu_marker_sel    },
-  { MT_ADV_CALLBACK,VNA_MODE_SEARCH,"SEARCH\n" R_LINK_COLOR " %s", menu_vna_mode_acb },
-  { MT_CALLBACK, MK_SEARCH_LEFT,    "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
-  { MT_CALLBACK, MK_SEARCH_RIGHT,   "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
+  { MT_ADV_CALLBACK,VNA_MODE_SEARCH,"SEARCH\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,    "SEARCH\n " S_LARROW "LEFT",   menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT,   "SEARCH\n " S_RARROW "RIGHT",  menu_marker_search_dir_cb },
   { MT_SUBMENU,                0,   "OPERATIONS",                  menu_marker_ops    },
   { MT_ADV_CALLBACK,           0,   "TRACKING",                    menu_marker_tracking_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
@@ -1995,30 +1994,30 @@ const menuitem_t menu_offset[] = {
 #endif
 
 const menuitem_t menu_device1[] = {
-  { MT_ADV_CALLBACK, 0,            "MODE\n" R_LINK_COLOR " %s",          menu_band_sel_acb },
+  { MT_ADV_CALLBACK, 0,                  "MODE\n " R_LINK_COLOR "%s",      menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n" R_LINK_COLOR "%s", menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  { MT_CALLBACK, FMT_BIN_FILE,     "DUMP\nFIRMWARE",     menu_sdcard_cb },
+  { MT_CALLBACK, FMT_BIN_FILE,           "DUMP\nFIRMWARE",                 menu_sdcard_cb },
 #endif
 #ifdef __SD_CARD_LOAD__
 #ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_CMD_FILE,     "LOAD COMMAND\n SCRIPT", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_CMD_FILE,           "LOAD COMMAND\n SCRIPT",          menu_sdcard_browse_cb },
 #else
-  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",      menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD,       "LOAD\nCONFIG.INI",               menu_config_cb },
 #endif
 #endif
-  { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
+  { MT_SUBMENU, 0,                       "CLEAR CONFIG",                   menu_clear },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_device[] = {
-  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n" R_LINK_COLOR " %.6q",         menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n" R_LINK_COLOR " %.6q",              menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n" R_LINK_COLOR " %um" S_VOLT, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n " R_LINK_COLOR "%.6q",         menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n " R_LINK_COLOR "%.6q",              menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_VBAT,      "VBAT OFFSET\n " R_LINK_COLOR "%um" S_VOLT, menu_keyboard_acb },
 #ifdef USE_VARIABLE_OFFSET_MENU
-  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n" R_LINK_COLOR " %d" S_Hz,      menu_offset_sel_acb },
+  { MT_ADV_CALLBACK, 0,            "IF OFFSET\n " R_LINK_COLOR "%d" S_Hz,      menu_offset_sel_acb },
 #endif
 #ifdef __USE_BACKUP__
   { MT_ADV_CALLBACK, VNA_MODE_BACKUP,"REMEMBER\nSTATE",                        menu_vna_mode_acb},
@@ -2044,10 +2043,10 @@ const menuitem_t menu_config[] = {
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
-  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n" R_LINK_COLOR " %d%%%%", menu_brightness_acb },
+  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n " R_LINK_COLOR "%d%%%%", menu_brightness_acb },
 #endif
 #ifdef __DFU_SOFTWARE_MODE__
-  { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
+  { MT_SUBMENU,                       0, S_RARROW "DFU",   menu_dfu },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2189,7 +2188,7 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b) {
 }
 
 // Draw message box function
-void drawMessageBox(const char *header, const char *text, uint32_t delay) {
+static void drawMessageBox(const char *header, const char *text, uint32_t delay) {
   button_t b;
   int x , y;
   b.bg = LCD_MENU_COLOR;
@@ -2377,7 +2376,7 @@ uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
     if (data == ST_VAR)
-      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
+      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
     return;
   }
   set_sweep_frequency(data, keyboard_get_freq());
@@ -2386,7 +2385,7 @@ UI_KEYBOARD_CALLBACK(input_freq) {
 UI_KEYBOARD_CALLBACK(input_var_delay) {
   (void)data;
   if (b) {
-    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n" R_LINK_COLOR " %F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
+    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n " R_LINK_COLOR "%F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
     return;
   }
   current_props._var_delay = keyboard_get_nfloat();
@@ -2550,8 +2549,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 };
 
 static void
-keypad_set_value(void)
-{
+keypad_set_value(void) {
   const keyboard_cb_t cb = keypads_mode_tbl[keypad_mode].cb;
   if (cb) cb(keypads_mode_tbl[keypad_mode].data, NULL);
 }
@@ -2819,7 +2817,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     // Custom button, apply custom settings/label from callback
     char *text;
     uint16_t text_offs;
-    if (m->type == MT_ADV_CALLBACK){
+    if (m->type == MT_ADV_CALLBACK) {
       if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
       // Apply custom text, from button label and
       if (m->label != MT_CUSTOM_LABEL)
@@ -2839,20 +2837,20 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     // Draw button text
     int lines = get_lines_count(text);
 #if _USE_FONT_ != _USE_SMALL_FONT_
-    if (menu_button_height < lines*FONT_GET_HEIGHT + 2) {
+    if (menu_button_height < lines * FONT_GET_HEIGHT + 2) {
       lcd_set_font(FONT_SMALL);
-      lcd_drawstring(text_offs, y+(menu_button_height-lines*sFONT_GET_HEIGHT - 1)/2, text);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_GET_HEIGHT - 1)/2, text);
     }
     else {
       lcd_set_font(FONT_NORMAL);
-      lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
     }
 #else
-    lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
+    lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
 #endif
   }
   // Erase empty buttons
-  if (AREA_HEIGHT_NORMAL + OFFSETY > y){
+  if (AREA_HEIGHT_NORMAL + OFFSETY > y) {
     lcd_set_background(LCD_BG_COLOR);
     lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
   }
