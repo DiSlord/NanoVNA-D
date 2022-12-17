@@ -1601,7 +1601,7 @@ fetch_next:
     RESET_SWEEP;
   }
   int requested_points = sweep_points;
-  if (trace[3].type==TRC_TRANSFORM)
+  if (trace[3].type==TRC_TRANSFORM || trace[3].type==TRC_FFT_AMP)
     requested_points = FFT_SIZE;
   float prev_phase = 0;
   float phase_wraps = 0;
@@ -1667,10 +1667,17 @@ fetch_next:
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
+      else if (trace[3].type==TRC_FFT_AMP) {
+        float* tmp  = (float*)spi_buffer;
+        tmp[p_sweep * 2 + 0] = temp_measured[temp_output][1];
+        tmp[p_sweep * 2 + 1] = 0;
+//        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
+      }
       if (p_sweep < sweep_points) {
 #ifdef SIDE_CHANNEL
         measured[0][p_sweep][0] = temp_measured[temp_output][0];
 #endif
+        measured[0][p_sweep][1] = temp_measured[temp_output][1];
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }
@@ -1705,25 +1712,25 @@ fetch_next:
   if (operation_requested && break_on_operation) goto return_false;
 //  palSetPad(GPIOA, GPIOA_PA4);
   // -------------------- Average D freq  ----------------------
-#if 0
-  {
-  get_value_cb_t calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
-  float (*array)[4] = measured[0];
-  //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
-  float v = 0;
-  for (int i =0; i<sweep_points-1; i++) {
-    v += calc(i, array[i]);                                          // Get value
-  }
-  v = v/(sweep_points-1);
 
-  aver_freq_d = v;
-  calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
-  last_freq_d = calc(sweep_points-2, array[sweep_points-2]);
+  if (config.tau <= 10) {
+    get_value_cb_t calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
+    float (*array)[4] = measured[0];
+    //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
+    float v = 0;
+    for (int i =0; i<sweep_points-1; i++) {
+      v += calc(i, array[i]);                                          // Get value
+    }
+    v = v/(sweep_points-1);
+
+    aver_freq_d = v;
+    calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
+    last_freq_d = calc(sweep_points-2, array[sweep_points-2]);
   }
-#else
+  else
   {
     reset_regression();
-      get_value_cb_t calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
+    get_value_cb_t calc = trace_info_list[GET_DPHASE].get_value_cb; // dfreq port 1
     float (*array)[4] = measured[0];
     //  const char *format = index_ref >= 0 ? trace_info_list[type].dformat : trace_info_list[type].format; // Format string
     for (int i =0; i<p_sweep; i++) {
@@ -1731,13 +1738,12 @@ fetch_next:
       add_regression(v);
     }
     aver_freq_d = finalize_regression();
- //   shell_printf("%f\r\n", aver_freq_d);
+    //   shell_printf("%f\r\n", aver_freq_d);
 
-  calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
-  last_freq_d = calc(p_sweep-2, array[p_sweep-2]);
+    calc = trace_info_list[GET_DFREQ].get_value_cb; // dfreq port 1
+    last_freq_d = calc(p_sweep-2, array[p_sweep-2]);
   }
 
-#endif
 
 
   // -------------------- Auto set CW frequency ----------------------
@@ -1759,14 +1765,12 @@ fetch_next:
   if (VNA_MODE(VNA_MODE_PLL)) {
     if (level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;
-      v = v * 10000000 / get_sweep_frequency(ST_CENTER);    // Normalize to 10MHz
       float factor = PLL_SCALE;
 //    if (VNA_MODE(VNA_MODE_SCROLLING))
 //      factor *= get_tau();
       if (-0.05 < v && v < 0.05)
-        new_pll = current_props.pll - v * factor / 3;       // Slow speed when close
-      else
-        new_pll = current_props.pll - v * factor;
+        v /= 3;       // Slow speed when close
+      new_pll = current_props.pll - v * factor * 10000000.0 / get_sweep_frequency(ST_CENTER); // Scale is normalized to 10MHz
       if (new_pll < 10000 && new_pll > -10000 && ((current_props.pll - new_pll) > 0.2 || (current_props.pll - new_pll) < -0.2)) {
         current_props.pll = new_pll;
         set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value

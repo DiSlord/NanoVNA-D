@@ -464,6 +464,16 @@ static float transform_d(int i, const float *v) {
   return (2*vna_log10f_x_10(t) + 16);
 }
 
+static float transform_a(int i, const float *v) {
+  (void)i;
+  float t = v[1];
+  if (t < 0)
+    t = -t;
+  if (t == 0)
+    return -140;
+  return (2*vna_log10f_x_10(t) - 210);
+}
+
 
 //**************************************************************************************
 // Delta frequency
@@ -830,7 +840,8 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
-[TRC_TRANSFORM]={"TRANSFORM",   "%.1FdBc %dHz", "%.4F",   "",       0,        90.0f,    transform_d },
+[TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       0,        90.0f,    transform_d },
+[TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       0,        90.0f,    transform_a },
 };
 
 
@@ -928,7 +939,7 @@ trace_into_index(int t) {
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
     }
-    if (trace[t].type == TRC_TRANSFORM) {
+    if (trace[t].type == TRC_TRANSFORM || trace[t].type == TRC_FFT_AMP ) {
       min = -120;
       max = -40;
     }
@@ -1003,7 +1014,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
     float v = 0;
-    if (type == TRC_TRANSFORM) {
+    if (type == TRC_TRANSFORM || type == TRC_FFT_AMP) {
       v = c(index, array[index]);
     } else {
       for (int i =0; i<p_sweep-1; i++) {
@@ -1014,7 +1025,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     }
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
-    if (type == TRC_TRANSFORM)
+    if (type == TRC_TRANSFORM  || type == TRC_FFT_AMP)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
       cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
@@ -1748,7 +1759,7 @@ draw_cell(int m, int n)
       continue;
     int mk_idx = markers[i].index;
     for (t = 0; t < TRACES_MAX; t++) {
-      if (!trace[t].enabled || trace[t].type != TRC_TRANSFORM)
+      if (!trace[t].enabled || (trace[t].type != TRC_TRANSFORM && trace[t].type != TRC_FFT_AMP) )
         continue;
       index_t *index = trace_index[t];
       int x, y;

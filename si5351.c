@@ -466,7 +466,7 @@ CONST_BAND band_strategy_t band_strategy_33H_SI5351[] = {
 CONST_BAND band_strategy_t band_strategy_H4_SI5351[] = {
   {           0U,                0, { 0}, 0, 0,                            -1,                            -1, -1, -1,       1}, // 0
   {       26000U, SI5351_FIXED_PLL, { 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_2MA, SI5351_CLK_DRIVE_STRENGTH_2MA,  0,  0,       1}, // 1
-  {   100000000U, SI5351_FIXED_PLL, {32}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_2MA, SI5351_CLK_DRIVE_STRENGTH_2MA, 20, 20,       1}, // 2
+  {   101000000U, SI5351_FIXED_PLL, {32}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_2MA, SI5351_CLK_DRIVE_STRENGTH_2MA, 20, 20,       1}, // 2
 
   {   130000000U, SI5351_FIXED_MULT,{ 8}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 3
   {   180000000U, SI5351_FIXED_MULT,{ 6}, 1, 1, SI5351_CLK_DRIVE_STRENGTH_4MA, SI5351_CLK_DRIVE_STRENGTH_4MA,  0,  0,       1}, // 4

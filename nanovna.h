@@ -920,6 +920,7 @@ enum trace_type {
   TRC_SPHASE, TRC_SALOGMAG, TRC_SBLOGMAG,
 #endif
   TRC_TRANSFORM,
+  TRC_FFT_AMP,
   MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4

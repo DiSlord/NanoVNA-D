@@ -476,7 +476,7 @@ calculate_gamma(float gamma[4], uint16_t tau)
   }
 #endif
 
-
+  gamma[1] = amp_a;
 
   return(tau);
 }

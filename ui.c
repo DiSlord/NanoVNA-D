@@ -958,25 +958,40 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
 {
   (void)data;
   if(b){
-    if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK; else b->icon = BUTTON_ICON_NOCHECK;
-//    b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
+    if (data == 0 && !(props_mode & DOMAIN_TIME)) b->icon = BUTTON_ICON_GROUP_CHECKED;
+    else if (data == 1 && (props_mode & DOMAIN_TIME) && trace[3].type == TRC_TRANSFORM) b->icon = BUTTON_ICON_GROUP_CHECKED;
+    else if (data == 2 && (props_mode & DOMAIN_TIME) && trace[3].type == TRC_FFT_AMP) b->icon = BUTTON_ICON_GROUP_CHECKED;
+    else b->icon = BUTTON_ICON_GROUP;
     return;
   }
-  props_mode ^= DOMAIN_TIME;
-  if (props_mode & TD_TRANSFORM) {
+  switch(data) {
+  case 0:
+    props_mode &= ~DOMAIN_TIME;
+    apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_SET);
+    set_bandwidth(2);
+    config.decimation = 10;
+    set_tau(0.1);     // shortest possible tau
+    set_trace_type(3, TRC_RESIDUE, 0);
+    trace[0].enabled = true;
+    trace[1].enabled = true;
+    trace[2].enabled = true;
+    transform_count = 0;
+    break;
+  case 1:
+  case 2:
+    props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
     set_sweep_points(POINTS_COUNT);
     set_bandwidth(1);
     config.decimation = 1;
-    set_tau(0);
+    set_tau(0);     // shortest possible tau
     set_sweep_points(POINTS_COUNT);
-    set_trace_type(3, TRC_TRANSFORM, 0);
+    set_trace_type(3, (data == 1 ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
     trace[0].enabled = false;
     trace[1].enabled = false;
     trace[2].enabled = false;
     transform_count = 0;
-  } else {
-
+    break;
   }
   select_lever_mode(LM_MARKER);
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
@@ -1987,10 +2002,13 @@ const menuitem_t menu_scale[] = {
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
-const menuitem_t menu_transform[] = {
-  { MT_ADV_CALLBACK, 0,                       "FFT",          menu_transform_acb },
-  { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
-  { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
+const menuitem_t menu_transform[] =
+{
+ { MT_ADV_CALLBACK, 0,                       "FFT\nOFF",          menu_transform_acb },
+ { MT_ADV_CALLBACK, 1,                       "FFT\nPHASE",          menu_transform_acb },
+ { MT_ADV_CALLBACK, 2,                       "FFT\nAMP",          menu_transform_acb },
+ { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
+ { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
 
 //  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_IMPULSE, "LOW PASS\nIMPULSE",  menu_transform_filter_acb },
 //  { MT_ADV_CALLBACK, TD_FUNC_LOWPASS_STEP,    "LOW PASS\nSTEP",     menu_transform_filter_acb },
@@ -2089,7 +2107,7 @@ const menuitem_t menu_measure[] = {
 
 const menuitem_t menu_display[] = {
 //  { MT_ADV_CALLBACK, VNA_MODE_FREEZE_DISPLAY,  "FREEZE\nDISPLAY",                         menu_vna_mode_acb},
-  { MT_SUBMENU,      0, "PHASE\nFFT",                          menu_transform },
+  { MT_SUBMENU,      0, "FFT",                          menu_transform },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLL\nTRACE",     menu_vna_mode_acb },
   { MT_SUBMENU,      0, "TRACE",                               menu_trace },
   { MT_SUBMENU,      0, "FORMAT",                              menu_formatS11 },
