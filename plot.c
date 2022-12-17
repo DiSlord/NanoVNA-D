@@ -1060,7 +1060,6 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
 typedef void (*measure_cell_cb_t)(int x0, int y0);
 typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 
-static measure_cell_cb_t    measure_cell_handler = NULL;
 static uint8_t data_update = 0;
 
 #define MESAURE_NONE       0
@@ -1106,7 +1105,6 @@ static inline void measure_set_flag(uint8_t flag) {
 
 void plot_set_measure_mode(uint8_t mode) {
   if (mode >= MEASURE_END) return;
-  measure_cell_handler = measure[mode].measure_cell;
   current_props._measure = mode;
   data_update = 0xFF;
   request_to_redraw(REDRAW_AREA);
@@ -1117,7 +1115,7 @@ uint16_t plot_get_measure_channels(void) {
 }
 
 static void measure_prepare(void) {
-  if (current_props._measure == 0) return;
+  if (current_props._measure >= MEASURE_END) return;
   measure_prepare_cb_t measure_cb = measure[current_props._measure].measure_prepare;
   // Do measure and cache data only if update flags some
   if (measure_cb && (data_update & measure[current_props._measure].update))
@@ -1126,9 +1124,12 @@ static void measure_prepare(void) {
 }
 
 static void cell_draw_measure(int x0, int y0){
-  if (measure_cell_handler == NULL) return;
-  lcd_set_colors(LCD_LC_MATCH_COLOR, LCD_BG_COLOR);
-  measure_cell_handler(x0, y0);
+  if (current_props._measure >= MEASURE_END) return;
+  measure_cell_cb_t measure_draw_cb = measure[current_props._measure].measure_cell;
+  if (measure_draw_cb) {
+    lcd_set_colors(LCD_LC_MATCH_COLOR, LCD_BG_COLOR);
+    measure_draw_cb(x0, y0);
+  }
 }
 #endif
 
