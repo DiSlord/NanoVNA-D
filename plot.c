@@ -1072,9 +1072,9 @@ static uint8_t data_update = 0;
 #define MEASURE_UPD_FREQ   2                            // Recalculate on marker change position
 #define MEASURE_UPD_ALL    (MEASURE_UPD_SWEEP | MEASURE_UPD_FREQ)
 
-// Include L/C match functions
-#ifdef __USE_LC_MATCHING__
-  #include "lc_matching.c"
+// Include measure functions
+#ifdef __VNA_MEASURE_MODULE__
+  #include "measure.c"
 #endif
 
 static const struct {
