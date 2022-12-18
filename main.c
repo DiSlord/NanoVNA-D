@@ -1430,6 +1430,7 @@ no_regression:
   return(res_freq);
 }
 
+
 void do_agc(void)
 {
   int old_l_gain = l_gain, old_r_gain = r_gain;
@@ -1448,14 +1449,17 @@ void do_agc(void)
 #else
 #define ADC_TARGET_LEVEL    -30
 #endif
-  l_gain -= 2.0*(level_a - (ADC_TARGET_LEVEL));
-  r_gain -= 2.0*(level_b - (ADC_TARGET_LEVEL));
-  if (l_gain < 0) l_gain = 0;
-  if (l_gain > 60) l_gain = 60;
-  if (r_gain < 0) r_gain = 0;
-  if (r_gain > 60) r_gain = 60;
-  if (old_l_gain != l_gain || old_r_gain != r_gain)
+  int new_l_gain = l_gain - 2.0*(level_a - (ADC_TARGET_LEVEL));
+  int new_r_gain = r_gain - 2.0*(level_b - (ADC_TARGET_LEVEL));
+  if (new_l_gain < 0) new_l_gain = 0;
+  if (new_l_gain > 60) new_l_gain = 60;
+  if (new_r_gain < 0) new_r_gain = 0;
+  if (new_r_gain > 60) new_r_gain = 60;
+  if (abs(old_l_gain - new_l_gain) > 2 || abs(old_r_gain - new_r_gain) > 2) {
+    l_gain = new_l_gain;
+    r_gain = new_r_gain;
     tlv320aic3204_set_gain(l_gain, r_gain);
+  }
   // Get level including gain
   calc = trace_info_list[TRC_ALOGMAG].get_value_cb;
   level_a = calc(p_sweep, measured[0][p_sweep-1]);                                          // Get value
