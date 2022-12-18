@@ -223,7 +223,6 @@ static void ui_mode_keypad(int _keypad_mode);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
-static void drawMessageBox(const char *header, const char *text, uint32_t delay);
 
 // Icons for UI
 #include "icons_menu.c"
@@ -703,7 +702,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
@@ -764,7 +763,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     return;
@@ -1044,12 +1043,12 @@ extern const keypads_list keypads_mode_tbl[];
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
   if ((data == KM_SCALE || data == KM_REFPOS) && current_trace == TRACE_INVALID) return;
-  if (data == KM_SCALE) {   // Scale button type auto set
+  if (data == KM_SCALE) {      // Scale button type auto set
     if ((1<<trace[current_trace].type) & (1<<TRC_DELAY))
-      data = KM_SCALEDELAY;
+      data = KM_SCALEDELAY;    // E-Delay scale
     else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
-      data = KM_nSCALE;
-  } else if (data == KM_VAR) {
+      data = KM_nSCALE;        // Nano scale values
+  } else if (data == KM_VAR) { // JOG STEP button auto set (e-delay or frequency step)
     if (lever_mode == LM_EDELAY) data = KM_VAR_DELAY;
   }
   if (b) {
@@ -2188,24 +2187,31 @@ draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b) {
 }
 
 // Draw message box function
-static void drawMessageBox(const char *header, const char *text, uint32_t delay) {
+void drawMessageBox(const char *header, const char *text, uint32_t delay) {
   button_t b;
   int x , y;
   b.bg = LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
   b.border = BUTTON_BORDER_FLAT|1;
-  // Draw header
-  draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
-  y = LCD_HEIGHT/2-40 + 5;
-  lcd_drawstring(x, y, header);
-  // Draw window
-  lcd_set_background(LCD_FG_COLOR);
-  lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
-  y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
-  lcd_drawstring(x, y, text);
-  chThdSleepMilliseconds(delay);
+  if (header) {// Draw header
+    draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
+    y = LCD_HEIGHT/2-40 + 5;
+    lcd_drawstring(x, y, header);
+    request_to_redraw(REDRAW_AREA);
+  }
+  if (text) {  // Draw window
+    lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_FG_COLOR);
+    lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
+    y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
+    lcd_drawstring(x, y, text);
+    request_to_redraw(REDRAW_AREA);
+  }
+
+  do {
+    chThdSleepMilliseconds(delay == 0 ? 50 : delay);
+  } while (delay == 0 && btn_check() != EVT_BUTTON_SINGLE_CLICK && touch_check() != EVT_TOUCH_PRESSED);
 }
 
 //

@@ -1349,6 +1349,8 @@ void touch_cal_exec(void);
 void touch_draw_test(void);
 void enter_dfu(void);
 
+void drawMessageBox(const char *header, const char *text, uint32_t delay);
+
 // Irq operation process set
 #define OP_NONE       0x00
 #define OP_LEVER      0x01

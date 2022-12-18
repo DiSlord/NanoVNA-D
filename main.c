@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.16"
+#define VERSION "1.2.17"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -700,6 +700,33 @@ VNA_SHELL_FUNCTION(cmd_config) {
   else
     shell_printf("usage: config {%s} [0|1]" VNA_SHELL_NEWLINE_STR, cmd_mode_list);
 }
+#endif
+
+#ifdef __VNA_MEASURE_MODULE__
+  VNA_SHELL_FUNCTION(cmd_measure) {
+    static const char cmd_measure_list[] =
+    "none"
+#ifdef __USE_LC_MATCHING__
+    "|lc"        // Add LC match function
+#endif
+#ifdef __S21_MEASURE__
+    "|lcshunt"   // Enable LC shunt measure option
+    "|lcseries"  // Enable LC series  measure option
+    "|xtal"      // Enable XTAL measure option
+#endif
+#ifdef __S11_CABLE_MEASURE__
+    "|cable"     // Enable S11 cable measure option
+#endif
+#ifdef __S11_RESONANCE_MEASURE__
+    "|resonance" // Enable S11 resonance search option
+#endif
+    ;
+    int idx;
+    if (argc == 1 && (idx = get_str_index(argv[0], cmd_measure_list)) >= 0)
+      plot_set_measure_mode(idx);
+    else
+      shell_printf("usage: measure {%s}" VNA_SHELL_NEWLINE_STR, cmd_measure_list);
+  }
 #endif
 
 #ifdef USE_VARIABLE_OFFSET
@@ -1668,8 +1695,8 @@ VNA_SHELL_FUNCTION(cmd_sweep)
 #error "Sweep mode possibly changed, check cmd_sweep function"
 #endif
   // Parse sweep {start|stop|center|span|cw} {freq(Hz)}
-  // get enum ST_START, ST_STOP, ST_CENTER, ST_SPAN, ST_CW
-  static const char sweep_cmd[] = "start|stop|center|span|cw";
+  // get enum ST_START, ST_STOP, ST_CENTER, ST_SPAN, ST_CW, ST_VAR
+  static const char sweep_cmd[] = "start|stop|center|span|cw|var";
   if (argc == 2 && value0 == 0) {
     int type = get_str_index(argv[0], sweep_cmd);
     if (type == -1)
@@ -2904,6 +2931,21 @@ VNA_SHELL_FUNCTION(cmd_sd_delete)
 }
 #endif
 
+#ifdef __SD_CARD_LOAD__
+VNA_SHELL_FUNCTION(cmd_message)
+{
+  if (argc == 0) {
+    shell_printf("usage: message time [text] [header]" VNA_SHELL_NEWLINE_STR);
+    return;
+  }
+  uint32_t delay = my_atoui(argv[0]);
+  char *header = 0, *text = 0;
+  if (argc > 1) text = argv[1];
+  if (argc > 2) header = argv[2];
+  drawMessageBox(header, text, delay);
+}
+#endif
+
 //=============================================================================
 VNA_SHELL_FUNCTION(cmd_help);
 
@@ -2974,6 +3016,9 @@ static const VNAShellCommand commands[] =
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+#ifdef __SD_CARD_LOAD__
+    {"message"     , cmd_message     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_LOAD},
+#endif
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , CMD_RUN_IN_LOAD},
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
@@ -2982,6 +3027,9 @@ static const VNAShellCommand commands[] =
     {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
     {"s21offset"   , cmd_s21offset   , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+#ifdef __VNA_MEASURE_MODULE__
+    {"measure"     , cmd_measure     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+#endif
 #ifdef __REMOTE_DESKTOP__
     {"refresh"     , cmd_refresh     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
     {"touch"       , cmd_touch       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
