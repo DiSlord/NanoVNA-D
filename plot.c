@@ -1025,7 +1025,9 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     }
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
-    if (type == TRC_TRANSFORM  || type == TRC_FFT_AMP)
+    if (type == TRC_FFT_AMP)
+      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * 2 /get_tau() / FFT_SIZE));
+    else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
       cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
@@ -2086,13 +2088,16 @@ static void clear_cache(void)
   for (int i = 0; i < MAX_FONT_CACHE; i++) font_cache[i] = 0;
 }
 
-static int lcd_large(int x, int y, double f, int dash, int index, int dot)
+static int lcd_large(int x, int y, double f, int dash, int index, int dot, int sign)
 {
   uint32_t mask = 0b100100010001000;
-  uint8_t c = KP_PLUS;
-  if (f < 0 || dash) {
-    f = -f;
-    c = KP_MINUS;
+  uint8_t c = KP_SPACE;
+  if (sign) {
+    c = KP_PLUS;
+    if (f < 0 || dash) {
+      f = -f;
+      c = KP_MINUS;
+    }
   }
   if (c+1 != font_cache[index]) {
     font_cache[index] = c+1;
@@ -2155,21 +2160,32 @@ draw_measurements(void)
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 
-  if (level_a < -60 || level_b < -60) dash = true;
-  lcd_printf(x,y   , VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
-  lcd_printf(x,y+10, "B-A Freq:");
+  char *aver_text = (VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
+
+  if (level_a < MIN_LEVEL || level_b < MIN_LEVEL) dash = true;
+  lcd_printf(x,y   , aver_text);
+  double f;
+  if (level_b < MIN_LEVEL) {
+    lcd_printf(x,y+10, "   A Freq:  ");
+    f = (((double)aver_freq_a) + (double)get_sweep_frequency(ST_CW)) / 100000000;
+  } else {
+    lcd_printf(x,y+10, "B-A Freq:  ");
+    f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d) / 100;
+  }
   x = 100;
-  double f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d) / 100;
-  x = lcd_large(x, y, f, dash, 0, 4);
-  lcd_printf(x,y, "Hz");
+  x = lcd_large(x, y, f, level_a < MIN_LEVEL, 0, 4,!(level_b < MIN_LEVEL));
+  if (level_b < MIN_LEVEL)
+    lcd_printf(x,y, "MHz  ");
+  else
+    lcd_printf(x,y, "Hz    ");
   y += NUM_FONT_GET_HEIGHT + FONT_STR_HEIGHT; // Extra space
 
   x = 20;
-  lcd_printf(x,y   , VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
+  lcd_printf(x,y   , aver_text);
   lcd_printf(x,y+10, "B-A Phase:");
   x = 100;
   f = ((VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_phase_d : last_phase_d)/360.0)/ (float)get_sweep_frequency(ST_CW) * 1e4;
-  x = lcd_large(x, y, f, dash, 16, 24);
+  x = lcd_large(x, y, f, dash, 16, 24, true);
   lcd_printf(x,y, "ns");
   lcd_reset_right_border();
   missing_samples = false;
@@ -2198,8 +2214,11 @@ draw_frequencies(void)
       lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
-    lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
-    lcd_printf(FREQUENCIES_XPOS2+80, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
+    if (trace[3].type == TRC_FFT_AMP)
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
+    else
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
+    lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);

@@ -117,7 +117,8 @@ int shell_printf(const char *fmt, ...);
 
 uint8_t sweep_mode = SWEEP_ENABLE;
 // current sweep point (used for continue sweep if user break)
-uint16_t p_sweep = 0;
+volatile uint16_t p_sweep = 0;
+volatile int requested_points;
 uint16_t old_p_sweep;
 // Sweep measured data
 float measured[1][POINTS_COUNT][4];
@@ -472,6 +473,7 @@ transform_domain(uint16_t ch_mask)
       float w = kaiser_window_ext(i + offset, window_size, beta) * window_scale;
 #endif
       tmp[i * 2 + 0] *= w;
+      tmp[i * 2 + 1] *= w;
 //      shell_printf("%d %f\r\n", i, tmp[i * 2 + 0]);
 
     }
@@ -498,18 +500,50 @@ transform_domain(uint16_t ch_mask)
       }
     }
 #endif
-    // Made iFFT in temp buffer
+    // Made FFT in temp buffer
     fft_forward((float(*)[2])tmp);
     // Copy data back
-    fft_points = FFT_SIZE/2;
-    if (fft_points > sweep_points)
-      fft_points = sweep_points;
-    for (i = 0; i < fft_points; i++) {
-      float re = tmp[i * 2 + 0];
-      float im = tmp[i * 2 + 1];
-      volatile float f =  vna_sqrtf(re*re+im*im);
-      f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
-      data[i * 4 + 1] =  f;
+    if (trace[3].type==TRC_FFT_AMP) {
+      fft_points = FFT_SIZE/2;
+      if (fft_points > sweep_points/2)
+        fft_points = sweep_points/2;
+      data = measured[ch][sweep_points/2];
+      for (i = 0; i < fft_points; i++) {
+        float re = tmp[i * 4 + 0];
+        float im = tmp[i * 4 + 1];
+        volatile float f =  vna_sqrtf(re*re+im*im);
+        re = tmp[i * 4 + 2];
+        im = tmp[i * 4 + 3];
+        volatile float f2 =  vna_sqrtf(re*re+im*im);
+        if (f < f2) f = f2;
+        f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
+        data[i * 4 + 1] =  f;
+      }
+      data = measured[ch][sweep_points/2];
+      tmp = &tmp[FFT_SIZE*2];
+      for (i = 0; i < fft_points; i++) {
+        float re = tmp[i * -4 + -2];
+        float im = tmp[i * -4 + -3];
+        volatile float f =  vna_sqrtf(re*re+im*im);
+        re = tmp[i * -4 + -4];
+        im = tmp[i * -4 + -5];
+        volatile float f2 =  vna_sqrtf(re*re+im*im);
+        if (f < f2) f = f2;
+        f = (data[i * -4 + 1] * transform_count + f) / ( transform_count+1);
+        data[i * -4 + 1] =  f;
+      }
+
+    } else {
+      fft_points = FFT_SIZE/2;
+      if (fft_points > sweep_points)
+        fft_points = sweep_points;
+      for (i = 0; i < fft_points; i++) {
+        float re = tmp[i * 2 + 0];
+        float im = tmp[i * 2 + 1];
+        volatile float f =  vna_sqrtf(re*re+im*im);
+        f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
+        data[i * 4 + 1] =  f;
+      }
     }
     if ((props_mode & TD_AVERAGE) && transform_count < max_average_count)
       transform_count++;
@@ -1605,7 +1639,7 @@ fetch_next:
   if (! VNA_MODE(VNA_MODE_SCROLLING)) {
     RESET_SWEEP;
   }
-  int requested_points = sweep_points;
+  requested_points = sweep_points;
   if (trace[3].type==TRC_TRANSFORM || trace[3].type==TRC_FFT_AMP)
     requested_points = FFT_SIZE;
   float prev_phase = 0;
@@ -1673,20 +1707,22 @@ fetch_next:
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
       else if (trace[3].type==TRC_FFT_AMP) {
+#if 0
         float* tmp  = (float*)spi_buffer;
         tmp[p_sweep * 2 + 0] = temp_measured[temp_output][1];
         tmp[p_sweep * 2 + 1] = 0;
+#endif
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
-      }
+      } else
       if (p_sweep < sweep_points) {
 #ifdef SIDE_CHANNEL
         measured[0][p_sweep][0] = temp_measured[temp_output][0];
 #endif
-        if (trace[3].type == TRC_FFT_AMP) measured[0][p_sweep][1] = temp_measured[temp_output][1];
+//        if (trace[3].type == TRC_FFT_AMP) measured[0][p_sweep][1] = temp_measured[temp_output][1];
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }
-      p_sweep++;
+      if (trace[3].type!=TRC_FFT_AMP) p_sweep++;
       temp_output++;
       temp_output &= TEMP_MASK;
 //      shell_printf("out %d\r\n", temp_output);
@@ -1708,6 +1744,7 @@ fetch_next:
       if (VNA_MODE(VNA_MODE_SCROLLING) && p_sweep >=2) break;
       if (operation_requested && break_on_operation) break;
   }
+  requested_points = 0; // Stop filling of SPI buffer
   if (p_sweep >= sweep_points)
     p_sweep = sweep_points;
   if (bar_start){
@@ -1768,7 +1805,7 @@ fetch_next:
 #endif
   float v = aver_freq_a;
   if (VNA_MODE(VNA_MODE_PLL)) {
-    if (level_a > -50 /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
+    if (level_a > MIN_LEVEL && level_b > MIN_LEVEL /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;
       float factor = PLL_SCALE;
 //    if (VNA_MODE(VNA_MODE_SCROLLING))

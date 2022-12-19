@@ -276,6 +276,8 @@ extern float last_freq_d;
 #ifdef SIDE_CHANNEL
 extern float aver_phase_s;
 #endif
+
+#define MIN_LEVEL   (-50)
 extern float level_a;
 extern float level_b;
 #ifdef SIDE_CHANNEL
@@ -1144,7 +1146,8 @@ typedef struct properties {
   uint32_t checksum;
 } properties_t;
 
-extern uint16_t p_sweep;
+extern volatile uint16_t p_sweep;
+extern volatile int requested_points;
 extern config_t config;
 extern properties_t current_props;
 extern float amp_a;

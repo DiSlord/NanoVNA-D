@@ -476,7 +476,15 @@ calculate_gamma(float gamma[4], uint16_t tau)
   }
 #endif
 
-  if (trace[3].type == TRC_FFT_AMP) gamma[1] = amp_a;
+  if (trace[3].type == TRC_FFT_AMP && p_sweep < requested_points){
+    float* tmp  = (float*)spi_buffer;
+    tmp[p_sweep * 2 + 0] = (float)acc_ref_c;
+    tmp[p_sweep * 2 + 1] = (float)acc_ref_s;
+    p_sweep++;
+
+//    gamma[1] = (float)acc_ref_c;
+//    gamma[1] = amp_a;
+  }
 
   return(tau);
 }
