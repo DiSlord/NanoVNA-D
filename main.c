@@ -507,8 +507,9 @@ transform_domain(uint16_t ch_mask)
     for (i = 0; i < fft_points; i++) {
       float re = tmp[i * 2 + 0];
       float im = tmp[i * 2 + 1];
-      float f =  vna_sqrtf(re*re+im*im);
-      data[i * 4 + 1] =  (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
+      volatile float f =  vna_sqrtf(re*re+im*im);
+      f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
+      data[i * 4 + 1] =  f;
     }
     if ((props_mode & TD_AVERAGE) && transform_count < max_average_count)
       transform_count++;
@@ -1681,7 +1682,7 @@ fetch_next:
 #ifdef SIDE_CHANNEL
         measured[0][p_sweep][0] = temp_measured[temp_output][0];
 #endif
-        measured[0][p_sweep][1] = temp_measured[temp_output][1];
+        if (trace[3].type == TRC_FFT_AMP) measured[0][p_sweep][1] = temp_measured[temp_output][1];
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }

@@ -471,7 +471,7 @@ static float transform_a(int i, const float *v) {
     t = -t;
   if (t == 0)
     return -140;
-  return (2*vna_log10f_x_10(t) - 210);
+  return (2*vna_log10f_x_10(t) - 200);
 }
 
 
