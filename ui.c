@@ -1233,6 +1233,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
   apply_VNA_mode(data, VNA_MODE_TOGGLE);
 }
 
+static UI_FUNCTION_CALLBACK(menu_null_a_freq_cb) {
+  if (level_a > MIN_LEVEL)
+    config.xtal_offset -= aver_freq_a * 260;
+  else
+    config.xtal_offset -= 0;
+  config_save();
+}
+
 #ifdef __USE_SMOOTH__
 static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
 {
@@ -2096,11 +2104,12 @@ const menuitem_t menu_measure_settings[] = {
 };
 
 const menuitem_t menu_measure[] = {
-  { MT_ADV_CALLBACK, KM_CW,     "FREQ",                        menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_TAU, "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, 0, "DECIMATION\n" R_LINK_COLOR " %bd" ,                        menu_decimation_sel_acb },
-  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,"NULL\nPHASE",                             menu_vna_mode_acb },
-  { MT_SUBMENU,      0, "SETTINGS",                            menu_measure_settings },
+  { MT_ADV_CALLBACK, KM_CW,                 "FREQ",                                 menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_TAU,                "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,                     "DECIMATION\n" R_LINK_COLOR " %bd" ,    menu_decimation_sel_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,   "NULL\nPHASE",                          menu_vna_mode_acb },
+  { MT_CALLBACK, 0,                         "NULL\nA FREQ",                         menu_null_a_freq_cb },
+  { MT_SUBMENU,      0,                      "SETTINGS",                            menu_measure_settings },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 

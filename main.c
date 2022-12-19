@@ -1002,6 +1002,7 @@ config_t config = {
   ._lcd_palette = LCD_DEFAULT_PALETTE,
   ._serial_speed = SERIAL_DEFAULT_BITRATE,
   ._xtal_freq = XTALFREQ,
+  .xtal_offset = 0,
   ._measure_r = MEASURE_DEFAULT_R,
   . pull = {2.2, 1.423e-5, -0.379, 1.188e-6 },
   . tau = 50,

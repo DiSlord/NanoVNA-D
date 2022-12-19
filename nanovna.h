@@ -1106,6 +1106,7 @@ typedef struct config {
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
+  int32_t   xtal_offset;
   float    _measure_r;
   float     pull[MAX_PULL];
   uint16_t tau;
@@ -1427,7 +1428,7 @@ void testLog(void);        // debug log
 /*
  * flash.c
  */
-#define CONFIG_MAGIC 0x434f4e55 // Config magic value (allow reset on new config version)
+#define CONFIG_MAGIC 0x434f4e56 // Config magic value (allow reset on new config version)
 #define PROPS_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
