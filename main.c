@@ -529,8 +529,8 @@ transform_domain(uint16_t ch_mask)
         im = tmp[i * -4 + -5];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
-        f = (data[i * -4 + 1] * transform_count + f) / ( transform_count+1);
-        data[i * -4 + 1] =  f;
+        f = (data[(i-1) * -4 + 1] * transform_count + f) / ( transform_count+1);
+        data[(i-1) * -4 + 1] =  f;
       }
 
     } else {
@@ -2796,6 +2796,7 @@ void set_trace_type(int t, int type, int channel)
   if (!update) return;
   if (trace[t].type != type) {
     trace[t].type = type;
+    trace[t].auto_scale = (type != TRC_TRANSFORM && type != TRC_FFT_AMP);
     // Set default trace refpos
     set_trace_refpos(t, trace_info_list[type].refpos);
     // Set default trace scale

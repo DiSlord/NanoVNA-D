@@ -987,7 +987,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     set_tau(0);     // shortest possible tau
     set_sweep_points(POINTS_COUNT);
     set_trace_type(3, (data == 1 ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
-    trace[0].enabled = false;
+    set_trace_type(0, (data == 1 ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
+    trace[3].enabled = false;
     trace[1].enabled = false;
     trace[2].enabled = false;
     transform_count = 0;

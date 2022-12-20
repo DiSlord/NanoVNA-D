@@ -305,6 +305,7 @@ static const uint8_t conf_data[] = {
 #ifdef DMTD
   0x34, REG_34_IN3L_TO_LEFT_P_10k, // Route IN3L to RIGHT_N with input impedance of 10K
   0x36, REG_36_IN3R_TO_LEFT_N_10k, // Route IN3R to RIGHT_P with input impedance of 10K
+//  0x36, REG_36_CM1L_TO_LEFT_N_10k,
 #else
   0x34, REG_34_IN2L_TO_LEFT_P_10k, // Route IN2L to LEFT_P with 10K
   0x36, REG_36_IN2R_TO_LEFT_N_10k, // Route IN2R to LEFT_N with 10K
@@ -336,6 +337,7 @@ static const uint8_t conf_data_ch1_select[] = {
 //0x00,   0x01,                       // Select Page 1 (should be set as default)
   0x37,   REG_37_IN1R_TO_RIGHT_P_10k, // Route IN1R to RIGHT_P with input impedance of 10K
 /*0x38,*/ 0x00,                       // Reserved
+///*0x39,*/ REG_39_CM1R_TO_RIGHT_N_10k,
 /*0x39,*/ REG_39_IN1L_TO_RIGHT_N_10k, // Route IN1L to RIGHT_N with input impedance of 10K
 };
 

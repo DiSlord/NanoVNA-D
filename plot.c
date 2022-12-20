@@ -840,8 +840,8 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
-[TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       0,        90.0f,    transform_d },
-[TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       0,        90.0f,    transform_a },
+[TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       0,        20.0f,    transform_d },
+[TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       0,        20.0f,    transform_a },
 };
 
 
@@ -938,10 +938,6 @@ trace_into_index(int t) {
         else if (y > HEIGHT) y = HEIGHT;
       }
       mark_set_index(index, i, (uint16_t)(x>>16), y);
-    }
-    if (trace[t].type == TRC_TRANSFORM || trace[t].type == TRC_FFT_AMP ) {
-      min = -120;
-      max = -40;
     }
     trace[t].min = min;
     trace[t].max = max;
