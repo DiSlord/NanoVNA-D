@@ -235,10 +235,9 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
-void update_grid(void)
+void update_grid(freq_t fstart, freq_t fstop)
 {
-  freq_t fstart = get_sweep_frequency(ST_START);
-  freq_t fspan  = get_sweep_frequency(ST_SPAN);
+  freq_t fspan = fstop - fstart;
   freq_t grid;
   if (fspan < 1000) {
     grid_offset = 0;
@@ -1127,7 +1126,7 @@ static void cell_draw_measure(int x0, int y0){
   if (current_props._measure >= MEASURE_END) return;
   measure_cell_cb_t measure_draw_cb = measure[current_props._measure].measure_cell;
   if (measure_draw_cb) {
-    lcd_set_colors(LCD_LC_MATCH_COLOR, LCD_BG_COLOR);
+    lcd_set_colors(LCD_MEASURE_COLOR, LCD_BG_COLOR);
     measure_draw_cb(x0, y0);
   }
 }

@@ -45,7 +45,7 @@ threads_queue_t shell_thread;
 // Shell max arguments
 #define VNA_SHELL_MAX_ARGUMENTS   4
 // Shell max command line size
-#define VNA_SHELL_MAX_LENGTH     48
+#define VNA_SHELL_MAX_LENGTH     64
 // Shell frequency printf format
 //#define VNA_FREQ_FMT_STR         "%lu"
 #define VNA_FREQ_FMT_STR         "%u"
@@ -733,7 +733,8 @@ VNA_SHELL_FUNCTION(cmd_config) {
 VNA_SHELL_FUNCTION(cmd_offset)
 {
   if (argc != 1) {
-    shell_printf("usage: offset {frequency offset(Hz)}" VNA_SHELL_NEWLINE_STR);
+    shell_printf("usage: offset {frequency offset(Hz)}" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, IF_OFFSET);
     return;
   }
   si5351_set_frequency_offset(my_atoi(argv[0]));
@@ -743,15 +744,13 @@ VNA_SHELL_FUNCTION(cmd_offset)
 VNA_SHELL_FUNCTION(cmd_freq)
 {
   if (argc != 1) {
-    goto usage;
+    shell_printf("usage: freq {frequency(Hz)}" VNA_SHELL_NEWLINE_STR);
+    return;
   }
   uint32_t freq = my_atoui(argv[0]);
-
   pause_sweep();
   set_frequency(freq);
   return;
-usage:
-  shell_printf("usage: freq {frequency(Hz)}" VNA_SHELL_NEWLINE_STR);
 }
 
 void set_power(uint8_t value){
@@ -765,16 +764,12 @@ void set_power(uint8_t value){
 
 VNA_SHELL_FUNCTION(cmd_power)
 {
-  if (argc == 0) {
-    shell_printf("power: %d" VNA_SHELL_NEWLINE_STR, current_props._power);
-    return;
-  }
   if (argc != 1) {
-    shell_printf("usage: power {0-3}|{255 - auto}" VNA_SHELL_NEWLINE_STR);
+    shell_printf("usage: power {0-3}|{255 - auto}" VNA_SHELL_NEWLINE_STR \
+                 "power: %d" VNA_SHELL_NEWLINE_STR, current_props._power);
     return;
   }
   set_power(my_atoi(argv[0]));
-//  set_frequency(frequency);
 }
 
 #ifdef __USE_RTC__
@@ -815,7 +810,7 @@ VNA_SHELL_FUNCTION(cmd_dac)
 {
   if (argc != 1) {
     shell_printf("usage: dac {value(0-4095)}" VNA_SHELL_NEWLINE_STR \
-                 "current value: %d" VNA_SHELL_NEWLINE_STR, config._dac_value);
+                 "current: %d" VNA_SHELL_NEWLINE_STR, config._dac_value);
     return;
   }
   dac_setvalue_ch2(my_atoui(argv[0])&0xFFF);
@@ -889,6 +884,13 @@ VNA_SHELL_FUNCTION(cmd_capture)
 #if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (LCD_RX_PIXEL_SIZE*LCD_WIDTH*READ_ROWS)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
+  // Text on screenshot
+  if (argc > 0) {
+    lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
+    for (int i = 0; i < argc; i++)
+      lcd_printf(OFFSETX + CELLOFFSETX + 2, AREA_HEIGHT_NORMAL - (argc - i) * FONT_STR_HEIGHT - 2, argv[i]);
+    request_to_redraw(REDRAW_AREA);
+  }
   // read 2 row pixel time
   for (y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
@@ -1542,9 +1544,12 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
 
 VNA_SHELL_FUNCTION(cmd_tcxo)
 {
-  if (argc == 1)
-    si5351_set_tcxo(my_atoui(argv[0]));
-  shell_printf("tcxo = %u Hz" VNA_SHELL_NEWLINE_STR, config._xtal_freq);
+  if (argc != 1) {
+    shell_printf("usage: tcxo {TCXO frequency(Hz)}" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, config._xtal_freq);
+    return;
+  }
+  si5351_set_tcxo(my_atoui(argv[0]));
 }
 
 void set_marker_index(int m, int idx)
@@ -1565,27 +1570,25 @@ freq_t get_marker_frequency(int marker)
 }
 
 static void
-update_marker_index(void)
+update_marker_index(freq_t fstart, freq_t fstop, uint16_t points)
 {
   int m, idx;
-  freq_t fstart = get_sweep_frequency(ST_START);
-  freq_t fstop  = get_sweep_frequency(ST_STOP);
   for (m = 0; m < MARKERS_MAX; m++) {
     // Update index for all markers !!
-    uint32_t f = markers[m].frequency;
+    freq_t f = markers[m].frequency;
     if (f == 0) idx = markers[m].index; // Not need update index in no freq
-    else if (f < fstart) idx = 0;
-    else if (f >= fstop) idx = sweep_points-1;
+    else if (f <= fstart) idx = 0;
+    else if (f >= fstop ) idx = points-1;
     else { // Search frequency index for marker frequency
 #if 0
-      for (idx = 1; idx < sweep_points; idx++) {
+      for (idx = 1; idx < points; idx++) {
         if (frequencies[idx] <= f) continue;
         if (f < (frequencies[idx-1]/2 + frequencies[idx]/2)) idx--; // Correct closest idx
         break;
       }
 #else
       float r = ((float)(f - fstart))/(fstop - fstart);
-      idx = r * (sweep_points-1);
+      idx = r * (points-1);
 #endif
     }
     set_marker_index(m, idx);
@@ -1600,9 +1603,9 @@ update_frequencies(void)
 
   set_frequencies(start, stop, sweep_points);
 
-  update_marker_index();
+  update_marker_index(start, stop, sweep_points);
   // set grid layout
-  update_grid();
+  update_grid(start, stop);
   // Update interpolation flag
   if (needInterpolate(start, stop, sweep_points))
     cal_status|= CALSTAT_INTERPOLATED;
@@ -1716,7 +1719,6 @@ usage:
   shell_printf("usage: sweep {start(Hz)} [stop(Hz)] [points]" VNA_SHELL_NEWLINE_STR \
                "\tsweep {%s} {freq(Hz)}" VNA_SHELL_NEWLINE_STR, sweep_cmd);
 }
-
 
 static void
 eterm_set(int term, float re, float im)
@@ -2350,7 +2352,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (argc == 0) {
     for (t = 0; t < MARKERS_MAX; t++) {
       if (markers[t].enabled) {
-        shell_printf("%d %d " VNA_FREQ_FMT_STR VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
+        shell_printf("%d %d " VNA_FREQ_FMT_STR "" VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
       }
     }
     return;
@@ -2369,7 +2371,7 @@ VNA_SHELL_FUNCTION(cmd_marker)
   if (t < 0 || t >= MARKERS_MAX)
     goto usage;
   if (argc == 1) {
-    shell_printf("%d %d " VNA_FREQ_FMT_STR VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
+    shell_printf("%d %d " VNA_FREQ_FMT_STR "" VNA_SHELL_NEWLINE_STR, t+1, markers[t].index, markers[t].frequency);
     active_marker = t;
     // select active marker
     markers[t].enabled = TRUE;
@@ -2876,7 +2878,6 @@ VNA_SHELL_FUNCTION(cmd_sd_list)
     case 1: search = argv[0];break;
     default: shell_printf("usage: sd_list {pattern}" VNA_SHELL_NEWLINE_STR); return;
   }
-  shell_printf("sd_list:" VNA_SHELL_NEWLINE_STR);
   res = f_findfirst(&dj, &fno, "", search);
   while (res == FR_OK && fno.fname[0])
   {
@@ -2932,10 +2933,10 @@ VNA_SHELL_FUNCTION(cmd_sd_delete)
 #endif
 
 #ifdef __SD_CARD_LOAD__
-VNA_SHELL_FUNCTION(cmd_message)
+VNA_SHELL_FUNCTION(cmd_msg)
 {
   if (argc == 0) {
-    shell_printf("usage: message time [text] [header]" VNA_SHELL_NEWLINE_STR);
+    shell_printf("usage: msg delay [text] [header]" VNA_SHELL_NEWLINE_STR);
     return;
   }
   uint32_t delay = my_atoui(argv[0]);
@@ -2985,9 +2986,9 @@ static const VNAShellCommand commands[] =
     {"time"        , cmd_time        , CMD_RUN_IN_UI},
 #endif
 #ifdef ENABLE_SD_CARD_COMMAND
-    { "sd_list",   cmd_sd_list       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    { "sd_read",   cmd_sd_read       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
-    { "sd_delete", cmd_sd_delete     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"sd_list"     , cmd_sd_list     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"sd_read"     , cmd_sd_read     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
+    {"sd_delete"   , cmd_sd_delete   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #endif
 #ifdef __VNA_ENABLE_DAC__
     {"dac"         , cmd_dac         , CMD_RUN_IN_LOAD},
@@ -3017,7 +3018,7 @@ static const VNAShellCommand commands[] =
     {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #ifdef __SD_CARD_LOAD__
-    {"message"     , cmd_message     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_LOAD},
+    {"msg"         , cmd_msg         , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_LOAD},
 #endif
     {"cal"         , cmd_cal         , CMD_WAIT_MUTEX},
     {"save"        , cmd_save        , CMD_RUN_IN_LOAD},

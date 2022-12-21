@@ -1014,7 +1014,7 @@ void set_s21_offset(float offset);
 float groupdelay_from_array(int i, const float *v);
 
 void plot_init(void);
-void update_grid(void);
+void update_grid(freq_t fstart, freq_t fstop);
 void request_to_redraw(uint16_t mask);
 void request_to_draw_cells_behind_menu(void);
 void request_to_draw_cells_behind_numeric_input(void);
@@ -1149,7 +1149,7 @@ typedef uint16_t pixel_t;
 #define LCD_BW_TEXT_COLOR       18
 #define LCD_INPUT_TEXT_COLOR    19
 #define LCD_INPUT_BG_COLOR      20
-#define LCD_LC_MATCH_COLOR      21
+#define LCD_MEASURE_COLOR       21
 #define LCD_GRID_VALUE_COLOR    22
 #define LCD_INTERP_CAL_COLOR    23
 #define LCD_DISABLE_CAL_COLOR   24
@@ -1178,7 +1178,7 @@ typedef uint16_t pixel_t;
 [LCD_BW_TEXT_COLOR    ] = RGB565(196,196,196), \
 [LCD_INPUT_TEXT_COLOR ] = RGB565(  0,  0,  0), \
 [LCD_INPUT_BG_COLOR   ] = RGB565(255,255,255), \
-[LCD_LC_MATCH_COLOR   ] = RGB565(255,255,255), \
+[LCD_MEASURE_COLOR    ] = RGB565(255,255,255), \
 [LCD_GRID_VALUE_COLOR ] = RGB565( 96, 96, 96), \
 [LCD_INTERP_CAL_COLOR ] = RGB565( 31,227,  0), \
 [LCD_DISABLE_CAL_COLOR] = RGB565(255,  0,  0), \
