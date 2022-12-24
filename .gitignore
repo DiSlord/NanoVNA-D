@@ -9,3 +9,8 @@ python
 TAGS
 .emacs-dirvars
 *png
+.cproject
+.project
+.settings/language.settings.xml
+desktop.ini
+dorelease.bat
