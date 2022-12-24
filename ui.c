@@ -2530,6 +2530,7 @@ void drawMessageBox(const char *header, const char *text, uint32_t delay) {
 // KEYBOARD functions
 //
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
+
 // Keyboard size and position data
 static const keypad_pos_t key_pos[] = {
   [NUM_KEYBOARD] = {KP_X_OFFSET, KP_Y_OFFSET, KP_WIDTH, KP_HEIGHT},

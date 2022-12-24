@@ -841,12 +841,14 @@ enum {
   KP_k, KP_M, KP_G,
   KP_m, KP_u, KP_n, KP_p,
   KP_X1, KP_ENTER, KP_PERCENT, // Enter values
+#if 1
   KP_INF,
   KP_DB,
   KP_PLUSMINUS,
   KP_KEYPAD,
   KP_SPACE,
   KP_PLUS
+#endif
 };
 
 /*
