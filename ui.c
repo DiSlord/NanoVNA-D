@@ -1815,7 +1815,7 @@ void disk_log(float p)
 
 
 #ifdef __SD_FILE_BROWSER__
-#include "vna_browser.c"
+#include "vna_modules\vna_browser.c"
 #endif
 #endif // __USE_SD_CARD__
 

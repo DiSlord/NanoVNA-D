@@ -1526,6 +1526,7 @@ no_regression:
   return(res_freq);
 }
 
+#define abs_diff(a, b) ((a) > (b) ? (a) - (b) : (b) - (a))
 
 void do_agc(void)
 {
@@ -1551,7 +1552,7 @@ void do_agc(void)
   if (new_l_gain > 60) new_l_gain = 60;
   if (new_r_gain < 0) new_r_gain = 0;
   if (new_r_gain > 60) new_r_gain = 60;
-  if (abs(old_l_gain - new_l_gain) > 2 || abs(old_r_gain - new_r_gain) > 2) {
+  if (abs_diff(old_l_gain, new_l_gain) > 2 || abs_diff(old_r_gain, new_r_gain) > 2) {
     l_gain = new_l_gain;
     r_gain = new_r_gain;
     tlv320aic3204_set_gain(l_gain, r_gain);
