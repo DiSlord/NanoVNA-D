@@ -2217,23 +2217,8 @@ void drawMessageBox(const char *header, const char *text, uint32_t delay) {
 //
 // KEYBOARD functions
 //
-// Key names (use numfont16x22.c glyph)
-enum {
-  KP_0 = 0, KP_1, KP_2, KP_3, KP_4, KP_5, KP_6, KP_7, KP_8, KP_9,
-  KP_PERIOD,
-  KP_MINUS,
-  KP_BS,
-  KP_k, KP_M, KP_G,
-  KP_m, KP_u, KP_n, KP_p,
-  KP_X1, KP_ENTER, KP_PERCENT, // Enter values
-// KP_INF,
-// KP_DB,
-// KP_PLUSMINUS,
-// KP_KEYPAD,
-};
-
-
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
+
 // Keyboard size and position data
 static const keypad_pos_t key_pos[] = {
   [NUM_KEYBOARD] = {KP_X_OFFSET, KP_Y_OFFSET, KP_WIDTH, KP_HEIGHT},

@@ -735,6 +735,25 @@ extern const uint8_t numfont16x22[];
 #define NUM_FONT_GET_HEIGHT     22
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*2*NUM_FONT_GET_HEIGHT])
 
+// Glyph names from numfont16x22.c
+enum {
+  KP_0 = 0, KP_1, KP_2, KP_3, KP_4, KP_5, KP_6, KP_7, KP_8, KP_9,
+  KP_PERIOD,
+  KP_MINUS,
+  KP_BS,
+  KP_k, KP_M, KP_G,
+  KP_m, KP_u, KP_n, KP_p,
+  KP_X1, KP_ENTER, KP_PERCENT, // Enter values
+#if 0
+  KP_INF,
+  KP_DB,
+  KP_PLUSMINUS,
+  KP_KEYPAD,
+  KP_SPACE,
+  KP_PLUS
+#endif
+};
+
 /*
  * LC match text output settings
  */
