@@ -49,6 +49,7 @@
 
 #define SIDE_CHANNEL
 #define DMTD
+#define FFT_COMPRESS
 //#define MEASUREMENT_IN_GRID
 #define FREQ_SCALE  (int64_t)100LL
 #define PLL_SCALE  (26.0 * FREQ_SCALE / 10)
@@ -1092,6 +1093,7 @@ typedef struct marker {
 } marker_t;
 
 enum {PULL_OFFSET, PULL_FUNDAMENTAL, PULL_SECOND_SHIFT, PULL_SECOND, MAX_PULL};
+enum { FFT_OFF, FFT_PHASE, FFT_AMP };
 
 typedef struct config {
   uint32_t magic;
@@ -1132,6 +1134,7 @@ typedef struct properties {
   uint8_t  _power;
   uint8_t  _cal_power;
   uint8_t  _measure;
+  uint8_t  _fft_mode;
   uint16_t _cal_sweep_points;
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];

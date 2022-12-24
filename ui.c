@@ -958,27 +958,28 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
 {
   (void)data;
   if(b){
-    if (data == 0 && !(props_mode & DOMAIN_TIME)) b->icon = BUTTON_ICON_GROUP_CHECKED;
-    else if (data == 1 && (props_mode & DOMAIN_TIME) && trace[3].type == TRC_TRANSFORM) b->icon = BUTTON_ICON_GROUP_CHECKED;
-    else if (data == 2 && (props_mode & DOMAIN_TIME) && trace[3].type == TRC_FFT_AMP) b->icon = BUTTON_ICON_GROUP_CHECKED;
+    if (data == current_props._fft_mode) b->icon = BUTTON_ICON_GROUP_CHECKED;
     else b->icon = BUTTON_ICON_GROUP;
     return;
   }
+  current_props._fft_mode = data;
   switch(data) {
-  case 0:
+  case FFT_OFF:
     props_mode &= ~DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_SET);
     set_bandwidth(2);
     config.decimation = 10;
     set_tau(0.1);     // shortest possible tau
+    set_trace_type(0, TRC_DPHASE, 0);
     set_trace_type(3, TRC_RESIDUE, 0);
     trace[0].enabled = true;
     trace[1].enabled = true;
     trace[2].enabled = true;
+    trace[3].enabled = true;
     transform_count = 0;
     break;
-  case 1:
-  case 2:
+  case FFT_PHASE:
+  case FFT_AMP:
     props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
     set_sweep_points(POINTS_COUNT);
@@ -986,11 +987,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     config.decimation = 1;
     set_tau(0);     // shortest possible tau
     set_sweep_points(POINTS_COUNT);
-    set_trace_type(3, (data == 1 ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
-    set_trace_type(0, (data == 1 ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
-    trace[3].enabled = false;
+    set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
+    set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
     trace[1].enabled = false;
     trace[2].enabled = false;
+    trace[3].enabled = false;
     transform_count = 0;
     break;
   }
@@ -1995,7 +1996,7 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, TRC_SALOGMAG,  "SA LOGMAG",     menu_format_acb },
   { MT_ADV_CALLBACK, TRC_SBLOGMAG,  "SB LOGMAG",     menu_format_acb },
 #endif
-  { MT_ADV_CALLBACK, TRC_TRANSFORM, "FFT",        menu_format_acb },
+//  { MT_ADV_CALLBACK, TRC_TRANSFORM, "FFT",        menu_format_acb },
   { MT_NONE, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2013,9 +2014,9 @@ const menuitem_t menu_scale[] = {
 
 const menuitem_t menu_transform[] =
 {
- { MT_ADV_CALLBACK, 0,                       "FFT\nOFF",          menu_transform_acb },
- { MT_ADV_CALLBACK, 1,                       "FFT\nPHASE",          menu_transform_acb },
- { MT_ADV_CALLBACK, 2,                       "FFT\nAMP",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_OFF,                 "FFT\nOFF",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_PHASE,               "FFT\nPHASE",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_AMP,                 "FFT\nAMP",          menu_transform_acb },
  { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
  { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
 

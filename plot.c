@@ -471,7 +471,7 @@ static float transform_a(int i, const float *v) {
     t = -t;
   if (t == 0)
     return -140;
-  return (2*vna_log10f_x_10(t) - 200);
+  return (2*vna_log10f_x_10(t) - 210);
 }
 
 
@@ -840,8 +840,8 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 [TRC_SALOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sa   },
 [TRC_SBLOGMAG] = {"SDB",        "%.2f%s", S_DELTA "%.2f%s", S_dB,     -50.0f,   10.0f,    logmag_sb   },
 #endif
-[TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       0,        20.0f,    transform_d },
-[TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       0,        20.0f,    transform_a },
+[TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       -80,      20.0f,    transform_d },
+[TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       -80,      20.0f,    transform_a },
 };
 
 
@@ -1021,8 +1021,13 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     }
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
+#ifdef FFT_COMPRESS
+#define FFT_FREQ_STEP   2
+#else
+#define FFT_FREQ_STEP   1
+#endif
     if (type == TRC_FFT_AMP)
-      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * 2 /get_tau() / FFT_SIZE));
+      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE));
     else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
@@ -2210,11 +2215,18 @@ draw_frequencies(void)
       lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
-    if (trace[3].type == TRC_FFT_AMP)
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
-    else
+#ifdef FFT_COMPRESS
+#define FFT_FREQ_DIV    1
+#else
+#define FFT_FREQ_DIV    2
+#endif
+    if (trace[3].type == TRC_FFT_AMP) {
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
+      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
+    } else {
       lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
-    lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
+      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
+    }
   }
   // Draw bandwidth and point count
   lcd_set_foreground(LCD_BW_TEXT_COLOR);

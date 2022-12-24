@@ -503,32 +503,42 @@ transform_domain(uint16_t ch_mask)
     // Made FFT in temp buffer
     fft_forward((float(*)[2])tmp);
     // Copy data back
-    if (trace[3].type==TRC_FFT_AMP) {
+    if (current_props._fft_mode == FFT_AMP) {
       fft_points = FFT_SIZE/2;
       if (fft_points > sweep_points/2)
         fft_points = sweep_points/2;
       data = measured[ch][sweep_points/2];
       for (i = 0; i < fft_points; i++) {
-        float re = tmp[i * 4 + 0];
-        float im = tmp[i * 4 + 1];
+#ifdef FFT_COMPRESS
+#define FFT_STEP    4
+#else
+#define FFT_STEP    2
+#endif
+
+        float re = tmp[i * FFT_STEP + 0];
+        float im = tmp[i * FFT_STEP + 1];
         volatile float f =  vna_sqrtf(re*re+im*im);
-        re = tmp[i * 4 + 2];
-        im = tmp[i * 4 + 3];
+#ifdef FFT_COMPRESS
+        re = tmp[i * FFT_STEP + 2];
+        im = tmp[i * FFT_STEP + 3];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
+#endif
         f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
         data[i * 4 + 1] =  f;
       }
       data = measured[ch][sweep_points/2];
       tmp = &tmp[FFT_SIZE*2];
       for (i = 0; i < fft_points; i++) {
-        float re = tmp[i * -4 + -2];
-        float im = tmp[i * -4 + -3];
+        float re = tmp[i * -FFT_STEP + -2];
+        float im = tmp[i * -FFT_STEP + -3];
         volatile float f =  vna_sqrtf(re*re+im*im);
-        re = tmp[i * -4 + -4];
-        im = tmp[i * -4 + -5];
+#ifdef FFT_COMPRESS
+        re = tmp[i * -FFT_STEP + -4];
+        im = tmp[i * -FFT_STEP + -5];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
+#endif
         f = (data[(i-1) * -4 + 1] * transform_count + f) / ( transform_count+1);
         data[(i-1) * -4 + 1] =  f;
       }
@@ -1079,6 +1089,7 @@ void load_default_properties(void)
   current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
   current_props._measure   = 0;
+  current_props._fft_mode  = FFT_OFF;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -1641,7 +1652,7 @@ fetch_next:
     RESET_SWEEP;
   }
   requested_points = sweep_points;
-  if (trace[3].type==TRC_TRANSFORM || trace[3].type==TRC_FFT_AMP)
+  if (current_props._fft_mode != FFT_OFF)
     requested_points = FFT_SIZE;
   float prev_phase = 0;
   float phase_wraps = 0;
@@ -1690,7 +1701,7 @@ fetch_next:
         }
 #endif
       }
-      if (trace[3].type==TRC_TRANSFORM) {
+      if (current_props._fft_mode == FFT_PHASE) {
         float* tmp  = (float*)spi_buffer;
         float phase = temp_measured[temp_output][3] + phase_wraps;
         float delta_phase = phase - prev_phase;
@@ -1707,7 +1718,7 @@ fetch_next:
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
-      else if (trace[3].type==TRC_FFT_AMP) {
+      else if (current_props._fft_mode == FFT_AMP) {
 #if 0
         float* tmp  = (float*)spi_buffer;
         tmp[p_sweep * 2 + 0] = temp_measured[temp_output][1];
@@ -1719,11 +1730,10 @@ fetch_next:
 #ifdef SIDE_CHANNEL
         measured[0][p_sweep][0] = temp_measured[temp_output][0];
 #endif
-//        if (trace[3].type == TRC_FFT_AMP) measured[0][p_sweep][1] = temp_measured[temp_output][1];
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }
-      if (trace[3].type!=TRC_FFT_AMP) p_sweep++;
+      if (current_props._fft_mode != FFT_AMP) p_sweep++;
       temp_output++;
       temp_output &= TEMP_MASK;
 //      shell_printf("out %d\r\n", temp_output);

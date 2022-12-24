@@ -274,8 +274,26 @@ dsp_process(audio_sample_t *capture, size_t length)
 //  int64_t ref_c = 0;
 
   do{
+
+#if 0
+    if (current_props._fft_mode == FFT_AMP) {
+      int16_t *sc = (int16_t *)&sincos_tbl[i];
+      int16_t sr = capture[i*2];
+
+
+      if (p_sweep < requested_points){
+        float* tmp  = (float*)spi_buffer;
+        tmp[p_sweep * 2 + 0] = (float)((*sc++) * sr); // Only ref
+        tmp[p_sweep * 2 + 1] = (float)((*sc++) * sr);
+        p_sweep++;
+      }
+//      continue;
+    }
+#endif
+
     int32_t sc = ((int32_t *)sincos_tbl)[i];
     int32_t sr = ((int32_t *)capture)[i];
+
 // int32_t acc DSP functions, but int32 can overflow
 //    samp_s = __smlatb(sr, sc, samp_s); // samp_s+= smp * sin
 //    samp_c = __smlatt(sr, sc, samp_c); // samp_c+= smp * cos
@@ -475,8 +493,8 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[0] = side_aver;
   }
 #endif
-
-  if (trace[3].type == TRC_FFT_AMP && p_sweep < requested_points){
+#if 1
+  if (current_props._fft_mode == FFT_AMP && p_sweep < requested_points){
     float* tmp  = (float*)spi_buffer;
     tmp[p_sweep * 2 + 0] = (float)acc_ref_c;
     tmp[p_sweep * 2 + 1] = (float)acc_ref_s;
@@ -485,7 +503,7 @@ calculate_gamma(float gamma[4], uint16_t tau)
 //    gamma[1] = (float)acc_ref_c;
 //    gamma[1] = amp_a;
   }
-
+#endif
   return(tau);
 }
 
