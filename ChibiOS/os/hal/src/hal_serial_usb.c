@@ -24,7 +24,6 @@
 
 #include "hal.h"
 
-
 #if (HAL_USE_SERIAL_USB == TRUE) || defined(__DOXYGEN__)
 
 /*===========================================================================*/
@@ -56,15 +55,12 @@ cdc_linecoding_t linecoding = {
 /*
  * Interface implementation.
  */
-#ifndef USB_TIMEOUT
-#define USB_TIMEOUT TIME_INFINITE
-#endif
 
 static size_t write(void *ip, const uint8_t *bp, size_t n) {
   if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
     return 0;
   }
-  return obqWriteTimeout(&((SerialUSBDriver *)ip)->obqueue, bp, n, USB_TIMEOUT);
+  return obqWriteTimeout(&((SerialUSBDriver *)ip)->obqueue, bp, n, TIME_INFINITE);
 }
 
 static size_t read(void *ip, uint8_t *bp, size_t n) {
@@ -78,7 +74,7 @@ static msg_t put(void *ip, uint8_t b) {
   if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
     return MSG_RESET;
   }
-  return obqPutTimeout(&((SerialUSBDriver *)ip)->obqueue, b, USB_TIMEOUT);
+  return obqPutTimeout(&((SerialUSBDriver *)ip)->obqueue, b, TIME_INFINITE);
 }
 
 static msg_t get(void *ip) {

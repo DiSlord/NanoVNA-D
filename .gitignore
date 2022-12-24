@@ -11,7 +11,6 @@ TAGS
 *png
 .cproject
 .project
-*.xml
-.settings/org.eclipse.core.resources.prefs
+.settings/language.settings.xml
 desktop.ini
 dorelease.bat

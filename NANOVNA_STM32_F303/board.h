@@ -52,9 +52,9 @@
 
 #define GPIOA_BUTTON			0
 #define GPIOA_LEVER1			1
-#define GPIOA_LEVER2			2
-#define GPIOA_PUSH				3
-#define GPIOA_PA4			    4
+#define GPIOA_PUSH				2
+#define GPIOA_LEVER2			3
+#define GPIOA_VBUS			    4
 #define GPIOA_DAC2				5
 #define GPIOA_XP				6
 #define GPIOA_YP				7

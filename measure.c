@@ -1,11 +1,21 @@
 /*
- *   (c) Yury Kuchura
- *   kuchura@gmail.com
+ * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
+ * All rights reserved.
  *
- *   This code can be used on terms of WTFPL Version 2 (http://www.wtfpl.net/).
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
  *
- *   Heavily messed about with by OneOfEleven July 2020
- *   DiSlord adaptation to use on NanoVNA
+ * The software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with GNU Radio; see the file COPYING.  If not, write to
+ * the Free Software Foundation, Inc., 51 Franklin Street,
+ * Boston, MA 02110-1301, USA.
  */
 
 #ifdef __VNA_MEASURE_MODULE__
@@ -285,11 +295,11 @@ static void lc_match_x_str(uint32_t FHz, float X, int xp, int yp)
   char type;
 #if 0
   float val;
-  if (X < 0.0f) {val = 1.0f / (2.0f * VNA_PI * FHz * -X); type = 'F';}
-  else          {val =    X / (2.0f * VNA_PI * FHz);      type = 'H';}
+  if (X < 0.0f) {val = 1.0f / (2.0f * VNA_PI * FHz * -X); type = S_FARAD[0];}
+  else          {val =    X / (2.0f * VNA_PI * FHz);      type = S_HENRY[0];}
 #else
-  if (X < 0.0f) {X = -1.0 / X; type = 'F';}
-  else          {              type = 'H';}
+  if (X < 0.0f) {X = -1.0 / X; type = S_FARAD[0];}
+  else          {              type = S_HENRY[0];}
   float val = X / ((2.0f * VNA_PI) * FHz);
 #endif
   cell_printf(xp, yp, "%4.2F%c", val, type);
@@ -300,10 +310,10 @@ static void draw_lc_match(int x0, int y0)
 {
   int xp = STR_MEASURE_X - x0;
   int yp = STR_MEASURE_Y - y0;
-  cell_printf(xp, yp, "L/C match for source Z0 = %0.1f"S_OHM, lc_match_array->R0);
+  cell_printf(xp, yp, "L/C match for source Z0 = %0.1f" S_OHM, lc_match_array->R0);
 #if 0
   yp += STR_MEASURE_HEIGHT;
-  cell_printf(xp, yp, "%qHz %0.1f %c j%0.1f"S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', vna_fabsf(match_array->XL));
+  cell_printf(xp, yp, "%q" S_Hz " %0.1f %c j%0.1f" S_OHM, match_array->Hz, match_array->RL, (match_array->XL >= 0) ? '+' : '-', vna_fabsf(match_array->XL));
 #endif
   yp += STR_MEASURE_HEIGHT;
   if (yp >= CELLHEIGHT) return;
@@ -328,7 +338,7 @@ static void draw_lc_match(int x0, int y0)
 
 #ifdef __S21_MEASURE__
 typedef struct {
-  char *header;
+  const char *header;
   freq_t freq;    // resonant frequency
   freq_t freq1;   // fp
   float l;
@@ -457,15 +467,15 @@ static void draw_serial_result(int x0, int y0){
   }
   if (s21_measure->freq)
   {
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fs=%qHz", s21_measure->freq);
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Lm=%FH  Cm=%FF  Rm=%F" S_OHM, s21_measure->l, s21_measure->c, s21_measure->r);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fs=%q" S_Hz, s21_measure->freq);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Lm=%F" S_HENRY "  Cm=%F" S_FARAD "  Rm=%F" S_OHM, s21_measure->l, s21_measure->c, s21_measure->r);
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Q=%.3f", s21_measure->q);
 //  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "tan45=%.4f", s21_measure->tan45);
-//  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "F1=%qHz F2=%qHz", s21_measure->f1, s21_measure->f2);
+//  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "F1=%q" S_Hz " F2=%q" S_Hz, s21_measure->f1, s21_measure->f2);
   }
   if (s21_measure->freq1){
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fp=%qHz", s21_measure->freq1);
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Cp=%FF", s21_measure->c1);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fp=%q" S_Hz, s21_measure->freq1);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Cp=%F" S_FARAD, s21_measure->c1);
   }
 }
 
@@ -509,11 +519,11 @@ static void draw_s11_cable(int x0, int y0){
   cell_printf(xp, yp, "S11 CABLE");
   if (s11_cable->R){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Z0 = %F" S_OHM, s11_cable->R);
-//    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %FF", s11_cable->C0);
+//    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %F" S_FARAD, s11_cable->C0);
   }
   if (s11_cable->len)
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %Fm (K=%d%%)", s11_cable->len, velocity_factor);
-  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %FdB", s11_cable->loss);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (K=%d%%)", s11_cable->len, velocity_factor);
+  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB, s11_cable->loss);
 }
 
 static void prepare_s11_cable(uint8_t type, uint8_t update_mask)
@@ -575,7 +585,7 @@ static void draw_s11_resonance(int x0, int y0){
     return;
   }
   for (int i = 0; i < s11_resonance->count; i++)
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "%qHz, %F%+jF" S_OHM, s11_resonance->data[i].f, s11_resonance->data[i].r, s11_resonance->data[i].x);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "%q" S_Hz ", %F%+jF" S_OHM, s11_resonance->data[i].f, s11_resonance->data[i].r, s11_resonance->data[i].x);
 }
 
 static bool add_resonance_value(int i, uint16_t x, freq_t f) {
@@ -619,4 +629,4 @@ static void prepare_s11_resonance(uint8_t type, uint8_t update_mask)
 }
 #endif //__S11_RESONANCE_MEASURE__
 
-#endif // __VNA_MEASURE__
+#endif // __VNA_MEASURE_MODULE__

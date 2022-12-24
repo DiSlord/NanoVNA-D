@@ -26,13 +26,14 @@
 #include "nanovna.h"
 #include "si5351.h"
 
+// Hardware UI buttons/touch data / functions
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
 #define EVT_BUTTON_DOUBLE_CLICK     0x02
 #define EVT_BUTTON_DOWN_LONG        0x04
-#define EVT_UP                  0x10
-#define EVT_DOWN                0x20
-#define EVT_REPEAT              0x40
+#define EVT_UP                      0x10
+#define EVT_DOWN                    0x20
+#define EVT_REPEAT                  0x40
 
 #define BUTTON_DOWN_LONG_TICKS      MS2ST(500)   // 500ms
 #define BUTTON_DOUBLE_TICKS         MS2ST(250)   // 250ms
@@ -40,19 +41,29 @@
 #define BUTTON_DEBOUNCE_TICKS       MS2ST( 20)   //  20ms
 
 /* lever switch assignment */
-#define BIT_UP1     3
-#define BIT_PUSH    2
-#define BIT_DOWN1   1
+#define BUTTON_DOWN                 (1<<GPIOA_LEVER1)
+#define BUTTON_PUSH                 (1<<GPIOA_PUSH)
+#define BUTTON_UP                   (1<<GPIOA_LEVER2)
+#define READ_BUTTONS()              (palReadPort(GPIOA) & (BUTTON_DOWN | BUTTON_PUSH | BUTTON_UP))
 
-#define READ_PORT() palReadPort(GPIOA)
-#define BUTTON_MASK 0b1111
-
-static uint16_t last_button = 0b0000;
+static uint16_t  last_button = 0b0000;
 static systime_t last_button_down_ticks;
 static systime_t last_button_repeat_ticks;
 
+// Touch screen
+#define EVT_TOUCH_NONE              0
+#define EVT_TOUCH_DOWN              1
+#define EVT_TOUCH_PRESSED           2
+#define EVT_TOUCH_RELEASED          3
+
+#define TOUCH_INTERRUPT_ENABLED     1
+static uint8_t touch_status_flag = 0;
+static uint8_t last_touch_status = EVT_TOUCH_NONE;
+static int16_t last_touch_x;
+static int16_t last_touch_y;
 uint8_t operation_requested = OP_NONE;
 
+//==============================================
 static uint16_t menu_button_height = MENU_BUTTON_HEIGHT(MENU_BUTTON_MIN);
 
 enum {
@@ -60,7 +71,6 @@ enum {
 #ifdef __SD_FILE_BROWSER__
   UI_BROWSER,
 #endif
-  UI_END
 };
 
 typedef struct {
@@ -81,7 +91,7 @@ typedef struct {
 // Enum for keypads_list
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
-  KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
+  KM_POINTS, KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
   KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
@@ -170,19 +180,21 @@ static char    kp_buf[TXTINPUT_LEN+1];  // !!!!!! WARNING size must be + 2 from 
 static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
-static int8_t  kp_index = 0;
+//static uint8_t keyboard_temp;           // Use for custom keyboard processing
 static uint8_t menu_current_level = 0;
 static int8_t  selection = -1;
 
 // UI menu structure
 // Type of menu item:
-#define MT_NONE            0x00
-#define MT_SUBMENU         0x01
-#define MT_CALLBACK        0x02
-#define MT_ADV_CALLBACK    0x03
+enum {
+  MT_NEXT = 0,       // reference is next menu or 0 if end
+  MT_SUBMENU,        // reference is submenu button
+  MT_CALLBACK,       // reference is pointer to: void ui_function_name(uint16_t data)
+  MT_ADV_CALLBACK    // reference is pointer to: void ui_function_name(uint16_t data, button_t *b)
+};
 
-// Set for custom label
-#define MT_CUSTOM_LABEL    0
+// Set for custom label in *label pointer (filled in MT_ADV_CALLBACK function)
+#define MT_CUSTOM_LABEL              0
 
 // Button definition (used in MT_ADV_CALLBACK for custom)
 #define BUTTON_ICON_NONE            -1
@@ -193,12 +205,10 @@ static int8_t  selection = -1;
 #define BUTTON_ICON_CHECK_AUTO       4
 #define BUTTON_ICON_CHECK_MANUAL     5
 
-#define BUTTON_BORDER_NONE           0x00
 #define BUTTON_BORDER_WIDTH_MASK     0x07
-#define BUTTON_BORDER_NO_FILL        0x08
 
 // Define mask for draw border (if 1 use light color, if 0 dark)
-#define BUTTON_BORDER_TYPE_MASK      0xF0
+#define BUTTON_BORDER_NO_FILL        0x08
 #define BUTTON_BORDER_TOP            0x10
 #define BUTTON_BORDER_BOTTOM         0x20
 #define BUTTON_BORDER_LEFT           0x40
@@ -225,18 +235,6 @@ typedef struct {
 } menuitem_t;
 #pragma pack(pop)
 
-// Touch screen
-#define EVT_TOUCH_NONE     0
-#define EVT_TOUCH_DOWN     1
-#define EVT_TOUCH_PRESSED  2
-#define EVT_TOUCH_RELEASED 3
-
-#define TOUCH_INTERRUPT_ENABLED   1
-static uint8_t touch_status_flag = 0;
-static uint8_t last_touch_status = EVT_TOUCH_NONE;
-static int16_t last_touch_x;
-static int16_t last_touch_y;
-
 #define KP_CONTINUE        0
 #define KP_DONE            1
 #define KP_CANCEL          2
@@ -260,8 +258,6 @@ static int disk_log_index = 0;
 
 
 
-void drawMessageBox(const char *header, const char *text, uint32_t delay);
-
 // Icons for UI
 #include "icons_menu.c"
 
@@ -276,17 +272,17 @@ static uint16_t btn_check(void)
     chThdSleepMilliseconds(2);
   }
   uint16_t status = 0;
-  uint16_t cur_button = READ_PORT() & BUTTON_MASK;
+  uint16_t cur_button = READ_BUTTONS();
   // Detect only changed and pressed buttons
   uint16_t button_set = (last_button ^ cur_button) & cur_button;
   last_button_down_ticks = ticks;
   last_button = cur_button;
 
-  if (button_set & (1<<BIT_PUSH))
+  if (button_set & BUTTON_PUSH)
     status |= EVT_BUTTON_SINGLE_CLICK;
-  if (button_set & (1<<BIT_UP1))
+  if (button_set & BUTTON_UP)
     status |= EVT_UP;
-  if (button_set & (1<<BIT_DOWN1))
+  if (button_set & BUTTON_DOWN)
     status |= EVT_DOWN;
   return status;
 }
@@ -302,11 +298,11 @@ static uint16_t btn_wait_release(void)
 //      continue;
 //    }
     chThdSleepMilliseconds(10);
-    uint16_t cur_button = READ_PORT() & BUTTON_MASK;
+    uint16_t cur_button = READ_BUTTONS();
     uint16_t changed = last_button ^ cur_button;
-    if (dt >= BUTTON_DOWN_LONG_TICKS && (cur_button & (1<<BIT_PUSH)))
+    if (dt >= BUTTON_DOWN_LONG_TICKS && (cur_button & BUTTON_PUSH))
       return EVT_BUTTON_DOWN_LONG;
-    if (changed & (1<<BIT_PUSH)) // release
+    if (changed & BUTTON_PUSH) // release
       return EVT_BUTTON_SINGLE_CLICK;
 
     if (changed) {
@@ -319,9 +315,9 @@ static uint16_t btn_wait_release(void)
     if (dt > BUTTON_DOWN_LONG_TICKS &&
         ticks > last_button_repeat_ticks) {
       uint16_t status = 0;
-      if (cur_button & (1<<BIT_DOWN1))
+      if (cur_button & BUTTON_DOWN)
         status |= EVT_DOWN | EVT_REPEAT;
-      if (cur_button & (1<<BIT_UP1))
+      if (cur_button & BUTTON_UP)
         status |= EVT_UP | EVT_REPEAT;
       last_button_repeat_ticks = ticks + BUTTON_REPEAT_TICKS;
       return status;
@@ -330,8 +326,8 @@ static uint16_t btn_wait_release(void)
 }
 
 #if 0
-static void btn_wait(void){
-  while (READ_PORT() & BUTTON_MASK) chThdSleepMilliseconds(10);
+static void btn_wait(void) {
+  while (READ_PORT()) chThdSleepMilliseconds(10);
 }
 #endif
 
@@ -523,8 +519,7 @@ touch_wait_pressed(void)
 
 static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *data) {
   // Clear screen and ask for press
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
   lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
@@ -554,8 +549,7 @@ touch_draw_test(void)
 {
   int x0, y0;
   int x1, y1;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
 
@@ -564,6 +558,7 @@ touch_draw_test(void)
     if (touch_check() == EVT_TOUCH_PRESSED){
       touch_position(&x0, &y0);
       do {
+        lcd_printf(10, 30, "%3d %3d ", x0, y0);
         chThdSleepMilliseconds(50);
         touch_position(&x1, &y1);
         lcd_line(x0, y0, x1, y1);
@@ -601,8 +596,7 @@ show_version(void)
 {
   int x = 5, y = 5, i = 1;
   int str_height = FONT_STR_HEIGHT + 2;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
 
   lcd_clear_screen();
   uint16_t shift = 0b00010010000;
@@ -679,8 +673,7 @@ enter_dfu(void)
 {
   touch_stop_watchdog();
   int x = 5, y = 20;
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   // leave a last message 
   lcd_clear_screen();
   lcd_drawstring(x, y, "DFU: Device Firmware Update Mode\n"
@@ -737,7 +730,7 @@ static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
   set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb){
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb) {
   (void)data;
   bool calibrated = cal_status & (CALSTAT_ES|CALSTAT_ER|CALSTAT_ET|CALSTAT_ED|CALSTAT_EX|CALSTAT_OPEN|CALSTAT_SHORT|CALSTAT_THRU);
   if (b){
@@ -756,8 +749,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb){
   }
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb) {
   (void)data;
   if (b){
     b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
@@ -774,7 +766,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
@@ -835,14 +827,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   if (b){
     const properties_t *p = get_properties(data);
     if (p)
-      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1, data);
+      plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
       plot_printf(b->label, sizeof(b->label), "Empty %d", data);
     return;
   }
   if (caldata_save(data) == 0) {
     menu_move_back(true);
-    request_to_redraw(REDRAW_CAL_STATUS);
+    request_to_redraw(REDRAW_BACKUP | REDRAW_CAL_STATUS);
   }
 }
 
@@ -860,7 +852,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
   }
 
   if (trace[data].enabled && data != current_trace) // for enabled trace and not current trace
-    set_active_trace(data);                     // make active
+    set_active_trace(data);                         // make active
   else                                              //
     set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
 }
@@ -905,7 +897,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
       uint8_t marker_smith_format = get_smith_format();
       if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
           (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) {txt = "%s"; marker_smith_format = 0;}
-      else txt = "%s\n" R_LINK_COLOR " %s";
+      else txt = "%s\n" R_LINK_COLOR "%s";
       plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
     else
@@ -982,11 +974,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   case FFT_AMP:
     props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
-    set_sweep_points(POINTS_COUNT);
+    set_sweep_points(SWEEP_POINTS_MAX);
     set_bandwidth(1);
     config.decimation = 1;
     set_tau(0);     // shortest possible tau
-    set_sweep_points(POINTS_COUNT);
+    set_sweep_points(SWEEP_POINTS_MAX);
     set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
     set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
     trace[1].enabled = false;
@@ -1073,7 +1065,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
     return;
   }
   props_mode = (props_mode & ~TD_FUNC) | data;
-//  ui_mode_normal();
 }
 #endif
 #define BANDWIDTH_LIST  1,2,5,10,20,50,100,200,500,1000
@@ -1081,7 +1072,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 uint16_t bandwidth[BANDWIDTH_COUNT] = {BANDWIDTH_LIST};
 
 const menuitem_t menu_bandwidth[];
-static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
+UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
 {
   (void)data;
   if (b){
@@ -1128,6 +1119,37 @@ static UI_FUNCTION_ADV_CALLBACK(menu_decimation_acb)
   set_tau(get_tau());   // Increase Tau if needed for decimation.
 }
 
+#pragma pack(push, 2)
+typedef struct {
+  const char* text;
+  uint16_t update_flag;
+} vna_mode_data_t;
+#pragma pack(pop)
+
+const vna_mode_data_t vna_mode_data[] = {
+//                        text (if 0 use checkbox) Redraw flags on change
+  [VNA_MODE_AUTO_NAME]    = {0, REDRAW_BACKUP},
+  [VNA_MODE_PLL]          = {0, REDRAW_AREA},
+  [VNA_MODE_CONNECTION]   = {"USB\0SERIAL", REDRAW_BACKUP},
+#ifdef __DIGIT_SEPARATOR__
+  [VNA_MODE_SEPARATOR]    = {"DOT '.'\0COMMA ','", REDRAW_AREA},// Comma or dot digit separator (0: dot, 1: comma)
+#endif
+  [VNA_MODE_SEARCH]       = {"MAXIMUM\0MINIMUM",REDRAW_BACKUP},
+  [VNA_MODE_SHOW_GRID]    = {0, REDRAW_BACKUP | REDRAW_AREA},
+  [VNA_MODE_USB_LOG]      = {0, REDRAW_BACKUP | REDRAW_AREA},
+  [VNA_MODE_BACKUP]       = {0, REDRAW_BACKUP},
+  [VNA_MODE_FLIP_DISPLAY] = {0, REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY},
+  [VNA_MODE_PULLING]      = {0, REDRAW_BACKUP},
+  [VNA_MODE_SCROLLING]    = {0, REDRAW_AREA},
+  [VNA_MODE_NULL_PHASE]   = {"NULL\nPHASE\0NULL\nPHASE", REDRAW_AREA},
+  [VNA_MODE_TRACE_AVER]   = {0, REDRAW_AREA},
+  [VNA_MODE_DISK_LOG]     = {0, REDRAW_AREA},
+  [VNA_MODE_SIDE_CHANNEL] = {0, REDRAW_AREA},
+  [VNA_MODE_DUMP_SIDE]    = {0, REDRAW_AREA},
+  [VNA_MODE_FREEZE_DISPLAY] = {0, REDRAW_AREA},
+  [VNA_MODE_SIDE]         = {0, REDRAW_AREA},
+};
+
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
   uint32_t m = 1<<idx;
   uint32_t old = config._vna_mode;
@@ -1135,26 +1157,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
   else                            config._vna_mode^= m; // toggle
   if (old == config._vna_mode) return;
-  static const uint16_t redraw[] = {
-    [VNA_MODE_AUTO_NAME]    = REDRAW_BACKUP,
-    [VNA_MODE_PLL]          = REDRAW_AREA,
-    [VNA_MODE_CONNECTION]   = REDRAW_BACKUP,
-    [VNA_MODE_SEARCH]       = REDRAW_BACKUP,
-    [VNA_MODE_SHOW_GRID]    = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_USB_LOG]     = REDRAW_BACKUP | REDRAW_AREA,
-    [VNA_MODE_BACKUP]       = REDRAW_BACKUP,
-    [VNA_MODE_FLIP_DISPLAY] = REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY,
-    [VNA_MODE_PULLING]      = REDRAW_BACKUP,
-    [VNA_MODE_SCROLLING]    = REDRAW_AREA,
-    [VNA_MODE_NULL_PHASE]   = REDRAW_AREA,
-    [VNA_MODE_TRACE_AVER]   = REDRAW_AREA,
-    [VNA_MODE_DISK_LOG]     = REDRAW_AREA,
-    [VNA_MODE_SIDE_CHANNEL] = REDRAW_AREA,
-    [VNA_MODE_DUMP_SIDE]    = REDRAW_AREA,
-    [VNA_MODE_FREEZE_DISPLAY] = REDRAW_AREA,
-    [VNA_MODE_SIDE]         = REDRAW_AREA,
-  };
-  request_to_redraw(redraw[idx]);
+  request_to_redraw(vna_mode_data[idx].update_flag);
   // Custom processing after apply
   switch(idx) {
 #ifdef __USE_SERIAL_CONSOLE__
@@ -1204,38 +1207,19 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
 {
-  static const char *vna_mode_text[] = {
-    [VNA_MODE_AUTO_NAME] = 0,
-    [VNA_MODE_PLL] = 0,
-    [VNA_MODE_CONNECTION] = "USB\0SERIAL",
-    [VNA_MODE_SEARCH] = "MAXIMUM\0MINIMUM",
-    [VNA_MODE_SHOW_GRID] = 0,
-    [VNA_MODE_USB_LOG] = 0,
-    [VNA_MODE_BACKUP] = 0,
-    [VNA_MODE_FLIP_DISPLAY] = 0,
-    [VNA_MODE_PULLING] = 0,
-    [VNA_MODE_SCROLLING] = 0,
-    [VNA_MODE_NULL_PHASE] = "NULL\nPHASE\0NULL\nPHASE",
-    [VNA_MODE_TRACE_AVER] = 0,
-    [VNA_MODE_DISK_LOG] = 0,
-    [VNA_MODE_SIDE_CHANNEL] = 0,
-    [VNA_MODE_DUMP_SIDE] = 0,
-    [VNA_MODE_FREEZE_DISPLAY] = 0,
-    [VNA_MODE_SIDE]         = 0,
-  };
-  if (b){
-    if (vna_mode_text[data] == 0)
+  if (b) {
+    const char *t = vna_mode_data[data].text;
+    if (t == 0)
       b->icon = VNA_MODE(data) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
-    else {
-      const char *t = vna_mode_text[data];
+    else
       b->p1.text = VNA_MODE(data) ? t + strlen(t) + 1 : t;
-    }
     return;
   }
   apply_VNA_mode(data, VNA_MODE_TOGGLE);
 }
 
 static UI_FUNCTION_CALLBACK(menu_null_a_freq_cb) {
+  (void)data;
   if (level_a > MIN_LEVEL)
     config.xtal_offset -= aver_freq_a * 260;
   else
@@ -1325,8 +1309,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 {
   (void)data;
   if (b){
-    b->p1.text = sweep_mode&SWEEP_ENABLE ? "PAUSE" : "RESUME";
-    b->icon = sweep_mode&SWEEP_ENABLE ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
+    b->p1.text = (sweep_mode & SWEEP_ENABLE) ? "PAUSE" : "RESUME";
+    b->icon = (sweep_mode & SWEEP_ENABLE) ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
   }
   toggle_sweep();
@@ -1363,7 +1347,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     break;
 #if 0
   case UI_MARKER_EDELAY:
-    { 
+    {
       if (current_trace == TRACE_INVALID)
         break;
       float (*array)[4] = measured[trace[current_trace].channel];
@@ -1537,8 +1521,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
     return;
   }
   int16_t value = config._brightness;
-  lcd_set_foreground(LCD_MENU_TEXT_COLOR);
-  lcd_set_background(LCD_MENU_COLOR);
+  lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_MENU_COLOR);
   lcd_fill(LCD_WIDTH/2-12*FONT_WIDTH, LCD_HEIGHT/2-20, 23*FONT_WIDTH, 40);
   lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
   lcd_printf(LCD_WIDTH/2-11*FONT_WIDTH, LCD_HEIGHT/2+2, S_LARROW " USE LEVELER BUTTON " S_RARROW);
@@ -1565,7 +1548,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #endif
 
 #ifdef __USE_SD_CARD__
-// Save file extension
+// Save/Load file extension
 static const char *file_ext[] = {
 //  [FMT_S1P_FILE] = "s1p",
 //  [FMT_S2P_FILE] = "s2p",
@@ -1832,7 +1815,7 @@ void disk_log(float p)
 
 
 #ifdef __SD_FILE_BROWSER__
-#include "vna_browser.c"
+#include "vna_modules\vna_browser.c"
 #endif
 #endif // __USE_SD_CARD__
 
@@ -1846,18 +1829,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
   config._band_mode = config._band_mode == 0 ? 1 : 0;
   si5351_set_band_mode(config._band_mode);
 }
-
-#ifdef __DIGIT_SEPARATOR__
-static UI_FUNCTION_ADV_CALLBACK(menu_separator_acb)
-{
-  (void)data;
-  if (b){
-    b->p1.text = DIGIT_SEPARATOR == '.' ? " DOT '.'" : " COMMA ','";
-    return;
-  }
-  DIGIT_SEPARATOR = DIGIT_SEPARATOR == '.' ? ',' : '.';
-}
-#endif
 
 #if STORED_TRACES > 0
 static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
@@ -1879,7 +1850,7 @@ static UI_FUNCTION_CALLBACK(menu_back_cb)
 // Back button submenu list
 static const menuitem_t menu_back[] = {
   { MT_CALLBACK,   0, S_LARROW" BACK", menu_back_cb },
-  { MT_NONE,     0, NULL, NULL } // sentinel
+  { MT_NEXT,     0, NULL, NULL } // sentinel
 };
 
 #if 0
@@ -1892,7 +1863,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n" R_LINK_COLOR " %b.7F" S_SECOND, menu_keyboard_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
-  { MT_NONE,     0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
@@ -1915,7 +1886,7 @@ const menuitem_t menu_save[] = {
 #if SAVEAREA_MAX > 6
   { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_save_acb },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_recall[] = {
@@ -1937,7 +1908,7 @@ const menuitem_t menu_recall[] = {
 #if SAVEAREA_MAX > 6
   { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_recall_acb },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_power[] = {
@@ -1946,7 +1917,7 @@ const menuitem_t menu_power[] = {
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_4MA, "%u m" S_AMPER, menu_power_acb },
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_6MA, "%u m" S_AMPER, menu_power_acb },
   { MT_ADV_CALLBACK, SI5351_CLK_DRIVE_STRENGTH_8MA, "%u m" S_AMPER, menu_power_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #if 0
 const menuitem_t menu_cal[] = {
@@ -1956,7 +1927,7 @@ const menuitem_t menu_cal[] = {
   { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_cal_range_acb },
   { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 const menuitem_t menu_trace[] = {
@@ -1974,7 +1945,7 @@ const menuitem_t menu_trace[] = {
 #endif
 #endif
 
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_formatS11[] =
@@ -1997,7 +1968,7 @@ const menuitem_t menu_formatS11[] =
   { MT_ADV_CALLBACK, TRC_SBLOGMAG,  "SB LOGMAG",     menu_format_acb },
 #endif
 //  { MT_ADV_CALLBACK, TRC_TRANSFORM, "FFT",        menu_format_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_scale[] = {
@@ -2009,7 +1980,7 @@ const menuitem_t menu_scale[] = {
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_transform[] =
@@ -2025,7 +1996,7 @@ const menuitem_t menu_transform[] =
 //  { MT_ADV_CALLBACK, TD_FUNC_BANDPASS,        "BANDPASS",           menu_transform_filter_acb },
 //  { MT_ADV_CALLBACK, 0,                       "WINDOW\n" R_LINK_COLOR " %s", menu_transform_window_acb },
 //  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR, "VELOCITY\nFACTOR" R_LINK_COLOR " %d%%%%", menu_keyboard_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_bandwidth[] =
@@ -2040,7 +2011,7 @@ const menuitem_t menu_bandwidth[] =
   { MT_ADV_CALLBACK, 7, "%b.6F " "s", menu_bandwidth_acb },
   { MT_ADV_CALLBACK, 8, "%b.6F " "s", menu_bandwidth_acb },
   { MT_ADV_CALLBACK, 9, "%b.6F " "s", menu_bandwidth_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_decimation[] =
@@ -2052,7 +2023,7 @@ const menuitem_t menu_decimation[] =
   { MT_ADV_CALLBACK, 4, "%bd", menu_decimation_acb },
   { MT_ADV_CALLBACK, 5, "%bd", menu_decimation_acb },
   { MT_ADV_CALLBACK, 6, "%bd", menu_decimation_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 #ifdef __USE_SMOOTH__
@@ -2064,7 +2035,7 @@ const menuitem_t menu_smooth_count[] = {
   { MT_ADV_CALLBACK, 4, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 5, "x%d", menu_smooth_acb },
   { MT_ADV_CALLBACK, 6, "x%d", menu_smooth_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
@@ -2080,7 +2051,7 @@ const menuitem_t menu_more_settings[] = {
 #ifdef SIDE_CHANNEL
    { MT_ADV_CALLBACK, VNA_MODE_SIDE, "INTERNAL\nSIDE",                   menu_vna_mode_acb },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 
@@ -2090,7 +2061,7 @@ const menuitem_t menu_display_settings[] = {
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_SCROLLING, "SCROLLL\nTRACE",                             menu_vna_mode_acb },
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_measure_settings[] = {
@@ -2102,7 +2073,7 @@ const menuitem_t menu_measure_settings[] = {
 //  { MT_ADV_CALLBACK, 0, "MIN TAU\n" R_LINK_COLOR " %b.5Fs" ,                        menu_bandwidth_sel_acb },
   { MT_ADV_CALLBACK, VNA_MODE_PULLING,  "CORRECT\nPULLING",                         menu_vna_mode_acb},
   { MT_SUBMENU,      0, "MORE",                            menu_more_settings },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_measure[] = {
@@ -2112,7 +2083,7 @@ const menuitem_t menu_measure[] = {
   { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,   "NULL\nPHASE",                          menu_vna_mode_acb },
   { MT_CALLBACK, 0,                         "NULL\nA FREQ",                         menu_null_a_freq_cb },
   { MT_SUBMENU,      0,                      "SETTINGS",                            menu_measure_settings },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 
@@ -2126,7 +2097,7 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "SCALE",                               menu_scale },
   { MT_ADV_CALLBACK,      0,            "POINTS\n" R_LINK_COLOR " %u",              menu_points_sel_acb },
   { MT_ADV_CALLBACK, VNA_MODE_TRACE_AVER , "TRACE\nAVERAGE",      menu_vna_mode_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_output[] = {
@@ -2141,11 +2112,12 @@ const menuitem_t menu_output[] = {
   { MT_ADV_CALLBACK, VNA_MODE_DUMP_SIDE,  "LOG\nSIDE",                         menu_vna_mode_acb},
 
 //  { MT_SUBMENU,      0, "SETTINGS",                            menu_settings },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 
 const menuitem_t menu_sweep_points[] = {
+  { MT_ADV_CALLBACK, KM_POINTS, "SET POINTS\n " R_LINK_COLOR "%d", (const void *)menu_keyboard_acb },
   { MT_ADV_CALLBACK, 0, "%d point", menu_points_acb },
 #if POINTS_SET_COUNT > 1
   { MT_ADV_CALLBACK, 1, "%d point", menu_points_acb },
@@ -2171,7 +2143,7 @@ const menuitem_t menu_sweep_points[] = {
 #if POINTS_SET_COUNT > 8
   { MT_ADV_CALLBACK, 8, "%d point", menu_points_acb },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_stimulus[] = {
@@ -2181,8 +2153,8 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
-  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n" R_LINK_COLOR " %u",  menu_points_sel_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n " R_LINK_COLOR "%u",  menu_points_sel_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_pull[] = {
@@ -2190,7 +2162,7 @@ const menuitem_t menu_pull[] = {
   { MT_ADV_CALLBACK, KM_PULL_2, "PULL_2",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_3, "PULL_3",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_PULL_4, "PULL_4",         menu_keyboard_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_marker_sel[] = {
@@ -2218,7 +2190,7 @@ const menuitem_t menu_marker_sel[] = {
 #endif
   { MT_CALLBACK, 0,     "ALL OFF", menu_marker_disable_all_cb },
   { MT_ADV_CALLBACK, 0,   "DELTA", menu_marker_delta_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_marker_ops[] = {
@@ -2227,7 +2199,7 @@ const menuitem_t menu_marker_ops[] = {
   { MT_CALLBACK, ST_CENTER,        S_RARROW" CENTER",  menu_marker_op_cb },
   { MT_CALLBACK, ST_SPAN,          S_RARROW" SPAN",    menu_marker_op_cb },
   { MT_CALLBACK, UI_MARKER_EDELAY, S_RARROW" E-DELAY", menu_marker_op_cb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_marker_s21smith[] = {
@@ -2236,7 +2208,7 @@ const menuitem_t menu_marker_s21smith[] = {
   { MT_ADV_CALLBACK, MS_REIM,     "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_SHUNT_RX, "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_SERIES_RX,"%s", menu_marker_smith_acb },
-  { MT_NONE, 0, NULL, (const void *)menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, (const void *)menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_marker_s11smith[] = {
@@ -2249,7 +2221,7 @@ const menuitem_t menu_marker_s11smith[] = {
   { MT_ADV_CALLBACK, MS_GLC, "%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RpXp,"%s", menu_marker_smith_acb },
   { MT_ADV_CALLBACK, MS_RpLC,"%s", menu_marker_smith_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 #ifdef __VNA_MEASURE_MODULE__
@@ -2268,26 +2240,26 @@ const menuitem_t menu_marker_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
-  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl =" R_LINK_COLOR " %b.4F"S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl = " R_LINK_COLOR "%b.4F" S_OHM, menu_keyboard_acb},
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
 const menuitem_t menu_marker[] = {
   { MT_SUBMENU,                0,   "SELECT\nMARKER",              menu_marker_sel    },
-  { MT_ADV_CALLBACK,VNA_MODE_SEARCH,"SEARCH\n" R_LINK_COLOR " %s", menu_vna_mode_acb },
-  { MT_CALLBACK, MK_SEARCH_LEFT,    "SEARCH\n " S_LARROW" LEFT",   menu_marker_search_dir_cb },
-  { MT_CALLBACK, MK_SEARCH_RIGHT,   "SEARCH\n " S_RARROW" RIGHT",  menu_marker_search_dir_cb },
+  { MT_ADV_CALLBACK,VNA_MODE_SEARCH,"SEARCH\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
+  { MT_CALLBACK, MK_SEARCH_LEFT,    "SEARCH\n " S_LARROW "LEFT",   menu_marker_search_dir_cb },
+  { MT_CALLBACK, MK_SEARCH_RIGHT,   "SEARCH\n " S_RARROW "RIGHT",  menu_marker_search_dir_cb },
   { MT_SUBMENU,                0,   "OPERATIONS",                  menu_marker_ops    },
   { MT_ADV_CALLBACK,           0,   "TRACKING",                    menu_marker_tracking_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 #ifdef __DFU_SOFTWARE_MODE__
 const menuitem_t menu_dfu[] = {
   { MT_CALLBACK, 0, "RESET AND\nENTER DFU", menu_dfu_cb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
@@ -2303,19 +2275,19 @@ const menuitem_t menu_serial_speed[] = {
   { MT_ADV_CALLBACK, 7, "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, 8, "%u", menu_serial_speed_acb },
   { MT_ADV_CALLBACK, 9, "%u", menu_serial_speed_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_connection[] = {
   { MT_ADV_CALLBACK, VNA_MODE_CONNECTION, "CONNECTION\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
   { MT_ADV_CALLBACK, 0, "SERIAL SPEED\n " R_LINK_COLOR "%u", menu_serial_speed_sel_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
 const menuitem_t menu_clear[] = {
   { MT_CALLBACK, MENU_CONFIG_RESET, "CLEAR ALL\nAND RESET", menu_config_cb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 #ifdef USE_VARIABLE_OFFSET_MENU
@@ -2330,27 +2302,27 @@ const menuitem_t menu_offset[] = {
   { MT_ADV_CALLBACK,11, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK,13, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK,15, "%d" S_Hz, menu_offset_acb },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
 
 const menuitem_t menu_device1[] = {
-  { MT_ADV_CALLBACK, 0,            "MODE\n" R_LINK_COLOR " %s",          menu_band_sel_acb },
+  { MT_ADV_CALLBACK, 0,                  "MODE\n " R_LINK_COLOR "%s",      menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
-  { MT_ADV_CALLBACK, 0,            "SEPARATOR\n" R_LINK_COLOR "%s",      menu_separator_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-  { MT_CALLBACK, FMT_BIN_FILE,     "DUMP\nFIRMWARE",     menu_sdcard_cb },
+  { MT_CALLBACK, FMT_BIN_FILE,           "DUMP\nFIRMWARE",                 menu_sdcard_cb },
 #endif
 #ifdef __SD_CARD_LOAD__
 #ifdef __SD_FILE_BROWSER__
-  { MT_CALLBACK, FMT_CMD_FILE,     "LOAD COMMAND\n SCRIPT", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_CMD_FILE,           "LOAD COMMAND\n SCRIPT",          menu_sdcard_browse_cb },
 #else
-  { MT_CALLBACK, MENU_CONFIG_LOAD, "LOAD\nCONFIG.INI",      menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_LOAD,       "LOAD\nCONFIG.INI",               menu_config_cb },
 #endif
 #endif
-  { MT_SUBMENU, 0,                 "CLEAR CONFIG",       menu_clear },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_SUBMENU, 0,                       "CLEAR CONFIG",                   menu_clear },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_device[] = {
@@ -2373,7 +2345,7 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                                 menu_keyboard_acb },
 #endif
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_device1 },
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_config[] = {
@@ -2386,12 +2358,12 @@ const menuitem_t menu_config[] = {
 #endif
   { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
-  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n" R_LINK_COLOR " %d%%%%", menu_brightness_acb },
+  { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n " R_LINK_COLOR "%d%%%%", menu_brightness_acb },
 #endif
 #ifdef __DFU_SOFTWARE_MODE__
-  { MT_SUBMENU,                       0, S_RARROW"DFU",   menu_dfu },
+  { MT_SUBMENU,                       0, S_RARROW "DFU",   menu_dfu },
 #endif
-  { MT_NONE, 0, NULL, menu_back } // next-> menu_back
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
 const menuitem_t menu_top[] = {
@@ -2404,7 +2376,7 @@ const menuitem_t menu_top[] = {
 //  { MT_SUBMENU, 0, "RECALL",    menu_recall },
   { MT_SUBMENU, 0, "CONFIG",    menu_config },
   { MT_ADV_CALLBACK, 0, "%s\nDISPLAY", menu_pause_acb },
-  { MT_NONE, 0, NULL, NULL } // sentinel
+  { MT_NEXT, 0, NULL, NULL } // sentinel
 };
 
 #define MENU_STACK_DEPTH_MAX 5
@@ -2415,20 +2387,28 @@ const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
 static const menuitem_t *menu_next_item(const menuitem_t *m){
   if (m == NULL) return NULL;
   m++; // Next item
-  return m->type == MT_NONE ? (menuitem_t *)m->reference : m;
+  return m->type == MT_NEXT ? (menuitem_t *)m->reference : m;
 }
 
-static const menuitem_t *current_menu_item(int i){
+static const menuitem_t *current_menu_item(int i) {
   const menuitem_t *m = menu_stack[menu_current_level];
   while (i--) m = menu_next_item(m);
   return m;
 }
 
-static int current_menu_get_count(void){
+static int current_menu_get_count(void) {
   int i = 0;
   const menuitem_t *m = menu_stack[menu_current_level];
   while (m){m = menu_next_item(m); i++;}
   return i;
+}
+
+static int get_lines_count(const char *label) {
+  int n = 1;
+  while (*label)
+    if (*label++ == '\n')
+      n++;
+  return n;
 }
 
 static void
@@ -2498,6 +2478,57 @@ menu_invoke(int item)
     draw_menu(-1);
 }
 
+// Draw button function
+static void
+draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b) {
+  uint16_t type = b->border;
+  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
+  // Draw border if width > 0
+  if (bw) {
+    uint16_t br = LCD_RISE_EDGE_COLOR;
+    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
+    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
+    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
+    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
+    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
+  }
+  // Set colors for button and text
+  lcd_set_colors(b->fg, b->bg);
+  if (type & BUTTON_BORDER_NO_FILL) return;
+  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
+}
+
+// Draw message box function
+void drawMessageBox(const char *header, const char *text, uint32_t delay) {
+  button_t b;
+  int x , y;
+  b.bg = LCD_MENU_COLOR;
+  b.fg = LCD_MENU_TEXT_COLOR;
+  b.border = BUTTON_BORDER_FLAT|1;
+  if (header) {// Draw header
+    draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
+    y = LCD_HEIGHT/2-40 + 5;
+    lcd_drawstring(x, y, header);
+    request_to_redraw(REDRAW_AREA);
+  }
+  if (text) {  // Draw window
+    lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_FG_COLOR);
+    lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
+    y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
+    lcd_drawstring(x, y, text);
+    request_to_redraw(REDRAW_AREA);
+  }
+
+  do {
+    chThdSleepMilliseconds(delay == 0 ? 50 : delay);
+  } while (delay == 0 && btn_check() != EVT_BUTTON_SINGLE_CLICK && touch_check() != EVT_TOUCH_PRESSED);
+}
+
+//
+// KEYBOARD functions
+//
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
 // Keyboard size and position data
 static const keypad_pos_t key_pos[] = {
@@ -2506,12 +2537,12 @@ static const keypad_pos_t key_pos[] = {
 };
 
 static const keypads_t keypads_freq[] = {
-  { 16 ,  NUM_KEYBOARD },   // size and position
+  { 16 ,  NUM_KEYBOARD },   // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9 G
+  { 0x02, KP_1 },           // 4 5 6 M
+  { 0x12, KP_2 },           // 1 2 3 k
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2526,12 +2557,12 @@ static const keypads_t keypads_freq[] = {
 };
 
 static const keypads_t keypads_ufloat[] = { //
-  { 13, NUM_KEYBOARD },   // size and position
+  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2542,13 +2573,30 @@ static const keypads_t keypads_ufloat[] = { //
   { 0x23, KP_BS }
 };
 
-static const keypads_t keypads_float[] = {
-  { 16, NUM_KEYBOARD },   // size and position
+static const keypads_t keypads_percent[] = { //
+  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3
+  { 0x22, KP_3 },           // 0 . < %
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x33, KP_PERCENT },
+  { 0x23, KP_BS }
+};
+
+static const keypads_t keypads_float[] = {
+  { 16, NUM_KEYBOARD },     // 14 buttons NUM keyboard (4x4 size)
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6
+  { 0x12, KP_2 },           // 1 2 3 -
+  { 0x22, KP_3 },           // 0 . < x
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2563,12 +2611,12 @@ static const keypads_t keypads_float[] = {
 };
 
 static const keypads_t keypads_nfloat[] = {
-  { 15, NUM_KEYBOARD },   // size and position
+  { 15, NUM_KEYBOARD },     // 15 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },
-  { 0x02, KP_1 },
-  { 0x12, KP_2 },
-  { 0x22, KP_3 },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6 n
+  { 0x12, KP_2 },           // 1 2 3 p
+  { 0x22, KP_3 },           // 0 . < -
   { 0x01, KP_4 },
   { 0x11, KP_5 },
   { 0x21, KP_6 },
@@ -2582,16 +2630,18 @@ static const keypads_t keypads_nfloat[] = {
 };
 
 #if 0
+//  ADCD keyboard
 static const keypads_t keypads_text[] = {
-  {40, TXT_KEYBOARD },   // size and position
+  {40, TXT_KEYBOARD },   // 40 buttons TXT keyboard (10x4 size)
   {0x00, '0'}, {0x10, '1'}, {0x20, '2'}, {0x30, '3'}, {0x40, '4'}, {0x50, '5'}, {0x60, '6'}, {0x70, '7'}, {0x80, '8'}, {0x90, '9'},
   {0x01, 'A'}, {0x11, 'B'}, {0x21, 'C'}, {0x31, 'D'}, {0x41, 'E'}, {0x51, 'F'}, {0x61, 'G'}, {0x71, 'H'}, {0x81, 'I'}, {0x91, 'J'},
   {0x02, 'K'}, {0x12, 'L'}, {0x22, 'M'}, {0x32, 'N'}, {0x42, 'O'}, {0x52, 'P'}, {0x62, 'Q'}, {0x72, 'R'}, {0x82, 'S'}, {0x92, 'T'},
   {0x03, 'U'}, {0x13, 'V'}, {0x23, 'W'}, {0x33, 'X'}, {0x43, 'Y'}, {0x53, 'Z'}, {0x63, '_'}, {0x73, '-'}, {0x83, S_LARROW[0]}, {0x93, C_ENTER},
 };
 #else
+// QWERTY keyboard
 static const keypads_t keypads_text[] = {
-  {40, TXT_KEYBOARD },   // size and position
+  {40, TXT_KEYBOARD },   // 40 buttons TXT keyboard (10x4 size)
   {0x00, '1'}, {0x10, '2'}, {0x20, '3'}, {0x30, '4'}, {0x40, '5'}, {0x50, '6'}, {0x60, '7'}, {0x70, '8'}, {0x80, '9'}, {0x90, '0'},
   {0x01, 'Q'}, {0x11, 'W'}, {0x21, 'E'}, {0x31, 'R'}, {0x41, 'T'}, {0x51, 'Y'}, {0x61, 'U'}, {0x71, 'I'}, {0x81, 'O'}, {0x91, 'P'},
   {0x02, 'A'}, {0x12, 'S'}, {0x22, 'D'}, {0x32, 'F'}, {0x42, 'G'}, {0x52, 'H'}, {0x62, 'J'}, {0x72, 'K'}, {0x82, 'L'}, {0x92, '_'},
@@ -2599,25 +2649,27 @@ static const keypads_t keypads_text[] = {
 };
 #endif
 
-enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
+enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
 static const keypads_t *keypad_type_list[] = {
   [KEYPAD_FREQ]   = keypads_freq,   // frequency input
   [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
+  [KEYPAD_PERCENT]= keypads_percent,// unsigned float input in percent
   [KEYPAD_FLOAT]  = keypads_float,  // signed float input
   [KEYPAD_NFLOAT] = keypads_nfloat, // signed pico/nano float input
   [KEYPAD_TEXT]   = keypads_text    // text input
 };
 
+// Get value from keyboard functions
 float keyboard_get_float(void)   {return my_atof(kp_buf);}
 float keyboard_get_nfloat(void)  {return my_atof(kp_buf) * 1e-12;}
 freq_t keyboard_get_freq(void)   {return my_atoui(kp_buf);}
 uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 
-// Call back functions for MT_CALLBACK type
+// Keyboard call back functions, allow get value for Keyboard menu button (see menu_keyboard_acb) and apply on finish input
 UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
     if (data == ST_VAR)
-      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n" R_LINK_COLOR " %.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
+      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
     return;
   }
   set_sweep_frequency(data, keyboard_get_freq());
@@ -2638,10 +2690,17 @@ UI_KEYBOARD_CALLBACK(input_max_aver) {
 UI_KEYBOARD_CALLBACK(input_var_delay) {
   (void)data;
   if (b) {
-    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n" R_LINK_COLOR " %F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
+    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n " R_LINK_COLOR "%F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
     return;
   }
   current_props._var_delay = keyboard_get_nfloat();
+}
+
+// Call back functions for MT_CALLBACK type
+UI_KEYBOARD_CALLBACK(input_points) {
+  (void)data;
+  if (b) {b->p1.u = sweep_points; return;}
+  set_sweep_points(keyboard_get_uint());
 }
 
 UI_KEYBOARD_CALLBACK(input_scale) {
@@ -2760,12 +2819,14 @@ UI_KEYBOARD_CALLBACK(input_filename) {
 #endif
 
 const keypads_list keypads_mode_tbl[KM_NONE] = {
+//                      key format     data for cb    text at bottom        callback function
 [KM_START]           = {KEYPAD_FREQ,   ST_START,      "START",              input_freq     }, // start
 [KM_STOP]            = {KEYPAD_FREQ,   ST_STOP,       "STOP",               input_freq     }, // stop
 [KM_CENTER]          = {KEYPAD_FREQ,   ST_CENTER,     "CENTER",             input_freq     }, // center
 [KM_SPAN]            = {KEYPAD_FREQ,   ST_SPAN,       "SPAN",               input_freq     }, // span
 [KM_CW]              = {KEYPAD_FREQ,   ST_CW,         "CW FREQ",            input_freq     }, // cw freq
 [KM_VAR]             = {KEYPAD_FREQ,   ST_VAR,        "JOG STEP",           input_freq     }, // VAR freq step
+[KM_POINTS]          = {KEYPAD_UFLOAT, 0,             "POINTS",             input_points   }, // Points num
 [KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale
 [KM_nSCALE]          = {KEYPAD_NFLOAT, KM_nSCALE,     "SCALE",              input_scale    }, // nano / pico scale value
 [KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value
@@ -2773,7 +2834,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
 [KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
 [KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
-[KM_VELOCITY_FACTOR] = {KEYPAD_UFLOAT, 0,             "VELOCITY%%",         input_velocity }, // velocity factor
+[KM_VELOCITY_FACTOR] = {KEYPAD_PERCENT,0,             "VELOCITY%%",         input_velocity }, // velocity factor
 [KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
 [KM_THRESHOLD]       = {KEYPAD_FREQ,   0,             "THRESHOLD",          input_harmonic }, // Harmonic threshold frequency
 [KM_VBAT]            = {KEYPAD_UFLOAT, 0,             "BAT OFFSET",         input_vbat     }, // Vbat offset input in mV
@@ -2784,8 +2845,8 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_Z_PORT]          = {KEYPAD_UFLOAT, 0,             "PORT Z 50" S_RARROW, input_portz    }, // Port Z renormalization impedance
 #endif
 #ifdef __USE_RTC__
-[KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\n YYMMDD",  input_date_time}, // Date
-[KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\n HHMMSS",  input_date_time}, // Time
+[KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\nYY MM DD", input_date_time}, // Date
+[KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\nHH MM SS", input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
 //[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
@@ -2793,7 +2854,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
 //[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
-[KM_BIN_NAME]       = {KEYPAD_TEXT,    FMT_BIN_FILE, "BIN",                input_filename },  // bin filename
+[KM_BIN_NAME]        = {KEYPAD_TEXT,   FMT_BIN_FILE,  "BIN",                input_filename }, // bin filename
 #endif
 [KM_CSV_NAME]       = {KEYPAD_TEXT,    FMT_CSV_FILE, "CSV",                input_filename },  // csv filename
 [KM_TAU]            = {KEYPAD_FLOAT,   0,            "TAU",                input_tau      },  // tau
@@ -2806,51 +2867,9 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 };
 
 static void
-keypad_set_value(void)
-{
+keypad_set_value(void) {
   const keyboard_cb_t cb = keypads_mode_tbl[keypad_mode].cb;
   if (cb) cb(keypads_mode_tbl[keypad_mode].data, NULL);
-}
-
-static void
-draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b)
-{
-  uint16_t type = b->border;
-  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
-  // Draw border if width > 0
-  if (bw) {
-    uint16_t br = LCD_RISE_EDGE_COLOR;
-    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
-    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
-    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
-    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
-    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
-  }
-  // Set colors for button and text
-  lcd_set_foreground(b->fg);
-  lcd_set_background(b->bg);
-  if (type & BUTTON_BORDER_NO_FILL) return;
-  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
-}
-
-void drawMessageBox(const char *header, const char *text, uint32_t delay){
-  button_t b;
-  int x , y;
-  b.bg = LCD_MENU_COLOR;
-  b.fg = LCD_MENU_TEXT_COLOR;
-  b.border = BUTTON_BORDER_FLAT|1;
-  // Draw header
-  draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
-  y = LCD_HEIGHT/2-40 + 5;
-  lcd_drawstring(x, y, header);
-  // Draw window
-  lcd_set_background(LCD_FG_COLOR);
-  lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-  x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
-  y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
-  lcd_drawstring(x, y, text);
-  chThdSleepMilliseconds(delay);
 }
 
 static void
@@ -2862,8 +2881,7 @@ draw_keypad_button(int id) {
   if (id == selection) {
     button.bg = LCD_MENU_ACTIVE_COLOR;
     button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-  }
-  else{
+  } else{
     button.bg = LCD_MENU_COLOR;
     button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
   }
@@ -2897,15 +2915,14 @@ draw_keypad(void)
     draw_keypad_button(i);
 }
 
-static int period_pos(void) {int j; for (j = 0; j < kp_index && kp_buf[j] != '.'; j++); return j;}
+static int period_pos(void) {int j; for (j = 0; kp_buf[j] && kp_buf[j] != '.'; j++); return j;}
 
-static void
-draw_numeric_area_frame(void)
-{
-  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-  lcd_set_background(LCD_INPUT_BG_COLOR);
+static void draw_numeric_area_frame(void) {
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
   lcd_fill(0, LCD_HEIGHT-NUM_INPUT_HEIGHT, LCD_WIDTH, NUM_INPUT_HEIGHT);
-  lcd_drawstring(10, LCD_HEIGHT-(FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2, keypads_mode_tbl[keypad_mode].name);
+  const char *label = keypads_mode_tbl[keypad_mode].name;
+  int lines = get_lines_count(label);
+  lcd_drawstring(10, LCD_HEIGHT-(FONT_STR_HEIGHT * lines + NUM_INPUT_HEIGHT)/2, label);
 }
 
 static void
@@ -2920,35 +2937,28 @@ draw_numeric_input(const char *buf)
   else
 #endif
     xsim = (0b00100100100100100 >>(2-(period_pos()%3)))&(~1);
-  int c;
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
   while(*buf) {
-    c = *buf++;
+    int c = *buf++;
          if (c == '.'){c = KP_PERIOD;xsim<<=4;}
     else if (c == '-'){c = KP_MINUS; xsim&=~3;}
-    else// if (c >= '0' && c <= '9')
-      c = c - '0';
-    if (c < 0) c = 0;
-    lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-    lcd_set_background(LCD_INPUT_BG_COLOR);
-
+    else if (c >= '0' && c <= '9') c-= '0';
+    else continue;
     // Add space before char
     uint16_t space = xsim&1 ? 2 + 10 : 2;
     xsim>>=1;
     lcd_fill(x, y, space, NUM_FONT_GET_HEIGHT);
     x+=space;
-    if (c < 0) continue; // c is number
     lcd_drawfont(c, x, y);
     x+=NUM_FONT_GET_WIDTH;
   }
-  lcd_set_background(LCD_INPUT_BG_COLOR);
   lcd_fill(x, y, NUM_FONT_GET_WIDTH+2+10, NUM_FONT_GET_HEIGHT);
 }
 
 static void
 draw_text_input(const char *buf)
 {
-  lcd_set_foreground(LCD_INPUT_TEXT_COLOR);
-  lcd_set_background(LCD_INPUT_BG_COLOR);
+  lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
 #if 0
   uint16_t x = 14 + 5 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
@@ -2963,174 +2973,11 @@ draw_text_input(const char *buf)
 #endif
 }
 
-static int
-menu_is_multiline(const char *label)
-{
-  int n = 1;
-  while (*label)
-    if (*label++ == '\n')
-      n++;
-  return n;
-}
-
-static void
-draw_menu_buttons(const menuitem_t *m, uint32_t mask)
-{
-  int i;
-  int y = MENU_BUTTON_Y_OFFSET;
-  for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
-    if ((mask&(1<<i)) == 0) continue;
-    button_t button;
-    button.fg = LCD_MENU_TEXT_COLOR;
-    button.icon = BUTTON_ICON_NONE;
-    // focus only in MENU mode but not in KEYPAD mode
-    if (ui_mode == UI_MENU && i == selection){
-      button.bg = LCD_MENU_ACTIVE_COLOR;
-      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-    }
-    else{
-      button.bg = LCD_MENU_COLOR;
-      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
-    }
-    // Custom button, apply custom settings/label from callback
-    char *text;
-    uint16_t text_offs;
-    if (m->type == MT_ADV_CALLBACK){
-      if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
-      // Apply custom text, from button label and
-      if (m->label != MT_CUSTOM_LABEL)
-        plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
-      text = button.label;
-    }
-    else
-      text = m->label;
-    // Draw button
-    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
-    // Draw icon if need (and add extra shift for text)
-    if (button.icon >= 0) {
-      lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
-      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET + ICON_SIZE;
-    } else
-      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_TEXT_OFFSET;
-    // Draw button text
-    int lines = menu_is_multiline(text);
-#if _USE_FONT_ != _USE_SMALL_FONT_
-    if (menu_button_height < lines*FONT_GET_HEIGHT + 2) {
-      lcd_set_font(FONT_SMALL);
-      lcd_drawstring(text_offs, y+(menu_button_height-lines*sFONT_GET_HEIGHT - 1)/2, text);
-    }
-    else {
-      lcd_set_font(FONT_NORMAL);
-      lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
-    }
-#else
-    lcd_drawstring(text_offs, y+(menu_button_height-lines*FONT_GET_HEIGHT)/2, text);
-#endif
-  }
-  // Erase empty buttons
-  if (AREA_HEIGHT_NORMAL + OFFSETY > y){
-    lcd_set_background(LCD_BG_COLOR);
-    lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
-  }
-  lcd_set_font(FONT_NORMAL);
-}
-
-static void
-draw_menu(uint32_t mask)
-{
-  draw_menu_buttons(menu_stack[menu_current_level], mask);
-}
-
-#if 0
-static void
-erase_menu_buttons(void)
-{
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
-}
-#endif
-
 /*
- * Menu mode processing
+ * Keyboard UI processing
  */
-static void
-ui_mode_menu(void)
-{
-  if (ui_mode == UI_MENU)
-    return;
-
-  ui_mode = UI_MENU;
-  // narrowen plotting area
-  set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
-  ensure_selection();
-  draw_menu(-1);
-}
-
-static void
-ui_process_menu_lever(uint16_t status)
-{
-  if (status & EVT_BUTTON_SINGLE_CLICK) {
-    menu_invoke(selection);
-    return;
-  }
-  uint16_t count = current_menu_get_count();
-  do {
-    uint32_t mask = 1<<selection;
-    if (status & EVT_UP  ) selection++;
-    if (status & EVT_DOWN) selection--;
-    // close menu if no menu item
-    if ((uint16_t)selection >= count){
-      ui_mode_normal();
-      return;
-    }
-    draw_menu(mask|(1<<selection));
-    chThdSleepMilliseconds(100);
-  } while ((status = btn_wait_release()) != 0);
-}
-
-static void
-menu_apply_touch(int touch_x, int touch_y)
-{
-  if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
-    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
-    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
-      uint32_t mask = (1<<i)|(1<<selection);
-      selection = i;
-      draw_menu(mask);
-      touch_wait_release();
-      selection = -1;
-      menu_invoke(i);
-      return;
-    }
-  }
-
-  touch_wait_release();
-  ui_mode_normal();
-}
-//================== end menu processing =================================
-
-/*
- * Keyboard processing
- */
-static void
-ui_mode_keypad(int _keypad_mode)
-{
-  if (ui_mode == UI_KEYPAD)
-    return;
-  set_area_size(0, 0);
-  // keypads array
-  keypad_mode = _keypad_mode;
-  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
-  selection = -1;
-  kp_index = 0;
-  ui_mode = UI_KEYPAD;
-  draw_menu(-1);
-  draw_keypad();
-  draw_numeric_area_frame();
-}
-
 static int
-num_keypad_click(int c)
+num_keypad_click(int c, int kp_index)
 {
   if (c == KP_ENTER) c = KP_X1;
   if ((c >= KP_u && c <= KP_G) || c == KP_N || c == KP_P) {
@@ -3173,7 +3020,7 @@ num_keypad_click(int c)
 }
 
 static int
-full_keypad_click(int c)
+txt_keypad_click(int c, int kp_index)
 {
   if (c == C_ENTER) { // Enter
     return kp_index == 0 ? KP_CANCEL : KP_DONE;
@@ -3192,9 +3039,27 @@ full_keypad_click(int c)
 }
 
 static void
+ui_mode_keypad(int _keypad_mode)
+{
+  if (ui_mode == UI_KEYPAD)
+    return;
+  set_area_size(0, 0);
+  // keypads array
+  keypad_mode = _keypad_mode;
+  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
+  selection = -1;
+  kp_buf[0] = 0;
+  ui_mode = UI_KEYPAD;
+  draw_menu(-1);
+  draw_keypad();
+  draw_numeric_area_frame();
+}
+
+static void
 keypad_click(int key) {
   int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
-  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c) : full_keypad_click(c);
+  int index = strlen(kp_buf);
+  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c, index) : txt_keypad_click(c, index);
   if (result == KP_DONE) keypad_set_value(); // apply input done
   // Exit loop on done or cancel
   if (result != KP_CONTINUE)
@@ -3202,7 +3067,7 @@ keypad_click(int key) {
 }
 
 static void
-keypad_apply_touch(int touch_x, int touch_y)
+ui_keypad_touch(int touch_x, int touch_y)
 {
   const keypad_pos_t *p = &key_pos[keypads[0].c];
   if (touch_x < p->x_offs || touch_y < p->y_offs) return;
@@ -3225,7 +3090,7 @@ keypad_apply_touch(int touch_x, int touch_y)
 }
 
 static void
-ui_process_keypad_lever(uint16_t status)
+ui_keypad_lever(uint16_t status)
 {
   if (status == EVT_BUTTON_SINGLE_CLICK) {
     if (selection >= 0) // Process input
@@ -3235,16 +3100,150 @@ ui_process_keypad_lever(uint16_t status)
   int keypads_last_index = keypads[0].pos - 1;
   do {
     int old = selection;
-    if ((status & EVT_DOWN) && --selection < 0)
-      selection = keypads_last_index;
-    if ((status & EVT_UP)   && ++selection > keypads_last_index)
-        selection = 0;
+    if ((status & EVT_DOWN) && --selection < 0) selection = keypads_last_index;
+    if ((status & EVT_UP)   && ++selection > keypads_last_index) selection = 0;
     draw_keypad_button(old);
     draw_keypad_button(selection);
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
 //========================== end keyboard input =======================
+
+//
+// UI Menu functions
+//
+static void
+draw_menu_buttons(const menuitem_t *m, uint32_t mask)
+{
+  int i;
+  int y = MENU_BUTTON_Y_OFFSET;
+  for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
+    if ((mask&(1<<i)) == 0) continue;
+    button_t button;
+    button.fg = LCD_MENU_TEXT_COLOR;
+    button.icon = BUTTON_ICON_NONE;
+    // focus only in MENU mode but not in KEYPAD mode
+    if (ui_mode == UI_MENU && i == selection){
+      button.bg = LCD_MENU_ACTIVE_COLOR;
+      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
+    } else{
+      button.bg = LCD_MENU_COLOR;
+      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
+    }
+    // Custom button, apply custom settings/label from callback
+    char *text;
+    uint16_t text_offs;
+    if (m->type == MT_ADV_CALLBACK) {
+      if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
+      // Apply custom text, from button label and
+      if (m->label != MT_CUSTOM_LABEL)
+        plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
+      text = button.label;
+    }
+    else
+      text = m->label;
+    // Draw button
+    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
+    // Draw icon if need (and add extra shift for text)
+    if (button.icon >= 0) {
+      lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET + ICON_SIZE;
+    } else
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_TEXT_OFFSET;
+    // Draw button text
+    int lines = get_lines_count(text);
+#if _USE_FONT_ != _USE_SMALL_FONT_
+    if (menu_button_height < lines * FONT_GET_HEIGHT + 2) {
+      lcd_set_font(FONT_SMALL);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_GET_HEIGHT - 1)/2, text);
+    }
+    else {
+      lcd_set_font(FONT_NORMAL);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+    }
+#else
+    lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+#endif
+  }
+  // Erase empty buttons
+  if (AREA_HEIGHT_NORMAL + OFFSETY > y) {
+    lcd_set_background(LCD_BG_COLOR);
+    lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
+  }
+  lcd_set_font(FONT_NORMAL);
+}
+
+static void
+draw_menu(uint32_t mask)
+{
+  draw_menu_buttons(menu_stack[menu_current_level], mask);
+}
+
+#if 0
+static void
+erase_menu_buttons(void)
+{
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
+}
+#endif
+
+//  Menu mode processing
+static void
+ui_mode_menu(void)
+{
+  if (ui_mode == UI_MENU)
+    return;
+
+  ui_mode = UI_MENU;
+  // narrowen plotting area
+  set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
+  ensure_selection();
+  draw_menu(-1);
+}
+
+static void
+ui_menu_lever(uint16_t status)
+{
+  if (status & EVT_BUTTON_SINGLE_CLICK) {
+    menu_invoke(selection);
+    return;
+  }
+  uint16_t count = current_menu_get_count();
+  do {
+    uint32_t mask = 1<<selection;
+    if (status & EVT_UP  ) selection++;
+    if (status & EVT_DOWN) selection--;
+    // close menu if no menu item
+    if ((uint16_t)selection >= count){
+      ui_mode_normal();
+      return;
+    }
+    draw_menu(mask|(1<<selection));
+    chThdSleepMilliseconds(100);
+  } while ((status = btn_wait_release()) != 0);
+}
+
+static void
+ui_menu_touch(int touch_x, int touch_y)
+{
+  if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
+    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
+      uint32_t mask = (1<<i)|(1<<selection);
+      selection = i;
+      draw_menu(mask);
+      touch_wait_release();
+      selection = -1;
+      menu_invoke(i);
+      return;
+    }
+  }
+
+  touch_wait_release();
+  ui_mode_normal();
+}
+//================== end menu processing =================================
 
 /*
  * Normal plot processing
@@ -3264,7 +3263,6 @@ ui_mode_normal(void)
   if (ui_mode == UI_KEYPAD)
     request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 #endif
-  request_to_redraw(REDRAW_FREQUENCY);
   ui_mode = UI_NORMAL;
 }
 
@@ -3299,11 +3297,10 @@ lever_search_marker(int status)
 // ex. 10942 -> 10000
 //      6791 ->  5000
 //       341 ->   200
-static uint32_t
-step_round(uint32_t v)
-{
+static freq_t
+step_round(freq_t v) {
   // decade step
-  uint32_t nx, x = 1;
+  freq_t nx, x = 1;
   while((nx = x*10) < v) x = nx;
   // 1-2-5 step
   if (x * 2 > v) return x;
@@ -3312,19 +3309,26 @@ step_round(uint32_t v)
 }
 
 static void
-lever_frequency(uint16_t status, int mode)
-{
-  freq_t freq = get_sweep_frequency(mode);
-  if (mode == ST_SPAN){
-    if (status & EVT_UP  ) freq = var_freq ? (freq + var_freq) : step_round(freq*4 + 1);
-    if (status & EVT_DOWN) freq = var_freq ? (freq - var_freq) : step_round(freq   - 1);
+lever_frequency(uint16_t status) {
+  uint16_t mode;
+  freq_t freq;
+  if (lever_mode == LM_FREQ_0) {
+    if (FREQ_IS_STARTSTOP()) {mode = ST_START; freq = get_sweep_frequency(ST_START);}
+    else                     {mode = ST_CENTER;freq = get_sweep_frequency(ST_CENTER);}
+  } else {
+    if (FREQ_IS_STARTSTOP()) {mode = ST_STOP;  freq = get_sweep_frequency(ST_STOP);}
+    else                     {mode = ST_SPAN;  freq = get_sweep_frequency(ST_SPAN);}
   }
-  else{
-    freq_t span = var_freq ? var_freq : step_round(get_sweep_frequency(ST_SPAN) / 4);
-    if (status & EVT_UP  ) freq+= span;
-    if (status & EVT_DOWN) freq-= span;
+  if (mode == ST_SPAN && !var_freq) {
+    if (status & EVT_UP  ) freq = step_round(freq*4 + 1);
+    if (status & EVT_DOWN) freq = step_round(freq   - 1);
+  } else {
+    freq_t step = var_freq ? var_freq : step_round(get_sweep_frequency(ST_SPAN) / 4);
+    if (status & EVT_UP  ) freq+= step;
+    if (status & EVT_DOWN) freq-= step;
   }
-  if (freq > STOP_MAX || freq < START_MIN) return;
+  while (btn_wait_release() != 0);
+  if (freq > FREQUENCY_MAX || freq < FREQUENCY_MIN) return;
   set_sweep_frequency(mode, freq);
 }
 
@@ -3409,7 +3413,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
   // Check already selected
   if (select_lever_mode(mode)) return TRUE;
   // Call keyboard for enter
-  switch(mode){
+  switch(mode) {
     case LM_FREQ_0: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_CENTER : KM_START); break;
     case LM_FREQ_1: ui_mode_keypad(FREQ_IS_CENTERSPAN() ? KM_SPAN   : KM_STOP ); break;
     case LM_EDELAY: ui_mode_keypad(KM_EDELAY); break;
@@ -3418,7 +3422,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
 }
 
 static void
-ui_process_normal_lever(uint16_t status)
+ui_normal_lever(uint16_t status)
 {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     ui_mode_menu();
@@ -3429,14 +3433,14 @@ ui_process_normal_lever(uint16_t status)
 #ifdef UI_USE_LEVELER_SEARCH_MODE
     case LM_SEARCH: lever_search_marker(status); break;
 #endif
-    case LM_FREQ_0: lever_frequency(status, FREQ_IS_STARTSTOP() ? ST_START : ST_CENTER); break;
-    case LM_FREQ_1: lever_frequency(status, FREQ_IS_STARTSTOP() ? ST_STOP  : ST_SPAN  ); break;
+    case LM_FREQ_0:
+    case LM_FREQ_1: lever_frequency(status); break;
     case LM_EDELAY: lever_edelay(status); break;
   }
 }
 
 static bool
-normal_apply_ref_scale(int touch_x, int touch_y){
+touch_apply_ref_scale(int touch_x, int touch_y) {
   int t = current_trace;
   // do not scale invalid or smith chart
   if (t == TRACE_INVALID
@@ -3461,8 +3465,7 @@ normal_apply_ref_scale(int touch_x, int touch_y){
 
 #ifdef __USE_SD_CARD__
 static bool
-made_screenshot(int touch_x, int touch_y)
-{
+touch_made_screenshot(int touch_x, int touch_y) {
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
   touch_wait_release();
@@ -3472,16 +3475,16 @@ made_screenshot(int touch_x, int touch_y)
 #endif
 
 static void
-normal_apply_touch(int touch_x, int touch_y){
+ui_normal_touch(int touch_x, int touch_y) {
   // Try drag marker
   if (touch_pickup_marker(touch_x, touch_y))
     return;
 #ifdef __USE_SD_CARD__
   // Try made screenshot
-  if (made_screenshot(touch_x, touch_y))
+  if (touch_made_screenshot(touch_x, touch_y))
     return;
 #endif
-  if (normal_apply_ref_scale(touch_x, touch_y))
+  if (touch_apply_ref_scale(touch_x, touch_y))
     return;
   // Try select lever mode (top and bottom screen)
   if (touch_lever_mode_select(touch_x, touch_y))
@@ -3494,22 +3497,20 @@ normal_apply_touch(int touch_x, int touch_y){
 static const struct {
   void (*button)(uint16_t status);
   void (*touch)(int touch_x, int touch_y);
-} ui_handler[UI_END] = {
-  [UI_NORMAL ] = {ui_process_normal_lever , normal_apply_touch},
-  [UI_MENU   ] = {ui_process_menu_lever   , menu_apply_touch},
-  [UI_KEYPAD ] = {ui_process_keypad_lever , keypad_apply_touch},
+} ui_handler[] = {
+  [UI_NORMAL ] = {ui_normal_lever , ui_normal_touch},
+  [UI_MENU   ] = {ui_menu_lever   , ui_menu_touch},
+  [UI_KEYPAD ] = {ui_keypad_lever , ui_keypad_touch},
 #ifdef __SD_FILE_BROWSER__
-  [UI_BROWSER] = {ui_process_browser_lever, browser_apply_touch},
+  [UI_BROWSER] = {ui_browser_lever, ui_browser_touch},
 #endif
 };
 
 static void
-ui_process_lever(void)
-{
-//  last_button = 0;
+ui_process_lever(void) {
   uint16_t status = btn_check();
-  if (status == 0) return;
-  ui_handler[ui_mode].button(status);
+  if (status)
+    ui_handler[ui_mode].button(status);
 }
 
 static

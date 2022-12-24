@@ -687,11 +687,17 @@ void lcd_clear_screen(void) {
   lcd_fill(0, 0, LCD_WIDTH, LCD_HEIGHT);
 }
 
+
 void lcd_set_foreground(uint16_t fg_idx) {
   foreground_color = GET_PALTETTE_COLOR(fg_idx);
 }
 
 void lcd_set_background(uint16_t bg_idx) {
+  background_color = GET_PALTETTE_COLOR(bg_idx);
+}
+
+void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx) {
+  foreground_color = GET_PALTETTE_COLOR(fg_idx);
   background_color = GET_PALTETTE_COLOR(bg_idx);
 }
 

@@ -61,17 +61,17 @@ static map_t markmap[MAX_MARKMAP_Y];
 
 // Trace data cache, for faster redraw cells
 typedef struct {
-  uint16_t y;
   uint16_t x;
+  uint16_t y;
 } index_t;
-static index_t trace_index[TRACE_INDEX_COUNT][POINTS_COUNT];
+static index_t trace_index[TRACE_INDEX_COUNT][SWEEP_POINTS_MAX];
 
 #if 1
 // All used in plot v > 0
 #define float2int(v) ((int)((v)+0.5f))
 #else
-static int 
-float2int(float v) 
+static int
+float2int(float v)
 {
   if (v < 0) return v - 0.5;
   if (v > 0) return v + 0.5;
@@ -149,7 +149,7 @@ smith_grid(int x, int y)
 
   if (y < 0) y = -y; // mirror by y axis
   if (x >= 0) {                       // valid only if x >= 0
-    if (x >= r/2){                    // valid only if x >= P_RADIUS/2
+    if (x >= P_RADIUS/2){             // valid only if x >= P_RADIUS/2
       // Constant Reactance Circle: 2j : R/2 = P_RADIUS/2 (mirror by y)
       if (circle_inout(x - P_RADIUS, y - P_RADIUS/2, P_RADIUS/2) == 0) return 1;
 
@@ -221,8 +221,8 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
 {
   int x, y;
   // offset to center
-  x0 -= P_CENTER_X;
-  y0 -= P_CENTER_Y;
+  x0-= P_CENTER_X;
+  y0-= P_CENTER_Y;
   for (y = 0; y < h; y++)
     for (x = 0; x < w; x++)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
@@ -232,36 +232,35 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
 {
   int x, y;
   // offset to center
-  x0  = P_CENTER_X - x0;
-  y0 -= P_CENTER_Y;
+  x0 = P_CENTER_X - x0;
+  y0-= P_CENTER_Y;
   for (y = 0; y < h; y++)
     for (x = 0; x < w; x++)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 #endif
 
-void update_grid(void)
+void update_grid(freq_t fstart, freq_t fstop)
 {
-  freq_t gdigit = 100000000;
-  freq_t fstart = get_sweep_frequency(ST_START);
-  freq_t fspan  = get_sweep_frequency(ST_SPAN);
+  freq_t fspan = fstop - fstart;
   freq_t grid;
-
-  while (gdigit > 100) {
-    grid = 5 * gdigit;
-    if (fspan / grid >= 4)
-      break;
-    grid = 2 * gdigit;
-    if (fspan / grid >= 4)
-      break;
-    grid = gdigit;
-    if (fspan / grid >= 4)
-      break;
-    gdigit /= 10;
+  if (fspan < 1000) {
+    grid_offset = 0;
+    grid_width = 0;
+  } else {
+    freq_t gdigit = 100000000;
+    while (gdigit > 100) {
+      grid = 5 * gdigit;
+      if (fspan / grid >= 4) break;
+      grid = 2 * gdigit;
+      if (fspan / grid >= 4) break;
+      grid = gdigit;
+      if (fspan / grid >= 4) break;
+      gdigit /= 10;
+    }
+    grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
+    grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
   }
-
-  grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
-  grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
 }
 
 static inline int
@@ -732,7 +731,7 @@ static float parallel_x(int i, const float *v) {
 // Use w = 2 * pi * frequency
 // Get Parallel L and C from B
 //  C =  B / w
-//  L = -1 / (w * B)
+//  L = -1 / (w * B) = Xp / w
 //**************************************************************************************
 static float parallel_c(int i, const float *v) {
   const float yi = susceptance(i, v);
@@ -880,7 +879,7 @@ static void mark_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
   x1/= CELLWIDTH;  x2/= CELLWIDTH;
   y1/= CELLHEIGHT; y2/= CELLHEIGHT;
   if (x1 == x2 && y1 == y2) {
-    markmap[y1] |= 1 << x1;
+    markmap[y1]|= 1 << x1;
     return;
   }
   if (x1 > x2) SWAP(uint16_t, x1, x2);
@@ -1145,7 +1144,7 @@ static int marker_area_max(void) {
 #if 0
   if (electrical_delay != 0.0f) extra+= 2;
   if (s21_offset != 0.0f) extra+= 2;
-#ifdef __VNA_Z_NORMALIZATION__
+#ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) extra+= 2;
 #endif
   if (extra < 2) extra = 2;
@@ -1276,11 +1275,15 @@ cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint
     return;
   // Prepare shadow bitmap
   uint16_t dst[16];
-  uint16_t p0 = 0, p1 = 0, c = 8 - w;
-  uint16_t mask = (0xFF>>c)<<c;
+  uint16_t p0 = 0, p1 = 0, c = 16 - w;
+  uint16_t mask = (0xFFFF>>c)<<c;
   if (h > ARRAY_COUNT(dst) - 2) h = ARRAY_COUNT(dst) - 2;
   for (i = 0; i < h; i++) {
-    c = (bmp[i] & mask)<<8;   // extend from 8 bit width to 16 bit
+#if 1
+    c = (bmp[i]<<8) & mask;                    // extend from 8 bit width to 16 bit
+#else
+    c = (((bmp[2*i]<<8)|bmp[2*i+1]) & mask);   // extend from 16 bit width to 16 bit
+#endif
     c|= (c>>1) | (c>>2);      // shadow horizontally
     c = (c>>8) | (c<<8);      // swap bytes (render do by 8 bit)
     dst[i] = c | p0 | p1;     // shadow vertically
@@ -1368,21 +1371,20 @@ static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
 typedef void (*measure_cell_cb_t)(int x0, int y0);
 typedef void (*measure_prepare_cb_t)(uint8_t mode, uint8_t update_mask);
 
-static measure_cell_cb_t    measure_cell_handler = NULL;
 static uint8_t data_update = 0;
 
-#define MESAURE_NONE 0
-#define MESAURE_S11  1
-#define MESAURE_S21  2
-#define MESAURE_ALL  3
+#define MESAURE_NONE       0
+#define MESAURE_S11        1                            // For calculate need only S11 data
+#define MESAURE_S21        2                            // For calculate need only S21 data
+#define MESAURE_ALL        (MESAURE_S11 | MESAURE_S21)  // For calculate need S11 and S21 data
 
-#define MEASURE_UPD_SWEEP  1
-#define MEASURE_UPD_FREQ   2
-#define MEASURE_UPD_ALL    3
+#define MEASURE_UPD_SWEEP  1                            // Recalculate on sweep done
+#define MEASURE_UPD_FREQ   2                            // Recalculate on marker change position
+#define MEASURE_UPD_ALL    (MEASURE_UPD_SWEEP | MEASURE_UPD_FREQ)
 
-// Include L/C match functions
-#ifdef __USE_LC_MATCHING__
-  #include "lc_matching.c"
+// Include measure functions
+#ifdef __VNA_MEASURE_MODULE__
+  #include "measure.c"
 #endif
 
 static const struct {
@@ -1390,7 +1392,7 @@ static const struct {
   uint8_t update;
   measure_cell_cb_t    measure_cell;
   measure_prepare_cb_t measure_prepare;
-} measure[]={
+} measure[] = {
   [MEASURE_NONE]        = {MESAURE_NONE,                0,               NULL,             NULL },
 #ifdef __USE_LC_MATCHING__
   [MEASURE_LC_MATH]     = {MESAURE_NONE,  MEASURE_UPD_ALL,      draw_lc_match, prepare_lc_match },
@@ -1414,7 +1416,6 @@ static inline void measure_set_flag(uint8_t flag) {
 
 void plot_set_measure_mode(uint8_t mode) {
   if (mode >= MEASURE_END) return;
-  measure_cell_handler = measure[mode].measure_cell;
   current_props._measure = mode;
   data_update = 0xFF;
   request_to_redraw(REDRAW_AREA);
@@ -1425,7 +1426,7 @@ uint16_t plot_get_measure_channels(void) {
 }
 
 static void measure_prepare(void) {
-  if (current_props._measure == 0) return;
+  if (current_props._measure >= MEASURE_END) return;
   measure_prepare_cb_t measure_cb = measure[current_props._measure].measure_prepare;
   // Do measure and cache data only if update flags some
   if (measure_cb && (data_update & measure[current_props._measure].update))
@@ -1434,10 +1435,12 @@ static void measure_prepare(void) {
 }
 
 static void cell_draw_measure(int x0, int y0){
-  if (measure_cell_handler == NULL) return;
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_LC_MATCH_COLOR);
-  measure_cell_handler(x0, y0);
+  if (current_props._measure >= MEASURE_END) return;
+  measure_cell_cb_t measure_draw_cb = measure[current_props._measure].measure_cell;
+  if (measure_draw_cb) {
+    lcd_set_colors(LCD_MEASURE_COLOR, LCD_BG_COLOR);
+    measure_draw_cb(x0, y0);
+  }
 }
 #endif
 
@@ -1610,10 +1613,7 @@ static void markmap_grid_values(void) {
 #endif
 
 static void
-draw_cell(int m, int n)
-{
-  int x0 = m * CELLWIDTH;
-  int y0 = n * CELLHEIGHT;
+draw_cell(int x0, int y0) {
   int w = CELLWIDTH;
   int h = CELLHEIGHT;
   int x, y;
@@ -1633,7 +1633,7 @@ draw_cell(int m, int n)
 #if 0
   // use memset 350 system ticks for all screen calls
   // as understand it use 8 bit set, slow down on 32 bit systems
-  memset(spi_buffer,  GET_PALTETTE_COLOR(LCD_BG_COLOR), (h*CELLWIDTH)*sizeof(uint16_t));
+  memset(spi_buffer, GET_PALTETTE_COLOR(LCD_BG_COLOR), (h*CELLWIDTH)*sizeof(uint16_t));
 #else
   // use direct set  35 system ticks for all screen calls
 #if CELLWIDTH%8 != 0
@@ -1644,30 +1644,29 @@ draw_cell(int m, int n)
   int count = h*CELLWIDTH / 8;
   uint32_t *p = (uint32_t *)cell_buffer;
   uint32_t clr = GET_PALTETTE_COLOR(LCD_BG_COLOR) | (GET_PALTETTE_COLOR(LCD_BG_COLOR) << 16);
-  while (count--) {
+  do {
     p[0] = clr;
     p[1] = clr;
     p[2] = clr;
     p[3] = clr;
     p += 4;
-  }
+  } while(--count);
 #elif  LCD_PIXEL_SIZE == 1
   // Set DEFAULT_BG_COLOR for 16 pixels in one cycle
   int count = h*CELLWIDTH / 16;
   uint32_t *p = (uint32_t *)cell_buffer;
   uint32_t clr = (GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 0)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 8) |
                  (GET_PALTETTE_COLOR(LCD_BG_COLOR)<<16)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<<24);
-  while (count--) {
+  do {
     p[0] = clr;
     p[1] = clr;
     p[2] = clr;
     p[3] = clr;
     p += 4;
-  }
+  } while(--count);
 #else
 #error "Write cell fill for different  LCD_PIXEL_SIZE"
 #endif
-
 #endif
 
 // Draw grid
@@ -1751,7 +1750,7 @@ draw_cell(int m, int n)
 
 #ifdef __USE_GRID_VALUES__
   // Only right cells
-  if (VNA_MODE(VNA_MODE_SHOW_GRID) && m >= (GRID_X_TEXT)/CELLWIDTH)
+  if (VNA_MODE(VNA_MODE_SHOW_GRID) && x0 > (GRID_X_TEXT - CELLWIDTH))
     cell_grid_line_info(x0, y0);
 #endif
 
@@ -1789,12 +1788,11 @@ draw_cell(int m, int n)
       }
     }
   }
-
 #endif
 
 #if 1
   // Draw trace and marker info on the top
-  if (n <= marker_area_max() / CELLHEIGHT)
+  if (y0 <= marker_area_max())
     cell_draw_marker_info(x0, y0);
 #endif
 
@@ -1845,7 +1843,7 @@ draw_all_cells(void)
     map_t update_map = markmap[n];
     for (m = 0; update_map; update_map>>=1, m++)
       if (update_map & 1)
-        draw_cell(m, n);
+        draw_cell(m * CELLWIDTH, n * CELLHEIGHT);
   }
 
 #if 0
@@ -1924,7 +1922,7 @@ redraw_marker(int8_t marker) {
 }
 
 // Marker and trace data position
-static const struct {uint16_t x, y;} marker_pos[]={
+static const struct {uint16_t x, y;} marker_pos[MARKERS_MAX] = {
   { 1 +             CELLOFFSETX, 1                    }, { 1 + (WIDTH/2) + CELLOFFSETX, 1                    },
   { 1 +             CELLOFFSETX, 1 +   FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 +   FONT_STR_HEIGHT},
   { 1 +             CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT}, { 1 + (WIDTH/2) + CELLOFFSETX, 1 + 2*FONT_STR_HEIGHT},
@@ -2030,7 +2028,7 @@ cell_draw_marker_info(int x0, int y0)
     // draw marker delta
     if (!(props_mode & TD_MARKER_DELTA) && active_marker != previous_marker) {
       int previous_marker_idx = markers[previous_marker].index;
-      cell_printf(xpos, ypos, S_DELTA"%d-%d:", active_marker+1, previous_marker+1);
+      cell_printf(xpos, ypos, S_DELTA "%d-%d:", active_marker+1, previous_marker+1);
       xpos += 5*FONT_WIDTH + 2;
       if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
         freq_t freq  = get_marker_frequency(active_marker);
@@ -2049,7 +2047,6 @@ cell_draw_marker_info(int x0, int y0)
       cell_printf(xpos, ypos, S_SARROW);
     xpos += FONT_WIDTH;
     cell_printf(xpos, ypos, "M%d:", active_marker+1);
-    //cell_drawstring(buf, xpos, ypos);
     xpos += 3*FONT_WIDTH + 4;
     if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ)
       cell_printf(xpos, ypos, "%q" S_Hz, get_marker_frequency(active_marker));
@@ -2199,9 +2196,8 @@ draw_frequencies(void)
   char lm0 = lever_mode == LM_FREQ_0 ? S_SARROW[0] : ' ';
   char lm1 = lever_mode == LM_FREQ_1 ? S_SARROW[0] : ' ';
   // Draw frequency string
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(0, HEIGHT + 1 + OFFSETY, LCD_WIDTH, LCD_HEIGHT - HEIGHT - 1 - OFFSETY);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
+  lcd_fill(0, HEIGHT + OFFSETY + 1, LCD_WIDTH, LCD_HEIGHT - HEIGHT - OFFSETY - 1);
   lcd_set_font(FONT_SMALL);
   // Prepare text for frequency string
   if ((props_mode & DOMAIN_MODE) == DOMAIN_FREQ) {
@@ -2243,8 +2239,7 @@ draw_cal_status(void)
   uint32_t i;
   int x = CALIBRATION_INFO_POSX;
   int y = CALIBRATION_INFO_POSY;
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_DISABLE_CAL_COLOR);
+  lcd_set_colors(LCD_DISABLE_CAL_COLOR, LCD_BG_COLOR);
   lcd_fill(x, y, OFFSETX - x, 10*(sFONT_STR_HEIGHT));
   lcd_set_font(FONT_SMALL);
   if (cal_status & CALSTAT_APPLY) {
@@ -2301,8 +2296,7 @@ static void draw_battery_status(void)
     return;
   uint8_t string_buf[24];
   // Set battery color
-  lcd_set_foreground(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
+  lcd_set_colors(vbat < BATTERY_WARNING_LEVEL ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR, LCD_BG_COLOR);
 //  plot_printf(string_buf, sizeof string_buf, "V:%d", vbat);
 //  lcd_drawstringV(string_buf, 1, 60);
   // Prepare battery bitmap image

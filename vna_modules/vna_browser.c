@@ -1,7 +1,9 @@
 static uint16_t file_count;
 static uint16_t page_count;
 static uint16_t current_page;
-static uint16_t sel_mode;
+static uint16_t browser_mode;
+
+#define BROWSER_DELETE    1
 
 // Buttons in browser
 enum {FILE_BUTTON_LEFT = 0, FILE_BUTTON_RIGHT, FILE_BUTTON_EXIT, FILE_BUTTON_DEL, FILE_BUTTON_FILE};
@@ -46,7 +48,7 @@ static void browser_draw_button(int idx, const char *txt) {
   browser_btn_t btn;
   browser_get_button_pos(idx, &btn);
   // Mark DEL button in file delete mode
-  b.bg = (idx == FILE_BUTTON_DEL && sel_mode) ? LCD_LOW_BAT_COLOR : LCD_MENU_COLOR;
+  b.bg = (idx == FILE_BUTTON_DEL && (browser_mode & BROWSER_DELETE)) ? LCD_LOW_BAT_COLOR : LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
   b.border = (idx == selection) ? BROWSER_BUTTON_BORDER|BUTTON_BORDER_FALLING : BROWSER_BUTTON_BORDER|BUTTON_BORDER_RISE;
   if (txt == NULL) b.border|= BUTTON_BORDER_NO_FILL;
@@ -103,17 +105,14 @@ repeat:
   if (cnt != 0) return;
 
   // Delete file if in delete mode
-  if (sel_mode) {f_unlink(fno.fname); return;}
+  if (browser_mode & BROWSER_DELETE) {f_unlink(fno.fname); return;}
 
   const char *error = NULL;
   bool leave_show = true;
   UINT size;
   if (f_open(fs_file, fno.fname, FA_READ) != FR_OK) return;
 
-//  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
-  lcd_set_foreground(LCD_FG_COLOR);
-  lcd_set_background(LCD_BG_COLOR);
-
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   switch (keypad_mode) {
 #if 0
   /*
@@ -138,7 +137,7 @@ repeat:
           int nargs = parse_line(line, args, 16);                            // Parse line to 16 args
           if (nargs < 2 || args[0][0] == '#' || args[0][0] == '!') continue; // No data or comment or settings
           f = my_atoui(args[0]);                                             // Get frequency
-          if (count >= POINTS_COUNT || f > STOP_MAX) {error = "Format err"; goto finish;}
+          if (count >= SWEEP_POINTS_MAX || f > FREQUENCY_MAX) {error = "Format err"; goto finish;}
           if (count == 0) start = f;                                         // For index 0 set as start
           stop  = f;                                                         // last set as stop
           measured[0][count][0] = my_atof(args[1]);
@@ -343,16 +342,16 @@ static void browser_key_press(int key) {
       ui_mode_normal();
     break;
     case FILE_BUTTON_DEL:   // Toggle delete mode
-      sel_mode^= 1;
+      browser_mode^= BROWSER_DELETE;
       browser_draw_buttons();
     break;
     case FILE_BUTTON_FILE:  // Open or delete file
     default:
       browser_open_file(key - FILE_BUTTON_FILE + (current_page - 1) * FILES_PER_PAGE);
-      if (sel_mode) {
-        file_count = 0;     // Reeset file count (recalculate on draw page)
-        selection = -1;     // Reset delection
-        sel_mode = 0;       // Exit file delete mode
+      if (browser_mode & BROWSER_DELETE) {
+        file_count = 0;                      // Reeset file count (recalculate on draw page)
+        selection = -1;                      // Reset delection
+        browser_mode&=~BROWSER_DELETE;       // Exit file delete mode
         browser_draw_page(current_page);
         return;
       }
@@ -369,7 +368,7 @@ static int browser_get_max(void) {
 }
 
 // Process UI input for browser
-static void browser_apply_touch(int touch_x, int touch_y) {
+static void ui_browser_touch(int touch_x, int touch_y) {
   browser_btn_t btn;
   int old = selection;
   int max = browser_get_max();
@@ -388,7 +387,7 @@ static void browser_apply_touch(int touch_x, int touch_y) {
   }
 }
 
-static void ui_process_browser_lever(uint16_t status) {
+static void ui_browser_lever(uint16_t status) {
   if (status == EVT_BUTTON_SINGLE_CLICK) {
     if (selection >= 0) browser_key_press(selection); // Process click
     return;
@@ -413,9 +412,8 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
   ui_mode = UI_BROWSER;
   keypad_mode = data;
   current_page = 1;
-
   file_count = 0;
   selection = -1;
-  sel_mode = 0;
+  browser_mode = 0;
   browser_draw_page(current_page);
 }
