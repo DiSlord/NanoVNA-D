@@ -403,7 +403,7 @@ transform_domain(uint16_t ch_mask)
   int fft_points = FFT_SIZE;
   // use spi_buffer as temporary buffer and calculate ifft for time domain
   // Need 2 * sizeof(float) * FFT_SIZE bytes for work
-#if 2*4*FFT_SIZE > (2*SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
 #error "Need increase spi_buffer or use less FFT_SIZE value"
 #endif
   int i;

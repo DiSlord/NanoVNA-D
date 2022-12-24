@@ -1264,7 +1264,7 @@ typedef uint16_t pixel_t;
 #define HEXRGB(hex) ( (((hex)>>3)&0x001c00) | (((hex)>>5)&0x0000f8) | (((hex)<<16)&0xf80000) | (((hex)<<13)&0x00e000) )
 #define LCD_PIXEL_SIZE        2
 // Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
-#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLWIDTH  (64)
 #define CELLHEIGHT (32)
 #endif
 
@@ -1338,7 +1338,7 @@ typedef uint16_t pixel_t;
 extern pixel_t foreground_color;
 extern pixel_t background_color;
 
-extern pixel_t spi_buffer[SPI_BUFFER_SIZE*2];
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 
 typedef struct {
   uint8_t transparent : 1;
