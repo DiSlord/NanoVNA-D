@@ -25,7 +25,7 @@
  * Board identifier.
  */
 #define BOARD_NANOVNA_STM32_F303
-#define BOARD_NAME              "NanoVNA-H 4"
+#define BOARD_NAME              "tinyDMTD on NanoVNA-H4"
 
 /*
  * Board frequencies.
@@ -137,7 +137,7 @@
                                      PIN_MODE_INPUT(1U) |           \
                                      PIN_MODE_INPUT(2U) |  			\
                                      PIN_MODE_INPUT(3U) |   		\
-                                     PIN_MODE_INPUT(4U) |           \
+                                     PIN_MODE_OUTPUT(4U) |           \
                                      PIN_MODE_ANALOG(GPIOA_DAC2) |  \
                                      PIN_MODE_ANALOG(GPIOA_XP) |    \
                                      PIN_MODE_ANALOG(GPIOA_YP) |    \
@@ -169,7 +169,7 @@
                                      PIN_OSPEED_2M(1) |          \
                                      PIN_OSPEED_2M(2) |       \
                                      PIN_OSPEED_2M(3) |       \
-                                     PIN_OSPEED_2M(4) |          \
+                                     PIN_OSPEED_100M(4) |          \
                                      PIN_OSPEED_2M(GPIOA_DAC2) |           \
                                      PIN_OSPEED_2M(GPIOA_XP) |          \
                                      PIN_OSPEED_2M(GPIOA_YP) |          \

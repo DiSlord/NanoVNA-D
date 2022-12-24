@@ -65,7 +65,7 @@
 #endif
 
 // LCD display buffer
-pixel_t spi_buffer[SPI_BUFFER_SIZE];
+pixel_t spi_buffer[SPI_BUFFER_SIZE*2];
 // Default foreground & background colors
 pixel_t foreground_color = 0;
 pixel_t background_color = 0;
@@ -713,10 +713,24 @@ void ili9341_set_rotation(uint8_t r) {
   ili9341_send_command(ILI9341_MEMORY_ACCESS_CONTROL, 1, &r);
 }
 
+static uint16_t right_border = LCD_WIDTH;
+
+void lcd_set_right_border(uint16_t t)
+{
+  right_border = t;
+}
+
+void lcd_reset_right_border(void)
+{
+  right_border = LCD_WIDTH;
+}
+
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b) {
 #if 1 // Use this for remote desctop (in this case bulk operation send to remote)
   pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
+  if (width + x > right_border)
+    return;
   for (uint32_t c = 0; c < height; c++) {
     for (uint32_t r = 0; r < width; r++) {
       if ((r&7) == 0) bits = *b++;

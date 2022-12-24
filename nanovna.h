@@ -20,7 +20,25 @@
  */
 #include "ch.h"
 
+#if 1
+#ifdef NANOVNA_F303
+#undef NANOVNA_F303
+#undef ARM_MATH_CM4
+#else
+#undef ARM_MATH_CM0
+#endif
+
+#define NANOVNA_F303
+
+#ifdef NANOVNA_F303
+#define ARM_MATH_CM4
+#else
+#define ARM_MATH_CM0
+#endif
+#endif
+
 // Define LCD display driver and size
+
 #if defined(NANOVNA_F303)
 #define LCD_DRIVER_ST7796S
 #define LCD_480x320
@@ -28,6 +46,13 @@
 #define LCD_DRIVER_ILI9341
 #define LCD_320x240
 #endif
+
+#define SIDE_CHANNEL
+#define DMTD
+#define FFT_COMPRESS
+//#define MEASUREMENT_IN_GRID
+#define FREQ_SCALE  (int64_t)100LL
+#define PLL_SCALE  (26.0 * FREQ_SCALE / 10)
 
 // Enable DMA mode for send data to LCD (Need enable HAL_USE_SPI in halconf.h)
 #define __USE_DISPLAY_DMA__
@@ -64,13 +89,13 @@
 // Faster draw line in cell algorithm (better clipping and faster)
 // #define __VNA_FAST_LINES__
 // Use build in table for sin/cos calculation, allow save a lot of flash space (this table also use for FFT), max sin/cos error = 4e-7
-#define __VNA_USE_MATH_TABLES__
+//#define __VNA_USE_MATH_TABLES__
 // Use custom fast/compact approximation for some math functions in calculations (vna_ ...), use it carefully
 #define __USE_VNA_MATH__
 // Use cache for window function used by FFT (but need FFT_SIZE*sizeof(float) RAM)
 //#define USE_FFT_WINDOW_BUFFER
 // Enable data smooth option
-#define __USE_SMOOTH__
+//#define __USE_SMOOTH__
 // Enable optional change digit separator for locales (dot or comma, need for correct work some external software)
 #define __DIGIT_SEPARATOR__
 // Use table for frequency list (if disabled use real time calc)
@@ -80,9 +105,10 @@
 #define __USE_DSP__
 #endif
 // Add measure module option (allow made some measure calculations on data)
-#define __VNA_MEASURE_MODULE__
+//#define __VNA_MEASURE_MODULE__
 // Add Z normalization feature
 //#define __VNA_Z_RENORMALIZATION__
+//#define AUDIO_32_BIT
 
 /*
  * Submodules defines
@@ -94,19 +120,19 @@
 // Allow dump firmware to SD card
 #define __SD_CARD_DUMP_FIRMWARE__
 // Enable SD card file browser, and allow load files from it
-//#define __SD_FILE_BROWSER__
+#define __SD_FILE_BROWSER__
 #endif
 
 // If measure module enabled, add submodules
 #ifdef __VNA_MEASURE_MODULE__
 // Add LC match function
-#define __USE_LC_MATCHING__
+//#define __USE_LC_MATCHING__
 // Enable Series measure option
-#define __S21_MEASURE__
+//#define __S21_MEASURE__
 // Enable S11 cable measure option
-#define __S11_CABLE_MEASURE__
+//#define __S11_CABLE_MEASURE__
 // Enable S11 resonance search option
-#define __S11_RESONANCE_MEASURE__
+//#define __S11_RESONANCE_MEASURE__
 #endif
 
 /*
@@ -121,9 +147,14 @@
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
-#define AUDIO_SAMPLES_COUNT   (48)
+//#define AUDIO_SAMPLES_COUNT   (48)
 //#define AUDIO_SAMPLES_COUNT   (96)
-//#define AUDIO_SAMPLES_COUNT   (192)
+#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (384)
+//#define AUDIO_SAMPLES_COUNT   (384*2)
+
+
+#define AUDIO_SHIFT 0
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
@@ -133,7 +164,7 @@
 // Maximum sweep point count (limit by flash and RAM size)
 #define SWEEP_POINTS_MAX         401
 
-#define AUDIO_ADC_FREQ_K1        384
+//#define AUDIO_ADC_FREQ_K1        384
 #else
 //#define AUDIO_ADC_FREQ_K        768
 //#define AUDIO_ADC_FREQ_K        384
@@ -142,20 +173,25 @@
 //#define AUDIO_ADC_FREQ_K        48
 
 // Define sample count for one step measure
-#define AUDIO_SAMPLES_COUNT   (48)
-//#define AUDIO_SAMPLES_COUNT   (96)
+//#define AUDIO_SAMPLES_COUNT   (48)
+#define AUDIO_SAMPLES_COUNT   (96)
 //#define AUDIO_SAMPLES_COUNT   (192)
+//#define AUDIO_SAMPLES_COUNT   (384)
+
+#define AUDIO_SHIFT 4
 
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define SWEEP_POINTS_MAX         101
 #endif
 // Minimum sweep point count
 #define SWEEP_POINTS_MIN         21
+
+#define SAMPLE_OVERHEAD     0
 
 // Dirty hack for H4 ADC speed in version screen (Need for correct work NanoVNA-App)
 #ifndef AUDIO_ADC_FREQ_K1
@@ -183,6 +219,7 @@
 #define USE_VARIABLE_OFFSET_MENU
 #endif
 
+#if 1
 #if AUDIO_ADC_FREQ_K == 768
 #define FREQUENCY_OFFSET_STEP    16000
 // For 768k ADC    (16k step for 48 samples)
@@ -206,15 +243,16 @@
 #elif AUDIO_ADC_FREQ_K == 192
 #define FREQUENCY_OFFSET_STEP    4000
 // For 192k ADC (sin_cos table in dsp.c generated for 8k, 12k, 16k, 20k, 24k if change need create new table )
+//#define FREQUENCY_IF_K         4
 //#define FREQUENCY_IF_K          8
-#define FREQUENCY_IF_K         12
+//#define FREQUENCY_IF_K         12 // <-----
 //#define FREQUENCY_IF_K         16
 //#define FREQUENCY_IF_K         20
-//#define FREQUENCY_IF_K         24
+#define FREQUENCY_IF_K         24
 //#define FREQUENCY_IF_K         28
 
 #elif AUDIO_ADC_FREQ_K == 96
-#define FREQUENCY_OFFSET_STEP    2000
+#define FREQUENCY_OFFSET_STEP    4000
 // For 96k ADC (sin_cos table in dsp.c generated for 6k, 8k, 10k, 12k if change need create new table )
 //#define FREQUENCY_IF_K          6
 //#define FREQUENCY_IF_K          8
@@ -230,6 +268,28 @@
 #define FREQUENCY_IF_K          6
 //#define FREQUENCY_IF_K          7
 #endif
+#endif
+
+
+extern float aver_freq_a;
+extern float aver_phase_d;
+extern float aver_freq_d;
+extern float last_phase_d;
+extern float last_freq_d;
+#ifdef SIDE_CHANNEL
+extern float aver_phase_s;
+#endif
+
+#define MIN_LEVEL   (-50)
+extern float level_a;
+extern float level_b;
+#ifdef SIDE_CHANNEL
+extern float level_sa;
+extern float level_sb;
+#endif
+extern int missing_samples;
+extern uint32_t transform_count;
+extern uint32_t max_average_count;
 
 /*
  * CPU Hardware depend functions declaration
@@ -254,9 +314,9 @@ typedef uint32_t freq_t;
 
 // Optional sweep point (in UI menu)
 #if SWEEP_POINTS_MAX >=401
-#define POINTS_SET_COUNT       5
-#define POINTS_SET             {51, 101, 201, 301, SWEEP_POINTS_MAX}
-#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
+#define POINTS_SET_COUNT       9
+#define POINTS_SET             {2,5,10,20, 51, 101, 201, 301, SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   101
 #elif SWEEP_POINTS_MAX >=301
 #define POINTS_SET_COUNT       4
 #define POINTS_SET             {51, 101, 201, SWEEP_POINTS_MAX}
@@ -266,14 +326,18 @@ typedef uint32_t freq_t;
 #define POINTS_SET             {51, 101, SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #elif SWEEP_POINTS_MAX >=101
-#define POINTS_SET_COUNT       2
-#define POINTS_SET             {51, SWEEP_POINTS_MAX}
+#define POINTS_SET_COUNT       6
+#define POINTS_SET             {2,5,10,20,50,SWEEP_POINTS_MAX}
+#define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
+#elif SWEEP_POINTS_MAX >=51
+#define POINTS_SET_COUNT       5
+#define POINTS_SET             {2,5,10,20,SWEEP_POINTS_MAX}
 #define POINTS_COUNT_DEFAULT   SWEEP_POINTS_MAX
 #endif
 
-extern float measured[2][SWEEP_POINTS_MAX][2];
+extern float measured[1][SWEEP_POINTS_MAX][4];
 
-#define CAL_TYPE_COUNT  5
+#define CAL_TYPE_COUNT  1
 #define CAL_LOAD        0
 #define CAL_OPEN        1
 #define CAL_SHORT       2
@@ -299,10 +363,14 @@ extern float measured[2][SWEEP_POINTS_MAX][2];
 #define ETERM_ET 3 /* error term transmission tracking */
 #define ETERM_EX 4 /* error term isolation */
 
+#if 0
 #if   SWEEP_POINTS_MAX <= 256
 #define FFT_SIZE   256
 #elif SWEEP_POINTS_MAX <= 512
 #define FFT_SIZE   512
+#endif
+#else
+#define FFT_SIZE  1024
 #endif
 
 void cal_collect(uint16_t type);
@@ -324,6 +392,10 @@ void   set_sweep_frequency(uint16_t type, freq_t frequency);
 
 void set_bandwidth(uint16_t bw_count);
 uint32_t get_bandwidth_frequency(uint16_t bw_freq);
+
+void set_tau(float tau);
+float get_tau(void);
+void reset_sweep(void);
 
 void set_power(uint8_t value);
 
@@ -419,6 +491,7 @@ extern const char *info_about[];
 // for AUDIO_SAMPLES_COUNT = 48 and ADC =  96kHz one measure give  96000/48=2000Hz
 // for AUDIO_SAMPLES_COUNT = 48 and ADC = 192kHz one measure give 192000/48=4000Hz
 // Define additional measure count for menus
+#ifndef USE_VARIABLE_OFFSET
 #if AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 16000
 #define BANDWIDTH_8000            (  1 - 1)
 #define BANDWIDTH_4000            (  2 - 1)
@@ -435,11 +508,17 @@ extern const char *info_about[];
 #define BANDWIDTH_30              (256 - 1)
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 4000
 #define BANDWIDTH_4000            (  1 - 1)
-#define BANDWIDTH_2000            (  2 - 1)
+//#define BANDWIDTH_2000            (  2 - 1)
 #define BANDWIDTH_1000            (  4 - 1)
 #define BANDWIDTH_333             ( 12 - 1)
 #define BANDWIDTH_100             ( 40 - 1)
 #define BANDWIDTH_30              (132 - 1)
+//#define BANDWIDTH_10              (400 - 1)
+//#define BANDWIDTH_3               (1320 - 1)
+//#define BANDWIDTH_1               (4000 - 1)
+#define BANDWIDTH_LIST  0,1,3,11,39,131,399,1319,3999,13199
+#define BANDWIDTH_COUNT 10
+extern uint16_t bandwidth[BANDWIDTH_COUNT];
 #elif AUDIO_ADC_FREQ/AUDIO_SAMPLES_COUNT == 2000
 #define BANDWIDTH_2000            (  1 - 1)
 #define BANDWIDTH_1000            (  2 - 1)
@@ -454,14 +533,29 @@ extern const char *info_about[];
 #define BANDWIDTH_30              ( 33 - 1)
 #define BANDWIDTH_10              (100 - 1)
 #endif
-
+#endif
+#ifdef AUDIO_32_BIT
+typedef int32_t  audio_sample_t;
+#else
 typedef int16_t  audio_sample_t;
+#endif
+#define HALF_PHASE  1.0
+#define FULL_PHASE  2.0
+
 void dsp_process(audio_sample_t *src, size_t len);
 void reset_dsp_accumerator(void);
-void calculate_gamma(float *gamma);
+void reset_averaging(void);
+int calculate_gamma(float *gamma, uint16_t tau);
+void calculate_subsamples(float *gamma, uint16_t tau);
+float get_freq_a(void);
+void set_null_phase(float v);
+void calculate_vectors(void);
 void fetch_amplitude(float *gamma);
 void fetch_amplitude_ref(float *gamma);
 void generate_DSP_Table(int offset);
+#ifdef DMTD
+void fetch_data(float *gamma);
+#endif
 
 /*
  * tlv320aic3204.c
@@ -496,7 +590,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
 #define OFFSETX                      10
-#define OFFSETY                       0
+#define OFFSETY                      64
 
 // Grid count, must divide
 //#define NGRIDY                     10
@@ -550,17 +644,20 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 // Plot area size settings
 // Offset of plot area (size of additional info at left side)
-#define OFFSETX                      15
-#define OFFSETY                       0
-
+#define OFFSETX                      0
+#ifdef MEASUREMENT_IN_GRID
+#define OFFSETY                      0
+#else
+#define OFFSETY                      96
+#endif
 // Grid count, must divide
 //#define NGRIDY                     10
 #define NGRIDY                        8
 
 // Plot area WIDTH better be n*(POINTS_COUNT-1)
-#define WIDTH                       455
+#define WIDTH                       (LCD_WIDTH - OFFSETX - 10)
 // Plot area HEIGHT = NGRIDY * GRIDY
-#define HEIGHT                      304
+#define HEIGHT                      (LCD_HEIGHT - 16 - OFFSETY)
 
 // GRIDX calculated depends from frequency span
 // GRIDY depend from HEIGHT and NGRIDY, must be integer
@@ -588,7 +685,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           (LCD_WIDTH - 22 * sFONT_WIDTH)
 #define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 14 * sFONT_WIDTH / 2)
-#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2)
+#define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL + 2 + OFFSETY)
 #endif // end 480x320 display plot definitions
 
 // UI size defines
@@ -607,7 +704,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define MENU_BUTTON_Y_OFFSET          1
 // Menu buttons size = 21 for icon and 10 chars
 #define MENU_BUTTON_WIDTH           (7 + 12 * FONT_WIDTH)
-#define MENU_BUTTON_HEIGHT(n)       (AREA_HEIGHT_NORMAL/(n))
+#define MENU_BUTTON_HEIGHT(n)       ((LCD_HEIGHT - 12 )/(n))
 #define MENU_BUTTON_BORDER            1
 #define KEYBOARD_BUTTON_BORDER        1
 #define BROWSER_BUTTON_BORDER         1
@@ -735,6 +832,41 @@ extern const uint8_t numfont16x22[];
 #define NUM_FONT_GET_HEIGHT     22
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*2*NUM_FONT_GET_HEIGHT])
 
+//
+// KEYBOARD input functions
+//
+// Key names (use numfont16x22.c glyph)
+#define KP_0          0
+#define KP_1          1
+#define KP_2          2
+#define KP_3          3
+#define KP_4          4
+#define KP_5          5
+#define KP_6          6
+#define KP_7          7
+#define KP_8          8
+#define KP_9          9
+#define KP_PERIOD    10
+#define KP_MINUS     11
+#define KP_u         12
+#define KP_m         13
+#define KP_X1        14
+#define KP_K         15
+#define KP_M         16
+#define KP_G         17
+#define KP_BS        18
+#define KP_INF       19
+#define KP_DB        20
+#define KP_PLUSMINUS 21
+#define KP_KEYPAD    22
+#define KP_N         23
+#define KP_P         24
+#define KP_ENTER     25
+#define KP_PERCENT   26
+#define KP_SPACE     27
+#define KP_PLUS      28
+
+
 /*
  * LC match text output settings
  */
@@ -762,10 +894,12 @@ extern const uint8_t numfont16x22[];
 
 // Additional chars in fonts
 #define S_ENTER    "\026"  // hex 0x16
+#define C_ENTER    '\026'   // hex 0x16
 #define S_DELTA    "\027"  // hex 0x17
 #define S_SARROW   "\030"  // hex 0x18
 #define S_INFINITY "\031"  // hex 0x19
 #define S_LARROW   "\032"  // hex 0x1A
+#define C_LARROW   '\032'  // hex 0x1A
 #define S_RARROW   "\033"  // hex 0x1B
 #define S_PI       "\034"  // hex 0x1C
 #define S_MICRO    '\035'  // hex 0x1D
@@ -785,30 +919,24 @@ extern const uint8_t numfont16x22[];
 #define MAX_PALETTE     32
 
 // trace 
-#define MAX_TRACE_TYPE 30
+//#define  7
 enum trace_type {
-  TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
-  TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
-  TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
-  TRC_sC, TRC_sL,
-  TRC_pC, TRC_pL,
-  TRC_Q,
-  TRC_Rser, TRC_Xser, TRC_Zser,
-  TRC_Rsh, TRC_Xsh, TRC_Zsh,
-  TRC_Qs21
-};
-// Mask for define rectangular plot
-#define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
-                              |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
-                              |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
-                              |(1<<TRC_sC)|(1<<TRC_sL)\
-                              |(1<<TRC_pC)|(1<<TRC_pL)\
-                              |(1<<TRC_Q)\
-                              |(1<<TRC_Rser)|(1<<TRC_Xser)|(1<<TRC_Zser)\
-                              |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
-                              |(1<<TRC_Qs21))
+  TRC_ALOGMAG=0, TRC_BLOGMAG, TRC_APHASE, TRC_BPHASE, TRC_DPHASE, TRC_AFREQ, TRC_BFREQ, TRC_DFREQ, TRC_VALUE, TRC_ASAMPLE, TRC_BSAMPLE, TRC_RESIDUE, TRC_CORRECTION,
+#ifdef SIDE_CHANNEL
+  TRC_SPHASE, TRC_SALOGMAG, TRC_SBLOGMAG,
+#endif
+  TRC_TRANSFORM,
+  TRC_FFT_AMP,
+  MAX_TRACE_TYPE
+  };
+#define GET_DPHASE  4
+#define GET_AFREQ   5
+#define GET_BFREQ   6
+#define GET_DFREQ   7
 
-#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))
+// Mask for define rectangular plot
+#define RECTANGULAR_GRID_MASK 0xfffffffff
+#define ROUND_GRID_MASK 0
 
 // Trace info description structure
 typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback
@@ -847,9 +975,10 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TRACE_INVALID        -1
 
 // properties flags
-#define DOMAIN_MODE             (1<<0)
-#define DOMAIN_FREQ             (0<<0)
-#define DOMAIN_TIME             (1<<0)
+#define DOMAIN_MODE (1<<0)
+#define DOMAIN_FREQ (0<<0)
+#define DOMAIN_TIME (1<<0)
+#define TD_TRANSFORM            (1<<0)
 // Time domain function
 #define TD_FUNC                 (0b11<<1)
 #define TD_FUNC_BANDPASS        (0b00<<1)
@@ -869,36 +998,48 @@ enum {LM_MARKER, LM_SEARCH, LM_FREQ_0, LM_FREQ_1, LM_EDELAY};
 #define TD_MARKER_DELTA         (1<<8)
 // Marker delta
 //#define TD_MARKER_LOCK          (1<<9) // reserved
+#define TD_SAMPLE                (1<<9)
+#define TD_PNA                   (1<<10)
+#define TD_AVERAGE               (1<<11)
 
-//
-// config.vna_mode flags (16 bit field)
-//
+// config._mode flags
 enum {
-  VNA_MODE_AUTO_NAME = 0,// Auto name for files
-#ifdef __USE_SMOOTH__
-  VNA_MODE_SMOOTH,       // Smooth function (0: Geom, 1: Arith)
-#endif
-#ifdef __USE_SERIAL_CONSOLE__
-  VNA_MODE_CONNECTION,   // Connection flag (0: USB, 1: SERIAL)
-#endif
-  VNA_MODE_SEARCH,       // Marker search mode (0: max, 1: min)
-  VNA_MODE_SHOW_GRID,    // Show grid values
-  VNA_MODE_DOT_GRID,     // Dotted grid lines
-#ifdef __USE_BACKUP__
-  VNA_MODE_BACKUP,       // Made backup settings (save some settings after power off)
-#endif
-#ifdef __FLIP_DISPLAY__
-  VNA_MODE_FLIP_DISPLAY, // Flip display
-#endif
+  VNA_MODE_AUTO_NAME = 0,
+  VNA_MODE_PLL,
+  VNA_MODE_CONNECTION,
 #ifdef __DIGIT_SEPARATOR__
   VNA_MODE_SEPARATOR,    // Comma or dot digit separator (0: dot, 1: comma)
 #endif
+  VNA_MODE_SEARCH,
+  VNA_MODE_SHOW_GRID,
+  VNA_MODE_USB_LOG,
+  VNA_MODE_BACKUP,
+  VNA_MODE_FLIP_DISPLAY,
+  VNA_MODE_PULLING,
+  VNA_MODE_SCROLLING,
+  VNA_MODE_NULL_PHASE,
+  VNA_MODE_TRACE_AVER,
+  VNA_MODE_DISK_LOG,
+  VNA_MODE_SIDE_CHANNEL,
+  VNA_MODE_DUMP_SIDE,
+  VNA_MODE_FREEZE_DISPLAY,
+  VNA_MODE_SIDE,
+  VNA_MODE_PNA,
 };
-// Update config._vna_mode flags function
-#define VNA_MODE_CLR     0
-#define VNA_MODE_SET     1
-#define VNA_MODE_TOGGLE  2
-void apply_VNA_mode(uint16_t idx, uint16_t value);
+
+#define VNA_MODE_PLL_ON           (1<<VNA_MODE_PLL)
+// Connection flag
+#define VNA_MODE_SERIAL           (1<<VNA_MODE_CONNECTION)
+#define VNA_MODE_USB              (0<<VNA_MODE_CONNECTION)
+// Marker search mode
+#define VNA_MODE_SEARCH_MIN       (1<<VNA_MODE_SEARCH)
+#define VNA_MODE_SEARCH_MAX       (0<<VNA_MODE_SEARCH)
+
+#define VNA_MODE_SCROLLING_ON     1<<VNA_MODE_SCROLLING
+#define VNA_MODE_TRACE_AVER_ON    1<<VNA_MODE_TRACE_AVER
+#define VNA_MODE_SIDE_CHANNEL_ON  (1<<VNA_MODE_SIDE_CHANNEL)
+#define VNA_MODE_SIDE_ON          (1<< VNA_MODE_SIDE)
+#define VNA_MODE_PNA_ON           (1<<VNA_MODE_PNA)
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -922,7 +1063,7 @@ enum {
 };
 #endif
 
-#define STORED_TRACES  1
+#define STORED_TRACES  0
 #define TRACES_MAX     4
 #define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
 
@@ -930,9 +1071,11 @@ typedef struct trace {
   uint8_t enabled;
   uint8_t type;
   uint8_t channel;
-  uint8_t smith_format;
+  uint8_t auto_scale;
   float scale;
   float refpos;
+  float max;
+  float min;
 } trace_t;
 
 // marker 1 to 8
@@ -944,12 +1087,15 @@ typedef struct marker {
   freq_t   frequency;
 } marker_t;
 
+enum {PULL_OFFSET, PULL_FUNDAMENTAL, PULL_SECOND_SHIFT, PULL_SECOND, MAX_PULL};
+enum { FFT_OFF, FFT_PHASE, FFT_AMP };
+
 typedef struct config {
   uint32_t magic;
   uint32_t _harmonic_freq_threshold;
   int32_t  _IF_freq;
   int16_t  _touch_cal[4];
-  uint16_t _vna_mode;
+  uint32_t  _vna_mode;
   uint16_t _dac_value;
   uint16_t _vbat_offset;
   uint16_t _bandwidth;
@@ -958,9 +1104,14 @@ typedef struct config {
   uint16_t _lcd_palette[MAX_PALETTE];
   uint32_t _serial_speed;
   uint32_t _xtal_freq;
+  int32_t   xtal_offset;
   float    _measure_r;
+  float     pull[MAX_PULL];
+  uint16_t tau;
+  uint16_t decimation;
+  uint8_t  _digit_separator;
   uint8_t  _band_mode;
-  uint8_t  _reserved[3];
+  uint8_t  _reserved[2];
   uint32_t checksum;
 } config_t;
 
@@ -979,6 +1130,7 @@ typedef struct properties {
   uint8_t  _power;
   uint8_t  _cal_power;
   uint8_t  _measure;
+  uint8_t  _fft_mode;
   uint16_t _cal_sweep_points;
   uint16_t _cal_status;
   trace_t  _trace[TRACES_MAX];
@@ -989,12 +1141,23 @@ typedef struct properties {
   float    _var_delay;
   float    _s21_offset;
   float    _portz;
+  float    pll;
   float    _cal_data[CAL_TYPE_COUNT][SWEEP_POINTS_MAX][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
 
+extern volatile uint16_t p_sweep;
+extern volatile int requested_points;
 extern config_t config;
 extern properties_t current_props;
+extern float amp_a;
+extern float amp_b;
+#ifdef SIDE_CHANNEL
+extern float amp_sa;
+extern float amp_sb;
+#endif
+
+extern int l_gain, r_gain;
 
 void set_trace_type(int t, int type, int channel);
 void set_trace_channel(int t, int channel);
@@ -1191,7 +1354,7 @@ typedef uint16_t pixel_t;
 extern pixel_t foreground_color;
 extern pixel_t background_color;
 
-extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE*2];
 
 typedef struct {
   uint8_t transparent : 1;
@@ -1223,6 +1386,8 @@ void lcd_set_foreground(uint16_t fg_idx);
 void lcd_set_background(uint16_t bg_idx);
 void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx);
 void lcd_clear_screen(void);
+void lcd_set_right_border(uint16_t t);
+void lcd_reset_right_border(void);
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void lcd_drawchar(uint8_t ch, int x, int y);
 #if 0
@@ -1247,7 +1412,6 @@ void     lcd_set_flip(bool flip);
 #ifdef  __USE_SD_CARD__
 #include "../FatFs/ff.h"
 #include "../FatFs/diskio.h"
-
 // Buffers for SD card use spi_buffer
 #if SPI_BUFFER_SIZE < 2048
 #error "SPI_BUFFER_SIZE for SD card support need size >= 2048"
@@ -1301,6 +1465,8 @@ extern uint16_t lastsaveid;
 
 #define get_trace_scale(t)      current_props._trace[t].scale
 #define get_trace_refpos(t)     current_props._trace[t].refpos
+//#define set_trace_scale(t,s)    {current_props._trace[t].scale = (s);}
+//#define set_trace_refpos(t,r)   {current_props._trace[t].refpos = (r);}
 
 #define VNA_MODE(idx)        (config._vna_mode&(1<<idx))
 #define lever_mode           config._lever_mode
@@ -1359,10 +1525,20 @@ void drawMessageBox(const char *header, const char *text, uint32_t delay);
 extern uint8_t operation_requested;
 
 #define TOUCH_THRESHOLD 2000
+
+// Update config._vna_mode flags
+#define VNA_MODE_CLR     0
+#define VNA_MODE_SET     1
+#define VNA_MODE_TOGGLE  2
+void apply_VNA_mode(uint16_t idx, uint16_t value);
+
+void disk_log(float p);
 /*
  * misclinous
  */
 int plot_printf(char *str, int, const char *fmt, ...);
+int shell_printf(const char *fmt, ...);
+
 #define PULSE do { palClearPad(GPIOC, GPIOC_LED); palSetPad(GPIOC, GPIOC_LED);} while(0)
 
 #define ARRAY_COUNT(a)    (sizeof(a)/sizeof(*(a)))
