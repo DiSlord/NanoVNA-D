@@ -2537,7 +2537,7 @@ static const keypad_pos_t key_pos[] = {
 };
 
 static const keypads_t keypads_freq[] = {
-  { 16 ,  NUM_KEYBOARD },   // 16 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },           // 7 8 9 G
   { 0x02, KP_1 },           // 4 5 6 M
@@ -2551,7 +2551,7 @@ static const keypads_t keypads_freq[] = {
   { 0x20, KP_9 },
   { 0x30, KP_G },
   { 0x31, KP_M },
-  { 0x32, KP_K },
+  { 0x32, KP_k },
   { 0x33, KP_X1 },
   { 0x23, KP_BS }
 };
@@ -2611,9 +2611,9 @@ static const keypads_t keypads_float[] = {
 };
 
 static const keypads_t keypads_nfloat[] = {
-  { 15, NUM_KEYBOARD },     // 15 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
-  { 0x03, KP_0 },           // 7 8 9
+  { 0x03, KP_0 },           // 7 8 9 u
   { 0x02, KP_1 },           // 4 5 6 n
   { 0x12, KP_2 },           // 1 2 3 p
   { 0x22, KP_3 },           // 0 . < -
@@ -2623,8 +2623,9 @@ static const keypads_t keypads_nfloat[] = {
   { 0x00, KP_7 },
   { 0x10, KP_8 },
   { 0x20, KP_9 },
-  { 0x31, KP_N },
-  { 0x32, KP_P },
+  { 0x30, KP_u },
+  { 0x31, KP_n },
+  { 0x32, KP_p },
   { 0x33, KP_MINUS },
   { 0x23, KP_BS }
 };
@@ -2655,13 +2656,12 @@ static const keypads_t *keypad_type_list[] = {
   [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
   [KEYPAD_PERCENT]= keypads_percent,// unsigned float input in percent
   [KEYPAD_FLOAT]  = keypads_float,  // signed float input
-  [KEYPAD_NFLOAT] = keypads_nfloat, // signed pico/nano float input
+  [KEYPAD_NFLOAT] = keypads_nfloat, // signed micro/nano/pico float input
   [KEYPAD_TEXT]   = keypads_text    // text input
 };
 
 // Get value from keyboard functions
 float keyboard_get_float(void)   {return my_atof(kp_buf);}
-float keyboard_get_nfloat(void)  {return my_atof(kp_buf) * 1e-12;}
 freq_t keyboard_get_freq(void)   {return my_atoui(kp_buf);}
 uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 
@@ -2693,7 +2693,7 @@ UI_KEYBOARD_CALLBACK(input_var_delay) {
     plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n " R_LINK_COLOR "%F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
     return;
   }
-  current_props._var_delay = keyboard_get_nfloat();
+  current_props._var_delay = keyboard_get_float();
 }
 
 // Call back functions for MT_CALLBACK type
@@ -2704,8 +2704,9 @@ UI_KEYBOARD_CALLBACK(input_points) {
 }
 
 UI_KEYBOARD_CALLBACK(input_scale) {
-  if (b) {b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;return;}
-  set_trace_scale(current_trace, data != KM_SCALE ? keyboard_get_nfloat() : keyboard_get_float());
+  (void)data;
+  if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
+  set_trace_scale(current_trace, keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
@@ -2723,7 +2724,7 @@ UI_KEYBOARD_CALLBACK(input_tau) {
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
   if (b) {b->p1.f = electrical_delay; return;}
-  set_electrical_delay(keyboard_get_nfloat());
+  set_electrical_delay(keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_s21_offset) {
@@ -2977,26 +2978,23 @@ draw_text_input(const char *buf)
  * Keyboard UI processing
  */
 static int
-num_keypad_click(int c, int kp_index)
-{
-  if (c == KP_ENTER) c = KP_X1;
-  if ((c >= KP_u && c <= KP_G) || c == KP_N || c == KP_P) {
+num_keypad_click(int c, int kp_index) {
+  if (c >= KP_k && c <= KP_PERCENT) {
     if (kp_index == 0)
       return KP_CANCEL;
-    uint16_t scale = 0;
-    if (c > KP_X1 && c <= KP_G) scale = c - KP_X1;
-    if (c == KP_N) scale = 1;
-    if (c == KP_m) kp_buf[kp_index++] = 'm';
-    if (c == KP_u) kp_buf[kp_index++] = 'u';
-    if (scale){
+    if (c >= KP_k && c <= KP_G) {        // Apply k, M, G input (add zeroes and shift . right)
+      uint16_t scale = c - KP_k + 1;
       scale+= (scale<<1);
-      int i = period_pos(); if (i+scale>NUMINPUT_LEN) scale = NUMINPUT_LEN - 1 - i;
-      while (scale--) {
+      int i = period_pos(); if (scale + i > NUMINPUT_LEN) scale = NUMINPUT_LEN - i;
+      do {
         char v = kp_buf[i+1]; if (v == 0 || kp_buf[i] == 0) {v = '0'; kp_buf[i+2] = 0;}
         kp_buf[i+1] = kp_buf[i];
-        kp_buf[i  ] = v;
-        i++;
-      }
+        kp_buf[i++] = v;
+      } while (--scale);
+    } else if (c >= KP_m && c <= KP_p) { // Apply m, u, n, p input (add format at end for atof function)
+      const char prefix[] = {'m', 'u', 'n', 'p'};
+      kp_buf[kp_index  ] = prefix[c - KP_m];
+      kp_buf[kp_index+1] = 0;
     }
     return KP_DONE;
   }

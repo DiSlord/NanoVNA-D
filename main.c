@@ -736,14 +736,10 @@ my_atof(const char *p)
       exp++;
     }
   }
-  if (*p == 'm'){
-    x *= 0.001;
-    p++;
-  }
-  if (*p == 'u'){
-    x *= 0.000001;
-    p++;
-  }
+  else if (*p == 'm') x*= 1e-3;  // milli
+  else if (*p == 'u') x*= 1e-6;  // micro
+  else if (*p == 'n') x*= 1e-9;  // nano
+  else if (*p == 'p') x*= 1e-12; // pico
   if (neg)
     x = -x;
   return x;
