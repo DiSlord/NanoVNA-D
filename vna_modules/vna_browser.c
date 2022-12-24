@@ -114,6 +114,7 @@ repeat:
 
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   switch (keypad_mode) {
+#if 0
   /*
    * S1P or S2P touchstone file loader
    * Support only NanoVNA format: Hz S RI R 50
@@ -164,6 +165,7 @@ finish:
     }
     break;
   }
+#endif
 #ifdef __SD_CARD_LOAD__
   case FMT_CMD_FILE:
   {
@@ -204,6 +206,7 @@ finish:
     lcd_printf(0, LCD_HEIGHT - 3*FONT_STR_HEIGHT, fno.fname);
   }
   break;
+#if 0
   /*
    *  Load calibration
    */
@@ -219,6 +222,30 @@ finish:
     else error = "Format err";
   }
   break;
+#endif
+  /*
+   * CSV file dumper
+   */
+  case FMT_CSV_FILE:
+  {
+    const int buffer_size = 256;
+    const int line_size = 128;
+    char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
+    char *line  = buf_8 + buffer_size;
+    uint16_t j = 0, i;
+    while (f_read(fs_file, buf_8, buffer_size, &size) == FR_OK && size > 0) {
+      for (i = 0; i < size; i++) {
+        uint8_t c = buf_8[i];
+        if (c == '\r') {                                                     // New line (Enter)
+          line[j] = 0; j = 0;
+          shell_printf("%s\r\n",line);
+        }
+        else if (c < 0x20) continue;                 // Others (skip)
+        else if (j < line_size) line[j++] = (char)c; // Store
+      }
+    }
+    break;
+  }
   default: break;
   }
   f_close(fs_file);
