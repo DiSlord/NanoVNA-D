@@ -147,7 +147,7 @@ static const uint8_t conf_data[] = {
   0x07, (2880>>8)&0xFF, // D=2880
   0x08, (2880>>0)&0xFF,
 #elif AUDIO_CLOCK_REF == 12288000U
-  // MCLK = 12.288MHzï¿½* 4 * 2.0 / 1 = 98.304MHz
+  // MCLK = 12.288MHz�* 4 * 2.0 / 1 = 98.304MHz
   0x04, 0x03,     // PLL Clock Low (80MHz - 137MHz),MCLK pin is input to PLL, PLL as CODEC_CLKIN
   0x05, 0x94,     // Power up PLL, P=1,R=4
   0x06, 0x02,     // J=2
@@ -245,6 +245,7 @@ static const uint8_t conf_data[] = {
   0x13, 0x84,     // Power up the MADC divider with value 4
   0x14, 0x40,     // ADC Oversampling (AOSR) set OSR of ADC to 64
   0x3d,    7,     // Select ADC PRB_R7
+
   0x1b, REG_27,   // Set the interface mode
   0x1e, REG_30(8),// Enable the BCLKN divider with value 8 (I2S clock = 98.304MHz/(NDAC*8) = 192kHz * (16+16)
 #elif AUDIO_ADC_FREQ == 384000
@@ -289,7 +290,7 @@ static const uint8_t conf_data[] = {
   0x00, 0x01,     // Select Page 1
   0x01, 0x08,     // Disable Internal Crude AVdd in presence of external AVdd supply or before powering up internal AVdd LDO
   0x02, 0x01,     // Enable Master Analog Power Control
-//  0x14, 0x25,     // HP soft stepping settings for optimal pop performance at power up Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs â€œpopâ€� sound.
+//  0x14, 0x25,     // HP soft stepping settings for optimal pop performance at power up Rpop used is 6k with N = 6 and soft step = 20usec. This should work with 47uF coupling capacitor. Can try N=5,6 or 7 time constants as well. Trade-off delay vs “pop” sound.
   0x0a, 0x33,     // Set the Input Common Mode to 0.9V and Output Common Mode for Headphone to 1.65V
 //  0x0a, 0x40,     // Set the Input Common Mode to 0.75V and Output Common Mode for Headphone to 1.65V
 
@@ -303,7 +304,8 @@ static const uint8_t conf_data[] = {
 #ifdef DMTD
   0x34, REG_34_IN3L_TO_LEFT_P_10k, // Route IN3L to RIGHT_N with input impedance of 10K
   0x36, REG_36_IN3R_TO_LEFT_N_10k, // Route IN3R to RIGHT_P with input impedance of 10K
-//  0x36, REG_36_CM1L_TO_LEFT_N_10k,
+  0x37, REG_37_IN1R_TO_RIGHT_P_10k, // Route IN1R to RIGHT_P with input impedance of 10K
+  0x39, REG_39_IN1L_TO_RIGHT_N_10k, // Route IN1L to RIGHT_N with input impedance of 10K
 #else
   0x34, REG_34_IN2L_TO_LEFT_P_10k, // Route IN2L to LEFT_P with 10K
   0x36, REG_36_IN2R_TO_LEFT_N_10k, // Route IN2R to LEFT_N with 10K
@@ -321,7 +323,7 @@ static const uint8_t conf_data_unmute[] = {
   0x52, 0x00,     // Unmute Left and Right ADC Digital Volume Control
   0x00, 0x01,     // Select Page 1 (should be set as default)
 };
-#if 0
+
 static const uint8_t conf_data_ch3_select[] = {
 // reg, data,
 //0x00,   0x01,                       // Select Page 1 (should be set as default)
@@ -329,13 +331,12 @@ static const uint8_t conf_data_ch3_select[] = {
 /*0x38,*/ 0x00,                       // Reserved
 /*0x39,*/ REG_39_IN3L_TO_RIGHT_N_10k, // Route IN3L to RIGHT_N with input impedance of 10K
 };
-#endif
+
 static const uint8_t conf_data_ch1_select[] = {
 // reg, data,
 //0x00,   0x01,                       // Select Page 1 (should be set as default)
   0x37,   REG_37_IN1R_TO_RIGHT_P_10k, // Route IN1R to RIGHT_P with input impedance of 10K
 /*0x38,*/ 0x00,                       // Reserved
-///*0x39,*/ REG_39_CM1R_TO_RIGHT_N_10k,
 /*0x39,*/ REG_39_IN1L_TO_RIGHT_N_10k, // Route IN1L to RIGHT_N with input impedance of 10K
 };
 
@@ -367,7 +368,6 @@ void tlv320aic3204_init(void)
 {
   tlv320aic3204_config(conf_data, sizeof(conf_data)/2);
 //  wait_ms(40);
-  tlv320aic3204_select(1);
   tlv320aic3204_config(conf_data_unmute, sizeof(conf_data_unmute)/2);
 }
 
@@ -384,7 +384,6 @@ tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data)
 
 void tlv320aic3204_select(uint8_t channel)
 {
-  (void)channel;
 #if 0
   // Cache current selected channel
   static uint8_t current_channel = -1;
@@ -392,11 +391,7 @@ void tlv320aic3204_select(uint8_t channel)
     return;
   current_channel = channel;
 #endif
-#ifdef DMTD
-  tlv320aic3204_bulk_write(conf_data_ch1_select,sizeof(conf_data_ch1_select));
-#else
   tlv320aic3204_bulk_write(channel ? conf_data_ch1_select : conf_data_ch3_select, sizeof(conf_data_ch1_select));
-#endif
 //  tlv320aic3204_config(channel ? conf_data_ch1_select : conf_data_ch3_select, sizeof(conf_data_ch3_select)/2);
 }
 

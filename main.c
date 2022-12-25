@@ -403,7 +403,7 @@ transform_domain(uint16_t ch_mask)
   int fft_points = FFT_SIZE;
   // use spi_buffer as temporary buffer and calculate ifft for time domain
   // Need 2 * sizeof(float) * FFT_SIZE bytes for work
-#if 2*4*FFT_SIZE > (2*SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
+#if 2*4*FFT_SIZE > (SPI_BUFFER_SIZE * LCD_PIXEL_SIZE)
 #error "Need increase spi_buffer or use less FFT_SIZE value"
 #endif
   int i;
@@ -735,14 +735,14 @@ my_atof(const char *p)
       x /= 10;
       exp++;
     }
-  }
-  if (*p == 'm'){
-    x *= 0.001;
-    p++;
-  }
-  if (*p == 'u'){
-    x *= 0.000001;
-    p++;
+  } else if (*p) {
+       /*if (*p == 'G') x*= 1e+9;  // Giga
+    else if (*p == 'M') x*= 1e+6;  // Mega
+    else if (*p == 'k') x*= 1e+3;  // kilo
+    else */ if (*p == 'm') x*= 1e-3;  // milli
+    else if (*p == 'u') x*= 1e-6;  // micro
+    else if (*p == 'n') x*= 1e-9;  // nano
+    else if (*p == 'p') x*= 1e-12; // pico
   }
   if (neg)
     x = -x;
@@ -2275,7 +2275,6 @@ update_frequencies(void)
   set_frequencies(start, stop, sweep_points);
 
   set_frequency(start);
-  tlv320aic3204_select(1);
   chThdSleepMilliseconds(100);
 
   //update_marker_index();

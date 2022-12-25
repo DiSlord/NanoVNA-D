@@ -26,6 +26,10 @@
 
 #if (HAL_USE_SERIAL_USB == TRUE) || defined(__DOXYGEN__)
 
+#ifndef USB_TIMEOUT
+#define USB_TIMEOUT TIME_INFINITE
+#endif
+
 /*===========================================================================*/
 /* Driver local definitions.                                                 */
 /*===========================================================================*/
@@ -70,7 +74,7 @@ static size_t read(void *ip, uint8_t *bp, size_t n) {
 //  if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
 //    return 0;
 //  }
-  return ibqReadTimeout(&((SerialUSBDriver *)ip)->ibqueue, bp, n, TIME_INFINITE);
+  return ibqReadTimeout(&((SerialUSBDriver *)ip)->ibqueue, bp, n, USB_TIMEOUT);
 }
 
 static msg_t put(void *ip, uint8_t b) {
@@ -84,7 +88,7 @@ static msg_t get(void *ip) {
 //  if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
 //    return MSG_RESET;
 //  }
-  return ibqGetTimeout(&((SerialUSBDriver *)ip)->ibqueue, TIME_INFINITE);
+  return ibqGetTimeout(&((SerialUSBDriver *)ip)->ibqueue, USB_TIMEOUT);
 }
 
 #ifndef DISABLE_TIME_FUNCTIONS

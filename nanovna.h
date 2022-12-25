@@ -832,40 +832,24 @@ extern const uint8_t numfont16x22[];
 #define NUM_FONT_GET_HEIGHT     22
 #define NUM_FONT_GET_DATA(ch)   (&numfont16x22[ch*2*NUM_FONT_GET_HEIGHT])
 
-//
-// KEYBOARD input functions
-//
-// Key names (use numfont16x22.c glyph)
-#define KP_0          0
-#define KP_1          1
-#define KP_2          2
-#define KP_3          3
-#define KP_4          4
-#define KP_5          5
-#define KP_6          6
-#define KP_7          7
-#define KP_8          8
-#define KP_9          9
-#define KP_PERIOD    10
-#define KP_MINUS     11
-#define KP_u         12
-#define KP_m         13
-#define KP_X1        14
-#define KP_K         15
-#define KP_M         16
-#define KP_G         17
-#define KP_BS        18
-#define KP_INF       19
-#define KP_DB        20
-#define KP_PLUSMINUS 21
-#define KP_KEYPAD    22
-#define KP_N         23
-#define KP_P         24
-#define KP_ENTER     25
-#define KP_PERCENT   26
-#define KP_SPACE     27
-#define KP_PLUS      28
-
+// Glyph names from numfont16x22.c
+enum {
+  KP_0 = 0, KP_1, KP_2, KP_3, KP_4, KP_5, KP_6, KP_7, KP_8, KP_9,
+  KP_PERIOD,
+  KP_MINUS,
+  KP_BS,
+  KP_k, KP_M, KP_G,
+  KP_m, KP_u, KP_n, KP_p,
+  KP_X1, KP_ENTER, KP_PERCENT, // Enter values
+#if 1
+  KP_INF,
+  KP_DB,
+  KP_PLUSMINUS,
+  KP_KEYPAD,
+  KP_SPACE,
+  KP_PLUS
+#endif
+};
 
 /*
  * LC match text output settings
@@ -1280,7 +1264,7 @@ typedef uint16_t pixel_t;
 #define HEXRGB(hex) ( (((hex)>>3)&0x001c00) | (((hex)>>5)&0x0000f8) | (((hex)<<16)&0xf80000) | (((hex)<<13)&0x00e000) )
 #define LCD_PIXEL_SIZE        2
 // Cell size, depends from spi_buffer size, CELLWIDTH*CELLHEIGHT*sizeof(pixel) <= sizeof(spi_buffer)
-#define CELLWIDTH  (64/DISPLAY_CELL_BUFFER_COUNT)
+#define CELLWIDTH  (64)
 #define CELLHEIGHT (32)
 #endif
 
@@ -1354,7 +1338,7 @@ typedef uint16_t pixel_t;
 extern pixel_t foreground_color;
 extern pixel_t background_color;
 
-extern pixel_t spi_buffer[SPI_BUFFER_SIZE*2];
+extern pixel_t spi_buffer[SPI_BUFFER_SIZE];
 
 typedef struct {
   uint8_t transparent : 1;

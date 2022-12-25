@@ -332,7 +332,8 @@
 #define SERIAL_USB_TX_BUFFERS_NUMBER   4
 #endif
 
-#define USB_TIMEOUT 10000
+// USB Send timeout
+#define USB_TIMEOUT                    MS2ST(100)   // 100ms
 
 //#define STM32_USB_USE_FAST_COPY   TRUE
 //#define STM32_USB_USE_ISOCHRONOUS TRUE
