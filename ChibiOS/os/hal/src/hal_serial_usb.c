@@ -26,8 +26,12 @@
 
 #if (HAL_USE_SERIAL_USB == TRUE) || defined(__DOXYGEN__)
 
-#ifndef USB_TIMEOUT
-#define USB_TIMEOUT TIME_INFINITE
+#ifndef USB_WRITE_TIMEOUT
+#define USB_WRITE_TIMEOUT TIME_INFINITE
+#endif
+
+#ifndef USB_READ_TIMEOUT
+#define USB_READ_TIMEOUT TIME_INFINITE
 #endif
 
 /*===========================================================================*/
@@ -59,36 +63,33 @@ cdc_linecoding_t linecoding = {
 /*
  * Interface implementation.
  */
-#ifndef USB_TIMEOUT
-#define USB_TIMEOUT TIME_INFINITE
-#endif
 
 static size_t write(void *ip, const uint8_t *bp, size_t n) {
   if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
     return 0;
   }
-  return obqWriteTimeout(&((SerialUSBDriver *)ip)->obqueue, bp, n, USB_TIMEOUT);
+  return obqWriteTimeout(&((SerialUSBDriver *)ip)->obqueue, bp, n, USB_WRITE_TIMEOUT);
 }
 
 static size_t read(void *ip, uint8_t *bp, size_t n) {
 //  if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
 //    return 0;
 //  }
-  return ibqReadTimeout(&((SerialUSBDriver *)ip)->ibqueue, bp, n, USB_TIMEOUT);
+  return ibqReadTimeout(&((SerialUSBDriver *)ip)->ibqueue, bp, n, USB_READ_TIMEOUT);
 }
 
 static msg_t put(void *ip, uint8_t b) {
   if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
     return MSG_RESET;
   }
-  return obqPutTimeout(&((SerialUSBDriver *)ip)->obqueue, b, USB_TIMEOUT);
+  return obqPutTimeout(&((SerialUSBDriver *)ip)->obqueue, b, USB_WRITE_TIMEOUT);
 }
 
 static msg_t get(void *ip) {
 //  if (usbGetDriverStateI(((SerialUSBDriver *)ip)->config->usbp) != USB_ACTIVE) {
 //    return MSG_RESET;
 //  }
-  return ibqGetTimeout(&((SerialUSBDriver *)ip)->ibqueue, USB_TIMEOUT);
+  return ibqGetTimeout(&((SerialUSBDriver *)ip)->ibqueue, USB_READ_TIMEOUT);
 }
 
 #ifndef DISABLE_TIME_FUNCTIONS
