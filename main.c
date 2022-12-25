@@ -2275,7 +2275,6 @@ update_frequencies(void)
   set_frequencies(start, stop, sweep_points);
 
   set_frequency(start);
-  tlv320aic3204_select(1);
   chThdSleepMilliseconds(100);
 
   //update_marker_index();
