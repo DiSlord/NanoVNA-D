@@ -532,12 +532,12 @@ transform_domain(uint16_t ch_mask)
       data = measured[ch][sweep_points/2];
       tmp = &tmp[FFT_SIZE*2];
       for (i = 0; i < fft_points; i++) {
-        float re = tmp[i * -FFT_STEP + -2];
-        float im = tmp[i * -FFT_STEP + -3];
+        float re = tmp[i * -FFT_STEP + -1];
+        float im = tmp[i * -FFT_STEP + -2];
         volatile float f =  vna_sqrtf(re*re+im*im);
 #ifdef FFT_COMPRESS
-        re = tmp[i * -FFT_STEP + -4];
-        im = tmp[i * -FFT_STEP + -5];
+        re = tmp[i * -FFT_STEP + -3];
+        im = tmp[i * -FFT_STEP + -4];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
 #endif
