@@ -1026,7 +1026,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 #define FFT_FREQ_STEP   1
 #endif
     if (type == TRC_FFT_AMP)
-      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE));
+      cell_printf(xpos, ypos, format, v, (int)((index - 1 - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE));
     else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else

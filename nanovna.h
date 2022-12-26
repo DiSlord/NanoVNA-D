@@ -363,14 +363,18 @@ extern float measured[1][SWEEP_POINTS_MAX][4];
 #define ETERM_ET 3 /* error term transmission tracking */
 #define ETERM_EX 4 /* error term isolation */
 
-#if 0
+#ifdef FFT_COMPRESS
+#if   SWEEP_POINTS_MAX <= 256
+#define FFT_SIZE   512
+#elif SWEEP_POINTS_MAX <= 512
+#define FFT_SIZE   1024
+#endif
+#else
 #if   SWEEP_POINTS_MAX <= 256
 #define FFT_SIZE   256
 #elif SWEEP_POINTS_MAX <= 512
 #define FFT_SIZE   512
 #endif
-#else
-#define FFT_SIZE  1024
 #endif
 
 void cal_collect(uint16_t type);
