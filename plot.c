@@ -841,6 +841,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] =
 #endif
 [TRC_TRANSFORM]={"FFT_PHASE",   "%.1FdBc %dHz", "%.4F",     "",       -80,      20.0f,    transform_d },
 [TRC_FFT_AMP]  ={"FFT_AMP",     "%.1FdBc %dHz", "%.4F",     "",       -80,      20.0f,    transform_a },
+[TRC_FFT_B]    ={"FFT_B",       "%.1FdBc %dHz", "%.4F",     "",       -80,      20.0f,    transform_a },
 };
 
 
@@ -1009,7 +1010,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                           // Run standard get value function from table
     float v = 0;
-    if (type == TRC_TRANSFORM || type == TRC_FFT_AMP) {
+    if (type == TRC_TRANSFORM || type == TRC_FFT_AMP  || type == TRC_FFT_B) {
       v = c(index, array[index]);
     } else {
       for (int i =0; i<p_sweep-1; i++) {
@@ -1025,7 +1026,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 #else
 #define FFT_FREQ_STEP   1
 #endif
-    if (type == TRC_FFT_AMP)
+    if (type == TRC_FFT_AMP || type == TRC_FFT_B)
       cell_printf(xpos, ypos, format, v, (int)((index - 1 - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE));
     else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
@@ -1761,7 +1762,7 @@ draw_cell(int x0, int y0) {
       continue;
     int mk_idx = markers[i].index;
     for (t = 0; t < TRACES_MAX; t++) {
-      if (!trace[t].enabled || (trace[t].type != TRC_TRANSFORM && trace[t].type != TRC_FFT_AMP) )
+      if (!trace[t].enabled || (trace[t].type != TRC_TRANSFORM && trace[t].type != TRC_FFT_AMP && trace[t].type != TRC_FFT_B) )
         continue;
       index_t *index = trace_index[t];
       int x, y;
@@ -2216,7 +2217,7 @@ draw_frequencies(void)
 #else
 #define FFT_FREQ_DIV    2
 #endif
-    if (trace[3].type == TRC_FFT_AMP) {
+    if (trace[3].type == TRC_FFT_AMP || trace[3].type == TRC_FFT_B) {
       lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
       lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
     } else {

@@ -972,6 +972,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     break;
   case FFT_PHASE:
   case FFT_AMP:
+  case FFT_B:
     props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
     set_sweep_points(SWEEP_POINTS_MAX);
@@ -979,8 +980,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     config.decimation = 1;
     set_tau(0);     // shortest possible tau
     set_sweep_points(SWEEP_POINTS_MAX);
-    set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
-    set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
+//    set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : (TRC_FFT_AMP), 0);
+    set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : (data == FFT_AMP ? TRC_FFT_AMP : TRC_FFT_B)), 0);
     trace[1].enabled = false;
     trace[2].enabled = false;
     trace[3].enabled = false;
@@ -1223,7 +1224,7 @@ static UI_FUNCTION_CALLBACK(menu_null_a_freq_cb) {
   if (level_a > MIN_LEVEL)
     config.xtal_offset -= aver_freq_a * 260;
   else
-    config.xtal_offset -= 0;
+    config.xtal_offset = 0;
   config_save();
 }
 
@@ -1987,7 +1988,8 @@ const menuitem_t menu_transform[] =
 {
  { MT_ADV_CALLBACK, FFT_OFF,                 "FFT\nOFF",          menu_transform_acb },
  { MT_ADV_CALLBACK, FFT_PHASE,               "FFT\nPHASE",          menu_transform_acb },
- { MT_ADV_CALLBACK, FFT_AMP,                 "FFT\nAMP",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_AMP,                 "FFT\nA",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_B,                   "FFT\nB",          menu_transform_acb },
  { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
  { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
 

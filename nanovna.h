@@ -915,6 +915,7 @@ enum trace_type {
 #endif
   TRC_TRANSFORM,
   TRC_FFT_AMP,
+  TRC_FFT_B,
   MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
@@ -1076,7 +1077,7 @@ typedef struct marker {
 } marker_t;
 
 enum {PULL_OFFSET, PULL_FUNDAMENTAL, PULL_SECOND_SHIFT, PULL_SECOND, MAX_PULL};
-enum { FFT_OFF, FFT_PHASE, FFT_AMP };
+enum { FFT_OFF, FFT_PHASE, FFT_AMP, FFT_B };
 
 typedef struct config {
   uint32_t magic;

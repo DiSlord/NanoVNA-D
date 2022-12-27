@@ -499,9 +499,14 @@ calculate_gamma(float gamma[4], uint16_t tau)
     tmp[p_sweep * 2 + 0] = (float)acc_ref_c;
     tmp[p_sweep * 2 + 1] = (float)acc_ref_s;
     p_sweep++;
-
-//    gamma[1] = (float)acc_ref_c;
-//    gamma[1] = amp_a;
+  }
+#endif
+#if 1
+  if (current_props._fft_mode == FFT_B && p_sweep < requested_points){
+    float* tmp  = (float*)spi_buffer;
+    tmp[p_sweep * 2 + 0] = (float)acc_samp_c;
+    tmp[p_sweep * 2 + 1] = (float)acc_samp_s;
+    p_sweep++;
   }
 #endif
   return(tau);

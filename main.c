@@ -505,7 +505,7 @@ transform_domain(uint16_t ch_mask)
     // Made FFT in temp buffer
     fft_forward((float(*)[2])tmp);
     // Copy data back
-    if (current_props._fft_mode == FFT_AMP) {
+    if (current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) {
       fft_points = FFT_SIZE/2;
       if (fft_points > sweep_points/2)
         fft_points = sweep_points/2;
@@ -1768,7 +1768,7 @@ fetch_next:
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
-      else if (current_props._fft_mode == FFT_AMP) {
+      else if (current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) {
 #if 0
         float* tmp  = (float*)spi_buffer;
         tmp[p_sweep * 2 + 0] = temp_measured[temp_output][1];
@@ -1783,7 +1783,7 @@ fetch_next:
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }
-      if (current_props._fft_mode != FFT_AMP) p_sweep++;
+      if (current_props._fft_mode != FFT_AMP && current_props._fft_mode != FFT_B) p_sweep++;
       temp_output++;
       temp_output &= TEMP_MASK;
 //      shell_printf("out %d\r\n", temp_output);
@@ -2857,7 +2857,7 @@ void set_trace_type(int t, int type, int channel)
   if (!update) return;
   if (trace[t].type != type) {
     trace[t].type = type;
-    trace[t].auto_scale = (type != TRC_TRANSFORM && type != TRC_FFT_AMP);
+    trace[t].auto_scale = (type != TRC_TRANSFORM && type != TRC_FFT_AMP && type != TRC_FFT_B);
     // Set default trace refpos
     set_trace_refpos(t, trace_info_list[type].refpos);
     // Set default trace scale
