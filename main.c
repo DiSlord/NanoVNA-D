@@ -541,8 +541,8 @@ transform_domain(uint16_t ch_mask)
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
 #endif
-        f = (data[(i-1) * -4 + 1] * transform_count + f) / ( transform_count+1);
-        data[(i-1) * -4 + 1] =  f;
+        f = (data[(i+1) * -4 + 1] * transform_count + f) / ( transform_count+1);
+        data[(i+1) * -4 + 1] =  f;
       }
 
     } else {

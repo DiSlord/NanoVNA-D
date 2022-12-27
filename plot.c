@@ -1027,7 +1027,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 #define FFT_FREQ_STEP   1
 #endif
     if (type == TRC_FFT_AMP || type == TRC_FFT_B)
-      cell_printf(xpos, ypos, format, v, (int)((index - 1 - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE));
+      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE) );
     else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
@@ -2178,7 +2178,7 @@ draw_measurements(void)
     f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d) / 100;
   }
   x = 100;
-  x = lcd_large(x, y, f, level_a < MIN_LEVEL, 0, 4,current_props._fft_mode != FFT_OFF || !(level_b < MIN_LEVEL));
+  x = lcd_large(x, y, f, level_a < MIN_LEVEL && current_props._fft_mode == FFT_OFF, 0, 4,current_props._fft_mode != FFT_OFF || !(level_b < MIN_LEVEL));
   if (level_b < MIN_LEVEL || current_props._fft_mode != FFT_OFF)
     lcd_printf(x,y, "MHz  ");
   else
@@ -2223,7 +2223,7 @@ draw_frequencies(void)
 #else
 #define FFT_FREQ_DIV    2
 #endif
-    if (trace[3].type == TRC_FFT_AMP || trace[3].type == TRC_FFT_B) {
+    if (trace[0].type == TRC_FFT_AMP || trace[0].type == TRC_FFT_B) {
       lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
       lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
     } else {
