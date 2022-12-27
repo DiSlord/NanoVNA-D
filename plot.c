@@ -2148,32 +2148,38 @@ draw_measurements(void)
   lcd_set_right_border(area_width + OFFSETX);
 
   lcd_printf(x,      y, "Level:%d,%ddBm      ", (int)level_a, (int)level_b);
-  lcd_printf(x+130,  y, "PLL:%+d, %+.3FHz        ", (int)current_props.pll, aver_freq_a );
+  if (current_props._fft_mode != FFT_OFF)
+    lcd_printf(x+130,  y, "                           ");
+  else
+    lcd_printf(x+130,  y, "PLL:%+d, %+.3FHz        ", (int)current_props.pll, aver_freq_a );
 //  lcd_printf(x+220,  y, "AGC:%d,%d        ", l_gain, r_gain);
 #ifdef SIDE_CHANNEL
-  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL)) {
+  if (VNA_MODE(VNA_MODE_SIDE_CHANNEL) || current_props._fft_mode != FFT_OFF) {
     lcd_printf(x+260,   y, "SL:%d,%ddBm       ", (int)level_sa, (int)level_sb);
   } else
-    lcd_printf(x+260,   y, "                         ");
+    lcd_printf(x+260,   y, "                            ");
 #endif
 //  lcd_printf(x+350,  y, "DP:%.8Fs         ", (aver_phase_d/360.0)/ (float)get_sweep_frequency(ST_CW));
   y+= FONT_STR_HEIGHT + FONT_STR_HEIGHT ;
 
   char *aver_text = (VNA_MODE(VNA_MODE_TRACE_AVER) ? "Aver": "Last");
 
-  if (level_a < MIN_LEVEL || level_b < MIN_LEVEL) dash = true;
+  if (level_a < MIN_LEVEL || level_b < MIN_LEVEL  || current_props._fft_mode != FFT_OFF) dash = true;
   lcd_printf(x,y   , aver_text);
   double f;
-  if (level_b < MIN_LEVEL) {
+  if (level_b < MIN_LEVEL || current_props._fft_mode == FFT_AMP) {
     lcd_printf(x,y+10, "   A Freq:  ");
     f = (((double)aver_freq_a) + (double)get_sweep_frequency(ST_CW)) / 100000000;
+  } else if (current_props._fft_mode == FFT_B) {
+      lcd_printf(x,y+10, "   B Freq:  ");
+      f = (((double)aver_freq_a) + (double)get_sweep_frequency(ST_CW)) / 100000000;
   } else {
     lcd_printf(x,y+10, "B-A Freq:  ");
     f = (VNA_MODE(VNA_MODE_TRACE_AVER) ? aver_freq_d : last_freq_d) / 100;
   }
   x = 100;
-  x = lcd_large(x, y, f, level_a < MIN_LEVEL, 0, 4,!(level_b < MIN_LEVEL));
-  if (level_b < MIN_LEVEL)
+  x = lcd_large(x, y, f, level_a < MIN_LEVEL, 0, 4,current_props._fft_mode != FFT_OFF || !(level_b < MIN_LEVEL));
+  if (level_b < MIN_LEVEL || current_props._fft_mode != FFT_OFF)
     lcd_printf(x,y, "MHz  ");
   else
     lcd_printf(x,y, "Hz    ");

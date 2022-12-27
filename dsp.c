@@ -415,8 +415,12 @@ calculate_vectors(void)
   amp_sb = vna_sqrtf((float)acc_samp_c2 * (float)acc_samp_c2 + (float)acc_samp_s2*(float)acc_samp_s2);
 #endif
 
+
   // calculate pll delta phase
-  new_gamma = vna_atan2f(acc_ref_s - acc_prev_s,acc_ref_c-acc_prev_c) / VNA_PI;
+  if (current_props._fft_mode == FFT_B )
+    new_gamma = vna_atan2f(acc_samp_s - acc_prev_s,acc_samp_c-acc_prev_c) / VNA_PI;
+  else
+    new_gamma = vna_atan2f(acc_ref_s - acc_prev_s,acc_ref_c-acc_prev_c) / VNA_PI;
   float delta_gamma = new_gamma - prev_gamma_pll;
   if ((delta_gamma) < -HALF_PHASE)
     delta_gamma = delta_gamma + FULL_PHASE;
@@ -424,8 +428,14 @@ calculate_vectors(void)
     delta_gamma = delta_gamma - FULL_PHASE;
   gamma_delta_pll = delta_gamma;
   prev_gamma_pll = new_gamma;
-  acc_prev_s = acc_ref_s;
-  acc_prev_c = acc_ref_c;
+  if (current_props._fft_mode == FFT_B ) {
+    acc_prev_s = acc_samp_s;
+    acc_prev_c = acc_samp_c;
+  } else {
+    acc_prev_s = acc_ref_s;
+    acc_prev_c = acc_ref_c;
+
+  }
 }
 
 float get_freq_a(void)

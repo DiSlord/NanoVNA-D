@@ -1865,7 +1865,10 @@ fetch_next:
   aver_freq_a = v;
 #endif
   float v = aver_freq_a;
-  if (VNA_MODE(VNA_MODE_PLL)) {
+  if (current_props._fft_mode != FFT_OFF) {
+    current_props.pll = 0;
+    set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
+  } else if (VNA_MODE(VNA_MODE_PLL)) {
     if (level_a > MIN_LEVEL && level_b > MIN_LEVEL /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;
       float factor = PLL_SCALE;
