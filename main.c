@@ -505,7 +505,7 @@ transform_domain(uint16_t ch_mask)
     // Made FFT in temp buffer
     fft_forward((float(*)[2])tmp);
     // Copy data back
-    if (current_props._fft_mode == FFT_AMP) {
+    if (current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) {
       fft_points = FFT_SIZE/2;
       if (fft_points > sweep_points/2)
         fft_points = sweep_points/2;
@@ -541,8 +541,8 @@ transform_domain(uint16_t ch_mask)
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
 #endif
-        f = (data[(i-1) * -4 + 1] * transform_count + f) / ( transform_count+1);
-        data[(i-1) * -4 + 1] =  f;
+        f = (data[(i+1) * -4 + 1] * transform_count + f) / ( transform_count+1);
+        data[(i+1) * -4 + 1] =  f;
       }
 
     } else {
@@ -1768,7 +1768,7 @@ fetch_next:
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
-      else if (current_props._fft_mode == FFT_AMP) {
+      else if (current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) {
 #if 0
         float* tmp  = (float*)spi_buffer;
         tmp[p_sweep * 2 + 0] = temp_measured[temp_output][1];
@@ -1783,7 +1783,7 @@ fetch_next:
         measured[0][p_sweep][2] = temp_measured[temp_output][2];
         measured[0][p_sweep][3] = temp_measured[temp_output][3];
       }
-      if (current_props._fft_mode != FFT_AMP) p_sweep++;
+      if (current_props._fft_mode != FFT_AMP && current_props._fft_mode != FFT_B) p_sweep++;
       temp_output++;
       temp_output &= TEMP_MASK;
 //      shell_printf("out %d\r\n", temp_output);
@@ -1865,7 +1865,10 @@ fetch_next:
   aver_freq_a = v;
 #endif
   float v = aver_freq_a;
-  if (VNA_MODE(VNA_MODE_PLL)) {
+  if (current_props._fft_mode != FFT_OFF) {
+    current_props.pll = 0;
+    set_frequency(get_sweep_frequency(ST_START));       // This will update using the new pll value
+  } else if (VNA_MODE(VNA_MODE_PLL)) {
     if (level_a > MIN_LEVEL && level_b > MIN_LEVEL /* && !(VNA_MODE(VNA_MODE_DISK_LOG) || VNA_MODE(VNA_MODE_USB_LOG))*/ ) {
       float new_pll;
       float factor = PLL_SCALE;
@@ -2857,7 +2860,7 @@ void set_trace_type(int t, int type, int channel)
   if (!update) return;
   if (trace[t].type != type) {
     trace[t].type = type;
-    trace[t].auto_scale = (type != TRC_TRANSFORM && type != TRC_FFT_AMP);
+    trace[t].auto_scale = (type != TRC_TRANSFORM && type != TRC_FFT_AMP && type != TRC_FFT_B);
     // Set default trace refpos
     set_trace_refpos(t, trace_info_list[type].refpos);
     // Set default trace scale

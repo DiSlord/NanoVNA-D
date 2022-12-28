@@ -43,7 +43,7 @@ void generate_DSP_Table(int offset){
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
-#if 0
+#if 1                                   // Set to zero to remove winodw
 #ifdef AUDIO_32_BIT
     sincos_tbl[i][0] = s*(float)(0x7fffff);
     sincos_tbl[i][1] = c*(float)(0x7fffff);
@@ -275,21 +275,34 @@ dsp_process(audio_sample_t *capture, size_t length)
 
   do{
 
-#if 0
-    if (current_props._fft_mode == FFT_AMP) {
-      int16_t *sc = (int16_t *)&sincos_tbl[i];
-      int16_t sr = capture[i*2];
+    if ((current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) && (VNA_MODE(VNA_MODE_WIDE)) ) {
 
+
+//#define AVER_SAMPLE 1
+#ifdef   AVER_SAMPLE
+      int16_t *sc = (int16_t *)&sincos_tbl[p_sweep % AUDIO_SAMPLES_COUNT];
+      int32_t sr = 0;
+      int j = 0;
+      while (j < AVER_SAMPLE) {
+        sr += capture[(i++)*2];
+        j++;
+      }
+#else
+      int16_t *sc = (int16_t *)&sincos_tbl[i];
+      int32_t sr = capture[i*2];
+#endif
 
       if (p_sweep < requested_points){
         float* tmp  = (float*)spi_buffer;
-        tmp[p_sweep * 2 + 0] = (float)((*sc++) * sr); // Only ref
-        tmp[p_sweep * 2 + 1] = (float)((*sc++) * sr);
+        tmp[p_sweep * 2 + 1] = (float)((int32_t)(*sc++) * sr); // Only ref
+        tmp[p_sweep * 2 + 0] = (float)((int32_t)(*sc++) * sr);
         p_sweep++;
       }
-//      continue;
-    }
+#ifndef   AVER_SAMPLE
+      i++;
 #endif
+      continue;
+    }
 
     int32_t sc = ((int32_t *)sincos_tbl)[i];
     int32_t sr = ((int32_t *)capture)[i];
@@ -415,8 +428,12 @@ calculate_vectors(void)
   amp_sb = vna_sqrtf((float)acc_samp_c2 * (float)acc_samp_c2 + (float)acc_samp_s2*(float)acc_samp_s2);
 #endif
 
+
   // calculate pll delta phase
-  new_gamma = vna_atan2f(acc_ref_s - acc_prev_s,acc_ref_c-acc_prev_c) / VNA_PI;
+  if (current_props._fft_mode == FFT_B )
+    new_gamma = vna_atan2f(acc_samp_s - acc_prev_s,acc_samp_c-acc_prev_c) / VNA_PI;
+  else
+    new_gamma = vna_atan2f(acc_ref_s - acc_prev_s,acc_ref_c-acc_prev_c) / VNA_PI;
   float delta_gamma = new_gamma - prev_gamma_pll;
   if ((delta_gamma) < -HALF_PHASE)
     delta_gamma = delta_gamma + FULL_PHASE;
@@ -424,8 +441,14 @@ calculate_vectors(void)
     delta_gamma = delta_gamma - FULL_PHASE;
   gamma_delta_pll = delta_gamma;
   prev_gamma_pll = new_gamma;
-  acc_prev_s = acc_ref_s;
-  acc_prev_c = acc_ref_c;
+  if (current_props._fft_mode == FFT_B ) {
+    acc_prev_s = acc_samp_s;
+    acc_prev_c = acc_samp_c;
+  } else {
+    acc_prev_s = acc_ref_s;
+    acc_prev_c = acc_ref_c;
+
+  }
 }
 
 float get_freq_a(void)
@@ -493,17 +516,20 @@ calculate_gamma(float gamma[4], uint16_t tau)
     gamma[0] = side_aver;
   }
 #endif
-#if 1
-  if (current_props._fft_mode == FFT_AMP && p_sweep < requested_points){
-    float* tmp  = (float*)spi_buffer;
-    tmp[p_sweep * 2 + 0] = (float)acc_ref_c;
-    tmp[p_sweep * 2 + 1] = (float)acc_ref_s;
-    p_sweep++;
-
-//    gamma[1] = (float)acc_ref_c;
-//    gamma[1] = amp_a;
+  if (!(VNA_MODE(VNA_MODE_WIDE))) {
+    if (current_props._fft_mode == FFT_AMP && p_sweep < requested_points){
+      float* tmp  = (float*)spi_buffer;
+      tmp[p_sweep * 2 + 0] = (float)acc_ref_c;
+      tmp[p_sweep * 2 + 1] = (float)acc_ref_s;
+      p_sweep++;
+    }
+    if (current_props._fft_mode == FFT_B && p_sweep < requested_points){
+      float* tmp  = (float*)spi_buffer;
+      tmp[p_sweep * 2 + 0] = (float)acc_samp_c;
+      tmp[p_sweep * 2 + 1] = (float)acc_samp_s;
+      p_sweep++;
+    }
   }
-#endif
   return(tau);
 }
 

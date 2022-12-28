@@ -972,6 +972,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     break;
   case FFT_PHASE:
   case FFT_AMP:
+  case FFT_B:
     props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
     set_sweep_points(SWEEP_POINTS_MAX);
@@ -979,8 +980,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     config.decimation = 1;
     set_tau(0);     // shortest possible tau
     set_sweep_points(SWEEP_POINTS_MAX);
-    set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
-    set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : TRC_FFT_AMP), 0);
+//    set_trace_type(3, (data == FFT_PHASE ? TRC_TRANSFORM : (TRC_FFT_AMP), 0);
+    set_trace_type(0, (data == FFT_PHASE ? TRC_TRANSFORM : (data == FFT_AMP ? TRC_FFT_AMP : TRC_FFT_B)), 0);
     trace[1].enabled = false;
     trace[2].enabled = false;
     trace[3].enabled = false;
@@ -1148,6 +1149,9 @@ const vna_mode_data_t vna_mode_data[] = {
   [VNA_MODE_DUMP_SIDE]    = {0, REDRAW_AREA},
   [VNA_MODE_FREEZE_DISPLAY] = {0, REDRAW_AREA},
   [VNA_MODE_SIDE]         = {0, REDRAW_AREA},
+  [VNA_MODE_PNA]          = {0, REDRAW_AREA},
+  [VNA_MODE_WIDE]         = {0, REDRAW_AREA | REDRAW_FREQUENCY},
+
 };
 
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
@@ -1223,7 +1227,7 @@ static UI_FUNCTION_CALLBACK(menu_null_a_freq_cb) {
   if (level_a > MIN_LEVEL)
     config.xtal_offset -= aver_freq_a * 260;
   else
-    config.xtal_offset -= 0;
+    config.xtal_offset = 0;
   config_save();
 }
 
@@ -1485,7 +1489,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb)
 #ifdef USE_VARIABLE_OFFSET_MENU
 static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
 {
-  int32_t offset = (data+1) * FREQUENCY_OFFSET_STEP;
+  int32_t offset = (data) * FREQUENCY_OFFSET_STEP;
   if (b){
     b->icon = IF_OFFSET == offset ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = offset;
@@ -1987,7 +1991,9 @@ const menuitem_t menu_transform[] =
 {
  { MT_ADV_CALLBACK, FFT_OFF,                 "FFT\nOFF",          menu_transform_acb },
  { MT_ADV_CALLBACK, FFT_PHASE,               "FFT\nPHASE",          menu_transform_acb },
- { MT_ADV_CALLBACK, FFT_AMP,                 "FFT\nAMP",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_AMP,                 "FFT A",          menu_transform_acb },
+ { MT_ADV_CALLBACK, FFT_B,                   "FFT B",          menu_transform_acb },
+ { MT_ADV_CALLBACK, VNA_MODE_WIDE,           "WIDE\nFFT",      menu_vna_mode_acb },
  { MT_ADV_CALLBACK, 0,                       "AVERAGE",            menu_average_acb },
  { MT_ADV_CALLBACK, KM_MAX_AVER,             "MAX AVER\n" R_LINK_COLOR " %d",           menu_keyboard_acb },
 
@@ -2292,16 +2298,16 @@ const menuitem_t menu_clear[] = {
 
 #ifdef USE_VARIABLE_OFFSET_MENU
 const menuitem_t menu_offset[] = {
-  { MT_ADV_CALLBACK, 0, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 1, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 2, "%d" S_Hz, menu_offset_acb },
   { MT_ADV_CALLBACK, 3, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK, 5, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK, 7, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK, 9, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK,11, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK,13, "%d" S_Hz, menu_offset_acb },
-  { MT_ADV_CALLBACK,15, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 4, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 6, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK, 8, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,10, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,12, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,16, "%d" S_Hz, menu_offset_acb },
+  { MT_ADV_CALLBACK,24, "%d" S_Hz, menu_offset_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif

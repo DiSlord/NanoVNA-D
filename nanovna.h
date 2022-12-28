@@ -915,6 +915,7 @@ enum trace_type {
 #endif
   TRC_TRANSFORM,
   TRC_FFT_AMP,
+  TRC_FFT_B,
   MAX_TRACE_TYPE
   };
 #define GET_DPHASE  4
@@ -1013,6 +1014,7 @@ enum {
   VNA_MODE_FREEZE_DISPLAY,
   VNA_MODE_SIDE,
   VNA_MODE_PNA,
+  VNA_MODE_WIDE,
 };
 
 #define VNA_MODE_PLL_ON           (1<<VNA_MODE_PLL)
@@ -1028,6 +1030,7 @@ enum {
 #define VNA_MODE_SIDE_CHANNEL_ON  (1<<VNA_MODE_SIDE_CHANNEL)
 #define VNA_MODE_SIDE_ON          (1<< VNA_MODE_SIDE)
 #define VNA_MODE_PNA_ON           (1<<VNA_MODE_PNA)
+#define VNA_MODE_WIDE_ON          (1<<VNA_MODE_WIDE)
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1076,7 +1079,7 @@ typedef struct marker {
 } marker_t;
 
 enum {PULL_OFFSET, PULL_FUNDAMENTAL, PULL_SECOND_SHIFT, PULL_SECOND, MAX_PULL};
-enum { FFT_OFF, FFT_PHASE, FFT_AMP };
+enum { FFT_OFF, FFT_PHASE, FFT_AMP, FFT_B };
 
 typedef struct config {
   uint32_t magic;
