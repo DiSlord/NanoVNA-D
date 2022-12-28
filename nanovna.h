@@ -1014,6 +1014,7 @@ enum {
   VNA_MODE_FREEZE_DISPLAY,
   VNA_MODE_SIDE,
   VNA_MODE_PNA,
+  VNA_MODE_WIDE,
 };
 
 #define VNA_MODE_PLL_ON           (1<<VNA_MODE_PLL)
@@ -1029,6 +1030,7 @@ enum {
 #define VNA_MODE_SIDE_CHANNEL_ON  (1<<VNA_MODE_SIDE_CHANNEL)
 #define VNA_MODE_SIDE_ON          (1<< VNA_MODE_SIDE)
 #define VNA_MODE_PNA_ON           (1<<VNA_MODE_PNA)
+#define VNA_MODE_WIDE_ON          (1<<VNA_MODE_WIDE)
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode

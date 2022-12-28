@@ -1026,9 +1026,11 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
 #else
 #define FFT_FREQ_STEP   1
 #endif
-    if (type == TRC_FFT_AMP || type == TRC_FFT_B)
-      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2) * FFT_FREQ_STEP /get_tau() / FFT_SIZE) );
-    else if (type == TRC_TRANSFORM)
+
+    if (type == TRC_FFT_AMP || type == TRC_FFT_B) {
+      int mul = (VNA_MODE(VNA_MODE_WIDE) ? AUDIO_SAMPLES_COUNT : 1);
+      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2)* mul * FFT_FREQ_STEP /get_tau() / FFT_SIZE) );
+    } else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
       cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
@@ -2224,8 +2226,9 @@ draw_frequencies(void)
 #define FFT_FREQ_DIV    2
 #endif
     if (trace[0].type == TRC_FFT_AMP || trace[0].type == TRC_FFT_B) {
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
-      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
+      int mul = (VNA_MODE(VNA_MODE_WIDE) ? AUDIO_SAMPLES_COUNT : 1);
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
+      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
     } else {
       lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
       lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
