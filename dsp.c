@@ -43,18 +43,18 @@ void generate_DSP_Table(int offset){
   for (int i=0; i<AUDIO_SAMPLES_COUNT; i++){
     float s, c;
     vna_sincosf(w, &s, &c);
-#if 1                                   // Set to zero to remove winodw
+    if ((current_props._fft_mode == FFT_AMP || current_props._fft_mode == FFT_B) && (VNA_MODE(VNA_MODE_WIDE)) ) {
 #ifdef AUDIO_32_BIT
-    sincos_tbl[i][0] = s*(float)(0x7fffff);
-    sincos_tbl[i][1] = c*(float)(0x7fffff);
+      sincos_tbl[i][0] = s*(float)(0x7fffff);
+      sincos_tbl[i][1] = c*(float)(0x7fffff);
 #else
-    sincos_tbl[i][0] = s*(float)(0x7ff0);
-    sincos_tbl[i][1] = c*(float)(0x7ff0);
+      sincos_tbl[i][0] = s*(float)(0x7ff0);
+      sincos_tbl[i][1] = c*(float)(0x7ff0);
 #endif
-#else
-    sincos_tbl[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
-    sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
-#endif
+    } else {
+      sincos_tbl[i][0] = s*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+      sincos_tbl[i][1] = c*32610.0f * 0.5f * (1-cosf(2*VNA_PI*i/AUDIO_SAMPLES_COUNT)) ;
+    }
     w+=step;
 #ifdef SIDE_CHANNEL
     vna_sincosf(w2, &s, &c);
@@ -447,7 +447,6 @@ calculate_vectors(void)
   } else {
     acc_prev_s = acc_ref_s;
     acc_prev_c = acc_ref_c;
-
   }
 }
 

@@ -959,6 +959,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   case FFT_OFF:
     props_mode &= ~DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_SET);
+    apply_VNA_mode(VNA_MODE_WIDE, VNA_MODE_CLR);
     set_bandwidth(2);
     config.decimation = 10;
     set_tau(0.1);     // shortest possible tau
@@ -969,10 +970,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     trace[2].enabled = true;
     trace[3].enabled = true;
     transform_count = 0;
+    set_sweep_points(101);
     break;
   case FFT_PHASE:
+    apply_VNA_mode(VNA_MODE_WIDE, VNA_MODE_CLR);
+    goto common;
   case FFT_AMP:
   case FFT_B:
+    common:
     props_mode |= DOMAIN_TIME;
     apply_VNA_mode(VNA_MODE_SCROLLING, VNA_MODE_CLR);
     set_sweep_points(SWEEP_POINTS_MAX);
@@ -985,6 +990,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
     trace[1].enabled = false;
     trace[2].enabled = false;
     trace[3].enabled = false;
+    set_marker_index(active_marker, sweep_points/2);
     transform_count = 0;
     break;
   }
@@ -1205,6 +1211,16 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
         flush_disk_log();
         append_filename[0] = 0;
       }
+      break;
+    case VNA_MODE_WIDE:
+      if (current_props._fft_mode == FFT_OFF || current_props._fft_mode == FFT_PHASE)
+        apply_VNA_mode(VNA_MODE_WIDE, VNA_MODE_CLR);
+      if (VNA_MODE(VNA_MODE_WIDE)) {
+        si5351_set_frequency_offset(AUDIO_ADC_FREQ/4);
+      } else {
+        si5351_set_frequency_offset(AUDIO_ADC_FREQ/8);
+      }
+      si5351_set_frequency(get_sweep_frequency(ST_START), current_props._power);
       break;
   }
 }
