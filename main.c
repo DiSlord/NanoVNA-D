@@ -510,37 +510,43 @@ transform_domain(uint16_t ch_mask)
       if (fft_points > sweep_points/2)
         fft_points = sweep_points/2;
       data = measured[ch][sweep_points/2];
+      int fft_step = 4;
+      if (VNA_MODE(VNA_MODE_WIDE))
+       fft_step = 2;
       for (i = 0; i < fft_points; i++) {
-#ifdef FFT_COMPRESS
-#define FFT_STEP    4
-#else
-#define FFT_STEP    2
-#endif
-
-        float re = tmp[i * FFT_STEP + 0];
-        float im = tmp[i * FFT_STEP + 1];
+//#ifdef FFT_COMPRESS
+//#define FFT_STEP    4
+//#else
+//#define FFT_STEP    2
+//#endif
+        float re = tmp[i * fft_step + 0];
+        float im = tmp[i * fft_step + 1];
         volatile float f =  vna_sqrtf(re*re+im*im);
-#ifdef FFT_COMPRESS
-        re = tmp[i * FFT_STEP + 2];
-        im = tmp[i * FFT_STEP + 3];
+//#ifdef FFT_COMPRESS
+        if (!VNA_MODE(VNA_MODE_WIDE)) {
+        re = tmp[i * fft_step + 2];
+        im = tmp[i * fft_step + 3];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
-#endif
+        }
+//#endif
         f = (data[i * 4 + 1] * transform_count + f) / ( transform_count+1);
         data[i * 4 + 1] =  f;
       }
       data = measured[ch][sweep_points/2];
       tmp = &tmp[FFT_SIZE*2];
       for (i = 0; i < fft_points; i++) {
-        float re = tmp[i * -FFT_STEP + -1];
-        float im = tmp[i * -FFT_STEP + -2];
+        float re = tmp[i * -fft_step + -1];
+        float im = tmp[i * -fft_step + -2];
         volatile float f =  vna_sqrtf(re*re+im*im);
-#ifdef FFT_COMPRESS
-        re = tmp[i * -FFT_STEP + -3];
-        im = tmp[i * -FFT_STEP + -4];
+//#ifdef FFT_COMPRESS
+        if (!VNA_MODE(VNA_MODE_WIDE)) {
+        re = tmp[i * -fft_step + -3];
+        im = tmp[i * -fft_step + -4];
         volatile float f2 =  vna_sqrtf(re*re+im*im);
         if (f < f2) f = f2;
-#endif
+        }
+//#endif
         f = (data[(i+1) * -4 + 1] * transform_count + f) / ( transform_count+1);
         data[(i+1) * -4 + 1] =  f;
       }
@@ -1530,6 +1536,13 @@ no_regression:
 
 void do_agc(void)
 {
+
+  if (current_props._fft_mode  != FFT_OFF) {
+    l_gain = 0;
+    r_gain = 0;
+    tlv320aic3204_set_gain(l_gain, r_gain);
+    return;
+  }
   int old_l_gain = l_gain, old_r_gain = r_gain;
   // Get level excluding gain.
   l_gain = 0;

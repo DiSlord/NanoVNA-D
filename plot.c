@@ -470,7 +470,7 @@ static float transform_a(int i, const float *v) {
     t = -t;
   if (t == 0)
     return -140;
-  return (2*vna_log10f_x_10(t) - 210);
+  return (2*vna_log10f_x_10(t) - (VNA_MODE(VNA_MODE_WIDE) ? 157 : 200));
 }
 
 
@@ -1021,15 +1021,10 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
     }
 //    shell_printf("%f\r\n",v);
 //    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
-#ifdef FFT_COMPRESS
-#define FFT_FREQ_STEP   2
-#else
-#define FFT_FREQ_STEP   1
-#endif
-
+    int fft_freq_div = ((VNA_MODE(VNA_MODE_WIDE))?1:2);
     if (type == TRC_FFT_AMP || type == TRC_FFT_B) {
       int mul = (VNA_MODE(VNA_MODE_WIDE) ? AUDIO_SAMPLES_COUNT : 1);
-      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2)* mul * FFT_FREQ_STEP /get_tau() / FFT_SIZE) );
+      cell_printf(xpos, ypos, format, v, (int)((index - sweep_points/2)* mul * fft_freq_div /get_tau() / FFT_SIZE) );
     } else if (type == TRC_TRANSFORM)
       cell_printf(xpos, ypos, format, v, (int)(index * 1.0/get_tau() / FFT_SIZE));
     else
@@ -2220,15 +2215,11 @@ draw_frequencies(void)
       lcd_printf(FREQUENCIES_XPOS2, FREQUENCIES_YPOS, "%c%s %15q" S_Hz, lm1,  "SPAN", get_sweep_frequency(ST_SPAN));
     }
   } else {
-#ifdef FFT_COMPRESS
-#define FFT_FREQ_DIV    1
-#else
-#define FFT_FREQ_DIV    2
-#endif
+    int fft_freq_div = ((VNA_MODE(VNA_MODE_WIDE))?2:1);
     if (trace[0].type == TRC_FFT_AMP || trace[0].type == TRC_FFT_B) {
       int mul = (VNA_MODE(VNA_MODE_WIDE) ? AUDIO_SAMPLES_COUNT : 1);
-      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
-      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/FFT_FREQ_DIV));
+      lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "-%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/fft_freq_div));
+      lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)*mul/get_tau()/FFT_SIZE/fft_freq_div));
     } else {
       lcd_printf(FREQUENCIES_XPOS1, FREQUENCIES_YPOS, "0 Hz");
       lcd_printf(FREQUENCIES_XPOS2+100, FREQUENCIES_YPOS, "%d Hz", (int)((sweep_points-1)/get_tau()/FFT_SIZE));
