@@ -145,6 +145,8 @@ float level_b;
 float level_sa;
 float level_sb;
 #endif
+double phase_wraps = 0;
+double prev_phase = 0;
 int missing_samples = 0;
 uint32_t transform_count = 0;
 uint32_t max_average_count = 5;
@@ -1639,15 +1641,15 @@ static bool sweep(bool break_on_operation, uint16_t mask)
          if (dirty == 2) {
            wraps = 0;
          } else {
-           if (phase + wraps > prev_phase + 0.5) {          // Unwrap
+           if (phase + wraps > res_prev_phase + 0.5) {          // Unwrap
              wraps--;
            }
-           if (phase + wraps < prev_phase - 0.5) {
+           if (phase + wraps < res_prev_phase - 0.5) {
              wraps++;
            }
            phase += wraps;
 
-           freq =  (phase - prev_phase) * AUDIO_ADC_FREQ;
+           freq =  (phase - res_prev_phase) * AUDIO_ADC_FREQ;
            freq /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
 
            if (dirty == 1) {
@@ -1679,7 +1681,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
            dirty--;
          if (sample_count > 200)
            add_correction(v,residue-aver_residue);
-         prev_phase = phase;
+         res_prev_phase = phase;
 #endif
         //      }
         //      v = v/sweep_points;
@@ -1717,8 +1719,8 @@ fetch_next:
   requested_points = sweep_points;
   if (current_props._fft_mode != FFT_OFF)
     requested_points = FFT_SIZE;
-  float prev_phase = 0;
-  float phase_wraps = 0;
+  float res_prev_phase = 0;
+
   for (; p_sweep < requested_points; /* p_sweep++ */) {
 //     palSetPad(GPIOC, GPIOC_LED);
 //     DSP_START(0);
@@ -1752,32 +1754,39 @@ fetch_next:
         continue;
       }
 
-      float v = temp_measured[temp_output][3]/2;
+      double phase = temp_measured[temp_output][3];
+      double unwrapped_phase = phase + phase_wraps;
+      double delta_phase = unwrapped_phase - prev_phase;
+      if (delta_phase > HALF_PHASE) {
+         phase_wraps -= FULL_PHASE;
+         unwrapped_phase -= FULL_PHASE;
+      }
+      if (delta_phase < -HALF_PHASE) {
+         phase_wraps += FULL_PHASE;
+         unwrapped_phase += FULL_PHASE;
+      }
+      prev_phase = unwrapped_phase;
+
+//      float v = temp_measured[temp_output][3]/2;
       if (VNA_MODE(VNA_MODE_DISK_LOG))
-        disk_log(v);
+        disk_log(VNA_MODE(VNA_MODE_UNWRAP)? unwrapped_phase/2 : phase/2);
       if (VNA_MODE(VNA_MODE_USB_LOG)) {
-        shell_printf("%f ChA\r\n", v);
+        freq_t f = get_sweep_frequency(ST_START);
+        double v = (VNA_MODE(VNA_MODE_UNWRAP)? unwrapped_phase/2 : phase/2) / f;
+        if (VNA_MODE(VNA_MODE_UNWRAP))
+          shell_printf("%e ChA\r\n", v);
+        else
+          shell_printf("%f ChA\r\n", phase/2);
 #ifdef SIDE_CHANNEL
         if (VNA_MODE(VNA_MODE_DUMP_SIDE)) {
           float v2 = temp_measured[temp_output][0]/2;
-          shell_printf("%f ChB\r\n", v2);
+          shell_printf("%e ChB\r\n", v2);
         }
 #endif
       }
       if (current_props._fft_mode == FFT_PHASE) {
         float* tmp  = (float*)spi_buffer;
-        float phase = temp_measured[temp_output][3] + phase_wraps;
-        float delta_phase = phase - prev_phase;
-        if (delta_phase > HALF_PHASE) {
-           phase_wraps -= FULL_PHASE;
-           phase -= FULL_PHASE;
-        }
-        if (delta_phase < -HALF_PHASE) {
-           phase_wraps += FULL_PHASE;
-           phase += FULL_PHASE;
-        }
-        prev_phase = phase;
-        tmp[p_sweep * 2 + 0] = phase;
+        tmp[p_sweep * 2 + 0] = unwrapped_phase;
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }

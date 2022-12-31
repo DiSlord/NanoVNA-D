@@ -82,6 +82,7 @@ typedef struct {
     int32_t  i;
     uint32_t u;
     float    f;
+//    double   d;
     const char *text;
   } p1;        // void data for label printf
   char label[32];
@@ -1157,6 +1158,7 @@ const vna_mode_data_t vna_mode_data[] = {
   [VNA_MODE_SIDE]         = {0, REDRAW_AREA},
   [VNA_MODE_PNA]          = {0, REDRAW_AREA},
   [VNA_MODE_WIDE]         = {0, REDRAW_AREA | REDRAW_FREQUENCY},
+  [VNA_MODE_UNWRAP]       = {0, REDRAW_AREA},
 
 };
 
@@ -2100,7 +2102,7 @@ const menuitem_t menu_measure_settings[] = {
 
 const menuitem_t menu_measure[] = {
   { MT_ADV_CALLBACK, KM_CW,                 "FREQ",                                 menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_TAU,                "TAU\n" R_LINK_COLOR " %b.2F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_TAU,                "TAU\n" R_LINK_COLOR " %b.3f" S_SECOND, menu_keyboard_acb },
   { MT_ADV_CALLBACK, 0,                     "DECIMATION\n" R_LINK_COLOR " %bd" ,    menu_decimation_sel_acb },
   { MT_ADV_CALLBACK, VNA_MODE_NULL_PHASE,   "NULL\nPHASE",                          menu_vna_mode_acb },
   { MT_CALLBACK, 0,                         "NULL\nA FREQ",                         menu_null_a_freq_cb },
@@ -2125,6 +2127,7 @@ const menuitem_t menu_display[] = {
 const menuitem_t menu_output[] = {
   { MT_ADV_CALLBACK,    VNA_MODE_USB_LOG,       "USB\nLOG",         menu_vna_mode_acb },
   { MT_ADV_CALLBACK,    VNA_MODE_DISK_LOG,      "DISK\nLOG",        menu_vna_mode_acb },
+  { MT_ADV_CALLBACK,    VNA_MODE_UNWRAP,        "UNWRAP",           menu_vna_mode_acb},
   { MT_ADV_CALLBACK,    VNA_MODE_AUTO_NAME,     "AUTO\nNAME",       menu_vna_mode_acb},
   { MT_CALLBACK,        FMT_BMP_FILE,           "SAVE\nSCREENSHOT", menu_sdcard_cb },
 #ifdef __SD_FILE_BROWSER__
