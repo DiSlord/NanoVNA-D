@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.17"
+#define VERSION "1.2.18"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -637,44 +637,36 @@ my_atof(const char *p)
     float d = 1.0f;
     p++;
     while (_isdigit((int)*p)) {
-      d /= 10.0f;
+      d *= 1e-1f;
       x += d * (*p - '0');
       p++;
     }
   }
-  if (*p == 'e' || *p == 'E') {
-    p++;
-    int exp = my_atoi(p);
-    while (exp > 0) {
-      x *= 10;
-      exp--;
-    }
-    while (exp < 0) {
-      x /= 10;
-      exp++;
-    }
-  } else if (*p) {
-       /*if (*p == 'G') x*= 1e+9;  // Giga
-    else if (*p == 'M') x*= 1e+6;  // Mega
-    else if (*p == 'k') x*= 1e+3;  // kilo
-    else */ if (*p == 'm') x*= 1e-3;  // milli
-    else if (*p == 'u') x*= 1e-6;  // micro
-    else if (*p == 'n') x*= 1e-9;  // nano
-    else if (*p == 'p') x*= 1e-12; // pico
+  if (*p) {
+    int exp = 0;
+    if (*p == 'e' || *p == 'E') exp = my_atoi(&p[1]);
+    else if (*p == 'G') exp =  9; // Giga
+    else if (*p == 'M') exp =  6; // Mega
+    else if (*p == 'k') exp =  3; // kilo
+    else if (*p == 'm') exp = -3; // milli
+    else if (*p == 'u') exp = -6; // micro
+    else if (*p == 'n') exp = -9; // nano
+    else if (*p == 'p') exp =-12; // pico
+    if (exp > 0) do {x*= 1e+1f;} while (--exp);
+    if (exp < 0) do {x*= 1e-1f;} while (++exp);
   }
-  if (neg)
-    x = -x;
-  return x;
+  return neg ? -x : x;
 }
 
 #ifdef __USE_SMOOTH__
 VNA_SHELL_FUNCTION(cmd_smooth)
 {
-  if (argc == 1) {
-    set_smooth_factor(my_atoui(argv[0]));
+  if (argc != 1) {
+    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, "smooth {0-8}", smooth_factor);
     return;
   }
-  shell_printf("smooth = %d" VNA_SHELL_NEWLINE_STR, smooth_factor);
+  set_smooth_factor(my_atoui(argv[0]));
 }
 #endif
 
@@ -741,8 +733,8 @@ VNA_SHELL_FUNCTION(cmd_config) {
 VNA_SHELL_FUNCTION(cmd_offset)
 {
   if (argc != 1) {
-    shell_printf("usage: offset {frequency offset(Hz)}" VNA_SHELL_NEWLINE_STR \
-                 "current: %u" VNA_SHELL_NEWLINE_STR, IF_OFFSET);
+    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, "offset {frequency offset(Hz)}", IF_OFFSET);
     return;
   }
   si5351_set_frequency_offset(my_atoi(argv[0]));
@@ -817,8 +809,8 @@ usage:
 VNA_SHELL_FUNCTION(cmd_dac)
 {
   if (argc != 1) {
-    shell_printf("usage: dac {value(0-4095)}" VNA_SHELL_NEWLINE_STR \
-                 "current: %d" VNA_SHELL_NEWLINE_STR, config._dac_value);
+    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, "dac {value(0-4095)}", config._dac_value);
     return;
   }
   dac_setvalue_ch2(my_atoui(argv[0])&0xFFF);
@@ -829,8 +821,8 @@ VNA_SHELL_FUNCTION(cmd_threshold)
 {
   uint32_t value;
   if (argc != 1) {
-    shell_printf("usage: threshold {frequency in harmonic mode}" VNA_SHELL_NEWLINE_STR \
-                 "current: %d" VNA_SHELL_NEWLINE_STR, config._harmonic_freq_threshold);
+    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, "threshold {frequency in harmonic mode}", config._harmonic_freq_threshold);
     return;
   }
   value = my_atoui(argv[0]);
@@ -1153,7 +1145,6 @@ void i2s_lld_serve_rx_interrupt(uint32_t flags) {
   duplicate_buffer_to_dump(p, count);
 #endif
   --wait_count;
-//  stat.callback_count++;
 }
 
 #ifdef ENABLE_SI5351_TIMINGS
@@ -1553,8 +1544,8 @@ VNA_SHELL_FUNCTION(cmd_scan_bin)
 VNA_SHELL_FUNCTION(cmd_tcxo)
 {
   if (argc != 1) {
-    shell_printf("usage: tcxo {TCXO frequency(Hz)}" VNA_SHELL_NEWLINE_STR \
-                 "current: %u" VNA_SHELL_NEWLINE_STR, config._xtal_freq);
+    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR \
+                 "current: %u" VNA_SHELL_NEWLINE_STR, "tcxo {TCXO frequency(Hz)}", config._xtal_freq);
     return;
   }
   si5351_set_tcxo(my_atoui(argv[0]));
@@ -2143,34 +2134,30 @@ VNA_SHELL_FUNCTION(cmd_cal)
 
 VNA_SHELL_FUNCTION(cmd_save)
 {
-  if (argc != 1)
-    goto usage;
+  if (argc != 1) {
+    shell_printf("usage: save {id}" VNA_SHELL_NEWLINE_STR);
+    return;
+  }
+  uint32_t id = my_atoui(argv[0]);
+  if (id < SAVEAREA_MAX) {
+    caldata_save(id);
+    request_to_redraw(REDRAW_CAL_STATUS);
+  }
 
-  int id = my_atoi(argv[0]);
-  if (id < 0 || id >= SAVEAREA_MAX)
-    goto usage;
-  caldata_save(id);
-  request_to_redraw(REDRAW_CAL_STATUS);
-  return;
-
- usage:
-  shell_printf("save {id}" VNA_SHELL_NEWLINE_STR);
 }
 
 VNA_SHELL_FUNCTION(cmd_recall)
 {
-  if (argc != 1)
-    goto usage;
+  if (argc != 1) {
+    shell_printf("usage: recall {id}" VNA_SHELL_NEWLINE_STR);
+    return;
+  }
+  uint32_t id = my_atoui(argv[0]);
+  if (id < SAVEAREA_MAX) {
+    if (load_properties(id))  // Check for success
+      shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
+  }
 
-  int id = my_atoi(argv[0]);
-  if (id < 0 || id >= SAVEAREA_MAX)
-    goto usage;
-  // Check for success
-  if (load_properties(id))
-    shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
-  return;
- usage:
-  shell_printf("recall {id}" VNA_SHELL_NEWLINE_STR);
 }
 
 static const char * const trc_channel_name[] = {
@@ -2795,12 +2782,14 @@ VNA_SHELL_FUNCTION(cmd_threads)
 #ifdef ENABLE_USART_COMMAND
 VNA_SHELL_FUNCTION(cmd_usart_cfg)
 {
-  if (argc != 1) goto result;
+  if (argc != 1) {
+//    shell_printf("usage: %s" VNA_SHELL_NEWLINE_STR "current: %u" VNA_SHELL_NEWLINE_STR, "usart_cfg {baudrate}", config._serial_speed);
+    shell_printf("Serial: %u baud" VNA_SHELL_NEWLINE_STR, config._serial_speed);
+    return;
+  }
   uint32_t speed = my_atoui(argv[0]);
   if (speed < 300) speed = 300;
   shell_update_speed(speed);
-result:
-  shell_printf("Serial: %u baud" VNA_SHELL_NEWLINE_STR, config._serial_speed);
 }
 
 VNA_SHELL_FUNCTION(cmd_usart)

@@ -1147,33 +1147,35 @@ typedef uint16_t pixel_t;
 #error "Define LCD pixel format"
 #endif
 
-#define LCD_BG_COLOR             0
-#define LCD_FG_COLOR             1
-#define LCD_GRID_COLOR           2
-#define LCD_MENU_COLOR           3
-#define LCD_MENU_TEXT_COLOR      4
-#define LCD_MENU_ACTIVE_COLOR    5
-#define LCD_TRACE_1_COLOR        6
-#define LCD_TRACE_2_COLOR        7
-#define LCD_TRACE_3_COLOR        8
-#define LCD_TRACE_4_COLOR        9
-#define LCD_TRACE_5_COLOR       10
-#define LCD_TRACE_6_COLOR       11
-#define LCD_NORMAL_BAT_COLOR    12
-#define LCD_LOW_BAT_COLOR       13
-#define LCD_SPEC_INPUT_COLOR    14
-#define LCD_RISE_EDGE_COLOR     15
-#define LCD_FALLEN_EDGE_COLOR   16
-#define LCD_SWEEP_LINE_COLOR    17
-#define LCD_BW_TEXT_COLOR       18
-#define LCD_INPUT_TEXT_COLOR    19
-#define LCD_INPUT_BG_COLOR      20
-#define LCD_MEASURE_COLOR       21
-#define LCD_GRID_VALUE_COLOR    22
-#define LCD_INTERP_CAL_COLOR    23
-#define LCD_DISABLE_CAL_COLOR   24
-#define LCD_LINK_COLOR          25
-#define LCD_TXT_SHADOW_COLOR    26
+enum {
+  LCD_BG_COLOR = 0,       // background
+  LCD_FG_COLOR,           // foreground (in most cases text on background)
+  LCD_GRID_COLOR,         // grid lines color
+  LCD_MENU_COLOR,         // UI menu color
+  LCD_MENU_TEXT_COLOR,    // UI menu text color
+  LCD_MENU_ACTIVE_COLOR,  // UI selected menu color
+  LCD_TRACE_1_COLOR,      // Trace 1 color
+  LCD_TRACE_2_COLOR,      // Trace 2 color
+  LCD_TRACE_3_COLOR,      // Trace 3 color
+  LCD_TRACE_4_COLOR,      // Trace 4 color
+  LCD_TRACE_5_COLOR,      // Stored trace A color
+  LCD_TRACE_6_COLOR,      // Stored trace B color
+  LCD_NORMAL_BAT_COLOR,   // Normal battery icon color
+  LCD_LOW_BAT_COLOR,      // Low battery icon color
+  LCD_SPEC_INPUT_COLOR,   // Not used, for future
+  LCD_RISE_EDGE_COLOR,    // UI menu button rise edge color
+  LCD_FALLEN_EDGE_COLOR,  // UI menu button fallen edge color
+  LCD_SWEEP_LINE_COLOR,   // Sweep line color
+  LCD_BW_TEXT_COLOR,      // Bandwidth text color
+  LCD_INPUT_TEXT_COLOR,   // Keyboard Input text color
+  LCD_INPUT_BG_COLOR,     // Keyboard Input text background color
+  LCD_MEASURE_COLOR,      // Measure text color
+  LCD_GRID_VALUE_COLOR,   // Not used, for future
+  LCD_INTERP_CAL_COLOR,   // Calibration state on interpolation color
+  LCD_DISABLE_CAL_COLOR,  // Calibration state on disable color
+  LCD_LINK_COLOR,         // UI menu button text for values color
+  LCD_TXT_SHADOW_COLOR,   // Plot area text border color
+};
 
 #define LCD_DEFAULT_PALETTE {\
 [LCD_BG_COLOR         ] = RGB565(  0,  0,  0), \

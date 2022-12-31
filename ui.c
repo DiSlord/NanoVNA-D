@@ -223,7 +223,7 @@ static void ui_mode_keypad(int _keypad_mode);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
-
+static void menu_set_submenu(const menuitem_t *submenu);
 // Icons for UI
 #include "icons_menu.c"
 
@@ -1133,6 +1133,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 }
 
 #ifdef __VNA_MEASURE_MODULE__
+extern const menuitem_t *menu_measure_list[];
 static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb)
 {
   (void)data;
@@ -1141,6 +1142,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb)
     return;
   }
   plot_set_measure_mode(data);
+  menu_set_submenu(menu_measure_list[current_props._measure]);
+}
+
+static UI_FUNCTION_CALLBACK(menu_measure_cb) {
+  (void)data;
+  menu_push_submenu(menu_measure_list[current_props._measure]);
 }
 #endif
 
@@ -1913,7 +1920,44 @@ const menuitem_t menu_marker_s11smith[] = {
 };
 
 #ifdef __VNA_MEASURE_MODULE__
-const menuitem_t menu_marker_measure[] = {
+// Select menu depend from measure mode
+#ifdef __USE_LC_MATCHING__
+const menuitem_t menu_measure_lc[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_LC_MATH,     "L/C MATCH",          menu_measure_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
+#ifdef __S11_CABLE_MEASURE__
+const menuitem_t menu_measure_cable[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_S11_CABLE,   "CABLE\n (S11)",      menu_measure_acb },
+  { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR,  "VELOCITY F.\n " R_LINK_COLOR "%d%%%%", menu_keyboard_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
+#ifdef __S11_RESONANCE_MEASURE__
+const menuitem_t menu_measure_resonance[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_S11_RESONANCE,"RESONANCE\n (S11)", menu_measure_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
+#ifdef __S21_MEASURE__
+const menuitem_t menu_measure_s21[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
+  { MT_ADV_CALLBACK, KM_MEASURE_R,        " Rl = " R_LINK_COLOR "%b.4F" S_OHM, menu_keyboard_acb},
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
+const menuitem_t menu_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
 #ifdef __USE_LC_MATCHING__
   { MT_ADV_CALLBACK, MEASURE_LC_MATH,     "L/C MATCH",          menu_measure_acb },
@@ -1928,9 +1972,27 @@ const menuitem_t menu_marker_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
-  { MT_ADV_CALLBACK, KM_MEASURE_R,        "MEASURE\n Rl = " R_LINK_COLOR "%b.4F" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+
+// Dynamic menu selector depend from measure mode
+const menuitem_t *menu_measure_list[] = {
+  [MEASURE_NONE] = menu_measure,
+#ifdef __USE_LC_MATCHING__
+  [MEASURE_LC_MATH] = menu_measure_lc,
+#endif
+#ifdef __S21_MEASURE__
+  [MEASURE_SHUNT_LC] = menu_measure_s21,
+  [MEASURE_SERIES_LC] = menu_measure_s21,
+  [MEASURE_SERIES_XTAL] = menu_measure_s21,
+#endif
+#ifdef __S11_CABLE_MEASURE__
+  [MEASURE_S11_CABLE] = menu_measure_cable,
+#endif
+#ifdef __S11_RESONANCE_MEASURE__
+  [MEASURE_S11_RESONANCE] = menu_measure_resonance,
+#endif
 };
 #endif
 
@@ -2057,7 +2119,7 @@ const menuitem_t menu_top[] = {
   { MT_SUBMENU, 0, "CALIBRATE", menu_cal },
   { MT_SUBMENU, 0, "RECALL",    menu_recall },
 #ifdef __VNA_MEASURE_MODULE__
-  { MT_SUBMENU, 0, "MEASURE",   menu_marker_measure },
+  { MT_CALLBACK,0, "MEASURE",   menu_measure_cb },
 #endif
 #ifdef __USE_SD_CARD__
   { MT_SUBMENU, 0, "SD CARD",   menu_sdcard },
@@ -2124,12 +2186,16 @@ menu_move_back(bool leave_ui)
 }
 
 static void
-menu_push_submenu(const menuitem_t *submenu)
-{
-  if (menu_current_level < MENU_STACK_DEPTH_MAX-1)
-    menu_current_level++;
+menu_set_submenu(const menuitem_t *submenu) {
   menu_stack[menu_current_level] = submenu;
   ensure_selection();
+}
+
+static void
+menu_push_submenu(const menuitem_t *submenu) {
+  if (menu_current_level < MENU_STACK_DEPTH_MAX-1)
+    menu_current_level++;
+  menu_set_submenu(submenu);
 }
 
 /*
