@@ -333,7 +333,8 @@
 #endif
 
 // USB Send timeout
-//#define USB_TIMEOUT                    MS2ST(100)   // 100ms
+//#define USB_WRITE_TIMEOUT                    MS2ST(100)   // 100ms
+//#define USB_READ_TIMEOUT                     MS2ST(100)   // 100ms
 
 //#define STM32_USB_USE_FAST_COPY   TRUE
 //#define STM32_USB_USE_ISOCHRONOUS TRUE
