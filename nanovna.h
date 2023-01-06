@@ -412,6 +412,7 @@ float    my_atof(const char *p);
 int parse_line(char *line, char* args[], int max_cnt);
 
 void pause_sweep(void);
+void resume_sweep(void);
 void toggle_sweep(void);
 void load_default_properties(void);
 int  load_properties(uint32_t id);

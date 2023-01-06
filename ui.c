@@ -127,9 +127,9 @@ enum {
 #ifdef __USE_SD_CARD__
 // Save format enum
 enum {
-//  FMT_S1P_FILE=0, FMT_S2P_FILE,
+  FMT_S1P_FILE=0, FMT_S2P_FILE,
   FMT_BMP_FILE,
-//  FMT_CAL_FILE,
+  FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   FMT_BIN_FILE,
 #endif
@@ -1760,6 +1760,8 @@ static void vna_save_file(char *name, uint8_t format)
 //        total_size+=size;
         lcd_fill(LCD_WIDTH-1, y, 1, 1);
       }
+      lcd_set_background(LCD_BG_COLOR);
+      lcd_fill(LCD_WIDTH-1, 0, 1, LCD_HEIGHT);
       break;
 #if 0
       /*
@@ -2876,10 +2878,10 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\nHH MM SS", input_date_time}, // Time
 #endif
 #ifdef __USE_SD_CARD__
-//[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
-//[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
+[KM_S1P_NAME]       = {KEYPAD_TEXT,    FMT_S1P_FILE, "S1P",                input_filename },  // s1p filename
+[KM_S2P_NAME]       = {KEYPAD_TEXT,    FMT_S2P_FILE, "S2P",                input_filename },  // s2p filename
 [KM_BMP_NAME]       = {KEYPAD_TEXT,    FMT_BMP_FILE, "BMP",                input_filename },  // bmp filename
-//[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
+[KM_CAL_NAME]       = {KEYPAD_TEXT,    FMT_CAL_FILE, "CAL",                input_filename },  // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]        = {KEYPAD_TEXT,   FMT_BIN_FILE,  "BIN",                input_filename }, // bin filename
 #endif
@@ -3492,8 +3494,10 @@ static bool
 touch_made_screenshot(int touch_x, int touch_y) {
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
+  pause_sweep();
   touch_wait_release();
   menu_sdcard_cb(FMT_BMP_FILE);
+  resume_sweep();
   return TRUE;
 }
 #endif
