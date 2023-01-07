@@ -615,9 +615,7 @@ enter_dfu(void)
   lcd_clear_screen();
   lcd_drawstring(x, y, "DFU: Device Firmware Update Mode\n"
                        "To exit DFU mode, please reset device yourself.");
-  // see __early_init in ./NANOVNA_STM32_F072/board.c
-  *((unsigned long *)BOOT_FROM_SYTEM_MEMORY_MAGIC_ADDRESS) = BOOT_FROM_SYTEM_MEMORY_MAGIC;
-  NVIC_SystemReset();
+  boardDFUEnter();
 }
 #endif
 

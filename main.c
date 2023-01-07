@@ -3035,7 +3035,7 @@ static const VNAShellCommand commands[] =
 #endif
     {"vbat"        , cmd_vbat        , CMD_RUN_IN_LOAD},
     {"tcxo"        , cmd_tcxo        , CMD_RUN_IN_LOAD},
-    {"reset"       , cmd_reset       , CMD_RUN_IN_LOAD},
+    {"reset"       , cmd_reset       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_LOAD},
 #ifdef __USE_SMOOTH__
     {"smooth"      , cmd_smooth      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif

@@ -40,11 +40,7 @@
 // Use DAC (in H4 used for brightness used DAC, so need enable __LCD_BRIGHTNESS__ for it)
 //#define __VNA_ENABLE_DAC__
 // Allow enter to DFU from menu or command
-#if defined(NANOVNA_F303)
-//#define __DFU_SOFTWARE_MODE__
-#else
 #define __DFU_SOFTWARE_MODE__
-#endif
 // Add RTC clock support
 #define __USE_RTC__
 // Add RTC backup registers support
