@@ -38,6 +38,8 @@
 //#define CHPRINTF_FREQUENCY_SIZE_64
 //#define CHPRINTF_USE_INT_64
 
+#define CHPRINTF_USE_DOUBLE
+
 // Force putting trailing zeros on float value
 #define CHPRINTF_FORCE_TRAILING_ZEROS
 
@@ -49,6 +51,12 @@
 typedef uint64_t pfreq_t;
 #else
 typedef uint32_t pfreq_t;
+#endif
+
+#ifdef CHPRINTF_USE_DOUBLE
+typedef double inout_float;
+#else
+typedef float inout_float;
 #endif
 
 #ifdef CHPRINTF_FREQUENCY_SIZE_64
@@ -171,7 +179,7 @@ ulong_freq(char *p, pfreq_t freq, int precision)
 }
 
 #if CHPRINTF_USE_FLOAT
-static char *ftoa(char *p, float num, int precision) {
+static char *ftoa(char *p, inout_float num, int precision) {
   // Check precision limit
   if (precision > FLOAT_PRECISION)
     precision = FLOAT_PRECISION;
@@ -189,7 +197,7 @@ static char *ftoa(char *p, float num, int precision) {
   return p;
 }
 
-static char *ftoaS(char *p, float num, int16_t precision) {
+static char *ftoaS(char *p, inout_float num, int16_t precision) {
   char prefix=0;
   const char *ptr;
   if (num >= 990.0f){
@@ -223,6 +231,26 @@ static char *ftoaS(char *p, float num, int16_t precision) {
     *p++ = prefix;
   return p;
 }
+
+static char *etoa(char *p, inout_float num, uint32_t precision) {
+  int exp = 0;
+  if (num == 0) { *p++ = '0'; return p; }
+  while (num < 0.0001) { num *= 100000.0; exp-=5; }
+  while (num < 10) { num *= 10.0; exp--; }
+  while (num > 100000) { num /= 100000.0; exp+=5; }
+  while (num > 10) { num /= 10.0; exp++; }
+  *p++ = ((int)num) + '0'; num *=10.0;
+  *p++ = '.';
+  if (precision == 0) precision = 12;
+  while (precision--) { *p++ = (((int)num) % 10) + '0'; num *=10.0; }
+  *p++ = 'e';
+  if (exp < 0) {  *p++ = '-'; exp = -exp;} else *p++ = '+';
+  *p++ = (((int)exp) / 10 ) + '0';
+  *p++ = (((int)exp) % 10 ) + '0';
+  return p;
+}
+
+
 #endif
 
 /**
@@ -270,6 +298,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
     ulongval_t  u;
     longval_t   l;
     float       f;
+    double      d;
   }value;
 #if CHPRINTF_USE_FLOAT
   char tmpbuf[2*MAX_FILLER + 1];
@@ -402,16 +431,19 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
 #endif
       break;
 #if CHPRINTF_USE_FLOAT
+    case 'e':
     case 'F':
     case 'f':
-      if (state & SHORT_FLOAT)
+      if (state & SHORT_FLOAT) {
         value.u = va_arg(ap, uint32_t);
+        value.d = value.f;
+      }
       else
-        value.f = va_arg(ap, double);
-      if (value.f < 0) {
+        value.d = va_arg(ap, double);
+      if (value.d < 0) {
         state|=NEGATIVE;
         *p++ = '-';
-        value.f = -value.f;
+        value.d = -value.d;
       }
       else if (state & POSITIVE)
         *p++ = '+';
@@ -421,14 +453,16 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
 #endif
       if (state & COMPLEX)
         *p++ = 'j';
-      if (value.f == INFINITY){
+      if (value.d == INFINITY){
         *p++ = 0x19; *p++ = ' ';
         break;
       }
       // Set default precision
       if (state&DEFAULT_PRESCISION)
         precision = (c=='F') ? FLOAT_PREFIX_PRECISION : FLOAT_PRECISION;
-      p = (c=='F') ? ftoaS(p, value.f, precision) : ftoa(p, value.f, precision);
+//      p = (c=='F') ? ftoaS(p, value.f, precision) : ftoa(p, value.f, precision);
+      p = (c=='F') ? ftoaS(p, value.d, precision) : ((c=='e') ? etoa(p, value.d, precision) : ftoa(p, value.d, state&DEFAULT_PRESCISION ? FLOAT_PRECISION : precision));
+
 #ifdef CHPRINTF_FORCE_TRAILING_ZEROS
       if (state & PAD_ZERO) { // remove zeros at end
         state^= PAD_ZERO;

@@ -145,6 +145,8 @@ float level_b;
 float level_sa;
 float level_sb;
 #endif
+double phase_wraps = 0;
+double prev_phase = 0;
 int missing_samples = 0;
 uint32_t transform_count = 0;
 uint32_t max_average_count = 5;
@@ -308,7 +310,7 @@ pause_sweep(void)
   sweep_mode &= ~SWEEP_ENABLE;
 }
 
-static inline void
+void
 resume_sweep(void)
 {
   sweep_mode |= SWEEP_ENABLE;
@@ -846,8 +848,48 @@ VNA_SHELL_FUNCTION(cmd_freq)
   uint32_t freq = my_atoui(argv[0]);
   pause_sweep();
   set_frequency(freq);
-  return;
 }
+
+VNA_SHELL_FUNCTION(cmd_decimation)
+{
+  if (argc != 1) {
+    shell_printf("usage: decimation {factor}" VNA_SHELL_NEWLINE_STR);
+    return;
+  }
+  uint32_t decm = my_atoui(argv[0]);
+  config.decimation = decm;
+  set_tau(get_tau());   // Increase Tau if needed for decimation.
+}
+
+VNA_SHELL_FUNCTION(cmd_tau)
+{
+  if (argc != 1) {
+    shell_printf("usage: tau {time(s)}" VNA_SHELL_NEWLINE_STR);
+    return;
+  }
+  float freq = my_atof(argv[0]);
+  set_tau(freq);
+}
+
+VNA_SHELL_FUNCTION(cmd_unwrap)
+{
+  if (argc != 1) goto usage;
+  //                              0   1
+  static const char cmd_list[] = "off|on";
+  switch (get_str_index(argv[0], cmd_list)) {
+    case 0:
+      apply_VNA_mode(VNA_MODE_UNWRAP, VNA_MODE_CLR);
+      return;
+    case 1:
+      apply_VNA_mode(VNA_MODE_UNWRAP, VNA_MODE_SET);
+      return;
+    default:
+      break;
+  }
+usage:
+  shell_printf("usage: unwrap {%s}" VNA_SHELL_NEWLINE_STR, cmd_list);
+}
+
 
 void set_power(uint8_t value){
   request_to_redraw(REDRAW_CAL_STATUS);
@@ -857,7 +899,7 @@ void set_power(uint8_t value){
   // Update power if pause, need for generation in CW mode
   if (!(sweep_mode&SWEEP_ENABLE)) si5351_set_power(value);
 }
-
+#if 0
 VNA_SHELL_FUNCTION(cmd_power)
 {
   if (argc != 1) {
@@ -884,7 +926,7 @@ VNA_SHELL_FUNCTION(cmd_pull)
   }
 //  set_frequency(frequency);
 }
-
+#endif
 #ifdef __USE_RTC__
 VNA_SHELL_FUNCTION(cmd_time)
 {
@@ -929,7 +971,7 @@ VNA_SHELL_FUNCTION(cmd_dac)
   dac_setvalue_ch2(my_atoui(argv[0])&0xFFF);
 }
 #endif
-
+#if 0
 VNA_SHELL_FUNCTION(cmd_threshold)
 {
   uint32_t value;
@@ -941,7 +983,7 @@ VNA_SHELL_FUNCTION(cmd_threshold)
   value = my_atoui(argv[0]);
   config._harmonic_freq_threshold = value;
 }
-
+#endif
 VNA_SHELL_FUNCTION(cmd_saveconfig)
 {
   (void)argc;
@@ -1252,7 +1294,7 @@ volatile uint16_t wait_count = 0;
 volatile uint16_t dirty_count = 0;
 //volatile uint16_t tau_count = 0;
 volatile uint16_t tau_current = 0;
-uint16_t decimation_current = 0;
+//uint16_t decimation_current = 0;
 // i2s buffer must be 2x size (for process one while next buffer filled by DMA)
 static audio_sample_t rx_buffer[AUDIO_BUFFER_LEN * 2];
 static audio_sample_t *filled_buffer;
@@ -1639,15 +1681,15 @@ static bool sweep(bool break_on_operation, uint16_t mask)
          if (dirty == 2) {
            wraps = 0;
          } else {
-           if (phase + wraps > prev_phase + 0.5) {          // Unwrap
+           if (phase + wraps > res_prev_phase + 0.5) {          // Unwrap
              wraps--;
            }
-           if (phase + wraps < prev_phase - 0.5) {
+           if (phase + wraps < res_prev_phase - 0.5) {
              wraps++;
            }
            phase += wraps;
 
-           freq =  (phase - prev_phase) * AUDIO_ADC_FREQ;
+           freq =  (phase - res_prev_phase) * AUDIO_ADC_FREQ;
            freq /= config.tau*(config._bandwidth+SAMPLE_OVERHEAD) * AUDIO_SAMPLES_COUNT;
 
            if (dirty == 1) {
@@ -1679,7 +1721,7 @@ static bool sweep(bool break_on_operation, uint16_t mask)
            dirty--;
          if (sample_count > 200)
            add_correction(v,residue-aver_residue);
-         prev_phase = phase;
+         res_prev_phase = phase;
 #endif
         //      }
         //      v = v/sweep_points;
@@ -1717,8 +1759,8 @@ fetch_next:
   requested_points = sweep_points;
   if (current_props._fft_mode != FFT_OFF)
     requested_points = FFT_SIZE;
-  float prev_phase = 0;
-  float phase_wraps = 0;
+//  float res_prev_phase = 0;
+
   for (; p_sweep < requested_points; /* p_sweep++ */) {
 //     palSetPad(GPIOC, GPIOC_LED);
 //     DSP_START(0);
@@ -1752,32 +1794,39 @@ fetch_next:
         continue;
       }
 
-      float v = temp_measured[temp_output][3]/2;
+      double phase = temp_measured[temp_output][3];
+      double unwrapped_phase = phase + phase_wraps;
+      double delta_phase = unwrapped_phase - prev_phase;
+      if (delta_phase > HALF_PHASE) {
+         phase_wraps -= FULL_PHASE;
+         unwrapped_phase -= FULL_PHASE;
+      }
+      if (delta_phase < -HALF_PHASE) {
+         phase_wraps += FULL_PHASE;
+         unwrapped_phase += FULL_PHASE;
+      }
+      prev_phase = unwrapped_phase;
+
+//      float v = temp_measured[temp_output][3]/2;
       if (VNA_MODE(VNA_MODE_DISK_LOG))
-        disk_log(v);
+        disk_log(VNA_MODE(VNA_MODE_UNWRAP)? unwrapped_phase/2 : phase/2);
       if (VNA_MODE(VNA_MODE_USB_LOG)) {
-        shell_printf("%f ChA\r\n", v);
+        freq_t f = get_sweep_frequency(ST_START);
+        double v = (VNA_MODE(VNA_MODE_UNWRAP)? unwrapped_phase/2 : phase/2) / f;
+        if (VNA_MODE(VNA_MODE_UNWRAP))
+          shell_printf("%.12e ChA\r\n", v);
+        else
+          shell_printf("%f ChA\r\n", phase/2);
 #ifdef SIDE_CHANNEL
         if (VNA_MODE(VNA_MODE_DUMP_SIDE)) {
           float v2 = temp_measured[temp_output][0]/2;
-          shell_printf("%f ChB\r\n", v2);
+          shell_printf("%e ChB\r\n", v2);
         }
 #endif
       }
       if (current_props._fft_mode == FFT_PHASE) {
         float* tmp  = (float*)spi_buffer;
-        float phase = temp_measured[temp_output][3] + phase_wraps;
-        float delta_phase = phase - prev_phase;
-        if (delta_phase > HALF_PHASE) {
-           phase_wraps -= FULL_PHASE;
-           phase -= FULL_PHASE;
-        }
-        if (delta_phase < -HALF_PHASE) {
-           phase_wraps += FULL_PHASE;
-           phase += FULL_PHASE;
-        }
-        prev_phase = phase;
-        tmp[p_sweep * 2 + 0] = phase;
+        tmp[p_sweep * 2 + 0] = unwrapped_phase;
         tmp[p_sweep * 2 + 1] = 0;
 //        shell_printf("%d %f %f %f\r\n", p_sweep,  tmp[p_sweep * 2 + 0]);
       }
@@ -3020,7 +3069,6 @@ usage:
                "trace {0|1|2|3} {%s} {value}" VNA_SHELL_NEWLINE_STR, cmd_type_list, cmd_marker_smith, cmd_scale_ref_list);
 }
 
-#endif
 
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
@@ -3039,6 +3087,7 @@ VNA_SHELL_FUNCTION(cmd_s21offset)
   }
   set_s21_offset(my_atof(argv[0]));     // input value in dB
 }
+#endif
 
 VNA_SHELL_FUNCTION(cmd_marker)
 {
@@ -3672,8 +3721,8 @@ static const VNAShellCommand commands[] =
     {"frequencies" , cmd_frequencies , 0},
     {"freq"        , cmd_freq        , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"sweep"       , cmd_sweep       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
-    {"power"       , cmd_power       , CMD_RUN_IN_LOAD},
-    {"pull"        , cmd_pull        , CMD_RUN_IN_LOAD},
+//    {"power"       , cmd_power       , CMD_RUN_IN_LOAD},
+//    {"pull"        , cmd_pull        , CMD_RUN_IN_LOAD},
 #ifdef USE_VARIABLE_OFFSET
     {"offset"      , cmd_offset      , CMD_WAIT_MUTEX|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #endif
@@ -3721,8 +3770,8 @@ static const VNAShellCommand commands[] =
     {"recall"      , cmd_recall      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 //    {"trace"       , cmd_trace       , CMD_RUN_IN_LOAD},
     {"marker"      , cmd_marker      , CMD_RUN_IN_LOAD},
-    {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
-    {"s21offset"   , cmd_s21offset   , CMD_RUN_IN_LOAD},
+//    {"edelay"      , cmd_edelay      , CMD_RUN_IN_LOAD},
+//    {"s21offset"   , cmd_s21offset   , CMD_RUN_IN_LOAD},
     {"capture"     , cmd_capture     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI},
 #ifdef __VNA_MEASURE_MODULE__
     {"measure"     , cmd_measure     , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
@@ -3753,7 +3802,7 @@ static const VNAShellCommand commands[] =
 #ifdef ENABLE_TRANSFORM_COMMAND
     {"transform"   , cmd_transform   , CMD_RUN_IN_LOAD},
 #endif
-    {"threshold"   , cmd_threshold   , CMD_RUN_IN_LOAD},
+//    {"threshold"   , cmd_threshold   , CMD_RUN_IN_LOAD},
     {"help"        , cmd_help        , 0},
 #ifdef ENABLE_INFO_COMMAND
     {"info"        , cmd_info        , 0},
