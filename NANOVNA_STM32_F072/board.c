@@ -104,7 +104,7 @@ void __early_init(void) {
     // set msp for system memory
     __set_MSP(SYSTEM_BOOT_MSP); 
     // jump to system memory
-    ( (void (*)(void)) (*((uint32_t *)(STM32F072xB_SYSTEM_MEMORY+4))) )();
+    ((void (*)(void))(*((uint32_t *)(STM32F072xB_SYSTEM_MEMORY + 4))))();
     while (1);
   }
 

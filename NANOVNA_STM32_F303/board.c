@@ -63,8 +63,8 @@ const PALConfig pal_default_config = {
 #endif
 
 void boardDFUEnter(void) {
-  __set_MSP(SYSTEM_BOOT_MSP);
-  ( (void (*)(void)) (*((uint32_t *)(STM32F303xC_SYSTEM_MEMORY + 4))) )(); // jump to DFU
+  __set_MSP(*((uint32_t *)(STM32F303xC_SYSTEM_MEMORY)));
+  ((void (*)(void))(*((uint32_t *)(STM32F303xC_SYSTEM_MEMORY + 4))))(); // jump to DFU
 }
 
 /*
