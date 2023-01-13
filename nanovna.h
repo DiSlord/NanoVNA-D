@@ -528,7 +528,7 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 
 #define FREQUENCIES_XPOS1           OFFSETX
 #define FREQUENCIES_XPOS2           (LCD_WIDTH - 23 * sFONT_WIDTH)
-#define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 14 * sFONT_WIDTH / 2)
+#define FREQUENCIES_XPOS3           (LCD_WIDTH/2 + OFFSETX - 16 * sFONT_WIDTH / 2)
 #define FREQUENCIES_YPOS            (AREA_HEIGHT_NORMAL)
 #endif // end 320x240 display plot definitions
 
