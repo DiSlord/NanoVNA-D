@@ -1639,8 +1639,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
           n = 10;
         }
         else {                      // MMC or SDC V1
-          csize = ((uint32_t)csd[8]>>6)|((uint32_t)csd[7]<<2)|((uint32_t)(csd[6]&0x03)<<10);
-          n = ((csd[5]&0x0F)|((csd[10]&0x80)>>7)|((csd[9]&0x03)<<1)) + 2 - 9;
+          csize = ((uint32_t)csd[8]>>6)+((uint32_t)csd[7]<<2)+((uint32_t)(csd[6]&0x03)<<10);
+          n = (csd[5]&0x0F)+((csd[10]&0x80)>>7)+((csd[9]&0x03)<<1) + 2 - 9;
         }
         *(uint32_t*)buff = (csize+1)<<n;
         res = RES_OK;
