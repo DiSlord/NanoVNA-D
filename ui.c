@@ -26,6 +26,9 @@
 #include "nanovna.h"
 #include "si5351.h"
 
+// Use size optimization (UI not need fast speed, better have smallest size)
+#pragma GCC optimize ("Os")
+
 // Hardware UI buttons/touch data / functions
 #define NO_EVENT                    0
 #define EVT_BUTTON_SINGLE_CLICK     0x01
@@ -142,7 +145,7 @@ typedef struct {
 
 // Max keyboard input length
 #define NUMINPUT_LEN 12
-#if FF_USE_LFN
+#if defined(FF_USE_LFN)
 #define TXTINPUT_LEN (FF_MAX_LFN - 4)
 #else
 #define TXTINPUT_LEN (8)
@@ -549,10 +552,12 @@ touch_position(int *x, int *y)
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
   int ty = ((LCD_HEIGHT-1-CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) + CALIBRATION_OFFSET * (config._touch_cal[3] - last_touch_y)) / (config._touch_cal[3] - config._touch_cal[1]);
   if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
+#ifdef __FLIP_DISPLAY__
   if (VNA_MODE(VNA_MODE_FLIP_DISPLAY)) {
     tx = LCD_WIDTH - 1 - tx;
     ty = LCD_HEIGHT - 1 - ty;
   }
+#endif
   *x = tx;
   *y = ty;
 }
@@ -3132,7 +3137,7 @@ static bool
 touch_lever_mode_select(int touch_x, int touch_y)
 {
   int mode = -1;
-  if (touch_y > HEIGHT)
+  if (touch_y > HEIGHT && (props_mode & DOMAIN_MODE) == DOMAIN_FREQ) // Only for frequency domain
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
   if (touch_y < UI_MARKER_Y0)
     mode = (touch_x < (LCD_WIDTH / 2) && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
