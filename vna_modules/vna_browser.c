@@ -224,7 +224,7 @@ finish:
   f_close(fs_file);
   if (error) {
     lcd_clear_screen();
-    drawMessageBox(error, fno.fname, leave_show ? 2000 : 0);
+    drawMessageBox(error, fno.fname, leave_show ? 2000 : 10);
   }
   if (leave_show) return;
   // Process input
@@ -274,7 +274,7 @@ static void browser_draw_page(int page) {
   int cnt = 0;
   uint16_t start_file = (page - 1) * FILES_PER_PAGE;
   lcd_set_background(LCD_MENU_COLOR);
-  lcd_clear_screen();
+  //lcd_clear_screen();
   while (sd_findnext(&dj, &fno) == FR_OK) {
     if (cnt >= start_file && cnt < (start_file + FILES_PER_PAGE)) {
       //uint16_t sec = ((fno.ftime<<1)  & 0x3F);
@@ -295,6 +295,15 @@ static void browser_draw_page(int page) {
     file_count = cnt;
     page_count = cnt == 0 ? 1 : (file_count + FILES_PER_PAGE - 1) / FILES_PER_PAGE;
   }
+  // Erase not used button
+  cnt-= start_file;
+  while(cnt < FILES_PER_PAGE) {
+    browser_btn_t btn;
+    browser_get_button_pos(cnt + FILE_BUTTON_FILE, &btn);
+    lcd_fill(btn.x, btn.y, btn.w, btn.h);
+    cnt++;
+  }
+  lcd_fill(0, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH, FILE_BOTTOM_HEIGHT);
   browser_draw_buttons();
   lcd_printf(LCD_WIDTH / 2 - 3 * FONT_WIDTH, LCD_HEIGHT - (FILE_BOTTOM_HEIGHT + FONT_STR_HEIGHT) / 2, "- %u | %u -", page, page_count);
   return;
