@@ -1,3 +1,22 @@
+/*
+ * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
+ * All rights reserved.
+ *
+ * This is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3, or (at your option)
+ * any later version.
+ *
+ * The software is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with GNU Radio; see the file COPYING.  If not, write to
+ * the Free Software Foundation, Inc., 51 Franklin Street,
+ * Boston, MA 02110-1301, USA.
+ */
 static uint16_t file_count;
 static uint16_t page_count;
 static uint16_t current_page;
@@ -304,6 +323,7 @@ static void browser_draw_page(int page) {
     cnt++;
   }
   lcd_fill(0, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH, FILE_BOTTOM_HEIGHT);
+
   browser_draw_buttons();
   lcd_printf(LCD_WIDTH / 2 - 3 * FONT_WIDTH, LCD_HEIGHT - (FILE_BOTTOM_HEIGHT + FONT_STR_HEIGHT) / 2, "- %u | %u -", page, page_count);
   return;
