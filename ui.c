@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
  * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
@@ -578,7 +578,7 @@ show_version(void)
     lcd_drawstring(x, y+=str_height-5, info_about[i++]);
   }
   lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
-
+  lcd_printf(LCD_WIDTH - 20*FONT_WIDTH, LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
   y+=str_height*2;
   // Update battery and time
   uint16_t cnt = 0;

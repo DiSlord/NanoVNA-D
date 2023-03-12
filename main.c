@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
  * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
@@ -125,12 +125,12 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.19"
+#define VERSION "1.2.20"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2019-2022 Copyright @DiSlord (based on @edy555 source)",
+  "2019-2023 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL.",
   "  https://github.com/DiSlord/NanoVNA-D",
   "Donate support:",
