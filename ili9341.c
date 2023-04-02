@@ -851,6 +851,24 @@ int lcd_printfV(int16_t x, int16_t y, const char *fmt, ...) {
   return retval;
 }
 
+void lcd_blitBitmapScale(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t size, const uint8_t *b) {
+  ili9341_setWindow(x, y, w * size, h * size, ILI9341_MEMORY_WRITE);
+  for (int c = 0; c < h; c++) {
+    const uint8_t *ptr = b; uint8_t bits = 0;
+    for (int i = 0; i < size; i++) {
+      ptr = b;
+      for (int r = 0; r < w; r++, bits <<= 1) {
+        if ((r&7) == 0) bits = *ptr++;
+        for (int j = 0; j < size; j++) {
+          while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
+          SPI_WRITE_16BIT(LCD_SPI, (0x80 & bits) ? foreground_color : background_color);
+        }
+      }
+    }
+    b = ptr;
+  }
+}
+
 int lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size) {
   const uint8_t *char_buf = FONT_GET_DATA(ch);
   uint16_t w = FONT_GET_WIDTH(ch);

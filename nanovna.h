@@ -306,7 +306,7 @@ void cal_done(void);
 
 #define MAX_FREQ_TYPE 5
 enum stimulus_type {
-  ST_START=0, ST_STOP, ST_CENTER, ST_CW, ST_SPAN, ST_VAR
+  ST_START=0, ST_STOP, ST_CENTER, ST_CW, ST_SPAN, ST_STEP, ST_VAR
 };
 
 freq_t getFrequency(uint16_t idx);
@@ -1241,6 +1241,7 @@ void lcd_set_background(uint16_t bg_idx);
 void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx);
 void lcd_clear_screen(void);
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
+void lcd_blitBitmapScale(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t size, const uint8_t *b);
 void lcd_drawchar(uint8_t ch, int x, int y);
 #if 0
 void lcd_drawstring(int16_t x, int16_t y, const char *str);

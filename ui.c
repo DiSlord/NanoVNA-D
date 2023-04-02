@@ -93,7 +93,7 @@ typedef struct {
 // Keypad structures
 // Enum for keypads_list
 enum {
-  KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_VAR, // frequency input
+  KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_STEP, KM_VAR, // frequency input
   KM_POINTS, KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
   KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
@@ -230,6 +230,15 @@ static void menu_set_submenu(const menuitem_t *submenu);
 // Icons for UI
 #include "icons_menu.c"
 
+static uint16_t get_buttons(void) {
+  uint16_t cur_button = READ_BUTTONS();
+#ifdef __FLIP_DISPLAY__
+  // swap bits in byte (swap leveler left and right bits for rotated display)
+  if (VNA_MODE(VNA_MODE_FLIP_DISPLAY) && (((cur_button>>GPIOA_LEVER1)^(cur_button>>GPIOA_LEVER2))&1)) cur_button^= (1<<GPIOA_LEVER1)|(1<<GPIOA_LEVER2);
+#endif
+  return cur_button;
+}
+
 static uint16_t btn_check(void)
 {
   systime_t ticks;
@@ -241,7 +250,7 @@ static uint16_t btn_check(void)
     chThdSleepMilliseconds(2);
   }
   uint16_t status = 0;
-  uint16_t cur_button = READ_BUTTONS();
+  uint16_t cur_button = get_buttons();
   // Detect only changed and pressed buttons
   uint16_t button_set = (last_button ^ cur_button) & cur_button;
   last_button_down_ticks = ticks;
@@ -267,7 +276,7 @@ static uint16_t btn_wait_release(void)
 //      continue;
 //    }
     chThdSleepMilliseconds(10);
-    uint16_t cur_button = READ_BUTTONS();
+    uint16_t cur_button = get_buttons();
     uint16_t changed = last_button ^ cur_button;
     if (dt >= BUTTON_DOWN_LONG_TICKS && (cur_button & BUTTON_PUSH))
       return EVT_BUTTON_DOWN_LONG;
@@ -562,6 +571,43 @@ touch_position(int *x, int *y)
   *y = ty;
 }
 
+#ifdef QR_CODE_DRAW
+// 31x31 QR code image
+// https://github.com/DiSlord/NanoVNA-D
+static const uint8_t qr_code_map[] = {
+  0xff, 0xff, 0xff, 0xfe,
+  0x80, 0xa2, 0x2e, 0x02,
+  0xbe, 0xe8, 0xea, 0xfa,
+  0xa2, 0xaa, 0x4a, 0x8a,
+  0xa2, 0xce, 0xca, 0x8a,
+  0xa2, 0xe8, 0x66, 0x8a,
+  0xbe, 0x93, 0x8a, 0xfa,
+  0x80, 0xaa, 0xaa, 0x02,
+  0xff, 0xea, 0xaf, 0xfe,
+  0xae, 0x58, 0xbb, 0x6a,
+  0xab, 0x00, 0x60, 0x72,
+  0xca, 0x63, 0x62, 0x0a,
+  0xe1, 0xbd, 0xf9, 0x9e,
+  0x8a, 0xa5, 0x32, 0x7a,
+  0xbd, 0x8b, 0xba, 0x72,
+  0xae, 0x40, 0x14, 0x3a,
+  0xb3, 0xfe, 0x32, 0x7e,
+  0x98, 0x58, 0xa8, 0xfa,
+  0xe9, 0x30, 0x96, 0x62,
+  0x8c, 0x27, 0x37, 0x9a,
+  0xfb, 0xfd, 0x2a, 0xbe,
+  0x96, 0xb1, 0x58, 0x16,
+  0xff, 0xab, 0x9b, 0x8a,
+  0x80, 0xac, 0x7a, 0xba,
+  0xbe, 0xf6, 0x33, 0xbe,
+  0xa2, 0xdc, 0xb0, 0x1a,
+  0xa2, 0xd4, 0x31, 0x8a,
+  0xa2, 0x87, 0x0d, 0xb2,
+  0xbe, 0xc1, 0x2b, 0x1e,
+  0x80, 0xbf, 0xbb, 0x9a,
+  0xff, 0xff, 0xff, 0xfe,
+};
+#endif
 static void
 show_version(void)
 {
@@ -580,6 +626,9 @@ show_version(void)
   lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
   lcd_printf(LCD_WIDTH - 20*FONT_WIDTH, LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
   y+=str_height*2;
+#ifdef QR_CODE_DRAW
+  lcd_blitBitmapScale(LCD_WIDTH - 32*3, 5, 31, 31, 3, qr_code_map);
+#endif
   // Update battery and time
   uint16_t cnt = 0;
   while (true) {
@@ -1858,6 +1907,7 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_CENTER, "CENTER",        menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_STEP,   "FREQ STEP\n " R_LINK_COLOR "%bF" S_Hz, menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
   { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n " R_LINK_COLOR "%u",  menu_points_sel_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
@@ -2426,6 +2476,7 @@ UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
     if (data == ST_VAR)
       plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
+    if (data == ST_STEP) b->p1.f = (float)get_sweep_frequency(ST_SPAN) / (sweep_points - 1);
     return;
   }
   set_sweep_frequency(data, keyboard_get_freq());
@@ -2564,6 +2615,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_CENTER]          = {KEYPAD_FREQ,   ST_CENTER,     "CENTER",             input_freq     }, // center
 [KM_SPAN]            = {KEYPAD_FREQ,   ST_SPAN,       "SPAN",               input_freq     }, // span
 [KM_CW]              = {KEYPAD_FREQ,   ST_CW,         "CW FREQ",            input_freq     }, // cw freq
+[KM_STEP]            = {KEYPAD_FREQ,   ST_STEP,       "FREQ STEP",          input_freq     }, // freq as point step
 [KM_VAR]             = {KEYPAD_FREQ,   ST_VAR,        "JOG STEP",           input_freq     }, // VAR freq step
 [KM_POINTS]          = {KEYPAD_UFLOAT, 0,             "POINTS",             input_points   }, // Points num
 [KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale

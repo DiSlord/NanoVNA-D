@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.20"
+#define VERSION "1.2.21"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1621,6 +1621,12 @@ set_sweep_frequency(uint16_t type, freq_t freq)
   // Check frequency for out of bounds (minimum SPAN can be any value)
   if (type < ST_SPAN && freq < FREQUENCY_MIN)
     freq = FREQUENCY_MIN;
+  // One point step input, so change stop freq or span depend from mode
+  if (type == ST_STEP) {
+    freq*= (sweep_points - 1);
+    type = FREQ_IS_CENTERSPAN() ? ST_SPAN : ST_STOP;
+    if (type == ST_STOP) freq+= frequency0;
+  }
   if (freq > FREQUENCY_MAX)
     freq = FREQUENCY_MAX;
   freq_t center, span;
@@ -1696,9 +1702,9 @@ VNA_SHELL_FUNCTION(cmd_sweep)
 #if MAX_FREQ_TYPE != 5
 #error "Sweep mode possibly changed, check cmd_sweep function"
 #endif
-  // Parse sweep {start|stop|center|span|cw} {freq(Hz)}
-  // get enum ST_START, ST_STOP, ST_CENTER, ST_SPAN, ST_CW, ST_VAR
-  static const char sweep_cmd[] = "start|stop|center|span|cw|var";
+  // Parse sweep {start|stop|center|span|cw|step|var} {freq(Hz)}
+  // get enum ST_START, ST_STOP, ST_CENTER, ST_SPAN, ST_CW, ST_STEP, ST_VAR
+  static const char sweep_cmd[] = "start|stop|center|span|cw|step|var";
   if (argc == 2 && value0 == 0) {
     int type = get_str_index(argv[0], sweep_cmd);
     if (type == -1)
