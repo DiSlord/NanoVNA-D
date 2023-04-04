@@ -2991,11 +2991,15 @@ ui_mode_menu(void)
 static void
 ui_menu_lever(uint16_t status)
 {
+  uint16_t count = current_menu_get_count();
   if (status & EVT_BUTTON_SINGLE_CLICK) {
-    menu_invoke(selection);
+    if ((uint16_t)selection >= count)
+      ui_mode_normal();
+    else
+      menu_invoke(selection);
     return;
   }
-  uint16_t count = current_menu_get_count();
+
   do {
     uint32_t mask = 1<<selection;
     if (status & EVT_UP  ) selection++;
