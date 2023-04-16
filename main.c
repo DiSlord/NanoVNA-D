@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.21"
+#define VERSION "1.2.22"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1083,7 +1083,7 @@ static void load_settings(void) {
       set_bandwidth(bk.bw);
     }
   }
-  else
+  if (sweep_points == 0) // Try load 0 slot or defaults calibration data
     caldata_recall(0);
   update_frequencies();
 #ifdef __VNA_MEASURE_MODULE__

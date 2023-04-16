@@ -1391,14 +1391,14 @@ static const char s1_file_header[] =
   "# Hz S RI R 50\r\n";
 
 static const char s1_file_param[] =
-  "%10u % f % f\r\n";
+  "%u % f % f\r\n";
 
 static const char s2_file_header[] =
   "!File created by NanoVNA\r\n"\
   "# Hz S RI R 50\r\n";
 
 static const char s2_file_param[] =
-  "%10u % f % f % f % f 0 0 0 0\r\n";
+  "%u % f % f % f % f 0 0 0 0\r\n";
 
 //*******************************************************************************************
 // Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
