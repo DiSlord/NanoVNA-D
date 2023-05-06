@@ -1335,7 +1335,7 @@ get_sweep_frequency(uint16_t type)
   switch (type) {
     case ST_START:  return frequency0;
     case ST_STOP:   return frequency1;
-    case ST_CENTER: return frequency0/2 + frequency1/2;
+    case ST_CENTER: return (frequency0>>1) + (frequency1>>1) + (frequency0&1);
     case ST_SPAN:   return frequency1 - frequency0;
     case ST_CW:     return frequency0;
   }

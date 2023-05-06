@@ -1646,7 +1646,7 @@ set_sweep_frequency(uint16_t type, freq_t freq)
     case ST_CENTER:
       FREQ_CENTERSPAN();
       center = freq;
-      span   = (frequency1 - frequency0)>>1;
+      span   = (frequency1 - frequency0 + 1)>>1;
       if (span > center - FREQUENCY_MIN)
         span = (center - FREQUENCY_MIN);
       if (span > FREQUENCY_MAX - center)
@@ -1656,7 +1656,7 @@ set_sweep_frequency(uint16_t type, freq_t freq)
       break;
     case ST_SPAN:
       FREQ_CENTERSPAN();
-      center = (frequency0>>1) + (frequency1>>1);
+      center = get_sweep_frequency(ST_CENTER);
       span = freq>>1;
       if (center < FREQUENCY_MIN + span)
         center = FREQUENCY_MIN + span;
