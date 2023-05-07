@@ -408,7 +408,7 @@ static void analysis_lcseries(void) {
   float ypeak = search_peak_value(&xp, s21pow2, MEASURE_SEARCH_MAX);
   if (xp == 0) return; // peak not found
   // motional resistance, Rm
-  s21_measure->r = 2 * config._measure_r * (1.0f / vna_sqrtf(ypeak) - 1.0f);
+  s21_measure->r = config._measure_r * (1.0f / vna_sqrtf(ypeak) - 1.0f);
   if(s21_measure->r < 0) return;
   set_marker_index(0, xp);
 
@@ -429,7 +429,8 @@ static void analysis_lcseries(void) {
   float bw = f2 - f1;
   float fpeak = vna_sqrtf(f2*f1);
   // The total resistance, REFF, seen by the crystal is the sum of the load resistance (input and output) and the motional resistance, Rm:
-  float reff = 2 * config._measure_r + s21_measure->r;
+  // WARNING: When the input is referred to the plane AFTER the source resistance, the REFF is then only the sum of output load resistance and the motional resistance, Rm:
+  float reff = config._measure_r + s21_measure->r;
 
   s21_measure->freq = fpeak;
   s21_measure->l = reff / ((2 * VNA_PI) * bw);
