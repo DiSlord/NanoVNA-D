@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.22"
+#define VERSION "1.2.24"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -691,6 +691,9 @@ VNA_SHELL_FUNCTION(cmd_config) {
 #endif
 #ifdef __DIGIT_SEPARATOR__
     "|separator"
+#endif
+#ifdef __SD_CARD_DUMP_TIFF__
+    "|tif"
 #endif
   ;
   int idx;

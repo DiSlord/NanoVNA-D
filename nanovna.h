@@ -87,6 +87,8 @@
 #ifdef __USE_SD_CARD__
 // Allow run commands from SD card (config.ini in root)
 #define __SD_CARD_LOAD__
+// Allow screenshots in TIFF format
+#define __SD_CARD_DUMP_TIFF__
 // Allow dump firmware to SD card
 #define __SD_CARD_DUMP_FIRMWARE__
 // Enable SD card file browser, and allow load files from it
@@ -907,6 +909,9 @@ enum {
 #endif
 #ifdef __DIGIT_SEPARATOR__
   VNA_MODE_SEPARATOR,    // Comma or dot digit separator (0: dot, 1: comma)
+#endif
+#ifdef __SD_CARD_DUMP_TIFF__
+  VNA_MODE_TIFF,         // Save screenshot format (0: bmp, 1: tiff)
 #endif
 };
 // Update config._vna_mode flags function

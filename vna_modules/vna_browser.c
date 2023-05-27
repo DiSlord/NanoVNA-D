@@ -213,7 +213,7 @@ finish:
     int y;
     leave_show = false;      // allow step up/down load bitmap
     uint16_t *buf_16 = spi_buffer; // prepare buffer
-    res = f_read(fs_file, (void *)buf_16, sizeof(bmp_header_v4), &size); // read heaser
+    res = f_read(fs_file, (void *)buf_16, sizeof(bmp_header_v4), &size); // read header
     if (res != FR_OK || buf_16[9] != LCD_WIDTH || buf_16[11] != LCD_HEIGHT || buf_16[14] != 16) {error = "Format err"; break;}
     for (y = LCD_HEIGHT-1; y >=0 && res == FR_OK; y--) {
       res = f_read(fs_file, (void *)buf_16, LCD_WIDTH * sizeof(uint16_t), &size);
@@ -223,6 +223,41 @@ finish:
     lcd_printf(0, LCD_HEIGHT - 3*FONT_STR_HEIGHT, fno.fname);
   }
   break;
+#ifdef __SD_CARD_DUMP_TIFF__
+  case FMT_TIF_FILE:
+  {
+    int x, y;
+    leave_show = false;      // allow step up/down load bitmap
+    uint8_t *buf_8 = (uint8_t *)spi_buffer; // prepare buffer
+    uint16_t *buf_16 = spi_buffer;
+    res = f_read(fs_file, (void *)buf_16, sizeof(tif_header), &size); // read header
+    // Quick check for valid (not parse TIFF, use hardcoded values, for less code size)
+    // Check header id, width, height, compression (pass only self saved images)
+    if (res != FR_OK ||
+            buf_16[0] != 0x4949 ||       // Check header ID
+            buf_16[9] != LCD_WIDTH ||    // Check Width
+            buf_16[15] != LCD_HEIGHT ||  // Check Height
+            buf_16[27] != 0x8005) {error = "Format err"; break;}
+    for (y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
+      // Unpack RLE compression sequence
+      for (x = 0; x < LCD_WIDTH * 3;) {
+        int8_t data[2]; res = f_read(fs_file, data, 2, &size);  // Read count and value
+        int count = data[0];                                    // count
+        buf_8[x++] = data[1];                                   // copy first value
+        if (count > 0) {                                        // if count > 0 need read additional values
+          res = f_read(fs_file, &buf_8[x], count, &size);
+          x+= count;
+        } else while (count++ < 0) buf_8[x++] = data[1];        // if count < 0 need repeat value -count times
+      }
+      // Convert from RGB888 to RGB565 and copy to screen
+      for (x = 0; x < LCD_WIDTH; x++)
+        buf_16[x] = RGB565(buf_8[3 * x + 0], buf_8[3 * x + 1], buf_8[3 * x + 2]);
+      lcd_bulk(0, y, LCD_WIDTH, 1);
+    }
+    lcd_printf(0, LCD_HEIGHT - 3 * FONT_STR_HEIGHT, fno.fname);
+  }
+  break;
+#endif
   /*
    *  Load calibration
    */
@@ -412,7 +447,7 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
     return;
   set_area_size(0, 0);
   ui_mode = UI_BROWSER;
-  keypad_mode = data;
+  keypad_mode = fixScreenshotFormat(data);
   current_page = 1;
   file_count = 0;
   selection = -1;

@@ -111,6 +111,9 @@ enum {
   KM_S1P_NAME,
   KM_S2P_NAME,
   KM_BMP_NAME,
+#ifdef __SD_CARD_DUMP_TIFF__
+  KM_TIF_NAME,
+#endif
   KM_CAL_NAME,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   KM_BIN_NAME,
@@ -989,6 +992,9 @@ const vna_mode_data_t vna_mode_data[] = {
 #ifdef __DIGIT_SEPARATOR__
   [VNA_MODE_SEPARATOR]   = {"DOT '.'\0COMMA ','",  REDRAW_BACKUP | REDRAW_MARKER | REDRAW_FREQUENCY},
 #endif
+#ifdef __SD_CARD_DUMP_TIFF__
+  [VNA_MODE_TIFF]        = {"BMP\0TIFF",           REDRAW_BACKUP},
+#endif
 };
 
 void apply_VNA_mode(uint16_t idx, uint16_t value) {
@@ -1360,7 +1366,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 #ifdef __USE_SD_CARD__
 // Save/Load format enum
 enum {
-  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE, FMT_CAL_FILE,
+  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE,
+#ifdef __SD_CARD_DUMP_TIFF__
+  FMT_TIF_FILE,
+#endif
+  FMT_CAL_FILE,
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   FMT_BIN_FILE,
 #endif
@@ -1374,6 +1384,9 @@ static const char *file_ext[] = {
   [FMT_S1P_FILE] = "s1p",
   [FMT_S2P_FILE] = "s2p",
   [FMT_BMP_FILE] = "bmp",
+#ifdef __SD_CARD_DUMP_TIFF__
+  [FMT_TIF_FILE] = "tif",
+#endif
   [FMT_CAL_FILE] = "cal",
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   [FMT_BIN_FILE] = "bin",
@@ -1449,6 +1462,104 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
   BMP_UINT32(0),             // GammaBlue
 };
 
+#ifdef __SD_CARD_DUMP_TIFF__
+#define IFD_ENTRY(type, val_t, count, value) \
+           BMP_UINT16(type), \
+           BMP_UINT16(val_t), \
+           BMP_UINT32(count), \
+           BMP_UINT32(value)
+
+// TIFF header structure definitions
+#define IFD_BYTE     1  // 8-bit unsigned integer.
+#define IFD_ASCII    2  // 8-bit byte that contains a 7-bit ASCII code; the last byte must be NUL (binary zero).
+#define IFD_SHORT    3  // 16-bit (2-byte) unsigned integer.
+#define IFD_LONG     4  // 32-bit (4-byte) unsigned integer.
+#define IFD_RATIONAL 5  // Two LONGs: the first represents the numerator of a fraction; the second, the denominator.
+
+// TIFF Compression
+#define TIFF_UNCOMPRESSED  1
+#define TIFF_CCITT_1D      2
+#define TIFF_CCITT_Group3  3
+#define TIFF_CCITT_Group4  4
+#define TIFF_LZW           5
+#define TIFF_JPEG          6
+#define TIFF_UNCOMPR       0x8003
+#define TIFF_PACKBITS      0x8005
+
+#define TIFF_PHOTOMETRIC_MINISWHITE  0
+#define TIFF_PHOTOMETRIC_MINISBLACK  1
+#define TIFF_PHOTOMETRIC_RGB         2
+#define TIFF_PHOTOMETRIC_PALETTE     3
+#define TIFF_PHOTOMETRIC_MASK        4
+#define TIFF_PHOTOMETRIC_SEPARATED   5
+#define TIFF_PHOTOMETRIC_YCBCR       6
+#define TIFF_PHOTOMETRIC_CIELAB      8
+#define TIFF_PHOTOMETRIC_ICCLAB      9
+#define TIFF_PHOTOMETRIC_ITULAB     10
+#define TIFF_PHOTOMETRIC_LOGL    32844
+#define TIFF_PHOTOMETRIC_LOGLUV  32845
+
+#define TIFF_RESUNIT_NONE           1
+#define TIFF_RESUNIT_INCH           2
+#define TIFF_RESUNIT_CENTIMETER     3
+
+// TIFF file header data
+#define IFD_ENTRIES_COUNT    7
+#define IFD_DATA_OFFSET      (10 + 12 * IFD_ENTRIES_COUNT + 4)
+
+#define IFD_BPS_OFFSET       IFD_DATA_OFFSET
+#define IFD_XR_OFFSET        IFD_DATA_OFFSET + 6
+#define IFD_YR_OFFSET        IFD_DATA_OFFSET + 6 + 8
+#define IFD_STRIP_OFFSET     IFD_DATA_OFFSET + 6 // + 8 + 8
+
+static const uint8_t tif_header[] = {
+  0x49, 0x49,                                             // Byte order 'II' (0x4949) - little indian or 'MM' (0x4D4D) - big indian
+  BMP_UINT16(0x002A),                                     // TIFF version number (always 2Ah)
+  BMP_UINT32(0x0008),                                     // IFD offset
+  BMP_UINT16(IFD_ENTRIES_COUNT),                          // IFD entries NUM
+  IFD_ENTRY(0x0100, IFD_SHORT,   1, LCD_WIDTH),           // Image Width
+  IFD_ENTRY(0x0101, IFD_SHORT,   1, LCD_HEIGHT),          // Image Height
+  IFD_ENTRY(0x0102, IFD_SHORT,   3, IFD_BPS_OFFSET),      // BitsPerSample  = 0x0008 0x0008 0x0008
+  IFD_ENTRY(0x0103, IFD_SHORT,   1, TIFF_PACKBITS),       // Compression
+  IFD_ENTRY(0x0106, IFD_SHORT,   1, TIFF_PHOTOMETRIC_RGB),// PhotometricInterpretation = RGB
+  IFD_ENTRY(0x0111, IFD_LONG,    1, IFD_STRIP_OFFSET),    // StripOffsets    = Offset to image data
+  IFD_ENTRY(0x0115, IFD_SHORT,   1, 0x03),                // SamplesPerPixel = 3
+//IFD_ENTRY(0x0116, IFD_SHORT,   1, LCD_HEIGHT),          // RowsPerStrip    = LCD_HEIGHT
+//IFD_ENTRY(0x0117, IFD_LONG,    1, 0x00000000),          // StripByteCounts = Image Width * Image Height * SamplesPerPixel (if set to 0, possible open any size image)
+//IFD_ENTRY(0x011A, IFD_RATIONAL,1, IFD_XR_OFFSET),       // XResolution
+//IFD_ENTRY(0x011B, IFD_RATIONAL,1, IFD_YR_OFFSET),       // YResolution
+//IFD_ENTRY(0x0128, IFD_SHORT,   1, TIFF_RESUNIT_INCH),   // ResolutionUnit = Inch
+  0x00, 0x00, 0x00, 0x00,
+                                                          // IDF data
+  BMP_UINT16(8),                                          //   BitsPerSample
+  BMP_UINT16(8),
+  BMP_UINT16(8),
+//BMP_UINT32(72), BMP_UINT32(1),                          //   XResolution 72 / 1
+//BMP_UINT32(72), BMP_UINT32(1),                          //   YResolution 72 / 1
+                                                          //   After Image data
+};
+
+// RLE packbits alghoritm
+static int packbits(char *source, char *dest, int size) {
+  char *ptr = dest, *size_ptr = 0, c;
+  int i = 0, rle, l;
+  while ((l = size - i) > 0) {
+    if (l > 128) l = 128;                              // Limit search RLE block size to 128
+    c = source[i++];                                   // Check RLE sequence size
+    for (rle = 0; --l && c == source[i + rle]; rle++); // RLE sequence size = rle + 1
+    if (size_ptr && rle < 2) rle = 0;                  // Ignore (rle + 1) < 3 sequence on run non RLE input
+    if (size_ptr == 0 || rle > 0)                      // Reset state or RLE sequence found
+      size_ptr = ptr++;                                // Prepare new block
+    *ptr++ = c;
+    if (rle > 0) {i+= rle; *size_ptr = -rle;}          // Write RLE sequence
+    else if ((*size_ptr = ptr - size_ptr - 2) < 127)   // Continue write non RLE data while 1 + (non_rle + 1) < 127
+      continue;
+    size_ptr = 0;                                      // Block complete
+  }
+  return ptr - dest;
+}
+#endif
+
 static void swap_bytes(uint16_t *buf, int size) {
   for (int i = 0; i < size; i++)
     buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
@@ -1476,7 +1587,11 @@ static void vna_save_file(char *name, uint8_t format)
   char fs_filename[FF_LFN_BUF];
   // For screenshot need back to normal mode and redraw screen before capture!!
   // Redraw use spi_buffer so need do it before any file ops
-  if (format == FMT_BMP_FILE && ui_mode != UI_NORMAL){
+  if (ui_mode != UI_NORMAL && (format == FMT_BMP_FILE
+#ifdef __SD_CARD_DUMP_TIFF__
+    || format == FMT_TIF_FILE
+#endif
+      )) {
     ui_mode_normal();
     draw_all();
   }
@@ -1496,7 +1611,7 @@ static void vna_save_file(char *name, uint8_t format)
 
 //  UINT total_size = 0;
 //  systime_t time = chVTGetSystemTimeX();
-  // Prepare filename = .s1p / .s2p / .bmp and open for write
+  // Prepare filename = .s1p / .s2p / .bmp .... and open for write
   FRESULT res = vna_create_file(fs_filename);
   if (res == FR_OK) {
     const char *s_file_format;
@@ -1533,7 +1648,7 @@ static void vna_save_file(char *name, uint8_t format)
        */
       case FMT_BMP_FILE:
       buf_16 = spi_buffer;
-      res = f_write(fs_file, bmp_header_v4, BMP_HEAD_SIZE, &size); // Write header struct
+      res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size); // Write header struct
 //      total_size+=size;
       lcd_set_background(LCD_SWEEP_LINE_COLOR);
       for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
@@ -1544,6 +1659,30 @@ static void vna_save_file(char *name, uint8_t format)
         lcd_fill(LCD_WIDTH-1, y, 1, 1);
       }
       break;
+#ifdef __SD_CARD_DUMP_TIFF__
+      case FMT_TIF_FILE:
+          buf_16 = spi_buffer;
+          lcd_set_background(LCD_SWEEP_LINE_COLOR);
+          res = f_write(fs_file, tif_header, sizeof(tif_header), &size); // Write header struct
+          for (y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
+            // Use LCD_WIDTH + 128 bytes offset for RGB888 data
+            // Use 0 offset for compressed RLE (maximum need WIDTH * 4 + 128 bytes in spi_buffer)
+            buf_8 = (char *)spi_buffer + 128;
+            // Read LCD line in RGB565 format (swapped bytes)
+            lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
+            // Convert to RGB888
+            for (int x = LCD_WIDTH - 1; x >= 0; x--) {
+              uint16_t color = (buf_16[x] << 8) | (buf_16[x] >> 8);
+              buf_8[3*x + 0] = (color>>8) & 0xF8;// if (buf_8[3*x + 0] < 0) buf_8[3*x + 0]+= 7;
+              buf_8[3*x + 1] = (color>>3) & 0xFC;// if (buf_8[3*x + 1] < 0) buf_8[3*x + 1]+= 3;
+              buf_8[3*x + 2] = (color<<3) & 0xF8;// if (buf_8[3*x + 2] < 0) buf_8[3*x + 2]+= 7;
+            }
+            size = packbits(buf_8, (char *)spi_buffer, LCD_WIDTH * 3);
+            res = f_write(fs_file, spi_buffer, size, &size);
+            lcd_fill(LCD_WIDTH-1, y, 1, 1);
+          }
+      break;
+#endif
       /*
        *  Save calibration
        */
@@ -1579,8 +1718,16 @@ static void vna_save_file(char *name, uint8_t format)
   ui_mode_normal();
 }
 
+static uint16_t fixScreenshotFormat(uint16_t data) {
+#ifdef __SD_CARD_DUMP_TIFF__
+  if (data == FMT_BMP_FILE && VNA_MODE(VNA_MODE_TIFF)) return FMT_TIF_FILE;
+#endif
+  return data;
+}
+
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
 {
+  data = fixScreenshotFormat(data);
   if (VNA_MODE(VNA_MODE_AUTO_NAME))
     vna_save_file(NULL, data);
   else
@@ -1629,7 +1776,7 @@ static const menuitem_t menu_back[] = {
 #ifdef __USE_SD_CARD__
 #ifdef __SD_FILE_BROWSER__
 static const menuitem_t menu_sdcard_browse[] = {
-  { MT_CALLBACK, FMT_BMP_FILE, "LOAD BMP", menu_sdcard_browse_cb },
+  { MT_CALLBACK, FMT_BMP_FILE, "LOAD\nSCREENSHOT", menu_sdcard_browse_cb },
   { MT_CALLBACK, FMT_S1P_FILE, "LOAD S1P", menu_sdcard_browse_cb },
   { MT_CALLBACK, FMT_S2P_FILE, "LOAD S2P", menu_sdcard_browse_cb },
   { MT_CALLBACK, FMT_CAL_FILE, "LOAD CAL", menu_sdcard_browse_cb },
@@ -1645,7 +1792,10 @@ static const menuitem_t menu_sdcard[] = {
   { MT_CALLBACK, FMT_S2P_FILE, "SAVE S2P",   menu_sdcard_cb },
   { MT_CALLBACK, FMT_BMP_FILE, "SCREENSHOT", menu_sdcard_cb },
   { MT_CALLBACK, FMT_CAL_FILE, "SAVE\nCALIBRATION", menu_sdcard_cb },
-  { MT_ADV_CALLBACK,VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_AUTO_NAME, "AUTO NAME", menu_vna_mode_acb},
+#ifdef __SD_CARD_DUMP_TIFF__
+  { MT_ADV_CALLBACK, VNA_MODE_TIFF, "IMAGE FORMAT\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
+#endif
   { MT_NEXT,     0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2643,6 +2793,9 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_S1P_NAME]        = {KEYPAD_TEXT,   FMT_S1P_FILE,  "S1P",                input_filename }, // s1p filename
 [KM_S2P_NAME]        = {KEYPAD_TEXT,   FMT_S2P_FILE,  "S2P",                input_filename }, // s2p filename
 [KM_BMP_NAME]        = {KEYPAD_TEXT,   FMT_BMP_FILE,  "BMP",                input_filename }, // bmp filename
+#ifdef __SD_CARD_DUMP_TIFF__
+[KM_TIF_NAME]        = {KEYPAD_TEXT,   FMT_TIF_FILE,  "TIF",                input_filename }, // tif filename
+#endif
 [KM_CAL_NAME]        = {KEYPAD_TEXT,   FMT_CAL_FILE,  "CAL",                input_filename }, // cal filename
 #ifdef __SD_CARD_DUMP_FIRMWARE__
 [KM_BIN_NAME]        = {KEYPAD_TEXT,   FMT_BIN_FILE,  "BIN",                input_filename }, // bin filename
