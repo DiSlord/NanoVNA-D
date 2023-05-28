@@ -268,7 +268,7 @@ finish:
     uint32_t total = sizeof(current_props) - sizeof(magic);
     // Compare file size and try read magic header, if all OK load it
     if (fno.fsize == sizeof(current_props) && f_read(fs_file, &magic, sizeof(magic), &size) == FR_OK &&
-        magic == PROPS_MAGIC && f_read(fs_file, src, total, &size) == FR_OK)
+        magic == PROPERTIES_MAGIC && f_read(fs_file, src, total, &size) == FR_OK)
         load_properties(NO_SAVE_SLOT);
     else error = "Format err";
   }
