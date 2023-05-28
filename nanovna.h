@@ -335,7 +335,6 @@ int parse_line(char *line, char* args[], int max_cnt);
 
 void pause_sweep(void);
 void toggle_sweep(void);
-void load_default_properties(void);
 int  load_properties(uint32_t id);
 
 #ifdef __USE_BACKUP__
@@ -1287,8 +1286,8 @@ void testLog(void);        // debug log
 /*
  * flash.c
  */
-#define CONFIG_MAGIC 0x434f4e56 // Config magic value (allow reset on new config version)
-#define PROPS_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
+#define CONFIG_MAGIC      0x434f4e56 // Config magic value (allow reset on new config version)
+#define PROPERTIES_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;
@@ -1349,7 +1348,6 @@ get_sweep_frequency(uint16_t type)
 
 int caldata_save(uint32_t id);
 int caldata_recall(uint32_t id);
-const properties_t *caldata_reference(void);
 const properties_t *get_properties(uint32_t id);
 
 int config_save(void);

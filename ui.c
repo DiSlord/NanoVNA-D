@@ -1463,13 +1463,15 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
 };
 
 #ifdef __SD_CARD_DUMP_TIFF__
+//*******************************************************************************************
+// TIFF header for LCD_WIDTH x LCD_HEIGHT image 24bpp and RLE compression (packbits)
+//*******************************************************************************************
 #define IFD_ENTRY(type, val_t, count, value) \
            BMP_UINT16(type), \
            BMP_UINT16(val_t), \
            BMP_UINT32(count), \
            BMP_UINT32(value)
 
-// TIFF header structure definitions
 #define IFD_BYTE     1  // 8-bit unsigned integer.
 #define IFD_ASCII    2  // 8-bit byte that contains a 7-bit ASCII code; the last byte must be NUL (binary zero).
 #define IFD_SHORT    3  // 16-bit (2-byte) unsigned integer.
@@ -1508,8 +1510,8 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
 #define IFD_DATA_OFFSET      (10 + 12 * IFD_ENTRIES_COUNT + 4)
 
 #define IFD_BPS_OFFSET       IFD_DATA_OFFSET
-#define IFD_XR_OFFSET        IFD_DATA_OFFSET + 6
-#define IFD_YR_OFFSET        IFD_DATA_OFFSET + 6 + 8
+//#define IFD_XR_OFFSET        IFD_DATA_OFFSET + 6
+//#define IFD_YR_OFFSET        IFD_DATA_OFFSET + 6 + 8
 #define IFD_STRIP_OFFSET     IFD_DATA_OFFSET + 6 // + 8 + 8
 
 static const uint8_t tif_header[] = {
