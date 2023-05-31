@@ -1543,22 +1543,20 @@ static const uint8_t tif_header[] = {
 
 // RLE packbits alghoritm
 static int packbits(char *source, char *dest, int size) {
-  char *ptr = dest, *size_ptr = 0, c;
-  int i = 0, rle, l;
+  int i = 0, rle, l, pk = 0, sz = 0;
   while ((l = size - i) > 0) {
     if (l > 128) l = 128;                              // Limit search RLE block size to 128
-    c = source[i++];                                   // Check RLE sequence size
-    for (rle = 0; --l && c == source[i + rle]; rle++); // RLE sequence size = rle + 1
-    if (size_ptr && rle < 2) rle = 0;                  // Ignore (rle + 1) < 3 sequence on run non RLE input
-    if (size_ptr == 0 || rle > 0)                      // Reset state or RLE sequence found
-      size_ptr = ptr++;                                // Prepare new block
-    *ptr++ = c;
-    if (rle > 0) {i+= rle; *size_ptr = -rle;}          // Write RLE sequence
-    else if ((*size_ptr = ptr - size_ptr - 2) < 127)   // Continue write non RLE data while 1 + (non_rle + 1) < 127
+    char c = source[i++];                              // Get next byte and write to block
+    for (rle = 0; c == source[i + rle] && --l; rle++); // Calculate this byte RLE sequence size = rle + 1
+    if (sz && rle < 2) rle = 0;                        // Ignore (rle + 1) < 3 sequence on run non RLE input
+    else if (sz == 0 || rle > 0) sz = pk++;            // Reset state or RLE sequence found -> start new block
+    dest[pk++] = c;                                    // Write char to block
+    if (rle > 0) {i+= rle; dest[sz] = -rle;}           // Write RLE sequence size and go to new block
+    else if ((dest[sz] = pk - sz - 2) < 127)           // Continue write non RLE data while 1 + (non_rle + 1) < 127
       continue;
-    size_ptr = 0;                                      // Block complete
+    sz = 0;                                            // Block complete
   }
-  return ptr - dest;
+  return pk;
 }
 #endif
 
