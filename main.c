@@ -2143,30 +2143,28 @@ VNA_SHELL_FUNCTION(cmd_cal)
 
 VNA_SHELL_FUNCTION(cmd_save)
 {
-  if (argc != 1) {
-    shell_printf("usage: save {id}" VNA_SHELL_NEWLINE_STR);
-    return;
+  if (argc == 1) {
+    uint32_t id = my_atoui(argv[0]);
+    if (id < SAVEAREA_MAX) {
+      caldata_save(id);
+      request_to_redraw(REDRAW_CAL_STATUS);
+      return;
+    }
   }
-  uint32_t id = my_atoui(argv[0]);
-  if (id < SAVEAREA_MAX) {
-    caldata_save(id);
-    request_to_redraw(REDRAW_CAL_STATUS);
-  }
-
+  shell_printf("usage: save 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1);
 }
 
 VNA_SHELL_FUNCTION(cmd_recall)
 {
-  if (argc != 1) {
-    shell_printf("usage: recall {id}" VNA_SHELL_NEWLINE_STR);
-    return;
+  if (argc == 1) {
+    uint32_t id = my_atoui(argv[0]);
+    if (id < SAVEAREA_MAX) {
+      if (load_properties(id))  // Check for success
+        shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
+      return;
+    }
   }
-  uint32_t id = my_atoui(argv[0]);
-  if (id < SAVEAREA_MAX) {
-    if (load_properties(id))  // Check for success
-      shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
-  }
-
+  shell_printf("usage: recall 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1);
 }
 
 static const char * const trc_channel_name[] = {
