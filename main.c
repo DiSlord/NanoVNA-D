@@ -296,81 +296,71 @@ toggle_sweep(void)
   sweep_mode ^= SWEEP_ENABLE;
 }
 
-#if 0
 //
-// Original kaiser_window functions
+//  Optimized Kaiser window functions for transform domain
 //
-static float
-bessel0(float x)
-{
-  const float eps = 0.0001f;
-
-  float ret = 0;
-  float term = 1;
-  float m = 0;
-
-  while (term  > eps * ret) {
-    ret += term;
-    ++m;
-    term *= (x*x) / (4*m*m);
-  }
+//       Zero-order modified Bessel function
+//                 (x/2)^(2n)
+// Bessel I0 = 1 + ---------- => For bessel_I0_ext(z) set input as z = (x/2)^2 (input range 0 .. beta*beta/4)
+//                   (n!)^2
+//
+//       z^n         z    z^2   z^3   z^4    z^5              z^n
+// 1 + ------ = 1 + --- + --- + --- + --- + -----  ...... + ------
+//     (n!)^2        1     4     36   576   14400           (n!)^2
+float bessel_I0_ext(float z) {
+// Set calculated elements count, more size - less error but longer (bigger beta also need more size for less error)
+// Use BESSEL_SIZE = 12 (last used n = 12), use constant size faster then check every time limits in float
+// For beta =  6 and BESSEL_SIZE = 12 max error 4.2e-7
+// For beta = 13 and BESSEL_SIZE = 12 max error 2.5e-4
+#define BESSEL_SIZE     12
+  int i = BESSEL_SIZE - 1;
+  // Precalculated multipliers: 1 / (n!^2)
+  static const float besseli0_k[BESSEL_SIZE - 1] = {
+//  1.0000000000000000000000000000000e+00,    // 1 / ( 1!^2)
+    2.5000000000000000000000000000000e-01,    // 1 / ( 2!^2)
+    2.7777777777777777777777777777778e-02,    // 1 / ( 3!^2)
+    1.7361111111111111111111111111111e-03,    // 1 / ( 4!^2)
+    6.9444444444444444444444444444444e-05,    // 1 / ( 5!^2)
+    1.9290123456790123456790123456790e-06,    // 1 / ( 6!^2)
+    3.9367598891408415217939027462837e-08,    // 1 / ( 7!^2)
+    6.1511873267825648778029730410683e-10,    // 1 / ( 8!^2)
+    7.5940584281266233059295963469979e-12,    // 1 / ( 9!^2)
+    7.5940584281266233059295963469979e-14,    // 1 / (10!^2)
+    6.2760813455591928148178482206594e-16,    // 1 / (11!^2)
+    4.3583898233049950102901723754579e-18,    // 1 / (12!^2)
+//  2.5789288895295828463255457842946e-20,    // 1 / (13!^2)
+//  1.3157800456783585950640539715789e-22,    // 1 / (14!^2)
+//  5.8479113141260382002846843181284e-25,    // 1 / (15!^2)
+//  2.2843403570804836719862048117689e-27,    // 1 / (16!^2)
+//  7.9042918930120542283259682068128e-30,    // 1 / (17!^2)
+  };
+  float term = z, ret =  1.0f + z;
+  do {ret += (term*= z) * besseli0_k[BESSEL_SIZE - 1 - i];} while(--i);
   return ret;
 }
-
-static float
-kaiser_window(float k, float n, float beta)
-{
-  if (beta == 0.0) return 1.0f;
-  float r = (2 * k) / (n - 1) - 1;
-  return bessel0(beta * vna_sqrtf(1 - r * r)) / bessel0(beta);
-}
-#else
-//             Zero-order Bessel function
-//     (x/2)^(2n)
-// 1 + ----------
-//       (n!)^2
-// set input as (x/2)^2 (input range 0 .. beta*beta/4)
-//       x^n           x       x^2      x^3      x^4     x^5
-// 1 + ------ = 1 + ------ + ------ + ------ + ------ + ------  ......
-//     (n!)^2          1        4       36       576    14400
-// first 2 (0 and 1) precalculated as simple.
-
-// Precalculated multiplier step for 1 / ((n!)^2)  max SIZE 16 (first 2 use as init)
-static const float div[] = {/*0, 1,*/ 1/4.0f, 1/9.0f, 1/16.0f, 1/25.0f, 1/36.0f, 1/49.0f, 1/64.0f, 1/81.0f, 1/100.0f, 1/121.0f, 1/144.0f, 1/169.0f, 1/196.0f, 1/225.0f, 1/256.0f};
-float bessel0_ext(float x_pow_2)
-{
-// set calculated count, more SIZE - less error but longer (bigger beta also need more size for less error)
-// For beta =  6 SIZE =  (11-2) no error
-// For beta = 13 SIZE =  (13-2) max error 0.0002 (use as default, use constant size faster then check every time limits in float)
-#define SIZE     (13-2)
-  int i = SIZE;
-  float term = x_pow_2;
-  float ret = 1.0f + term;
-  do {
-    term*= x_pow_2 * div[SIZE - i];
-    ret += term;
-  }while(--i);
-  return ret;
-}
-// Move out constant divider:  bessel0(beta)
+//                        Kaiser window
+//           bessel_I0(beta*sqrt(1 - (2*k/N - 1)^2))
+// Kaiser = -------------------------------------
+//                   bessel_I0(beta)
+// Move out constant divider: bessel_I0(beta) = bessel_I0_ext(beta * beta / 4)
 // Made calculation optimization (in integer)
 // x = (2*k)/(n-1) - 1 = (set n=n-1) = 2*k/n - 1 = (2*k-n)/n
-// calculate kaiser window vs bessel0(w) there:
-//                                    n*n - (2*k-n)*(2*k-n)              4*k*(n-k)
-// w = beta*sqrt(1 - x*x) = beta*sqrt(---------------------) = beta*sqrt(---------)
-//                                           n*n                            n*n
-// bessel0(w) = bessel0_ext(z) (there z = (w/2)^2 for speed)
-// return = bessel0_ext(z)
-static float
-kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta)
-{
+// calculate kaiser window vs bessel_I0(w) there:
+//                                      n*n - (2*k-n)*(2*k-n)                4*k*(n-k)
+// w = beta*sqrt(1 - x*x) = beta * sqrt(---------------------) = beta * sqrt(---------)
+//                                             n*n                              n*n
+// bessel_I0(w) = bessel_I0_ext(z) (there z = (w*w)/4 for speed)
+//     w^2                  k*(n-k)
+// z = --- = beta * beta * (-------)
+//      4                     n*n
+// return = bessel_I0_ext(z)
+static float kaiser_window_ext(uint32_t k, uint32_t n, uint16_t beta) {
   if (beta == 0) return 1.0f;
   n = n - 1;
   k = k * (n - k) * beta * beta;
   n = n * n;
-  return bessel0_ext((float)k / n);
+  return bessel_I0_ext((float)k / n);
 }
-#endif
 
 static void
 transform_domain(uint16_t ch_mask)
@@ -408,7 +398,7 @@ transform_domain(uint16_t ch_mask)
   // Add amplitude correction for not full size FFT data and also add computed default scale
   // recalculate the scale factor if any window details are changed. The scale factor is to compensate for windowing.
   // Add constant multiplier for kaiser_window_ext use 1.0f / bessel0_ext(beta*beta/4.0f)
-  // Add constant multiplier  1.0f / FFT_SIZE
+  // Add constant multiplier 1.0f / FFT_SIZE
   static float window_scale = 0.0f;
   static uint16_t td_cache = 0;
   // Check mode cache data
@@ -416,18 +406,18 @@ transform_domain(uint16_t ch_mask)
   if (td_cache!=td_check){
     td_cache = td_check;
     if (domain_func == TD_FUNC_LOWPASS_STEP)
-      window_scale = 1.0f / (FFT_SIZE * bessel0_ext(beta*beta/4.0f));
+      window_scale = FFT_SIZE * bessel_I0_ext(beta*beta/4.0f);
     else {
       window_scale = 0.0f;
       for (int i = 0; i < sweep_points; i++)
         window_scale += kaiser_window_ext(i + offset, window_size, beta);
-      if (domain_func == TD_FUNC_BANDPASS) window_scale = 1.0f / (       window_scale);
-      else                                 window_scale = 1.0f / (2.0f * window_scale);
-//    window_scale*= FFT_SIZE               // add correction from kaiser_window
-//    window_scale/= FFT_SIZE               // add defaut from FFT_SIZE
-//    window_scale*= bessel0_ext(beta*beta/4.0f) // for get result as kaiser_window
-//    window_scale/= bessel0_ext(beta*beta/4.0f) // for set correction on calculated kaiser_window for value
+      if (domain_func == TD_FUNC_LOWPASS_IMPULSE) window_scale*= 2.0f;
+//    window_scale/= FFT_SIZE                      // add correction from kaiser_window summ
+//    window_scale*= FFT_SIZE                      // add default from FFT_SIZE
+//    window_scale/= bessel_I0_ext(beta*beta/4.0f) // for get result as kaiser_window summ
+//    window_scale*= bessel_I0_ext(beta*beta/4.0f) // for set correction on calculated kaiser_window for value
     }
+    window_scale = 1.0f / window_scale;
 #ifdef USE_FFT_WINDOW_BUFFER
     // Cache window function data to static buffer
     static float kaiser_data[FFT_SIZE];
@@ -470,10 +460,8 @@ transform_domain(uint16_t ch_mask)
         tmp[i*2+1] = 0.0f;
     }
     if (domain_func == TD_FUNC_LOWPASS_STEP) {
-      for (i = 1; i < sweep_points; i++) {
+      for (i = 1; i < sweep_points; i++)
         tmp[i*2+0]+= tmp[i*2+0-2];
-//      tmp[i*2+1]+= tmp[i*2+1-2];  // already zero as is_lowpass
-      }
     }
     // Copy data back
     memcpy(measured[ch], tmp, sizeof(measured[0]));
@@ -2143,28 +2131,24 @@ VNA_SHELL_FUNCTION(cmd_cal)
 
 VNA_SHELL_FUNCTION(cmd_save)
 {
-  if (argc == 1) {
-    uint32_t id = my_atoui(argv[0]);
-    if (id < SAVEAREA_MAX) {
-      caldata_save(id);
-      request_to_redraw(REDRAW_CAL_STATUS);
-      return;
-    }
+  uint32_t id;
+  if (argc == 1 && (id = my_atoui(argv[0])) < SAVEAREA_MAX) {
+    caldata_save(id);
+    request_to_redraw(REDRAW_CAL_STATUS);
+    return;
   }
-  shell_printf("usage: save 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1);
+  shell_printf("usage: %s 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1, "save");
 }
 
 VNA_SHELL_FUNCTION(cmd_recall)
 {
-  if (argc == 1) {
-    uint32_t id = my_atoui(argv[0]);
-    if (id < SAVEAREA_MAX) {
-      if (load_properties(id))  // Check for success
-        shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
-      return;
-    }
+  uint32_t id;
+  if (argc == 1 && (id = my_atoui(argv[0])) < SAVEAREA_MAX) {
+    if (load_properties(id))  // Check for success
+      shell_printf("Err, default load" VNA_SHELL_NEWLINE_STR);
+    return;
   }
-  shell_printf("usage: recall 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1);
+  shell_printf("usage: %s 0..%d" VNA_SHELL_NEWLINE_STR, SAVEAREA_MAX-1, "recall");
 }
 
 static const char * const trc_channel_name[] = {
