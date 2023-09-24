@@ -988,7 +988,7 @@ static const marker_t def_markers[MARKERS_MAX] = {
 // Load propeties default settings
 static void load_default_properties(void) {
 //Magic add on caldata_save
-  current_props.magic             = CONFIG_MAGIC;
+  current_props.magic             = PROPERTIES_MAGIC;
   current_props._frequency0       =     50000;    // start =  50kHz
   current_props._frequency1       = 900000000;    // end   = 900MHz
   current_props._var_freq         = 0;
