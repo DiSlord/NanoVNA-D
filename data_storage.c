@@ -27,8 +27,13 @@ uint16_t lastsaveid = 0;
 #if SAVEAREA_MAX >= 8
 #error "Increase checksum_ok type for save more cache slots"
 #endif
+
 // properties CRC check cache (max 8 slots)
 static uint8_t checksum_ok = 0;
+
+static uint32_t calibration_slot_area(int id) {
+  return SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE;
+}
 
 static uint32_t checksum(const void *start, size_t len) {
   uint32_t *p = (uint32_t*)start;
@@ -69,7 +74,7 @@ int caldata_save(uint32_t id) {
   current_props.checksum = checksum(&current_props, sizeof current_props - sizeof current_props.checksum);
 
   // write to flash
-  uint16_t *dst = (uint16_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
+  uint16_t *dst = (uint16_t*)calibration_slot_area(id);
   flash_program_half_word_buffer(dst, (uint16_t*)&current_props, sizeof(properties_t));
 
   lastsaveid = id;
@@ -80,7 +85,7 @@ const properties_t * get_properties(uint32_t id) {
   if (id >= SAVEAREA_MAX)
     return NULL;
   // point to saved area on the flash memory
-  properties_t *src = (properties_t*)(SAVE_PROP_CONFIG_ADDR + id * SAVE_PROP_CONFIG_SIZE);
+  properties_t *src = (properties_t*)calibration_slot_area(id);
   // Check crc cache mask (made it only 1 time)
   if (checksum_ok&(1<<id))
     return src;

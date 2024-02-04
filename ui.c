@@ -94,7 +94,10 @@ typedef struct {
 // Enum for keypads_list
 enum {
   KM_START = 0, KM_STOP, KM_CENTER, KM_SPAN, KM_CW, KM_STEP, KM_VAR, // frequency input
-  KM_POINTS, KM_SCALE, KM_nSCALE, KM_SCALEDELAY,
+  KM_POINTS,
+  KM_TOP, KM_nTOP,
+  KM_BOTTOM, KM_nBOTTOM,
+  KM_SCALE, KM_nSCALE,
   KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
@@ -174,9 +177,6 @@ enum {
   MT_CALLBACK,       // reference is pointer to: void ui_function_name(uint16_t data)
   MT_ADV_CALLBACK    // reference is pointer to: void ui_function_name(uint16_t data, button_t *b)
 };
-
-// Set for custom label in *label pointer (filled in MT_ADV_CALLBACK function)
-#define MT_CUSTOM_LABEL              0
 
 // Button definition (used in MT_ADV_CALLBACK for custom)
 #define BUTTON_ICON_NONE            -1
@@ -725,17 +725,14 @@ static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
 static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb) {
   (void)data;
   bool calibrated = cal_status & (CALSTAT_ES|CALSTAT_ER|CALSTAT_ET|CALSTAT_ED|CALSTAT_EX|CALSTAT_OPEN|CALSTAT_SHORT|CALSTAT_THRU);
-  if (b){
-    if (calibrated){
-      b->bg = (cal_status&CALSTAT_INTERPOLATED) ? LCD_INTERP_CAL_COLOR : LCD_MENU_COLOR;
-      plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6F" S_Hz "\n %.6F" S_Hz, cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
-    }
-    else
-      plot_printf(b->label, sizeof(b->label), "RESET\nCAL RANGE");
+  if (!calibrated) return;
+  if (b) {
+    b->bg = (cal_status & CALSTAT_INTERPOLATED) ? LCD_INTERP_CAL_COLOR : LCD_MENU_COLOR;
+    plot_printf(b->label, sizeof(b->label), "CAL: %dp\n %.6F" S_Hz "\n %.6F" S_Hz, cal_sweep_points, (float)cal_frequency0, (float)cal_frequency1);
     return;
   }
   // Reset range to calibration
-  if (calibrated && (cal_status&CALSTAT_INTERPOLATED)){
+  if (cal_status & CALSTAT_INTERPOLATED){
     reset_sweep_frequency();
     set_power(cal_power);
   }
@@ -759,7 +756,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
     if (p)
       plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
-      plot_printf(b->label, sizeof(b->label), "Empty %d", data);
+      b->p1.u = data;
     if (lastsaveid == data) b->icon = BUTTON_ICON_CHECK;
     return;
   }
@@ -820,7 +817,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
     if (p)
       plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
     else
-      plot_printf(b->label, sizeof(b->label), "Empty %d", data);
+      b->p1.u = data;
     return;
   }
   if (caldata_save(data) == 0) {
@@ -868,25 +865,22 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 #define F_S21     0x80
 static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
 {
+  if (current_trace == TRACE_INVALID) return; // Not apply any for invalid traces
   uint16_t format = data & (~F_S21);
   uint16_t channel = data & F_S21 ? 1 : 0;
   if (b) {
+    if (trace[current_trace].type == format && trace[current_trace].channel == channel)
+      b->icon = BUTTON_ICON_CHECK;
     if (format == TRC_SMITH) {
-      const char *txt;
       uint8_t marker_smith_format = get_smith_format();
       if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
-          (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) {txt = "%s"; marker_smith_format = 0;}
-      else txt = "%s\n" R_LINK_COLOR "%s";
-      plot_printf(b->label, sizeof(b->label), txt, get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
+          (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) return;
+      plot_printf(b->label, sizeof(b->label), "%s\n" R_LINK_COLOR "%s", get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
     }
     else
       b->p1.text = get_trace_typename(format, -1);
-
-    if (current_trace != TRACE_INVALID && trace[current_trace].type == format && trace[current_trace].channel == channel)
-      b->icon = BUTTON_ICON_CHECK;
     return;
   }
-  if (current_trace == TRACE_INVALID) return;
 
   if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
@@ -1078,9 +1072,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
 {
   (void)data;
   if (b){
-    if (current_props._power == SI5351_CLK_DRIVE_STRENGTH_AUTO)
-      plot_printf(b->label, sizeof(b->label), "POWER  AUTO");
-    else
+    if (current_props._power != SI5351_CLK_DRIVE_STRENGTH_AUTO)
       plot_printf(b->label, sizeof(b->label), "POWER" R_LINK_COLOR "  %um" S_AMPER, 2+current_props._power*2);
     return;
   }
@@ -1097,24 +1089,30 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
   set_power(data);
 }
 
+// Process keyboard button callback, and run keyboard function
 extern const keypads_list keypads_mode_tbl[];
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
 {
-  if ((data == KM_SCALE || data == KM_REFPOS) && current_trace == TRACE_INVALID) return;
-  if (data == KM_SCALE) {      // Scale button type auto set
-    if ((1<<trace[current_trace].type) & (1<<TRC_DELAY))
-      data = KM_SCALEDELAY;    // E-Delay scale
-    else if ((1<<trace[current_trace].type) & ((1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL)))
-      data = KM_nSCALE;        // Nano scale values
-  } else if (data == KM_VAR) { // JOG STEP button auto set (e-delay or frequency step)
-    if (lever_mode == LM_EDELAY) data = KM_VAR_DELAY;
-  }
+  if (data == KM_VAR && lever_mode == LM_EDELAY) // JOG STEP button auto set (e-delay or frequency step)
+    data = KM_VAR_DELAY;
   if (b) {
     const keyboard_cb_t cb = keypads_mode_tbl[data].cb;
     if (cb) cb(keypads_mode_tbl[data].data, b);
     return;
   }
   ui_mode_keypad(data);
+}
+
+// Custom keyboard menu button callback (depend from current trace)
+static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb)
+{
+  // Not apply amplitude / scale / ref for invalid or polar graph
+  if (current_trace == TRACE_INVALID) return;
+  uint32_t type_mask = 1<<trace[current_trace].type;
+  if (type_mask & ROUND_GRID_MASK) return;
+  // Nano scale values
+  if (type_mask & NANO_TYPE_MASK) data++;
+  menu_keyboard_acb(data, b);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
@@ -1541,7 +1539,7 @@ static const uint8_t tif_header[] = {
                                                           //   After Image data
 };
 
-// RLE packbits alghoritm
+// RLE packbits algorithm
 static int packbits(char *source, char *dest, int size) {
   int i = 0, rle, l, pk = 0, sz = 0;
   while ((l = size - i) > 0) {
@@ -1816,20 +1814,20 @@ const menuitem_t menu_save[] = {
 #ifdef __SD_FILE_BROWSER__
   { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO\n SD CARD", menu_sdcard_cb },
 #endif
-  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_save_acb },
-  { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_save_acb },
-  { MT_ADV_CALLBACK, 2, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 0, "Empty %d", menu_save_acb },//87632
+  { MT_ADV_CALLBACK, 1, "Empty %d", menu_save_acb },
+  { MT_ADV_CALLBACK, 2, "Empty %d", menu_save_acb },
 #if SAVEAREA_MAX > 3
-  { MT_ADV_CALLBACK, 3, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 3, "Empty %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 4
-  { MT_ADV_CALLBACK, 4, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 4, "Empty %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 5, "Empty %d", menu_save_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_save_acb },
+  { MT_ADV_CALLBACK, 6, "Empty %d", menu_save_acb },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1838,20 +1836,20 @@ const menuitem_t menu_recall[] = {
 #ifdef __SD_FILE_BROWSER__
   { MT_CALLBACK, FMT_CAL_FILE, "LOAD FROM\n SD CARD", menu_sdcard_browse_cb },
 #endif
-  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_recall_acb },
-  { MT_ADV_CALLBACK, 1, MT_CUSTOM_LABEL, menu_recall_acb },
-  { MT_ADV_CALLBACK, 2, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 0, "Empty %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 1, "Empty %d", menu_recall_acb },
+  { MT_ADV_CALLBACK, 2, "Empty %d", menu_recall_acb },
 #if SAVEAREA_MAX > 3
-  { MT_ADV_CALLBACK, 3, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 3, "Empty %d", menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 4
-  { MT_ADV_CALLBACK, 4, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 4, "Empty %d", menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 5
-  { MT_ADV_CALLBACK, 5, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 5, "Empty %d", menu_recall_acb },
 #endif
 #if SAVEAREA_MAX > 6
-  { MT_ADV_CALLBACK, 6, MT_CUSTOM_LABEL, menu_recall_acb },
+  { MT_ADV_CALLBACK, 6, "Empty %d", menu_recall_acb },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -1867,9 +1865,9 @@ const menuitem_t menu_power[] = {
 
 const menuitem_t menu_cal[] = {
   { MT_SUBMENU,      0, "CALIBRATE",     menu_calop },
-  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_power_sel_acb },
+  { MT_ADV_CALLBACK, 0, "POWER  AUTO",   menu_power_sel_acb },
   { MT_SUBMENU,      0, "SAVE",          menu_save },
-  { MT_ADV_CALLBACK, 0, MT_CUSTOM_LABEL, menu_cal_range_acb },
+  { MT_ADV_CALLBACK, 0, "RANGE",         menu_cal_range_acb },
   { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
@@ -1907,7 +1905,7 @@ const menuitem_t menu_formatS21[] = {
   { MT_ADV_CALLBACK, F_S21|TRC_LOGMAG, "LOGMAG",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_PHASE,  "PHASE",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_DELAY,  "DELAY",       menu_format_acb },
-  { MT_ADV_CALLBACK, F_S21|TRC_SMITH, MT_CUSTOM_LABEL,menu_format_acb },
+  { MT_ADV_CALLBACK, F_S21|TRC_SMITH,  "SMITH",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_POLAR,  "POLAR",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_LINEAR, "LINEAR",      menu_format_acb },
   { MT_ADV_CALLBACK, F_S21|TRC_REAL,   "REAL",        menu_format_acb },
@@ -1944,7 +1942,7 @@ const menuitem_t menu_formatS11[] = {
   { MT_ADV_CALLBACK, F_S11|TRC_LOGMAG, "LOGMAG",       menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_PHASE,  "PHASE",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_DELAY,  "DELAY",        menu_format_acb },
-  { MT_ADV_CALLBACK, F_S11|TRC_SMITH, MT_CUSTOM_LABEL, menu_format_acb },
+  { MT_ADV_CALLBACK, F_S11|TRC_SMITH,  "SMITH",        menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_SWR,    "SWR",          menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_R,      "RESISTANCE",   menu_format_acb },
   { MT_ADV_CALLBACK, F_S11|TRC_X,      "REACTANCE",    menu_format_acb },
@@ -1954,10 +1952,12 @@ const menuitem_t menu_formatS11[] = {
 };
 
 const menuitem_t menu_scale[] = {
-  { MT_ADV_CALLBACK, KM_SCALE,  "SCALE/DIV",           menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_REFPOS, "REFERENCE\nPOSITION", menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n " R_LINK_COLOR "%b.3F" S_dB, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_TOP,       "TOP",                 menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_BOTTOM,    "BOTTOM",              menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_SCALE,     "SCALE/DIV",           menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_REFPOS,    "REFERENCE\nPOSITION", menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY,    "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n " R_LINK_COLOR "%b.3F" S_dB,  menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
@@ -2058,8 +2058,8 @@ const menuitem_t menu_stimulus[] = {
   { MT_ADV_CALLBACK, KM_SPAN,   "SPAN",          menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_CW,     "CW FREQ",       menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_STEP,   "FREQ STEP\n " R_LINK_COLOR "%bF" S_Hz, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_VAR,    MT_CUSTOM_LABEL, menu_keyboard_acb },
-  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n " R_LINK_COLOR "%u",  menu_points_sel_acb },
+  { MT_ADV_CALLBACK, KM_VAR,    "JOG STEP\n " R_LINK_COLOR "AUTO",      menu_keyboard_acb },
+  { MT_ADV_CALLBACK,      0,    "SWEEP POINTS\n " R_LINK_COLOR "%u",    menu_points_sel_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -2566,6 +2566,26 @@ static const keypads_t keypads_float[] = {
   { 0x23, KP_BS }
 };
 
+static const keypads_t keypads_mfloat[] = {
+  { 16, NUM_KEYBOARD },     // 16 buttons NUM keyboard (4x4 size)
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },           // 7 8 9 u
+  { 0x02, KP_1 },           // 4 5 6 m
+  { 0x12, KP_2 },           // 1 2 3 -
+  { 0x22, KP_3 },           // 0 . < x
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x30, KP_u },
+  { 0x31, KP_m },
+  { 0x32, KP_MINUS },
+  { 0x33, KP_ENTER },
+  { 0x23, KP_BS }
+};
+
 static const keypads_t keypads_nfloat[] = {
   { 16, NUM_KEYBOARD },     // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
@@ -2606,12 +2626,13 @@ static const keypads_t keypads_text[] = {
 };
 #endif
 
-enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
+enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_MFLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
 static const keypads_t *keypad_type_list[] = {
   [KEYPAD_FREQ]   = keypads_freq,   // frequency input
   [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
   [KEYPAD_PERCENT]= keypads_percent,// unsigned float input in percent
   [KEYPAD_FLOAT]  = keypads_float,  // signed float input
+  [KEYPAD_MFLOAT] = keypads_mfloat, // signed milli/micro float input
   [KEYPAD_NFLOAT] = keypads_nfloat, // signed micro/nano/pico float input
   [KEYPAD_TEXT]   = keypads_text    // text input
 };
@@ -2624,8 +2645,8 @@ uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
 // Keyboard call back functions, allow get value for Keyboard menu button (see menu_keyboard_acb) and apply on finish input
 UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
-    if (data == ST_VAR)
-      plot_printf(b->label, sizeof(b->label), var_freq ? "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz : "JOG STEP\n AUTO", var_freq);
+    if (data == ST_VAR && var_freq)
+      plot_printf(b->label, sizeof(b->label), "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz, var_freq);
     if (data == ST_STEP) b->p1.f = (float)get_sweep_frequency(ST_SPAN) / (sweep_points - 1);
     return;
   }
@@ -2635,7 +2656,8 @@ UI_KEYBOARD_CALLBACK(input_freq) {
 UI_KEYBOARD_CALLBACK(input_var_delay) {
   (void)data;
   if (b) {
-    plot_printf(b->label, sizeof(b->label), current_props._var_delay ? "JOG STEP\n " R_LINK_COLOR "%F" S_SECOND : "JOG STEP\n AUTO", current_props._var_delay);
+    if (current_props._var_delay)
+      plot_printf(b->label, sizeof(b->label), "JOG STEP\n " R_LINK_COLOR "%F" S_SECOND, current_props._var_delay);
     return;
   }
   current_props._var_delay = keyboard_get_float();
@@ -2648,15 +2670,38 @@ UI_KEYBOARD_CALLBACK(input_points) {
   set_sweep_points(keyboard_get_uint());
 }
 
+UI_KEYBOARD_CALLBACK(input_amplitude) {
+  int type = trace[current_trace].type;
+  float scale = get_trace_scale(current_trace);
+  float ref = get_trace_refpos(current_trace);
+  float bot =  (0      - ref) * scale;
+  float top =  (NGRIDY - ref) * scale;
+
+  if (b) {
+    float val = data == 0 ? top : bot;
+    if (type == TRC_SWR) val+= 1.0f;
+    plot_printf(b->label, sizeof(b->label), "%s\n " R_LINK_COLOR "%.4F%s", data == 0 ? "TOP" : "BOTTOM", val, trace_info_list[type].symbol);
+    return;
+  }
+  float value = keyboard_get_float();
+  if (type == TRC_SWR) value-= 1.0f; // Hack for SWR trace!
+  if (data == 0) top = value;        // top value input
+  else           bot = value;        // bottom value input
+  scale = (top - bot) / NGRIDY;
+  ref = (top == bot) ? -value : -bot / scale;
+  set_trace_scale(current_trace, scale);
+  set_trace_refpos(current_trace, ref);
+}
+
 UI_KEYBOARD_CALLBACK(input_scale) {
   (void)data;
-  if (b) {/*b->p1.f = current_trace != TRACE_INVALID ? get_trace_scale(current_trace) : 0;*/return;}
+  if (b) {b->p1.f = get_trace_scale(current_trace); return;}
   set_trace_scale(current_trace, keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
   (void)data;
-  if (b) return;
+  if (b) {b->p1.f = get_trace_refpos(current_trace); return;}
   set_trace_refpos(current_trace, keyboard_get_float());
 }
 
@@ -2768,9 +2813,12 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_STEP]            = {KEYPAD_FREQ,   ST_STEP,       "FREQ STEP",          input_freq     }, // freq as point step
 [KM_VAR]             = {KEYPAD_FREQ,   ST_VAR,        "JOG STEP",           input_freq     }, // VAR freq step
 [KM_POINTS]          = {KEYPAD_UFLOAT, 0,             "POINTS",             input_points   }, // Points num
+[KM_TOP]             = {KEYPAD_MFLOAT, 0,             "TOP",                input_amplitude}, // top graph value
+[KM_nTOP]            = {KEYPAD_NFLOAT, 0,             "TOP",                input_amplitude}, // top graph value
+[KM_BOTTOM]          = {KEYPAD_MFLOAT, 1,             "BOTTOM",             input_amplitude}, // bottom graph value
+[KM_nBOTTOM]         = {KEYPAD_NFLOAT, 1,             "BOTTOM",             input_amplitude}, // bottom graph value
 [KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale
 [KM_nSCALE]          = {KEYPAD_NFLOAT, KM_nSCALE,     "SCALE",              input_scale    }, // nano / pico scale value
-[KM_SCALEDELAY]      = {KEYPAD_NFLOAT, KM_SCALEDELAY, "DELAY",              input_scale    }, // nano / pico delay value
 [KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REFPOS",             input_ref      }, // refpos
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
 [KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
@@ -3073,9 +3121,10 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     char *text;
     uint16_t text_offs;
     if (m->type == MT_ADV_CALLBACK) {
+      button.label[0] = 0;
       if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
       // Apply custom text, from button label and
-      if (m->label != MT_CUSTOM_LABEL)
+      if (button.label[0] == 0)
         plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
       text = button.label;
     }
@@ -3389,12 +3438,12 @@ touch_apply_ref_scale(int touch_x, int touch_y) {
   if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
   if (touch_x < UI_SCALE_REF_X0 || touch_x > UI_SCALE_REF_X1 ||
       touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
-  float ref   = trace[t].refpos;
-  float scale = trace[t].scale;
+  float ref   = get_trace_refpos(t);
+  float scale = get_trace_scale(t);
 
        if (touch_y < GRIDY*1*NGRIDY/4) ref+=0.5f;
-  else if (touch_y < GRIDY*2*NGRIDY/4) {scale*=2.0f;ref=ref/2-NGRIDY/4 + NGRIDY/2;}
-  else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=2*ref-NGRIDY   + NGRIDY/2;}
+  else if (touch_y < GRIDY*2*NGRIDY/4) {scale*=2.0f;ref=ref/2.0f - NGRIDY/4 + NGRIDY/2;}
+  else if (touch_y < GRIDY*3*NGRIDY/4) {scale/=2.0f;ref=ref*2.0f - NGRIDY   + NGRIDY/2;}
   else                                 ref-=0.5f;
 
   set_trace_scale(t, scale);

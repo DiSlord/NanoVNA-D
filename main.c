@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.24"
+#define VERSION "1.2.26"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -954,7 +954,7 @@ properties_t current_props;
 
 // NanoVNA Default settings
 static const trace_t def_trace[TRACES_MAX] = {//enable, type, channel, smith format, scale, refpos
-  { TRUE, TRC_LOGMAG, 0, MS_REIM, 10.0, NGRIDY-1 },
+  { TRUE, TRC_LOGMAG, 0,   MS_RX, 10.0, NGRIDY-1 },
   { TRUE, TRC_LOGMAG, 1, MS_REIM, 10.0, NGRIDY-1 },
   { TRUE, TRC_SMITH,  0,   MS_RX, 1.0,         0 },
   { TRUE, TRC_PHASE,  1, MS_REIM, 90.0, NGRIDY/2 }

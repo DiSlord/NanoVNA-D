@@ -813,6 +813,7 @@ enum trace_type {
   TRC_Rsh, TRC_Xsh, TRC_Zsh,
   TRC_Qs21
 };
+
 // Mask for define rectangular plot
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
                               |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
@@ -824,7 +825,10 @@ enum trace_type {
                               |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
                               |(1<<TRC_Qs21))
 
-#define ROUND_GRID_MASK ((1<<TRC_POLAR)|(1<<TRC_SMITH))
+// complex graph type (polar / smith / admit)
+#define ROUND_GRID_MASK       ((1<<TRC_POLAR)|(1<<TRC_SMITH))
+// Scale / Amplitude input in nano/pico values graph type
+#define NANO_TYPE_MASK        ((1<<TRC_DELAY)|(1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL))
 
 // Trace info description structure
 typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback
