@@ -606,18 +606,20 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 };
 
 const marker_info_t marker_info_list[MS_END] = {
-// Type            name          format                        get real     get imag
-[MS_LIN]       = {"LIN",        "%.2f %+.1f" S_DEGREE,         linear,      phase       },
-[MS_LOG]       = {"LOG",        "%.1f" S_dB " %+.1f" S_DEGREE, logmag,      phase       },
-[MS_REIM]      = {"Re + Im",    "%F%+jF",                      real,        imag        },
-[MS_RX]        = {"R + jX",     "%F%+jF" S_OHM,                resistance,  reactance   },
-[MS_RLC]       = {"R + L/C",    "%F" S_OHM " %F%c",            resistance,  reactance   }, // use LC calc for imag
-[MS_GB]        = {"G + jB",     "%F%+jF" S_SIEMENS,            conductance, susceptance },
-[MS_GLC]       = {"G + L/C",    "%F" S_SIEMENS " %F%c",        conductance, parallel_x  }, // use LC calc for imag
-[MS_RpXp]      = {"Rp + jXp",   "%F%+jF" S_OHM,                parallel_r,  parallel_x  },
-[MS_RpLC]      = {"Rp + L/C",   "%F" S_OHM " %F%c",            parallel_r,  parallel_x  }, // use LC calc for imag
-[MS_SHUNT_RX]  = {"R+jX SHUNT", "%F%+jF" S_OHM,                s21shunt_r,  s21shunt_x  },
-[MS_SERIES_RX] = {"R+jX SERIES","%F%+jF" S_OHM,                s21series_r, s21series_x },
+// Type            name           format                        get real     get imag
+[MS_LIN]       = {"LIN",         "%.2f %+.1f" S_DEGREE,         linear,      phase       },
+[MS_LOG]       = {"LOG",         "%.1f" S_dB " %+.1f" S_DEGREE, logmag,      phase       },
+[MS_REIM]      = {"Re + Im",     "%F%+jF",                      real,        imag        },
+[MS_RX]        = {"R + jX",      "%F%+jF" S_OHM,                resistance,  reactance   },
+[MS_RLC]       = {"R + L/C",     "%F" S_OHM " %F%c",            resistance,  reactance   }, // use LC calc for imag
+[MS_GB]        = {"G + jB",      "%F%+jF" S_SIEMENS,            conductance, susceptance },
+[MS_GLC]       = {"G + L/C",     "%F" S_SIEMENS " %F%c",        conductance, parallel_x  }, // use LC calc for imag
+[MS_RpXp]      = {"Rp + jXp",    "%F%+jF" S_OHM,                parallel_r,  parallel_x  },
+[MS_RpLC]      = {"Rp + L/C",    "%F" S_OHM " %F%c",            parallel_r,  parallel_x  }, // use LC calc for imag
+[MS_SHUNT_RX]  = {"R+jX SHUNT",  "%F%+jF" S_OHM,                s21shunt_r,  s21shunt_x  },
+[MS_SHUNT_RLC] = {"R+L/C SH..",  "%F" S_OHM " %F%c",            s21shunt_r,  s21shunt_x  }, // use LC calc for imag
+[MS_SERIES_RX] = {"R+jX SERIES", "%F%+jF" S_OHM,                s21series_r, s21series_x },
+[MS_SERIES_RLC]= {"R+L/C SER..", "%F" S_OHM " %F%c",            s21series_r, s21series_x }, // use LC calc for imag
 };
 
 const char *get_trace_typename(int t, int marker_smith_format)

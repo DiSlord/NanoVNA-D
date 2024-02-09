@@ -845,12 +845,12 @@ typedef struct trace_info {
 extern const trace_info_t trace_info_list[MAX_TRACE_TYPE];
 
 // marker smith value format
-enum {MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC, MS_GB, MS_GLC, MS_RpXp, MS_RpLC, MS_SHUNT_RX, MS_SERIES_RX, MS_END};
+enum {MS_LIN, MS_LOG, MS_REIM, MS_RX, MS_RLC, MS_GB, MS_GLC, MS_RpXp, MS_RpLC, MS_SHUNT_RX, MS_SHUNT_RLC, MS_SERIES_RX, MS_SERIES_RLC, MS_END};
 #define ADMIT_MARKER_VALUE(v)    ((1<<(v))&((1<<MS_GB)|(1<<MS_GLC)|(1<<MS_RpXp)|(1<<MS_RpLC)))
-#define LC_MARKER_VALUE(v)       ((1<<(v))&((1<<MS_RLC)|(1<<MS_GLC)|(1<<MS_RpLC)))
+#define LC_MARKER_VALUE(v)       ((1<<(v))&((1<<MS_RLC)|(1<<MS_GLC)|(1<<MS_RpLC)|(1<<MS_SHUNT_RLC)|(1<<MS_SERIES_RLC)))
 
 #define S11_SMITH_VALUE(v)       ((1<<(v))&((1<<MS_LIN)|(1<<MS_LOG)|(1<<MS_REIM)|(1<<MS_RX)|(1<<MS_RLC)|(1<<MS_GB)|(1<<MS_GLC)|(1<<MS_RpXp)|(1<<MS_RpLC)))
-#define S21_SMITH_VALUE(v)       ((1<<(v))&((1<<MS_LIN)|(1<<MS_LOG)|(1<<MS_REIM)|(1<<MS_SHUNT_RX)|(1<<MS_SERIES_RX)))
+#define S21_SMITH_VALUE(v)       ((1<<(v))&((1<<MS_LIN)|(1<<MS_LOG)|(1<<MS_REIM)|(1<<MS_SHUNT_RX)|(1<<MS_SHUNT_RLC)|(1<<MS_SERIES_RX)|(1<<MS_SERIES_RLC)))
 
 typedef struct {
   const char *name;         // Trace name

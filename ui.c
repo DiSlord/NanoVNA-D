@@ -2101,11 +2101,13 @@ const menuitem_t menu_marker_ops[] = {
 };
 
 const menuitem_t menu_marker_s21smith[] = {
-  { MT_ADV_CALLBACK, MS_LIN,      "%s", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_LOG,      "%s", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_REIM,     "%s", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_SHUNT_RX, "%s", menu_marker_smith_acb },
-  { MT_ADV_CALLBACK, MS_SERIES_RX,"%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_LIN,       "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_LOG,       "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_REIM,      "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_SHUNT_RX,  "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_SHUNT_RLC, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_SERIES_RX, "%s", menu_marker_smith_acb },
+  { MT_ADV_CALLBACK, MS_SERIES_RLC,"%s", menu_marker_smith_acb },
   { MT_NEXT, 0, NULL, (const void *)menu_back } // next-> menu_back
 };
 
