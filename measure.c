@@ -472,10 +472,12 @@ typedef struct {
   float R;
   float len;
   float loss;
+  float vf;
   float C0;
   float a, b, c;
 } s11_cable_measure_t;
 static s11_cable_measure_t *s11_cable = (s11_cable_measure_t *)measure_memory;
+float real_cable_len = 0.0f;
 
 static float s11imag(uint16_t i) {
   return measured[0][i][1];
@@ -489,8 +491,10 @@ static void draw_s11_cable(int x0, int y0){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Z0 = %F" S_OHM, s11_cable->R);
 //    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %F" S_FARAD, s11_cable->C0);
   }
-  if (s11_cable->len)
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (K=%d%%)", s11_cable->len, velocity_factor);
+  if (s11_cable->vf)
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF=%.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
+  else if (s11_cable->len)
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (VF=%d%%)", s11_cable->len, velocity_factor);
   cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB, s11_cable->loss);
 }
 
@@ -501,10 +505,13 @@ static void prepare_s11_cable(uint8_t type, uint8_t update_mask)
   if (update_mask & MEASURE_UPD_SWEEP) {
     s11_cable->R = 0.0f;
     s11_cable->len = 0.0f;
+    s11_cable->vf = 0.0f;
     uint16_t x = 0;
     f1 = measure_search_value(&x,  0, s11imag, MEASURE_SEARCH_RIGHT);
     if (f1){
-      s11_cable->len = velocity_factor * (SPEED_OF_LIGHT / 400.0f) / f1;
+      float electric_lengh = (SPEED_OF_LIGHT / 400.0f) / f1;
+      s11_cable->len = velocity_factor * electric_lengh;
+      if (real_cable_len != 0.0f) s11_cable->vf = real_cable_len / electric_lengh;
       float data[2];
       if (measure_get_value(0, f1/2, data)){
         s11_cable->R = vna_fabsf(reactance(0, data));

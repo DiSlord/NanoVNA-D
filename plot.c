@@ -692,7 +692,7 @@ trace_into_index(int t) {
     return;
   }
   // Smith/Polar grid
-  if (type & ((1<<TRC_POLAR)|(1<<TRC_SMITH))) { // Need custom calculations
+  if (type & ROUND_GRID_MASK) { // Need custom calculations
     const float rscale = P_RADIUS / scale;
     int16_t y, x;
     for (i = start; i <= stop; i++){

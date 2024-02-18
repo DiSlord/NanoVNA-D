@@ -99,6 +99,9 @@ enum {
   KM_BOTTOM, KM_nBOTTOM,
   KM_SCALE, KM_nSCALE,
   KM_REFPOS, KM_EDELAY, KM_VAR_DELAY, KM_S21OFFSET, KM_VELOCITY_FACTOR,
+#ifdef __S11_CABLE_MEASURE__
+  KM_ACTUAL_CABLE_LEN,
+#endif
   KM_XTAL, KM_THRESHOLD, KM_VBAT,
 #ifdef __S21_MEASURE__
   KM_MEASURE_R,
@@ -2139,6 +2142,7 @@ const menuitem_t menu_measure_cable[] = {
   { MT_ADV_CALLBACK, MEASURE_NONE,        "OFF",                menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_S11_CABLE,   "CABLE\n (S11)",      menu_measure_acb },
   { MT_ADV_CALLBACK, KM_VELOCITY_FACTOR,  "VELOCITY F.\n " R_LINK_COLOR "%d%%%%", menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_ACTUAL_CABLE_LEN, "CABLE LENGTH",       menu_keyboard_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2588,6 +2592,25 @@ static const keypads_t keypads_mfloat[] = {
   { 0x23, KP_BS }
 };
 
+static const keypads_t keypads_mkufloat[] = {
+  { 15, NUM_KEYBOARD },     // 15 buttons NUM keyboard (4x4 size)
+  { 0x13, KP_PERIOD },
+  { 0x03, KP_0 },           // 7 8 9
+  { 0x02, KP_1 },           // 4 5 6 m
+  { 0x12, KP_2 },           // 1 2 3 k
+  { 0x22, KP_3 },           // 0 . < x
+  { 0x01, KP_4 },
+  { 0x11, KP_5 },
+  { 0x21, KP_6 },
+  { 0x00, KP_7 },
+  { 0x10, KP_8 },
+  { 0x20, KP_9 },
+  { 0x31, KP_m },
+  { 0x32, KP_k },
+  { 0x33, KP_ENTER },
+  { 0x23, KP_BS }
+};
+
 static const keypads_t keypads_nfloat[] = {
   { 16, NUM_KEYBOARD },     // 16 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
@@ -2628,15 +2651,16 @@ static const keypads_t keypads_text[] = {
 };
 #endif
 
-enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_MFLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
+enum {KEYPAD_FREQ, KEYPAD_UFLOAT, KEYPAD_PERCENT, KEYPAD_FLOAT, KEYPAD_MFLOAT, KEYPAD_MKUFLOAT, KEYPAD_NFLOAT, KEYPAD_TEXT};
 static const keypads_t *keypad_type_list[] = {
-  [KEYPAD_FREQ]   = keypads_freq,   // frequency input
-  [KEYPAD_UFLOAT] = keypads_ufloat, // unsigned float input
-  [KEYPAD_PERCENT]= keypads_percent,// unsigned float input in percent
-  [KEYPAD_FLOAT]  = keypads_float,  // signed float input
-  [KEYPAD_MFLOAT] = keypads_mfloat, // signed milli/micro float input
-  [KEYPAD_NFLOAT] = keypads_nfloat, // signed micro/nano/pico float input
-  [KEYPAD_TEXT]   = keypads_text    // text input
+  [KEYPAD_FREQ]     = keypads_freq,    // frequency input
+  [KEYPAD_UFLOAT]   = keypads_ufloat,  // unsigned float input
+  [KEYPAD_PERCENT]  = keypads_percent, // unsigned float input in percent
+  [KEYPAD_FLOAT]    = keypads_float,   //   signed float input
+  [KEYPAD_MFLOAT]   = keypads_mfloat,  //   signed milli/micro float input
+  [KEYPAD_MKUFLOAT] = keypads_mkufloat,// unsigned milli/kilo float input
+  [KEYPAD_NFLOAT]   = keypads_nfloat,  //   signed micro/nano/pico float input
+  [KEYPAD_TEXT]     = keypads_text     // text input
 };
 
 // Get value from keyboard functions
@@ -2724,6 +2748,19 @@ UI_KEYBOARD_CALLBACK(input_velocity) {
   if (b) {b->p1.u = velocity_factor; return;}
   velocity_factor = keyboard_get_uint();
 }
+
+#ifdef __S11_CABLE_MEASURE__
+extern float real_cable_len;
+UI_KEYBOARD_CALLBACK(input_cable_len) {
+  (void)data;
+  if (b) {
+    if (real_cable_len == 0.0f) return;
+    plot_printf(b->label, sizeof(b->label), "%s\n " R_LINK_COLOR "%.4F%s", "CABLE LENGTH", real_cable_len, S_METRE);
+    return;
+  }
+  real_cable_len = keyboard_get_float();
+}
+#endif
 
 UI_KEYBOARD_CALLBACK(input_xtal) {
   (void)data;
@@ -2826,6 +2863,9 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
 [KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
 [KM_VELOCITY_FACTOR] = {KEYPAD_PERCENT,0,             "VELOCITY%%",         input_velocity }, // velocity factor
+#ifdef __S11_CABLE_MEASURE__
+[KM_ACTUAL_CABLE_LEN]= {KEYPAD_MKUFLOAT,0,            "CABLE LENGTH",       input_cable_len}, // real cable length input for VF calculation
+#endif
 [KM_XTAL]            = {KEYPAD_FREQ,   0,             "TCXO 26M" S_Hz,      input_xtal     }, // XTAL frequency
 [KM_THRESHOLD]       = {KEYPAD_FREQ,   0,             "THRESHOLD",          input_harmonic }, // Harmonic threshold frequency
 [KM_VBAT]            = {KEYPAD_UFLOAT, 0,             "BAT OFFSET",         input_vbat     }, // Vbat offset input in mV
