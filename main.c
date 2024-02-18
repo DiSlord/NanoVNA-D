@@ -2289,7 +2289,7 @@ VNA_SHELL_FUNCTION(cmd_trace)
     return;
   }
 
-  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc|gb|glc|rpxp|rplc|rxsh|rxser";
+  static const char cmd_marker_smith[] = "lin|log|ri|rx|rlc|gb|glc|rpxp|rplc|rxsh|rlcsh|rxser|rlcser";
   // Set marker smith format
   int format = get_str_index(argv[1], cmd_marker_smith);
   if (format >=0) {
