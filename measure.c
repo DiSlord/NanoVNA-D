@@ -572,7 +572,7 @@ static void prepare_filter(uint8_t type, uint8_t update_mask) {
   }
   // Prepare for update
   invalidate_rect(STR_MEASURE_X                        , STR_MEASURE_Y,
-                  STR_MEASURE_X + 3 * STR_MEASURE_WIDTH, STR_MEASURE_Y + 9 * STR_MEASURE_HEIGHT);
+                  STR_MEASURE_X + 3 * STR_MEASURE_WIDTH, STR_MEASURE_Y + 10 * STR_MEASURE_HEIGHT);
 }
 #endif // __S21_MEASURE__
 
