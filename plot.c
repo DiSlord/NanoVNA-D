@@ -1068,8 +1068,8 @@ static uint8_t data_update = 0;
 #define MESAURE_S21        2                            // For calculate need only S21 data
 #define MESAURE_ALL        (MESAURE_S11 | MESAURE_S21)  // For calculate need S11 and S21 data
 
-#define MEASURE_UPD_SWEEP  1                            // Recalculate on sweep done
-#define MEASURE_UPD_FREQ   2                            // Recalculate on marker change position
+#define MEASURE_UPD_SWEEP  (1<<0)                       // Recalculate on sweep done
+#define MEASURE_UPD_FREQ   (1<<1)                       // Recalculate on marker change position
 #define MEASURE_UPD_ALL    (MEASURE_UPD_SWEEP | MEASURE_UPD_FREQ)
 
 // Include measure functions
@@ -1091,6 +1091,7 @@ static const struct {
   [MEASURE_SHUNT_LC]    = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
   [MEASURE_SERIES_LC]   = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
   [MEASURE_SERIES_XTAL] = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_serial_result, prepare_series   },
+  [MEASURE_FILTER]      = {MESAURE_S21, MEASURE_UPD_SWEEP, draw_filter_result, prepare_filter   },
 #endif
 #ifdef __S11_CABLE_MEASURE__
   [MEASURE_S11_CABLE]   = {MESAURE_S11, MEASURE_UPD_ALL,       draw_s11_cable, prepare_s11_cable},
@@ -1129,7 +1130,7 @@ static void cell_draw_measure(int x0, int y0){
   measure_cell_cb_t measure_draw_cb = measure[current_props._measure].measure_cell;
   if (measure_draw_cb) {
     lcd_set_colors(LCD_MEASURE_COLOR, LCD_BG_COLOR);
-    measure_draw_cb(x0, y0);
+    measure_draw_cb(STR_MEASURE_X - x0, STR_MEASURE_Y - y0);
   }
 }
 #endif
@@ -1437,7 +1438,7 @@ draw_cell(int x0, int y0) {
     cell_grid_line_info(x0, y0);
 #endif
 
-// draw marker symbols on each trace (<10 system ticks for all screen calls)
+  // draw marker symbols on each trace (<10 system ticks for all screen calls)
 #if 1
   for (i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)

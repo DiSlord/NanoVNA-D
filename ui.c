@@ -2164,6 +2164,12 @@ const menuitem_t menu_measure_s21[] = {
   { MT_ADV_CALLBACK, KM_MEASURE_R,        " Rl = " R_LINK_COLOR "%b.4F" S_OHM, menu_keyboard_acb},
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
+
+const menuitem_t menu_measure_filter[] = {
+  { MT_ADV_CALLBACK, MEASURE_NONE,         "OFF",               menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_FILTER,       "FILTER\n (S21)",    menu_measure_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
 #endif
 
 const menuitem_t menu_measure[] = {
@@ -2181,6 +2187,7 @@ const menuitem_t menu_measure[] = {
   { MT_ADV_CALLBACK, MEASURE_SHUNT_LC,    "SHUNT LC\n (S21)",   menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_LC,   "SERIES LC\n (S21)",  menu_measure_acb },
   { MT_ADV_CALLBACK, MEASURE_SERIES_XTAL, "SERIES\nXTAL (S21)", menu_measure_acb },
+  { MT_ADV_CALLBACK, MEASURE_FILTER,      "FILTER\n (S21)",     menu_measure_acb },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2195,6 +2202,7 @@ const menuitem_t *menu_measure_list[] = {
   [MEASURE_SHUNT_LC] = menu_measure_s21,
   [MEASURE_SERIES_LC] = menu_measure_s21,
   [MEASURE_SERIES_XTAL] = menu_measure_s21,
+  [MEASURE_FILTER] = menu_measure_filter,
 #endif
 #ifdef __S11_CABLE_MEASURE__
   [MEASURE_S11_CABLE] = menu_measure_cable,
@@ -2721,13 +2729,13 @@ UI_KEYBOARD_CALLBACK(input_amplitude) {
 
 UI_KEYBOARD_CALLBACK(input_scale) {
   (void)data;
-  if (b) {b->p1.f = get_trace_scale(current_trace); return;}
+  if (b) return;
   set_trace_scale(current_trace, keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
   (void)data;
-  if (b) {b->p1.f = get_trace_refpos(current_trace); return;}
+  if (b) return;
   set_trace_refpos(current_trace, keyboard_get_float());
 }
 
