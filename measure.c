@@ -443,7 +443,7 @@ static void draw_serial_result(int xp, int yp) {
 //  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "F1=%q" S_Hz " F2=%q" S_Hz, s21_measure->f1, s21_measure->f2);
   }
   if (s21_measure->freq1){
-    cell_printf(xp, yp                    , "Fp=%q" S_Hz, s21_measure->freq1);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fp=%q" S_Hz, s21_measure->freq1);
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Cp=%F" S_FARAD, s21_measure->c1);
   }
 }

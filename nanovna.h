@@ -990,29 +990,29 @@ typedef struct config {
 
 typedef struct properties {
   uint32_t magic;
-  freq_t   _frequency0;
-  freq_t   _frequency1;
-  freq_t   _cal_frequency0;
-  freq_t   _cal_frequency1;
-  freq_t   _var_freq;
+  freq_t   _frequency0;          // sweep start frequency
+  freq_t   _frequency1;          // sweep stop frequency
+  freq_t   _cal_frequency0;      // calibration start frequency
+  freq_t   _cal_frequency1;      // calibration stop frequency
+  freq_t   _var_freq;            // frequency step by leveler (0 for auto)
   uint16_t _mode;                // timed domain option flag and some others flags
-  uint16_t _sweep_points;
+  uint16_t _sweep_points;        // points used in measure sweep
   int8_t   _current_trace;       // 0..(TRACES_MAX -1) (TRACE_INVALID  for disabled)
   int8_t   _active_marker;       // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
   int8_t   _previous_marker;     // 0..(MARKERS_MAX-1) (MARKER_INVALID for disabled)
-  uint8_t  _power;
-  uint8_t  _cal_power;
-  uint8_t  _measure;
-  uint16_t _cal_sweep_points;
-  uint16_t _cal_status;
+  uint8_t  _power;               // 0 ... 3 current output power settings
+  uint8_t  _cal_power;           // 0 ... 3 Power used in calibration
+  uint8_t  _measure;             // additional trace data calculations
+  uint16_t _cal_sweep_points;    // points used in calibration
+  uint16_t _cal_status;          // calibration data collected flags
   trace_t  _trace[TRACES_MAX];
   marker_t _markers[MARKERS_MAX];
   uint8_t  _reserved;
   uint8_t  _velocity_factor;     // 0 .. 100 %
-  float    _electrical_delay;    // picoseconds
-  float    _var_delay;
-  float    _s21_offset;
-  float    _portz;
+  float    _electrical_delay;    // in seconds
+  float    _var_delay;           // electrical delay step by leveler
+  float    _s21_offset;          // additional external attenuator for S21 measures
+  float    _portz;               // Used for port-z renormalisation
   float    _cal_data[CAL_TYPE_COUNT][SWEEP_POINTS_MAX][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
