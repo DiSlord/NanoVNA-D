@@ -112,6 +112,7 @@ enum {
 #ifdef __USE_RTC__
   KM_RTC_DATE,
   KM_RTC_TIME,
+  KM_RTC_CAL,
 #endif
 #ifdef __USE_SD_CARD__
   KM_S1P_NAME,
@@ -2290,6 +2291,27 @@ const menuitem_t menu_device1[] = {
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
+#ifdef __USE_RTC__
+static UI_FUNCTION_ADV_CALLBACK(menu_rtc_out_acb)
+{
+  (void)data;
+  bool enabled = rtc_clock_output_enabled();
+  if(b){
+    if (enabled)
+      b->icon = BUTTON_ICON_CHECK;
+    b->p1.text = enabled ? "ON" : "OFF";
+    return;
+  }
+  rtc_clock_output_enable(!enabled);
+}
+
+const menuitem_t menu_rtc_cal[] = {
+  { MT_ADV_CALLBACK, KM_RTC_CAL,   "RTC CAL\n " R_LINK_COLOR "%d" S_PPM,       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,            "RTC OUT\n%s"   ,                           menu_rtc_out_acb },
+  { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
+};
+#endif
+
 const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, KM_THRESHOLD, "THRESHOLD\n " R_LINK_COLOR "%.6q",         menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_XTAL,      "TCXO\n " R_LINK_COLOR "%.6q",              menu_keyboard_acb },
@@ -2306,6 +2328,7 @@ const menuitem_t menu_device[] = {
 #ifdef __USE_RTC__
   { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                                 menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                                 menu_keyboard_acb },
+  { MT_SUBMENU,                0,  S_RARROW" RTC CAL",                         menu_rtc_cal },
 #endif
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_device1 },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
@@ -2675,6 +2698,7 @@ static const keypads_t *keypad_type_list[] = {
 float keyboard_get_float(void)   {return my_atof(kp_buf);}
 freq_t keyboard_get_freq(void)   {return my_atoui(kp_buf);}
 uint32_t keyboard_get_uint(void) {return my_atoui(kp_buf);}
+int32_t keyboard_get_int(void)   {return my_atoi(kp_buf);}
 
 // Keyboard call back functions, allow get value for Keyboard menu button (see menu_keyboard_acb) and apply on finish input
 UI_KEYBOARD_CALLBACK(input_freq) {
@@ -2841,6 +2865,15 @@ UI_KEYBOARD_CALLBACK(input_date_time) {
   }
   rtc_set_time(dt_buf[1], dt_buf[0]);
 }
+
+UI_KEYBOARD_CALLBACK(input_rtc_cal) {
+  (void)data;
+  if (b) {
+    b->p1.i = rtc_get_cal();
+    return;
+  }
+  rtc_set_cal(keyboard_get_int());
+}
 #endif
 
 #ifdef __USE_SD_CARD__
@@ -2886,6 +2919,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __USE_RTC__
 [KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\nYY MM DD", input_date_time}, // Date
 [KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\nHH MM SS", input_date_time}, // Time
+[KM_RTC_CAL]         = {KEYPAD_FLOAT,  0,             "RTC CAL",            input_rtc_cal},   // RTC calibration in ppm
 #endif
 #ifdef __USE_SD_CARD__
 [KM_S1P_NAME]        = {KEYPAD_TEXT,   FMT_S1P_FILE,  "S1P",                input_filename }, // s1p filename
