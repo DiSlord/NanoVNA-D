@@ -161,35 +161,20 @@ void rtc_init(void){
     RTC->ISR &= ~RTC_ISR_RSF;
 }
 
-bool rtc_clock_output_enabled(void) {
-  return (RTC->CR & RTC_CR_COE) != 0;
-}
-
-void rtc_clock_output_enable(bool en) {
-  if (en)
-      RTC->CR |= RTC_CR_COE;
-  else
-      RTC->CR &= ~RTC_CR_COE;
-}
-
-bool rtc_set_cal(int16_t ppm) {
-  int32_t cal = (ppm << 20) / 1000000;
+void rtc_set_cal(float ppm) {
+  ppm*= (1<<20) / 1000000.0f;
+  int32_t cal = ppm > 0 ? ppm + 0.5f : ppm - 0.5f;
   if ((RTC->ISR & RTC_ISR_RECALPF) != 0 || cal < -511 || cal > 512)
-    return false;
+    return;
   if (cal > 0)
     RTC->CALR = RTC_CALR_CALP | (512 - cal);
   else
     RTC->CALR = -cal;
-  return true;
 }
 
-int16_t rtc_get_cal(void) {
+float rtc_get_cal(void) {
   int32_t cal = -(RTC->CALR & RTC_CALR_CALM);
   if (RTC->CALR & RTC_CALR_CALP)
     cal += 512;
-  return (cal * 1000000) >> 20;
-}
-
-bool rtc_cal_pending(void) {
-  return (RTC->ISR & RTC_ISR_RECALPF) != 0;
+  return cal * (1000000.0f / (1<<20));
 }

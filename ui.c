@@ -2302,11 +2302,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_rtc_out_acb)
     b->p1.text = enabled ? "ON" : "OFF";
     return;
   }
-  rtc_clock_output_enable(!enabled);
+  rtc_clock_output_toggle();
 }
 
 const menuitem_t menu_rtc_cal[] = {
-  { MT_ADV_CALLBACK, KM_RTC_CAL,   "RTC CAL\n " R_LINK_COLOR "%d" S_PPM,       menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_CAL,   "RTC CAL\n " R_LINK_COLOR "%b.4f " S_PPM,   menu_keyboard_acb },
   { MT_ADV_CALLBACK, 0,            "RTC OUT\n%s"   ,                           menu_rtc_out_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2869,10 +2869,10 @@ UI_KEYBOARD_CALLBACK(input_date_time) {
 UI_KEYBOARD_CALLBACK(input_rtc_cal) {
   (void)data;
   if (b) {
-    b->p1.i = rtc_get_cal();
+    b->p1.f = rtc_get_cal();
     return;
   }
-  rtc_set_cal(keyboard_get_int());
+  rtc_set_cal(keyboard_get_float());
 }
 #endif
 

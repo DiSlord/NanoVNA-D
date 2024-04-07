@@ -114,11 +114,14 @@ uint32_t rtc_get_dr_bin(void);
 uint32_t rtc_get_FAT(void);
 // Write date and time (need in bcd format!!!)
 void rtc_set_time(uint32_t dr, uint32_t tr);
-bool rtc_clock_output_enabled(void);
-void rtc_clock_output_enable(bool en);
-bool rtc_set_cal(int16_t ppm);
-int16_t rtc_get_cal(void);
-bool rtc_cal_pending(void);
+// Toggle RTC clock output
+#define rtc_clock_output_toggle()  RTC->CR^= RTC_CR_COE
+// Check RTC clock output
+#define rtc_clock_output_enabled() (RTC->CR & RTC_CR_COE)
+// Set RTC calibration value in ppm (value rounded by (1<<20)/1e6
+void  rtc_set_cal(float ppm);
+// Get RTC calibration value in ppm
+float rtc_get_cal(void);
 #endif
 
 /*
