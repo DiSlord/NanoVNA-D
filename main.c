@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.28"
+#define VERSION "1.2.29"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -772,7 +772,7 @@ VNA_SHELL_FUNCTION(cmd_time)
   dt_buf[0] = rtc_get_tr_bcd(); // TR should be read first for sync
   dt_buf[1] = rtc_get_dr_bcd(); // DR should be read second
   static const uint8_t idx_to_time[] = {6,5,4,2,  1,  0};
-  static const char       time_cmd[] = "y|m|d|h|min|sec";
+  static const char       time_cmd[] = "y|m|d|h|min|sec|ppm";
   //            0    1   2       4      5     6
   // time[] ={sec, min, hr, 0, day, month, year, 0}
   uint8_t   *time = (uint8_t*)dt_buf;
@@ -782,6 +782,10 @@ VNA_SHELL_FUNCTION(cmd_time)
   }
   if (argc!=2) goto usage;
   int idx = get_str_index(argv[0], time_cmd);
+  if(idx == 6) {
+    rtc_set_cal(my_atof(argv[1]));
+    return;
+  }
   uint32_t val = my_atoui(argv[1]);
   if (idx < 0 || val > 99)
     goto usage;

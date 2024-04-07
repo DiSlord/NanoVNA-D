@@ -149,7 +149,9 @@ void rtc_init(void){
   // If calendar has not been initialized yet then proceed with the initial setup.
   if ((RTC->ISR & RTC_ISR_INITS) == 0 || RTC->PRER != rtc_prer) {
     if (rtc_enter_init()){
-      RTC->CR   &= ~RTC_CR_COE;
+      RTC->CR   = 0
+//              | RTC_CR_COSEL    // RTC output 1Hz (or 512Hz if disabled)
+                 ;
       RTC->ISR  = RTC_ISR_INIT;     // Clearing all but RTC_ISR_INIT.
       RTC->PRER = rtc_prer;         // Prescaler value loaded in registers 2 times
       RTC->PRER = rtc_prer;
@@ -162,14 +164,10 @@ void rtc_init(void){
 }
 
 void rtc_set_cal(float ppm) {
-  ppm*= (1<<20) / 1000000.0f;
-  int32_t cal = ppm > 0 ? ppm + 0.5f : ppm - 0.5f;
-  if ((RTC->ISR & RTC_ISR_RECALPF) != 0 || cal < -511 || cal > 512)
+  int32_t cal = ppm * (1<<20) / 1000000.0f + 511.5f;
+  if ((RTC->ISR & RTC_ISR_RECALPF) || (uint32_t)cal > 1024)
     return;
-  if (cal > 0)
-    RTC->CALR = RTC_CALR_CALP | (512 - cal);
-  else
-    RTC->CALR = -cal;
+  RTC->CALR = (511 - cal) & (RTC_CALR_CALP | RTC_CALR_CALM);
 }
 
 float rtc_get_cal(void) {
