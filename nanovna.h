@@ -796,6 +796,7 @@ enum {
 #define S_METRE    "m"     //
 #define S_VOLT     "V"     //
 #define S_AMPER    "A"     //
+#define S_PPM      "ppm"   //
 
 // Max palette indexes in config
 #define MAX_PALETTE     32

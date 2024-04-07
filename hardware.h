@@ -114,6 +114,11 @@ uint32_t rtc_get_dr_bin(void);
 uint32_t rtc_get_FAT(void);
 // Write date and time (need in bcd format!!!)
 void rtc_set_time(uint32_t dr, uint32_t tr);
+bool rtc_clock_output_enabled(void);
+void rtc_clock_output_enable(bool en);
+bool rtc_set_cal(int16_t ppm);
+int16_t rtc_get_cal(void);
+bool rtc_cal_pending(void);
 #endif
 
 /*
