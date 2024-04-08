@@ -2305,9 +2305,11 @@ static UI_FUNCTION_ADV_CALLBACK(menu_rtc_out_acb)
   rtc_clock_output_toggle();
 }
 
-const menuitem_t menu_rtc_cal[] = {
-  { MT_ADV_CALLBACK, KM_RTC_CAL,   "RTC CAL\n" R_LINK_COLOR "%+b.4f" S_PPM, menu_keyboard_acb },
-  { MT_ADV_CALLBACK, 0,            "RTC OUT\n%s"   ,                        menu_rtc_out_acb },
+const menuitem_t menu_rtc[] = {
+  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                               menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                               menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_RTC_CAL,   "RTC CAL\n " R_LINK_COLOR "%+b.3f" S_PPM, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, 0,            "RTC 512" S_Hz "\n Led2 %s",              menu_rtc_out_acb },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 #endif
@@ -2323,12 +2325,10 @@ const menuitem_t menu_device[] = {
   { MT_ADV_CALLBACK, VNA_MODE_BACKUP,"REMEMBER\nSTATE",                        menu_vna_mode_acb},
 #endif
 #ifdef __FLIP_DISPLAY__
-  { MT_ADV_CALLBACK, VNA_MODE_FLIP_DISPLAY, "FLIP\nDISPLAY",                   menu_vna_mode_acb },
+  { MT_ADV_CALLBACK, VNA_MODE_FLIP_DISPLAY, "FLIP\nDISPLAY",                   menu_vna_mode_acb},
 #endif
-#ifdef __USE_RTC__
-  { MT_ADV_CALLBACK, KM_RTC_DATE,  "SET DATE",                                 menu_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_RTC_TIME,  "SET TIME",                                 menu_keyboard_acb },
-  { MT_SUBMENU,                0,  S_RARROW" RTC CAL",                         menu_rtc_cal },
+#ifdef __DFU_SOFTWARE_MODE__
+  { MT_SUBMENU, 0,                 S_RARROW "DFU",                             menu_dfu },
 #endif
   { MT_SUBMENU, 0, S_RARROW" MORE", menu_device1 },
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
@@ -2346,8 +2346,8 @@ const menuitem_t menu_config[] = {
 #ifdef __LCD_BRIGHTNESS__
   { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n " R_LINK_COLOR "%d%%%%", menu_brightness_acb },
 #endif
-#ifdef __DFU_SOFTWARE_MODE__
-  { MT_SUBMENU,                       0, S_RARROW "DFU",   menu_dfu },
+#ifdef __USE_RTC__
+  { MT_SUBMENU,                       0, "DATE/TIME",     menu_rtc },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2919,7 +2919,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #ifdef __USE_RTC__
 [KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\nYY MM DD", input_date_time}, // Date
 [KM_RTC_TIME]        = {KEYPAD_UFLOAT, KM_RTC_TIME,   "SET TIME\nHH MM SS", input_date_time}, // Time
-[KM_RTC_CAL]         = {KEYPAD_FLOAT,  0,             "RTC CAL",            input_rtc_cal},   // RTC calibration in ppm
+[KM_RTC_CAL]         = {KEYPAD_FLOAT,  0,             "RTC CAL",            input_rtc_cal  }, // RTC calibration in ppm
 #endif
 #ifdef __USE_SD_CARD__
 [KM_S1P_NAME]        = {KEYPAD_TEXT,   FMT_S1P_FILE,  "S1P",                input_filename }, // s1p filename

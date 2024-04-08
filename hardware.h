@@ -118,7 +118,7 @@ void rtc_set_time(uint32_t dr, uint32_t tr);
 #define rtc_clock_output_toggle()  RTC->CR^= RTC_CR_COE
 // Check RTC clock output
 #define rtc_clock_output_enabled() (RTC->CR & RTC_CR_COE)
-// Set RTC calibration value in ppm (value rounded by (1<<20)/1e6
+// Set RTC calibration value in ppm (value rounded by 1e6/(1<<20)
 void  rtc_set_cal(float ppm);
 // Get RTC calibration value in ppm
 float rtc_get_cal(void);
