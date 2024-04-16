@@ -836,7 +836,7 @@ static int marker_area_max(void) {
   for (i = 0; i < MARKERS_MAX; i++) if (markers[i].enabled) m_count++;
   int cnt = t_count > m_count ? t_count : m_count;
   int extra = 0;
-  if (electrical_delay != 0.0f) extra+= 2;
+  if (get_electrical_delay() != 0.0f) extra+= 2;
   if (s21_offset != 0.0f) extra+= 2;
 #ifdef __VNA_Z_RENORMALIZATION__
   if (current_props._portz != 50.0f) extra+= 2;
@@ -1711,6 +1711,7 @@ cell_draw_marker_info(int x0, int y0)
 
   xpos = 1 + 18 + CELLOFFSETX - x0;
   ypos = 1 + ((j+1)/2)*FONT_STR_HEIGHT - y0;
+  float electrical_delay = get_electrical_delay();
   if (electrical_delay != 0.0f) {
     // draw electrical delay
     char sel = lever_mode == LM_EDELAY ? S_SARROW[0] : ' ';

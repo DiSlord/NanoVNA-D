@@ -1163,10 +1163,11 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
     {
       if (current_trace == TRACE_INVALID)
         break;
-      float (*array)[2] = measured[trace[current_trace].channel];
+      int ch = trace[current_trace].channel;
+      float (*array)[2] = measured[ch];
       int index = markers[active_marker].index;
       float v = groupdelay_from_array(index, array[index]);
-      set_electrical_delay(electrical_delay + v);
+      set_electrical_delay(ch, current_props._electrical_delay[ch] + v);
     }
     break;
   }
@@ -1808,7 +1809,7 @@ static const menuitem_t menu_calop[] = {
   { MT_ADV_CALLBACK, CAL_LOAD,  "LOAD",  menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_ISOLN, "ISOLN", menu_calop_acb },
   { MT_ADV_CALLBACK, CAL_THRU,  "THRU",  menu_calop_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
+//{ MT_ADV_CALLBACK, KM_EDELAY, "E-DELAY", menu_keyboard_acb },
   { MT_CALLBACK, 0,             "DONE",  menu_caldone_cb },
   { MT_CALLBACK, 1,             "DONE IN RAM",  menu_caldone_cb },
   { MT_NEXT,     0, NULL, menu_back } // next-> menu_back
@@ -1960,7 +1961,7 @@ const menuitem_t menu_scale[] = {
   { MT_ADV_CALLBACK, KM_BOTTOM,    "BOTTOM",              menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_SCALE,     "SCALE/DIV",           menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_REFPOS,    "REFERENCE\nPOSITION", menu_scale_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_EDELAY,    "E-DELAY\n " R_LINK_COLOR "%b.7F" S_SECOND, menu_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_EDELAY,    "E-DELAY",             menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n " R_LINK_COLOR "%b.3F" S_dB,  menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
@@ -2765,8 +2766,13 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
-  if (b) {b->p1.f = electrical_delay; return;}
-  set_electrical_delay(keyboard_get_float());
+  if (current_trace == TRACE_INVALID) return;
+  int ch = trace[current_trace].channel;
+  if (b) {
+    plot_printf(b->label, sizeof(b->label), "E-DELAY S%d1\n " R_LINK_COLOR "%.7F" S_SECOND, ch + 1, current_props._electrical_delay[ch]);
+    return;
+  }
+  set_electrical_delay(ch, keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_s21_offset) {
@@ -3412,7 +3418,8 @@ lever_frequency(uint16_t status) {
 static void
 lever_edelay(uint16_t status)
 {
-  float value = electrical_delay;
+  int ch = current_trace != TRACE_INVALID ? trace[current_trace].channel : 0;
+  float value = current_props._electrical_delay[ch];
   if (current_props._var_delay == 0.0f) {
     float ratio = value > 0 ?  STEPRATIO : -STEPRATIO;
     if (status & EVT_UP  ) value*= (1.0f + ratio);
@@ -3421,7 +3428,7 @@ lever_edelay(uint16_t status)
     if (status & EVT_UP  ) value+= current_props._var_delay;
     if (status & EVT_DOWN) value-= current_props._var_delay;
   }
-  set_electrical_delay(value);
+  set_electrical_delay(ch, value);
   while (btn_wait_release() != 0);
 }
 
@@ -3482,7 +3489,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
   if (touch_y > HEIGHT && (props_mode & DOMAIN_MODE) == DOMAIN_FREQ) // Only for frequency domain
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
   if (touch_y < UI_MARKER_Y0)
-    mode = (touch_x < (LCD_WIDTH / 2) && electrical_delay != 0.0) ? LM_EDELAY : LM_MARKER;
+    mode = (touch_x < (LCD_WIDTH / 2) && get_electrical_delay() != 0.0f) ? LM_EDELAY : LM_MARKER;
   if (mode == -1) return FALSE;
 
   touch_wait_release();

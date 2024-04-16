@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.29"
+#define VERSION "1.2.30"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1005,7 +1005,8 @@ static void load_default_properties(void) {
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
-  current_props._electrical_delay = 0.0f;
+  current_props._electrical_delay[0] = 0.0f;
+  current_props._electrical_delay[1] = 0.0f;
   current_props._var_delay = 0.0f;
   current_props._s21_offset       = 0.0f;
   current_props._portz = 50.0f;
@@ -1154,13 +1155,14 @@ extern uint16_t timings[16];
 #define DSP_WAIT         while (wait_count) {__WFI();}
 #define RESET_SWEEP      {p_sweep = 0;}
 
-#define SWEEP_CH0_MEASURE           0x01
-#define SWEEP_CH1_MEASURE           0x02
-#define SWEEP_APPLY_EDELAY          0x04
-#define SWEEP_APPLY_S21_OFFSET      0x08
-#define SWEEP_APPLY_CALIBRATION     0x10
-#define SWEEP_USE_INTERPOLATION     0x20
-#define SWEEP_USE_RENORMALIZATION   0x40
+#define SWEEP_CH0_MEASURE           (1<< 0)
+#define SWEEP_CH1_MEASURE           (1<< 1)
+#define SWEEP_APPLY_EDELAY_S11      (1<< 2)
+#define SWEEP_APPLY_EDELAY_S21      (1<< 3)
+#define SWEEP_APPLY_S21_OFFSET      (1<< 4)
+#define SWEEP_APPLY_CALIBRATION     (1<< 5)
+#define SWEEP_USE_INTERPOLATION     (1<< 6)
+#define SWEEP_USE_RENORMALIZATION   (1<< 7)
 
 static uint16_t get_sweep_mask(void){
   uint16_t ch_mask = 0;
@@ -1188,14 +1190,17 @@ static uint16_t get_sweep_mask(void){
 #endif
   if (cal_status & CALSTAT_APPLY)        ch_mask|= SWEEP_APPLY_CALIBRATION;
   if (cal_status & CALSTAT_INTERPOLATED) ch_mask|= SWEEP_USE_INTERPOLATION;
-  if (electrical_delay)                  ch_mask|= SWEEP_APPLY_EDELAY;
+  if (electrical_delayS11)               ch_mask|= SWEEP_APPLY_EDELAY_S11;
+  if (electrical_delayS21)               ch_mask|= SWEEP_APPLY_EDELAY_S21;
   if (s21_offset)                        ch_mask|= SWEEP_APPLY_S21_OFFSET;
   return ch_mask;
 }
 
-static void applyEDelay(float data[2], float s, float c){
+static void applyEDelay(float w, float data[2]) {
+  float s, c;
   float real = data[0];
   float imag = data[1];
+  vna_sincosf(w, &s, &c);
   data[0] = real * c - imag * s;
   data[1] = imag * c + real * s;
 }
@@ -1215,7 +1220,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
   if (p_sweep>=sweep_points || break_on_operation == false) RESET_SWEEP;
   if (break_on_operation && mask == 0)
     return false;
-  float s, c;
   float data[4];
   float c_data[CAL_TYPE_COUNT][2];
   // Blink LED while scanning
@@ -1235,9 +1239,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
     if (mask & (SWEEP_CH0_MEASURE|SWEEP_CH1_MEASURE)) {
       delay = set_frequency(frequency);
       interpolation_idx = mask & SWEEP_USE_INTERPOLATION ? -1 : p_sweep;
-      // Edelay calibration
-      if (mask & SWEEP_APPLY_EDELAY)
-        vna_sincosf(electrical_delay * frequency, &s, &c);
     }
     // CH0:REFLECTION, reset and begin measure
     if (mask & SWEEP_CH0_MEASURE) {
@@ -1254,8 +1255,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       (*sample_func)(&data[0]);             // calculate reflection coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)   // Apply calibration
         apply_CH0_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY)        // Apply e-delay
-        applyEDelay(&data[0], s, c);
+      if (mask & SWEEP_APPLY_EDELAY_S11) // Apply e-delay
+        applyEDelay(electrical_delayS11 * frequency, &data[0]);
     }
     // CH1:TRANSMISSION, reset and begin measure
     if (mask & SWEEP_CH1_MEASURE) {
@@ -1271,8 +1272,8 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       (*sample_func)(&data[2]);              // Measure transmission coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
         apply_CH1_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY)         // Apply e-delay
-        applyEDelay(&data[2], s, c);
+      if (mask & SWEEP_APPLY_EDELAY_S21)     // Apply e-delay
+        applyEDelay(electrical_delayS21 * frequency, &data[2]);
       if (mask & SWEEP_APPLY_S21_OFFSET)
         applyOffset(&data[2], offset);
     }
@@ -1495,7 +1496,8 @@ VNA_SHELL_FUNCTION(cmd_scan)
 #endif
 
   if ((cal_status & CALSTAT_APPLY) && !(mask&SCAN_MASK_NO_CALIBRATION)) sweep_ch|= SWEEP_APPLY_CALIBRATION;
-  if (electrical_delay             && !(mask&SCAN_MASK_NO_EDELAY     )) sweep_ch|= SWEEP_APPLY_EDELAY;
+  if (electrical_delayS11          && !(mask&SCAN_MASK_NO_EDELAY     )) sweep_ch|= SWEEP_APPLY_EDELAY_S11;
+  if (electrical_delayS21          && !(mask&SCAN_MASK_NO_EDELAY     )) sweep_ch|= SWEEP_APPLY_EDELAY_S21;
   if (s21_offset                   && !(mask&SCAN_MASK_NO_S21OFFS    )) sweep_ch|= SWEEP_APPLY_S21_OFFSET;
 
   if (needInterpolate(start, stop, sweep_points))
@@ -1958,7 +1960,8 @@ cal_collect(uint16_t type)
 //  if (sweep_points != POINTS_COUNT)
 //    set_sweep_points(POINTS_COUNT);
   uint16_t mask = (src == 0) ? SWEEP_CH0_MEASURE : SWEEP_CH1_MEASURE;
-  if (electrical_delay) mask|= SWEEP_APPLY_EDELAY;
+//  if (electrical_delayS11) mask|= SWEEP_APPLY_EDELAY_S11;
+//  if (electrical_delayS21) mask|= SWEEP_APPLY_EDELAY_S21;
   // Measure calibration data
   sweep(false, mask);
   // Copy calibration data
@@ -2222,12 +2225,18 @@ void set_trace_enable(int t, bool enable)
   request_to_redraw(REDRAW_AREA);
 }
 
-void set_electrical_delay(float seconds)
+void set_electrical_delay(int ch, float seconds)
 {
-  if (electrical_delay != seconds) {
-    electrical_delay = seconds;
-    request_to_redraw(REDRAW_MARKER);
-  }
+  if (current_props._electrical_delay[ch] == seconds) return;
+  current_props._electrical_delay[ch] = seconds;
+  request_to_redraw(REDRAW_MARKER);
+}
+
+float get_electrical_delay(void)
+{
+  if (current_trace == TRACE_INVALID) return 0.0f;
+  int ch = trace[current_trace].channel;
+  return current_props._electrical_delay[ch];
 }
 
 void set_s21_offset(float offset)
@@ -2319,11 +2328,22 @@ usage:
 
 VNA_SHELL_FUNCTION(cmd_edelay)
 {
-  if (argc != 1) {
-    shell_printf("%f" VNA_SHELL_NEWLINE_STR, electrical_delay * (1.0f / 1e-12f)); // return in picoseconds
+  int ch = 0;
+  float value;
+  static const char cmd_edelay_list[] = "s11|s21";
+  if (argc >= 1) {
+    int idx = get_str_index(argv[0], cmd_edelay_list);
+    if (idx == -1) value = my_atof(argv[0]);
+    else  {
+      ch = idx;
+      if (argc != 2) goto usage;
+      value = my_atof(argv[0]);
+    }
+    set_electrical_delay(ch, value * 1e-12); // input value in seconds
     return;
   }
-  set_electrical_delay(my_atof(argv[0]) * 1e-12); // input value in seconds
+usage:
+  shell_printf("%f" VNA_SHELL_NEWLINE_STR, current_props._electrical_delay[ch] * (1.0f / 1e-12f)); // return in picoseconds
 }
 
 VNA_SHELL_FUNCTION(cmd_s21offset)

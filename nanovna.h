@@ -1010,10 +1010,11 @@ typedef struct properties {
   marker_t _markers[MARKERS_MAX];
   uint8_t  _reserved;
   uint8_t  _velocity_factor;     // 0 .. 100 %
-  float    _electrical_delay;    // in seconds
+  float    _electrical_delay[2]; // delays for S11 and S21 traces in seconds
   float    _var_delay;           // electrical delay step by leveler
   float    _s21_offset;          // additional external attenuator for S21 measures
   float    _portz;               // Used for port-z renormalisation
+  uint32_t _reserved1[8];
   float    _cal_data[CAL_TYPE_COUNT][SWEEP_POINTS_MAX][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
@@ -1033,8 +1034,8 @@ const char *get_trace_chname(int t);
 // Shell config functions and macros for Serial connect, not used if Serial mode disabled
 void shell_update_speed(uint32_t speed);
 void shell_reset_console(void);
-
-void set_electrical_delay(float seconds);
+void  set_electrical_delay(int ch, float seconds);
+float get_electrical_delay(void);
 void set_s21_offset(float offset);
 float groupdelay_from_array(int i, const float *v);
 
@@ -1293,7 +1294,7 @@ void testLog(void);        // debug log
  * flash.c
  */
 #define CONFIG_MAGIC      0x434f4e56 // Config magic value (allow reset on new config version)
-#define PROPERTIES_MAGIC  0x434f4e52 // Properties magic value (allow reset on new properties version)
+#define PROPERTIES_MAGIC  0x434f4e53 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;
@@ -1308,7 +1309,8 @@ extern uint16_t lastsaveid;
 #define cal_power           current_props._cal_power
 #define cal_status          current_props._cal_status
 #define cal_data            current_props._cal_data
-#define electrical_delay    current_props._electrical_delay
+#define electrical_delayS11 current_props._electrical_delay[0]
+#define electrical_delayS21 current_props._electrical_delay[1]
 #define s21_offset          current_props._s21_offset
 #define velocity_factor     current_props._velocity_factor
 #define trace               current_props._trace
