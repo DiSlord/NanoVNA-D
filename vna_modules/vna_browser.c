@@ -237,7 +237,7 @@ finish:
             buf_16[0] != 0x4949 ||       // Check header ID
             buf_16[9] != LCD_WIDTH ||    // Check Width
             buf_16[15] != LCD_HEIGHT ||  // Check Height
-            buf_16[27] != 0x8005) {error = "Format err"; break;}
+            buf_16[27] != TIFF_PACKBITS) {error = "Format err"; break;}
     for (y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
       // Unpack RLE compression sequence
       for (x = 0; x < LCD_WIDTH * 3;) {

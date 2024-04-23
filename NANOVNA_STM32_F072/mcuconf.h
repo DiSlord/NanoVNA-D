@@ -66,7 +66,7 @@
 #define RTC_PRER(a, s)              ((((a) - 1) << 16) | ((s) - 1))
 
 // LSE for 32768 quartz
-#define STM32_RTC_LSE_PRER                  RTC_PRER(128,  256)
+#define STM32_RTC_LSE_PRER                  RTC_PRER( 32, 1024)
 // LSI 40k
 #define STM32_RTC_LSI_PRER                  RTC_PRER( 40, 1000)
 

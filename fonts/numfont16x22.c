@@ -19,7 +19,7 @@
  */
 
 #include <stdint.h>
-#include "nanovna.h"
+#include "../nanovna.h"
 
 const uint8_t numfont16x22[] = {
   _BMP16(0b0000111111110000),

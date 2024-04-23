@@ -152,8 +152,13 @@ CSRC = $(STARTUPSRC) \
        $(STREAMSSRC) \
        FatFs/ff.c \
        FatFs/ffunicode.c \
+       fonts/numfont16x22.c \
+       fonts/Font5x7.c \
+       fonts/Font6x10.c \
+       fonts/Font7x11b.c \
+       fonts/Font11x14.c \
        usbcfg.c \
-       main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c numfont16x22.c Font5x7.c Font6x10.c Font7x11b.c Font11x14.c data_storage.c hardware.c vna_math.c
+       main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c data_storage.c hardware.c vna_math.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
