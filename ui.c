@@ -514,9 +514,7 @@ static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *dat
   data[1] = last_touch_y;
 }
 
-void
-touch_cal_exec(void)
-{
+void ui_touch_cal_exec(void) {
   const uint16_t x1 = CALIBRATION_OFFSET - TOUCH_MARK_X;
   const uint16_t y1 = CALIBRATION_OFFSET - TOUCH_MARK_Y;
   const uint16_t x2 = LCD_WIDTH  - 1 - CALIBRATION_OFFSET - TOUCH_MARK_X;
@@ -529,9 +527,7 @@ touch_cal_exec(void)
   getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[p2]);
 }
 
-void
-touch_draw_test(void)
-{
+void ui_touch_draw_test(void) {
   int x0, y0;
   int x1, y1;
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
@@ -554,9 +550,7 @@ touch_draw_test(void)
   }
 }
 
-static void
-touch_position(int *x, int *y)
-{
+static void touch_position(int *x, int *y) {
 #ifdef __REMOTE_DESKTOP__
   if (touch_remote != REMOTE_NONE) {
     *x = last_touch_x;
@@ -615,8 +609,8 @@ static const uint8_t qr_code_map[] = {
   0xff, 0xff, 0xff, 0xfe,
 };
 #endif
-static void
-show_version(void)
+
+static void ui_show_version(void)
 {
   int x = 5, y = 5, i = 1;
   int str_height = FONT_STR_HEIGHT + 2;
@@ -666,8 +660,7 @@ show_version(void)
 }
 
 #ifdef __DFU_SOFTWARE_MODE__
-void
-enter_dfu(void)
+void ui_enter_dfu(void)
 {
   touch_stop_watchdog();
   int x = 5, y = 20;
@@ -776,13 +769,13 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
 {
   switch (data) {
   case MENU_CONFIG_TOUCH_CAL:
-      touch_cal_exec();
+      ui_touch_cal_exec();
       break;
   case MENU_CONFIG_TOUCH_TEST:
-      touch_draw_test();
+      ui_touch_draw_test();
       break;
   case MENU_CONFIG_VERSION:
-      show_version();
+      ui_show_version();
       break;
   case MENU_CONFIG_RESET:
       clear_all_config_prop_data();
@@ -810,7 +803,7 @@ static UI_FUNCTION_CALLBACK(menu_config_save_cb)
 static UI_FUNCTION_CALLBACK(menu_dfu_cb)
 {
   (void)data;
-  enter_dfu();
+  ui_enter_dfu();
 }
 #endif
 
@@ -1115,7 +1108,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb)
   uint32_t type_mask = 1<<trace[current_trace].type;
   if (type_mask & ROUND_GRID_MASK) return;
   // Nano scale values
-  if (type_mask & NANO_TYPE_MASK) data++;
+  uint32_t nano_keyb_type = (1<<KM_TOP) | (1<<KM_BOTTOM) | (1<<KM_SCALE);
+  if ((type_mask & NANO_TYPE_MASK) && ((1<<data) & nano_keyb_type)) data++;
   menu_keyboard_acb(data, b);
 }
 

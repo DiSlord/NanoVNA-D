@@ -1374,9 +1374,9 @@ void ui_process(void);
 
 void handle_touch_interrupt(void);
 
-void touch_cal_exec(void);
-void touch_draw_test(void);
-void enter_dfu(void);
+void ui_touch_cal_exec(void);
+void ui_touch_draw_test(void);
+void ui_enter_dfu(void);
 
 void drawMessageBox(const char *header, const char *text, uint32_t delay);
 

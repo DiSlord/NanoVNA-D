@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.30"
+#define VERSION "1.2.31"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -555,7 +555,7 @@ VNA_SHELL_FUNCTION(cmd_reset)
   if (argc == 1) {
     if (get_str_index(argv[0], "dfu") == 0) {
       shell_printf("Performing reset to DFU mode" VNA_SHELL_NEWLINE_STR);
-      enter_dfu();
+      ui_enter_dfu();
       return;
     }
   }
@@ -2408,7 +2408,7 @@ VNA_SHELL_FUNCTION(cmd_touchcal)
   (void)argc;
   (void)argv;
   shell_printf("first touch upper left, then lower right...");
-  touch_cal_exec();
+  ui_touch_cal_exec();
   shell_printf("done" VNA_SHELL_NEWLINE_STR \
                "touch cal params: %d %d %d %d" VNA_SHELL_NEWLINE_STR,
                config._touch_cal[0], config._touch_cal[1], config._touch_cal[2], config._touch_cal[3]);
@@ -2419,7 +2419,7 @@ VNA_SHELL_FUNCTION(cmd_touchtest)
 {
   (void)argc;
   (void)argv;
-  touch_draw_test();
+  ui_touch_draw_test();
 }
 
 VNA_SHELL_FUNCTION(cmd_frequencies)
