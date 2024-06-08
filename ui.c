@@ -221,15 +221,11 @@ typedef struct {
 } menuitem_t;
 #pragma pack(pop)
 
-#define KP_CONTINUE        0
-#define KP_DONE            1
-#define KP_CANCEL          2
-
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
-static void draw_menu(uint32_t mask);
-static void draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b);
-static void ui_mode_keypad(int _keypad_mode);
+static void menu_draw(uint32_t mask);
+static void ui_mode_keypad(int mode);
+static void ui_keyboard_cb(uint16_t data, button_t *b);
 static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
@@ -488,18 +484,59 @@ touch_check(void)
 //*******************************************************************************
 #endif // end SOFTWARE_TOUCH
 
-static inline void
-touch_wait_release(void)
-{
+//*******************************************************************************
+//                           UI functions
+//*******************************************************************************
+static inline void touch_wait_release(void) {
   while (touch_check() != EVT_TOUCH_RELEASED)
     ;
 }
 
-static inline void
-touch_wait_pressed(void)
-{
-  while (touch_check() != EVT_TOUCH_PRESSED)
-    ;
+// Draw button function
+static void ui_draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b) {
+  uint16_t type = b->border;
+  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
+  // Draw border if width > 0
+  if (bw) {
+    uint16_t br = LCD_RISE_EDGE_COLOR;
+    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
+    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
+    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
+    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
+    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
+  }
+  // Set colors for button and text
+  lcd_set_colors(b->fg, b->bg);
+  if (type & BUTTON_BORDER_NO_FILL) return;
+  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
+}
+
+// Draw message box function
+void ui_message_box(const char *header, const char *text, uint32_t delay) {
+  button_t b;
+  int x , y;
+  b.bg = LCD_MENU_COLOR;
+  b.fg = LCD_MENU_TEXT_COLOR;
+  b.border = BUTTON_BORDER_FLAT|1;
+  if (header) {// Draw header
+    ui_draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
+    y = LCD_HEIGHT/2-40 + 5;
+    lcd_drawstring(x, y, header);
+    request_to_redraw(REDRAW_AREA);
+  }
+  if (text) {  // Draw window
+    lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_FG_COLOR);
+    lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
+    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
+    y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
+    lcd_drawstring(x, y, text);
+    request_to_redraw(REDRAW_AREA);
+  }
+
+  do {
+    chThdSleepMilliseconds(delay == 0 ? 50 : delay);
+  } while (delay == 0 && btn_check() != EVT_BUTTON_SINGLE_CLICK && touch_check() != EVT_TOUCH_PRESSED);
 }
 
 static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *data) {
@@ -558,9 +595,10 @@ static void touch_position(int *x, int *y) {
     return;
   }
 #endif
-  int tx = ((LCD_WIDTH-1-CALIBRATION_OFFSET)*(last_touch_x - config._touch_cal[0]) + CALIBRATION_OFFSET * (config._touch_cal[2] - last_touch_x)) / (config._touch_cal[2] - config._touch_cal[0]);
+  int tx, ty;
+  tx = (LCD_WIDTH - 1 - 2 * CALIBRATION_OFFSET)*(last_touch_x - config._touch_cal[0]) / (config._touch_cal[2] - config._touch_cal[0]) + CALIBRATION_OFFSET;
   if (tx<0) tx = 0; else if (tx>=LCD_WIDTH ) tx = LCD_WIDTH -1;
-  int ty = ((LCD_HEIGHT-1-CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) + CALIBRATION_OFFSET * (config._touch_cal[3] - last_touch_y)) / (config._touch_cal[3] - config._touch_cal[1]);
+  ty = (LCD_HEIGHT- 1 - 2 * CALIBRATION_OFFSET)*(last_touch_y - config._touch_cal[1]) / (config._touch_cal[3] - config._touch_cal[1]) + CALIBRATION_OFFSET;
   if (ty<0) ty = 0; else if (ty>=LCD_HEIGHT) ty = LCD_HEIGHT-1;
 #ifdef __FLIP_DISPLAY__
   if (VNA_MODE(VNA_MODE_FLIP_DISPLAY)) {
@@ -610,8 +648,7 @@ static const uint8_t qr_code_map[] = {
 };
 #endif
 
-static void ui_show_version(void)
-{
+static void ui_show_version(void) {
   int x = 5, y = 5, i = 1;
   int str_height = FONT_STR_HEIGHT + 2;
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
@@ -673,17 +710,14 @@ void ui_enter_dfu(void)
 }
 #endif
 
-static bool
-select_lever_mode(int mode)
-{
+static bool select_lever_mode(int mode) {
   if (lever_mode == mode) return false;
   lever_mode = mode;
   request_to_redraw(REDRAW_BACKUP | REDRAW_FREQUENCY | REDRAW_MARKER);
   return true;
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb) {
   static const struct {uint8_t mask, next;} c_list[5]={
      [CAL_LOAD] = {CALSTAT_LOAD,  3},
      [CAL_OPEN] = {CALSTAT_OPEN,  1},
@@ -702,16 +736,14 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb)
 }
 
 extern const menuitem_t menu_save[];
-static UI_FUNCTION_CALLBACK(menu_caldone_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_caldone_cb) {
   cal_done();
   menu_move_back(false);
   if (data == 0)
     menu_push_submenu(menu_save);
 }
 
-static UI_FUNCTION_CALLBACK(menu_cal_reset_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_cal_reset_cb) {
   (void)data;
   // RESET
   cal_status = 0;
@@ -737,7 +769,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->icon = (cal_status&CALSTAT_APPLY) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
@@ -746,9 +778,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_apply_acb) {
   request_to_redraw(REDRAW_CAL_STATUS);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb) {
+  if (b) {
     const properties_t *p = get_properties(data);
     if (p)
       plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
@@ -760,13 +791,16 @@ static UI_FUNCTION_ADV_CALLBACK(menu_recall_acb)
   load_properties(data);
 }
 
-#define MENU_CONFIG_TOUCH_CAL   0
-#define MENU_CONFIG_TOUCH_TEST  1
-#define MENU_CONFIG_VERSION     2
-#define MENU_CONFIG_RESET       3
-#define MENU_CONFIG_LOAD        4
-static UI_FUNCTION_CALLBACK(menu_config_cb)
-{
+enum {
+ MENU_CONFIG_TOUCH_CAL = 0,
+ MENU_CONFIG_TOUCH_TEST,
+ MENU_CONFIG_VERSION,
+ MENU_CONFIG_SAVE,
+ MENU_CONFIG_RESET,
+ MENU_CONFIG_LOAD,
+};
+
+static UI_FUNCTION_CALLBACK(menu_config_cb) {
   switch (data) {
   case MENU_CONFIG_TOUCH_CAL:
       ui_touch_cal_exec();
@@ -777,6 +811,10 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
   case MENU_CONFIG_VERSION:
       ui_show_version();
       break;
+  case MENU_CONFIG_SAVE:
+      config_save();
+      menu_move_back(true);
+      return;
   case MENU_CONFIG_RESET:
       clear_all_config_prop_data();
       NVIC_SystemReset();
@@ -784,7 +822,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
 #if defined(__SD_CARD_LOAD__) && !defined(__SD_FILE_BROWSER__)
   case MENU_CONFIG_LOAD:
       if (!sd_card_load_config())
-        drawMessageBox("Error", "No config.ini", 2000);
+        ui_message_box("Error", "No config.ini", 2000);
       break;
 #endif
   }
@@ -792,24 +830,15 @@ static UI_FUNCTION_CALLBACK(menu_config_cb)
   request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
 }
 
-static UI_FUNCTION_CALLBACK(menu_config_save_cb)
-{
-  (void)data;
-  config_save();
-  menu_move_back(true);
-}
-
 #ifdef __DFU_SOFTWARE_MODE__
-static UI_FUNCTION_CALLBACK(menu_dfu_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_dfu_cb) {
   (void)data;
   ui_enter_dfu();
 }
 #endif
 
-static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_save_acb) {
+  if (b) {
     const properties_t *p = get_properties(data);
     if (p)
       plot_printf(b->label, sizeof(b->label), "%.6F" S_Hz "\n%.6F" S_Hz, (float)p->_frequency0, (float)p->_frequency1);
@@ -823,9 +852,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb)
   }
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb) {
+  if (b) {
     if (trace[data].enabled){
       b->bg = LCD_TRACE_1_COLOR + data;
       if (data == selection) b->bg = LCD_MENU_ACTIVE_COLOR;
@@ -846,8 +874,7 @@ extern const menuitem_t menu_marker_s11smith[];
 extern const menuitem_t menu_marker_s21smith[];
 static uint8_t get_smith_format(void) {return (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;}
 
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb) {
   if (b) {
     b->icon = get_smith_format() == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.text = get_smith_format_names(data);
@@ -860,8 +887,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_smith_acb)
 
 #define F_S11     0x00
 #define F_S21     0x80
-static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_format_acb) {
   if (current_trace == TRACE_INVALID) return; // Not apply any for invalid traces
   uint16_t format = data & (~F_S21);
   uint16_t channel = data & F_S21 ? 1 : 0;
@@ -885,20 +911,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb)
     set_trace_type(current_trace, format, channel);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb) {
   (void)data;
   if (current_trace == TRACE_INVALID) {if (b) b->p1.text = ""; return;}
   int ch = trace[current_trace].channel;
-  if (b){
+  if (b) {
     b->p1.text = ch == 0 ? "S11 (REFL)" : "S21 (THRU)";
     return;
   }
   set_trace_channel(current_trace, ch^1);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb) {
   char *text = "";
   switch(props_mode & TD_WINDOW){
     case TD_WINDOW_MINIMUM: text = "MINIMUM"; data = TD_WINDOW_NORMAL;  break;
@@ -912,10 +936,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb)
   props_mode = (props_mode & ~TD_WINDOW) | data;
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb) {
   (void)data;
-  if(b){
+  if(b) {
     if (props_mode & DOMAIN_TIME) b->icon = BUTTON_ICON_CHECK;
     b->p1.text = (props_mode&DOMAIN_TIME) ? "ON" : "OFF";
     return;
@@ -925,9 +948,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_acb)
   request_to_redraw(REDRAW_FREQUENCY | REDRAW_AREA);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
-{
-  if(b){
+static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb) {
+  if(b) {
     b->icon = (props_mode & TD_FUNC) == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
@@ -935,19 +957,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_transform_filter_acb)
 }
 
 const menuitem_t menu_bandwidth[];
-static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.u = get_bandwidth_frequency(config._bandwidth);
     return;
   }
   menu_push_submenu(menu_bandwidth);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb) {
+  if (b) {
     b->icon = config._bandwidth == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = get_bandwidth_frequency(data);
     return;
@@ -988,12 +1008,12 @@ const vna_mode_data_t vna_mode_data[] = {
 #endif
 };
 
-void apply_VNA_mode(uint16_t idx, uint16_t value) {
+void apply_VNA_mode(uint16_t idx, vna_mode_ops operation) {
   uint16_t m = 1<<idx;
   uint16_t old = config._vna_mode;
-       if (value == VNA_MODE_CLR) config._vna_mode&=~m; // clear
-  else if (value == VNA_MODE_SET) config._vna_mode|= m; // set
-  else                            config._vna_mode^= m; // toggle
+       if (operation == VNA_MODE_CLR) config._vna_mode&=~m; // clear
+  else if (operation == VNA_MODE_SET) config._vna_mode|= m; // set
+  else                                config._vna_mode^= m; // toggle
   if (old == config._vna_mode) return;
   request_to_redraw(vna_mode_data[idx].update_flag);
   // Custom processing after apply
@@ -1016,8 +1036,7 @@ void apply_VNA_mode(uint16_t idx, uint16_t value) {
   }
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb) {
   if (b) {
     const char *t = vna_mode_data[data].text;
     if (t == 0)
@@ -1030,9 +1049,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_vna_mode_acb)
 }
 
 #ifdef __USE_SMOOTH__
-static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb) {
+  if (b) {
     b->icon = get_smooth_factor() == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = data;
     return;
@@ -1042,10 +1060,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_smooth_acb)
 #endif
 
 const menuitem_t menu_sweep_points[];
-static UI_FUNCTION_ADV_CALLBACK(menu_points_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_points_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.u = sweep_points;
     return;
   }
@@ -1053,10 +1070,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_sel_acb)
 }
 
 static const uint16_t point_counts_set[POINTS_SET_COUNT] = POINTS_SET;
-static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_points_acb) {
   uint16_t p_count = point_counts_set[data];
-  if (b){
+  if (b) {
     b->icon = sweep_points == p_count ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = p_count;
     return;
@@ -1065,10 +1081,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_points_acb)
 }
 
 const menuitem_t menu_power[];
-static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     if (current_props._power != SI5351_CLK_DRIVE_STRENGTH_AUTO)
       plot_printf(b->label, sizeof(b->label), "POWER" R_LINK_COLOR "  %um" S_AMPER, 2+current_props._power*2);
     return;
@@ -1076,9 +1091,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_sel_acb)
   menu_push_submenu(menu_power);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_power_acb) {
+  if (b) {
     b->icon = current_props._power == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = 2+data*2;
     return;
@@ -1088,21 +1102,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb)
 
 // Process keyboard button callback, and run keyboard function
 extern const keypads_list keypads_mode_tbl[];
-static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb) {
   if (data == KM_VAR && lever_mode == LM_EDELAY) // JOG STEP button auto set (e-delay or frequency step)
     data = KM_VAR_DELAY;
   if (b) {
-    const keyboard_cb_t cb = keypads_mode_tbl[data].cb;
-    if (cb) cb(keypads_mode_tbl[data].data, b);
+    ui_keyboard_cb(data, b);
     return;
   }
   ui_mode_keypad(data);
 }
 
 // Custom keyboard menu button callback (depend from current trace)
-static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb) {
   // Not apply amplitude / scale / ref for invalid or polar graph
   if (current_trace == TRACE_INVALID) return;
   uint32_t type_mask = 1<<trace[current_trace].type;
@@ -1113,10 +1124,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb)
   menu_keyboard_acb(data, b);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.text = (sweep_mode & SWEEP_ENABLE) ? "PAUSE" : "RESUME";
     b->icon = (sweep_mode & SWEEP_ENABLE) ? BUTTON_ICON_NOCHECK : BUTTON_ICON_CHECK;
     return;
@@ -1125,8 +1135,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb)
 }
 
 #define UI_MARKER_EDELAY 6
-static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_marker_op_cb) {
   freq_t freq = get_marker_frequency(active_marker);
   if (freq == 0)
     return; // no active marker
@@ -1168,8 +1177,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb)
   ui_mode_normal();
 }
 
-static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb) {
   marker_search_dir(markers[active_marker].index, data == MK_SEARCH_RIGHT ? MK_SEARCH_RIGHT : MK_SEARCH_LEFT);
   props_mode&=~TD_MARKER_TRACK;
 #ifdef UI_USE_LEVELER_SEARCH_MODE
@@ -1177,10 +1185,9 @@ static UI_FUNCTION_CALLBACK(menu_marker_search_dir_cb)
 #endif
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->icon = (props_mode & TD_MARKER_TRACK) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
@@ -1189,10 +1196,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb)
 
 #ifdef __VNA_MEASURE_MODULE__
 extern const menuitem_t *menu_measure_list[];
-static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->icon = current_props._measure == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
   }
@@ -1206,9 +1212,7 @@ static UI_FUNCTION_CALLBACK(menu_measure_cb) {
 }
 #endif
 
-static void
-active_marker_check(void)
-{
+static void active_marker_check(void) {
   int i;
   // Auto select active marker if disabled
   if (active_marker == MARKER_INVALID)
@@ -1222,11 +1226,10 @@ active_marker_check(void)
   }
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb) {
   //if (data >= MARKERS_MAX) return;
   int mk = data;
-  if (b){
+  if (b) {
          if (mk == active_marker) b->icon = BUTTON_ICON_CHECK_AUTO;
     else if (markers[mk].enabled) b->icon = BUTTON_ICON_CHECK;
     b->p1.u = mk + 1;
@@ -1249,21 +1252,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_sel_acb)
   request_to_redraw(REDRAW_MARKER);
 }
 
-static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_marker_disable_all_cb) {
   (void)data;
-  int i;
-  for (i = 0; i < MARKERS_MAX; i++)
+  for (int i = 0; i < MARKERS_MAX; i++)
     markers[i].enabled = FALSE;     // all off
   previous_marker = MARKER_INVALID;
   active_marker = MARKER_INVALID;
   request_to_redraw(REDRAW_AREA);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->icon = props_mode & TD_MARKER_DELTA ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
     return;
   }
@@ -1272,11 +1272,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_delta_acb)
 }
 
 #ifdef __USE_SERIAL_CONSOLE__
-static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb) {
   static const uint32_t usart_speed[] = {19200, 38400, 57600, 115200, 230400, 460800, 921600, 1843200, 2000000, 3000000};
   uint32_t speed = usart_speed[data];
-  if (b){
+  if (b) {
     b->icon = config._serial_speed == speed ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = speed;
     return;
@@ -1285,10 +1284,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_acb)
 }
 
 extern const menuitem_t menu_serial_speed[];
-static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.u = config._serial_speed;
     return;
   }
@@ -1297,10 +1295,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_serial_speed_sel_acb)
 #endif
 
 #ifdef USE_VARIABLE_OFFSET_MENU
-static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb) {
   int32_t offset = (data+1) * FREQUENCY_OFFSET_STEP;
-  if (b){
+  if (b) {
     b->icon = IF_OFFSET == offset ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     b->p1.u = offset;
     return;
@@ -1309,10 +1306,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_offset_acb)
 }
 
 const menuitem_t menu_offset[];
-static UI_FUNCTION_ADV_CALLBACK(menu_offset_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_offset_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.i = IF_OFFSET;
     return;
   }
@@ -1322,14 +1318,13 @@ static UI_FUNCTION_ADV_CALLBACK(menu_offset_sel_acb)
 
 #ifdef __LCD_BRIGHTNESS__
 // Brightness control range 0 - 100
-static void lcd_setBrightness(uint16_t b){
+static void lcd_setBrightness(uint16_t b) {
   dac_setvalue_ch2(700 + b*(4000-700)/100);
 }
 
-static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.u = config._brightness;
     return;
   }
@@ -1360,6 +1355,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb)
 }
 #endif
 
+//=====================================================================================================
+//                                 SD card save / load functions
+//=====================================================================================================
 #ifdef __USE_SD_CARD__
 // Save/Load format enum
 enum {
@@ -1710,10 +1708,14 @@ static void vna_save_file(char *name, uint8_t format)
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
 
-  drawMessageBox("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
+  ui_message_box("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
   ui_mode_normal();
 }
+
+#ifdef __SD_FILE_BROWSER__
+#include "vna_modules/vna_browser.c"
+#endif
 
 static uint16_t fixScreenshotFormat(uint16_t data) {
 #ifdef __SD_CARD_DUMP_TIFF__
@@ -1722,24 +1724,23 @@ static uint16_t fixScreenshotFormat(uint16_t data) {
   return data;
 }
 
-static UI_FUNCTION_CALLBACK(menu_sdcard_cb)
-{
+static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
+  data = fixScreenshotFormat(data);
+  ui_mode_browser(data);
+}
+
+static UI_FUNCTION_CALLBACK(menu_sdcard_cb) {
   data = fixScreenshotFormat(data);
   if (VNA_MODE(VNA_MODE_AUTO_NAME))
     vna_save_file(NULL, data);
   else
     ui_mode_keypad(data + KM_S1P_NAME); // If no auto name, call text keyboard input
 }
-
-#ifdef __SD_FILE_BROWSER__
-#include "vna_modules/vna_browser.c"
-#endif
 #endif // __USE_SD_CARD__
 
-static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb) {
   (void)data;
-  if (b){
+  if (b) {
     b->p1.text = config._band_mode == 0 ? "Si5351" : "MS5351";
     return;
   }
@@ -1748,9 +1749,8 @@ static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb)
 }
 
 #if STORED_TRACES > 0
-static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
-{
-  if (b){
+static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb) {
+  if (b) {
     b->p1.text = getStoredTraces() & (1<<data) ? "CLEAR" : "STORE";
     return;
   }
@@ -1758,8 +1758,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_stored_trace_acb)
 }
 #endif
 
-static UI_FUNCTION_CALLBACK(menu_back_cb)
-{
+//=====================================================================================================
+//                                 UI menus
+//=====================================================================================================
+static UI_FUNCTION_CALLBACK(menu_back_cb) {
   (void)data;
   menu_move_back(false);
 }
@@ -2287,14 +2289,14 @@ const menuitem_t menu_device1[] = {
 };
 
 #ifdef __USE_RTC__
-static UI_FUNCTION_ADV_CALLBACK(menu_rtc_out_acb)
-{
+static UI_FUNCTION_ADV_CALLBACK(menu_rtc_out_acb) {
   (void)data;
-  bool enabled = rtc_clock_output_enabled();
-  if(b){
-    if (enabled)
+  if(b) {
+    if (rtc_clock_output_enabled()) {
       b->icon = BUTTON_ICON_CHECK;
-    b->p1.text = enabled ? "ON" : "OFF";
+      b->p1.text = "ON";
+    } else
+      b->p1.text = "OFF";
     return;
   }
   rtc_clock_output_toggle();
@@ -2330,14 +2332,14 @@ const menuitem_t menu_device[] = {
 };
 
 const menuitem_t menu_config[] = {
-  { MT_CALLBACK,  MENU_CONFIG_TOUCH_CAL, "TOUCH CAL",     menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_TOUCH_CAL , "TOUCH CAL",     menu_config_cb },
   { MT_CALLBACK, MENU_CONFIG_TOUCH_TEST, "TOUCH TEST",    menu_config_cb },
   { MT_SUBMENU,                       0, "EXPERT\nSETTINGS", menu_device },
-  { MT_CALLBACK,                      0, "SAVE CONFIG",   menu_config_save_cb },
+  { MT_CALLBACK, MENU_CONFIG_SAVE      , "SAVE CONFIG",   menu_config_cb },
 #ifdef __USE_SERIAL_CONSOLE__
   { MT_SUBMENU,                       0, "CONNECTION",    menu_connection },
 #endif
-  { MT_CALLBACK,    MENU_CONFIG_VERSION, "VERSION",       menu_config_cb },
+  { MT_CALLBACK, MENU_CONFIG_VERSION   , "VERSION",       menu_config_cb },
 #ifdef __LCD_BRIGHTNESS__
   { MT_ADV_CALLBACK,                  0, "BRIGHTNESS\n " R_LINK_COLOR "%d%%%%", menu_brightness_acb },
 #endif
@@ -2369,7 +2371,7 @@ const menuitem_t *menu_stack[MENU_STACK_DEPTH_MAX] = {
   menu_top, NULL, NULL, NULL, NULL
 };
 
-static const menuitem_t *menu_next_item(const menuitem_t *m){
+static const menuitem_t *menu_next_item(const menuitem_t *m) {
   if (m == NULL) return NULL;
   m++; // Next item
   return m->type == MT_NEXT ? (menuitem_t *)m->reference : m;
@@ -2396,9 +2398,7 @@ static int get_lines_count(const char *label) {
   return n;
 }
 
-static void
-ensure_selection(void)
-{
+static void ensure_selection(void) {
   int i = current_menu_get_count();
   if (selection < 0)
     selection = -1;
@@ -2409,9 +2409,7 @@ ensure_selection(void)
   menu_button_height = MENU_BUTTON_HEIGHT(i);
 }
 
-static void
-menu_move_back(bool leave_ui)
-{
+static void menu_move_back(bool leave_ui) {
   if (menu_current_level == 0)
     return;
   menu_current_level--;
@@ -2420,14 +2418,12 @@ menu_move_back(bool leave_ui)
     ui_mode_normal();
 }
 
-static void
-menu_set_submenu(const menuitem_t *submenu) {
+static void menu_set_submenu(const menuitem_t *submenu) {
   menu_stack[menu_current_level] = submenu;
   ensure_selection();
 }
 
-static void
-menu_push_submenu(const menuitem_t *submenu) {
+static void menu_push_submenu(const menuitem_t *submenu) {
   if (menu_current_level < MENU_STACK_DEPTH_MAX-1)
     menu_current_level++;
   menu_set_submenu(submenu);
@@ -2444,9 +2440,7 @@ menu_move_top(void)
 }
 */
 
-static void
-menu_invoke(int item)
-{
+static void menu_invoke(int item) {
   const menuitem_t *menu = current_menu_item(item);
   if (menu == NULL) return;
   switch (menu->type) {
@@ -2464,60 +2458,16 @@ menu_invoke(int item)
   }
   // Redraw menu after if UI in menu mode
   if (ui_mode == UI_MENU)
-    draw_menu(-1);
+    menu_draw(-1);
 }
 
-// Draw button function
-static void
-draw_button(uint16_t x, uint16_t y, uint16_t w, uint16_t h, button_t *b) {
-  uint16_t type = b->border;
-  uint16_t bw = type & BUTTON_BORDER_WIDTH_MASK;
-  // Draw border if width > 0
-  if (bw) {
-    uint16_t br = LCD_RISE_EDGE_COLOR;
-    uint16_t bd = LCD_FALLEN_EDGE_COLOR;
-    lcd_set_background(type&BUTTON_BORDER_TOP    ? br : bd);lcd_fill(x,          y,           w, bw); // top
-    lcd_set_background(type&BUTTON_BORDER_LEFT   ? br : bd);lcd_fill(x,          y,          bw,  h); // left
-    lcd_set_background(type&BUTTON_BORDER_RIGHT  ? br : bd);lcd_fill(x + w - bw, y,          bw,  h); // right
-    lcd_set_background(type&BUTTON_BORDER_BOTTOM ? br : bd);lcd_fill(x,          y + h - bw,  w, bw); // bottom
-  }
-  // Set colors for button and text
-  lcd_set_colors(b->fg, b->bg);
-  if (type & BUTTON_BORDER_NO_FILL) return;
-  lcd_fill(x + bw, y + bw, w - (bw * 2), h - (bw * 2));
-}
+//=====================================================================================================
+//                                  KEYBOARD macros, variables
+//=====================================================================================================
 
-// Draw message box function
-void drawMessageBox(const char *header, const char *text, uint32_t delay) {
-  button_t b;
-  int x , y;
-  b.bg = LCD_MENU_COLOR;
-  b.fg = LCD_MENU_TEXT_COLOR;
-  b.border = BUTTON_BORDER_FLAT|1;
-  if (header) {// Draw header
-    draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
-    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
-    y = LCD_HEIGHT/2-40 + 5;
-    lcd_drawstring(x, y, header);
-    request_to_redraw(REDRAW_AREA);
-  }
-  if (text) {  // Draw window
-    lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_FG_COLOR);
-    lcd_fill((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2+3, LCD_HEIGHT/2-40+FONT_STR_HEIGHT+8, MESSAGE_BOX_WIDTH-6, 60-FONT_STR_HEIGHT-8-3);
-    x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 20;
-    y = LCD_HEIGHT/2-40 + FONT_STR_HEIGHT + 8 + 14;
-    lcd_drawstring(x, y, text);
-    request_to_redraw(REDRAW_AREA);
-  }
-
-  do {
-    chThdSleepMilliseconds(delay == 0 ? 50 : delay);
-  } while (delay == 0 && btn_check() != EVT_BUTTON_SINGLE_CLICK && touch_check() != EVT_TOUCH_PRESSED);
-}
-
-//
-// KEYBOARD functions
-//
+//=====================================================================================================
+//                                      KEYBOARD functions
+//=====================================================================================================
 enum {NUM_KEYBOARD, TXT_KEYBOARD};
 
 // Keyboard size and position data
@@ -2935,14 +2885,13 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #endif
 };
 
-static void
-keypad_set_value(void) {
-  const keyboard_cb_t cb = keypads_mode_tbl[keypad_mode].cb;
-  if (cb) cb(keypads_mode_tbl[keypad_mode].data, NULL);
+// Keyboard callback function for UI button
+void ui_keyboard_cb(uint16_t data, button_t *b) {
+  const keyboard_cb_t cb = keypads_mode_tbl[data].cb;
+  if (cb) cb(keypads_mode_tbl[data].data, b);
 }
 
-static void
-draw_keypad_button(int id) {
+static void keypad_draw_button(int id) {
   if (id < 0) return;
   button_t button;
   button.fg = LCD_MENU_TEXT_COLOR;
@@ -2958,7 +2907,7 @@ draw_keypad_button(int id) {
   const keypad_pos_t *p = &key_pos[keypads[0].c];
   int x = p->x_offs + (keypads[id+1].pos>> 4) * p->width;
   int y = p->y_offs + (keypads[id+1].pos&0xF) * p->height;
-  draw_button(x, y, p->width, p->height, &button);
+  ui_draw_button(x, y, p->width, p->height, &button);
   if (keypads[0].c == NUM_KEYBOARD) {
     lcd_drawfont(keypads[id+1].c,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
@@ -2976,12 +2925,9 @@ draw_keypad_button(int id) {
   }
 }
 
-static void
-draw_keypad(void)
-{
-  int i;
-  for(i = 0; i < keypads[0].pos; i++)
-    draw_keypad_button(i);
+static void keypad_draw(void) {
+  for(int i = 0; i < keypads[0].pos; i++)
+    keypad_draw_button(i);
 }
 
 static int period_pos(void) {int j; for (j = 0; kp_buf[j] && kp_buf[j] != '.'; j++); return j;}
@@ -2994,9 +2940,7 @@ static void draw_numeric_area_frame(void) {
   lcd_drawstring(10, LCD_HEIGHT-(FONT_STR_HEIGHT * lines + NUM_INPUT_HEIGHT)/2, label);
 }
 
-static void
-draw_numeric_input(const char *buf)
-{
+static void draw_numeric_input(const char *buf) {
   uint16_t x = 14 + 10 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
   uint16_t xsim;
@@ -3024,9 +2968,7 @@ draw_numeric_input(const char *buf)
   lcd_fill(x, y, NUM_FONT_GET_WIDTH+2+10, NUM_FONT_GET_HEIGHT);
 }
 
-static void
-draw_text_input(const char *buf)
-{
+static void draw_text_input(const char *buf) {
   lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
 #if 0
   uint16_t x = 14 + 5 * FONT_WIDTH;
@@ -3042,14 +2984,14 @@ draw_text_input(const char *buf)
 #endif
 }
 
-/*
- * Keyboard UI processing
- */
-static int
-num_keypad_click(int c, int kp_index) {
+//=====================================================================================================
+//                                     Keyboard UI processing
+//=====================================================================================================
+enum {K_CONTINUE = 0, K_DONE, K_CANCEL};
+static int num_keypad_click(int c, int kp_index) {
   if (c >= KP_k && c <= KP_PERCENT) {
     if (kp_index == 0)
-      return KP_CANCEL;
+      return K_CANCEL;
     if (c >= KP_k && c <= KP_G) {        // Apply k, M, G input (add zeroes and shift . right)
       uint16_t scale = c - KP_k + 1;
       scale+= (scale<<1);
@@ -3064,7 +3006,7 @@ num_keypad_click(int c, int kp_index) {
       kp_buf[kp_index  ] = prefix[c - KP_m];
       kp_buf[kp_index+1] = 0;
     }
-    return KP_DONE;
+    return K_DONE;
   }
 #ifdef __USE_RTC__
   int maxlength = (1<<keypad_mode)&((1<<KM_RTC_DATE)|(1<<KM_RTC_TIME)) ? 6 : NUMINPUT_LEN;
@@ -3072,14 +3014,12 @@ num_keypad_click(int c, int kp_index) {
   int maxlength = NUMINPUT_LEN;
 #endif
   if (c == KP_BS) {
-    if (kp_index == 0) return KP_CANCEL;
+    if (kp_index == 0) return K_CANCEL;
       --kp_index;
   } else if (c == KP_MINUS) {
     int i;
     if (kp_buf[0] == '-') {for (i = 0; i < NUMINPUT_LEN; i++) kp_buf[i] = kp_buf[i+1]; --kp_index;}
     else                  {for (i = NUMINPUT_LEN; i > 0; i--) kp_buf[i] = kp_buf[i-1]; kp_buf[0] = '-'; if (kp_index < maxlength) ++kp_index;}
-//    if (kp_index == 0)
-//      kp_buf[kp_index++] = '-';
   } else if (kp_index < maxlength) {
     if (c <= KP_9)
       kp_buf[kp_index++] = '0' + c;
@@ -3088,58 +3028,51 @@ num_keypad_click(int c, int kp_index) {
   }
   kp_buf[kp_index] = '\0';
   draw_numeric_input(kp_buf);
-  return KP_CONTINUE;
+  return K_CONTINUE;
 }
 
-static int
-txt_keypad_click(int c, int kp_index)
-{
+static int txt_keypad_click(int c, int kp_index) {
   if (c == S_ENTER[0]) {  // Enter
-    return kp_index == 0 ? KP_CANCEL : KP_DONE;
+    return kp_index == 0 ? K_CANCEL : K_DONE;
   }
   if (c == S_LARROW[0]) { // Backspace
     if (kp_index == 0)
-      return KP_CANCEL;
+      return K_CANCEL;
     --kp_index;
   } else if (kp_index < TXTINPUT_LEN) { // any other text input
     kp_buf[kp_index++] = c;
   }
   kp_buf[kp_index] = '\0';
   draw_text_input(kp_buf);
-  return KP_CONTINUE;
+  return K_CONTINUE;
 }
 
-static void
-ui_mode_keypad(int _keypad_mode)
-{
+static void ui_mode_keypad(int mode) {
   if (ui_mode == UI_KEYPAD)
     return;
   set_area_size(0, 0);
   // keypads array
-  keypad_mode = _keypad_mode;
-  keypads = keypad_type_list[keypads_mode_tbl[keypad_mode].keypad_type];
+  keypad_mode = mode;
+  keypads = keypad_type_list[keypads_mode_tbl[mode].keypad_type];
   selection = -1;
   kp_buf[0] = 0;
   ui_mode = UI_KEYPAD;
-  draw_menu(-1);
-  draw_keypad();
+  menu_draw(-1);
+  keypad_draw();
   draw_numeric_area_frame();
 }
 
-static void
-keypad_click(int key) {
+static void keypad_click(int key) {
   int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
   int index = strlen(kp_buf);
   int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c, index) : txt_keypad_click(c, index);
-  if (result == KP_DONE) keypad_set_value(); // apply input done
+  if (result == K_DONE) ui_keyboard_cb(keypad_mode, NULL); // apply input done
   // Exit loop on done or cancel
-  if (result != KP_CONTINUE)
+  if (result != K_CONTINUE)
     ui_mode_normal();
 }
 
-static void
-ui_keypad_touch(int touch_x, int touch_y)
-{
+static void ui_keypad_touch(int touch_x, int touch_y) {
   const keypad_pos_t *p = &key_pos[keypads[0].c];
   if (touch_x < p->x_offs || touch_y < p->y_offs) return;
   // Calculate key position from touch x and y
@@ -3149,20 +3082,18 @@ ui_keypad_touch(int touch_x, int touch_y)
   for (int i = 0; i < keypads[0].pos; i++) {
     if (keypads[i+1].pos != pos) continue;
     int old = selection;
-    draw_keypad_button(selection = i);  // draw new focus
-    draw_keypad_button(old);            // Erase old focus
+    keypad_draw_button(selection = i);  // draw new focus
+    keypad_draw_button(old);            // Erase old focus
     touch_wait_release();
     selection = -1;
-    draw_keypad_button(i);              // erase new focus
+    keypad_draw_button(i);              // erase new focus
     keypad_click(i);                    // Process input
     return;
   }
   return;
 }
 
-static void
-ui_keypad_lever(uint16_t status)
-{
+static void ui_keypad_lever(uint16_t status) {
   if (status == EVT_BUTTON_SINGLE_CLICK) {
     if (selection >= 0) // Process input
       keypad_click(selection);
@@ -3173,8 +3104,8 @@ ui_keypad_lever(uint16_t status)
     int old = selection;
     if ((status & EVT_DOWN) && --selection < 0) selection = keypads_last_index;
     if ((status & EVT_UP)   && ++selection > keypads_last_index) selection = 0;
-    draw_keypad_button(old);
-    draw_keypad_button(selection);
+    keypad_draw_button(old);
+    keypad_draw_button(selection);
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
@@ -3183,9 +3114,7 @@ ui_keypad_lever(uint16_t status)
 //
 // UI Menu functions
 //
-static void
-draw_menu_buttons(const menuitem_t *m, uint32_t mask)
-{
+static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
   int i;
   int y = MENU_BUTTON_Y_OFFSET;
   for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
@@ -3215,7 +3144,7 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
     else
       text = m->label;
     // Draw button
-    draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
+    ui_draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
     // Draw icon if need (and add extra shift for text)
     if (button.icon >= 0) {
       lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
@@ -3245,25 +3174,19 @@ draw_menu_buttons(const menuitem_t *m, uint32_t mask)
   lcd_set_font(FONT_NORMAL);
 }
 
-static void
-draw_menu(uint32_t mask)
-{
-  draw_menu_buttons(menu_stack[menu_current_level], mask);
+static void menu_draw(uint32_t mask) {
+  menu_draw_buttons(menu_stack[menu_current_level], mask);
 }
 
 #if 0
-static void
-erase_menu_buttons(void)
-{
+static void erase_menu_buttons(void) {
   lcd_set_background(LCD_BG_COLOR);
   lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
 }
 #endif
 
 //  Menu mode processing
-static void
-ui_mode_menu(void)
-{
+static void ui_mode_menu(void) {
   if (ui_mode == UI_MENU)
     return;
 
@@ -3271,12 +3194,10 @@ ui_mode_menu(void)
   // narrowen plotting area
   set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
   ensure_selection();
-  draw_menu(-1);
+  menu_draw(-1);
 }
 
-static void
-ui_menu_lever(uint16_t status)
-{
+static void ui_menu_lever(uint16_t status) {
   uint16_t count = current_menu_get_count();
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     if ((uint16_t)selection >= count)
@@ -3295,20 +3216,18 @@ ui_menu_lever(uint16_t status)
       ui_mode_normal();
       return;
     }
-    draw_menu(mask|(1<<selection));
+    menu_draw(mask|(1<<selection));
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
 
-static void
-ui_menu_touch(int touch_x, int touch_y)
-{
+static void ui_menu_touch(int touch_x, int touch_y) {
   if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
     int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
     if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
       uint32_t mask = (1<<i)|(1<<selection);
       selection = i;
-      draw_menu(mask);
+      menu_draw(mask);
       touch_wait_release();
       selection = -1;
       menu_invoke(i);
@@ -3324,9 +3243,7 @@ ui_menu_touch(int touch_x, int touch_y)
 /*
  * Normal plot processing
  */
-static void
-ui_mode_normal(void)
-{
+static void ui_mode_normal(void) {
   if (ui_mode == UI_NORMAL)
     return;
   set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
@@ -3343,9 +3260,7 @@ ui_mode_normal(void)
 }
 
 #define MARKER_SPEEDUP  3
-static void
-lever_move_marker(uint16_t status)
-{
+static void lever_move_marker(uint16_t status) {
   if (active_marker == MARKER_INVALID || !markers[active_marker].enabled) return;
   uint16_t step = 1<<MARKER_SPEEDUP;
   do {
@@ -3359,9 +3274,7 @@ lever_move_marker(uint16_t status)
 }
 
 #ifdef UI_USE_LEVELER_SEARCH_MODE
-static void
-lever_search_marker(int status)
-{
+static void lever_search_marker(int status) {
   if (active_marker == active_marker) return;
   if (status & EVT_DOWN)
     marker_search_dir(markers[active_marker].index, MK_SEARCH_LEFT);
@@ -3373,8 +3286,7 @@ lever_search_marker(int status)
 // ex. 10942 -> 10000
 //      6791 ->  5000
 //       341 ->   200
-static freq_t
-step_round(freq_t v) {
+static freq_t step_round(freq_t v) {
   // decade step
   freq_t nx, x = 1;
   while((nx = x*10) < v) x = nx;
@@ -3384,8 +3296,7 @@ step_round(freq_t v) {
   return x * 5;
 }
 
-static void
-lever_frequency(uint16_t status) {
+static void lever_frequency(uint16_t status) {
   uint16_t mode;
   freq_t freq;
   if (lever_mode == LM_FREQ_0) {
@@ -3409,9 +3320,7 @@ lever_frequency(uint16_t status) {
 }
 
 #define STEPRATIO 0.2f
-static void
-lever_edelay(uint16_t status)
-{
+static void lever_edelay(uint16_t status) {
   int ch = current_trace != TRACE_INVALID ? trace[current_trace].channel : 0;
   float value = current_props._electrical_delay[ch];
   if (current_props._var_delay == 0.0f) {
@@ -3426,9 +3335,7 @@ lever_edelay(uint16_t status)
   while (btn_wait_release() != 0);
 }
 
-static bool
-touch_pickup_marker(int touch_x, int touch_y)
-{
+static bool touch_pickup_marker(int touch_x, int touch_y) {
   touch_x -= OFFSETX;
   touch_y -= OFFSETY;
   int i = MARKER_INVALID, mt, m, t;
@@ -3476,9 +3383,7 @@ touch_pickup_marker(int touch_x, int touch_y)
   return TRUE;
 }
 
-static bool
-touch_lever_mode_select(int touch_x, int touch_y)
-{
+static bool touch_lever_mode_select(int touch_x, int touch_y) {
   int mode = -1;
   if (touch_y > HEIGHT && (props_mode & DOMAIN_MODE) == DOMAIN_FREQ) // Only for frequency domain
     mode = touch_x < FREQUENCIES_XPOS2 ? LM_FREQ_0 : LM_FREQ_1;
@@ -3498,9 +3403,7 @@ touch_lever_mode_select(int touch_x, int touch_y)
   return TRUE;
 }
 
-static void
-ui_normal_lever(uint16_t status)
-{
+static void ui_normal_lever(uint16_t status) {
   if (status & EVT_BUTTON_SINGLE_CLICK) {
     ui_mode_menu();
     return;
@@ -3516,8 +3419,7 @@ ui_normal_lever(uint16_t status)
   }
 }
 
-static bool
-touch_apply_ref_scale(int touch_x, int touch_y) {
+static bool touch_apply_ref_scale(int touch_x, int touch_y) {
   int t = current_trace;
   // do not scale invalid or smith chart
   if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
@@ -3538,8 +3440,7 @@ touch_apply_ref_scale(int touch_x, int touch_y) {
 }
 
 #ifdef __USE_SD_CARD__
-static bool
-touch_made_screenshot(int touch_x, int touch_y) {
+static bool touch_made_screenshot(int touch_x, int touch_y) {
   if (touch_y < HEIGHT || touch_x < FREQUENCIES_XPOS3 || touch_x > FREQUENCIES_XPOS2)
     return FALSE;
   touch_wait_release();
@@ -3548,26 +3449,19 @@ touch_made_screenshot(int touch_x, int touch_y) {
 }
 #endif
 
-static void
-ui_normal_touch(int touch_x, int touch_y) {
-  // Try drag marker
-  if (touch_pickup_marker(touch_x, touch_y))
-    return;
+static void ui_normal_touch(int touch_x, int touch_y) {
+  if (touch_pickup_marker(touch_x, touch_y)) return;     // Try drag marker
 #ifdef __USE_SD_CARD__
-  // Try made screenshot
-  if (touch_made_screenshot(touch_x, touch_y))
-    return;
+  if (touch_made_screenshot(touch_x, touch_y)) return;   // Try made screenshot
 #endif
-  if (touch_apply_ref_scale(touch_x, touch_y))
-    return;
-  // Try select lever mode (top and bottom screen)
-  if (touch_lever_mode_select(touch_x, touch_y))
-    return;
+  if (touch_lever_mode_select(touch_x, touch_y)) return; // Try select lever mode (top and bottom screen)
+  if (touch_apply_ref_scale(touch_x, touch_y)) return;   // Try apply ref / scale
   // default: switch menu mode after release
   touch_wait_release();
   ui_mode_menu();
 }
 //========================== end normal plot input =======================
+
 static const struct {
   void (*button)(uint16_t status);
   void (*touch)(int touch_x, int touch_y);
@@ -3580,16 +3474,13 @@ static const struct {
 #endif
 };
 
-static void
-ui_process_lever(void) {
+static void ui_process_lever(void) {
   uint16_t status = btn_check();
   if (status)
     ui_handler[ui_mode].button(status);
 }
 
-static
-void ui_process_touch(void)
-{
+static void ui_process_touch(void) {
   int touch_x, touch_y;
   int status = touch_check();
   if (status == EVT_TOUCH_PRESSED || status == EVT_TOUCH_DOWN) {
@@ -3598,9 +3489,7 @@ void ui_process_touch(void)
   }
 }
 
-void
-ui_process(void)
-{
+void ui_process(void) {
 //if (ui_mode >= UI_END) return; // for safe
   if (operation_requested&OP_LEVER)
     ui_process_lever();
@@ -3619,8 +3508,7 @@ void handle_button_interrupt(uint16_t channel) {
 
 //static systime_t t_time = 0;
 // Triggered touch interrupt call
-void handle_touch_interrupt(void)
-{
+void handle_touch_interrupt(void) {
   operation_requested|= OP_TOUCH;
 //  systime_t n_time = chVTGetSystemTimeX();
 //  shell_printf("%d\r\n", n_time - t_time);
@@ -3628,8 +3516,7 @@ void handle_touch_interrupt(void)
 }
 
 #if HAL_USE_EXT == TRUE // Use ChibiOS EXT code (need lot of flash ~1.5k)
-static void handle_button_ext(EXTDriver *extp, expchannel_t channel)
-{
+static void handle_button_ext(EXTDriver *extp, expchannel_t channel) {
   (void)extp;
   handle_button_interrupt((uint16_t)channel);
 }
@@ -3675,9 +3562,7 @@ static void init_EXT(void) {
 }
 #endif
 
-void
-ui_init()
-{
+void ui_init() {
   adc_init();
   // Activates the EXT driver 1.
   init_EXT();

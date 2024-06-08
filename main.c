@@ -498,38 +498,6 @@ int serial_shell_printf(const char *fmt, ...)
 }
 #endif
 
-//
-// Function used for search substring v in list
-// Example need search parameter "center" in "start|stop|center|span|cw" getStringIndex return 2
-// If not found return -1
-// Used for easy parse command arguments
-static int get_str_index(const char *v, const char *list)
-{
-  int i = 0;
-  while (1) {
-    const char *p = v;
-    while (1) {
-      char c = *list;
-      if (c == '|') c = 0;
-      if (c == *p++) {
-        // Found, return index
-        if (c == 0) return i;
-        list++;    // Compare next symbol
-        continue;
-      }
-      break;  // Not equal, break
-    }
-    // Set new substring ptr
-    while (1) {
-      // End of string, not found
-      if (*list == 0) return -1;
-      if (*list++ == '|') break;
-    }
-    i++;
-  }
-  return -1;
-}
-
 VNA_SHELL_FUNCTION(cmd_pause)
 {
   (void)argc;
@@ -562,88 +530,6 @@ VNA_SHELL_FUNCTION(cmd_reset)
 #endif
   shell_printf("Performing reset" VNA_SHELL_NEWLINE_STR);
   NVIC_SystemReset();
-}
-
-// Use macro, std isdigit more big
-#define _isdigit(c) (c >= '0' && c <= '9')
-// Rewrite universal standart str to value functions to more compact
-//
-// Convert string to int32
-int32_t my_atoi(const char *p)
-{
-  int32_t value = 0;
-  uint32_t c;
-  bool neg = false;
-
-  if (*p == '-') {neg = true; p++;}
-  if (*p == '+') p++;
-  while ((c = *p++ - '0') < 10)
-    value = value * 10 + c;
-  return neg ? -value : value;
-}
-
-// Convert string to uint32
-//  0x - for hex radix
-//  0o - for oct radix
-//  0b - for bin radix
-//  default dec radix
-uint32_t my_atoui(const char *p)
-{
-  uint32_t value = 0, radix = 10, c;
-  if (*p == '+') p++;
-  if (*p == '0') {
-    switch (p[1]) {
-      case 'x': radix = 16; break;
-      case 'o': radix =  8; break;
-      case 'b': radix =  2; break;
-      default:  goto calculate;
-    }
-    p+=2;
-  }
-calculate:
-  while (1) {
-    c = *p++ - '0';
-    // c = to_upper(*p) - 'A' + 10
-    if (c >= 'A' - '0') c = (c&(~0x20)) - ('A' - '0') + 10;
-    if (c >= radix) return value;
-    value = value * radix + c;
-  }
-}
-
-float
-my_atof(const char *p)
-{
-  int neg = FALSE;
-  if (*p == '-')
-    neg = TRUE;
-  if (*p == '-' || *p == '+')
-    p++;
-  float x = my_atoi(p);
-  while (_isdigit((int)*p))
-    p++;
-  if (*p == '.' || *p == ',') {
-    float d = 1.0f;
-    p++;
-    while (_isdigit((int)*p)) {
-      d *= 1e-1f;
-      x += d * (*p - '0');
-      p++;
-    }
-  }
-  if (*p) {
-    int exp = 0;
-    if (*p == 'e' || *p == 'E') exp = my_atoi(&p[1]);
-    else if (*p == 'G') exp =  9; // Giga
-    else if (*p == 'M') exp =  6; // Mega
-    else if (*p == 'k') exp =  3; // kilo
-    else if (*p == 'm') exp = -3; // milli
-    else if (*p == 'u') exp = -6; // micro
-    else if (*p == 'n') exp = -9; // nano
-    else if (*p == 'p') exp =-12; // pico
-    if (exp > 0) do {x*= 1e+1f;} while (--exp);
-    if (exp < 0) do {x*= 1e-1f;} while (++exp);
-  }
-  return neg ? -x : x;
 }
 
 #ifdef __USE_SMOOTH__
@@ -2955,7 +2841,7 @@ VNA_SHELL_FUNCTION(cmd_msg)
   char *header = 0, *text = 0;
   if (argc > 1) text = argv[1];
   if (argc > 2) header = argv[2];
-  drawMessageBox(header, text, delay);
+  ui_message_box(header, text, delay);
 }
 #endif
 
@@ -3226,40 +3112,6 @@ static void shell_init_connection(void){
   PREPARE_STREAM;
 }
 #endif
-
-static inline char* vna_strpbrk(char *s1, const char *s2) {
-  do {
-    const char *s = s2;
-    do {
-      if (*s == *s1) return s1;
-      s++;
-    } while (*s);
-    s1++;
-  } while(*s1);
-  return s1;
-}
-
-/*
- * Split line by arguments, return arguments count
- */
-int parse_line(char *line, char* args[], int max_cnt) {
-  char *lp = line, c;
-  const char *brk;
-  uint16_t nargs = 0;
-  while ((c = *lp) != 0) {                   // While not end
-    if (c != ' ' && c != '\t') {             // Skipping white space and tabs.
-      if (c == '"') {lp++; brk = "\""; }     // string end is next quote or end
-      else          {      brk = " \t";}     // string end is tab or space or end
-      if (nargs < max_cnt) args[nargs] = lp; // Put pointer in args buffer (if possible)
-      nargs++;                               // Substring count
-      lp = vna_strpbrk(lp, brk);             // search end
-      if (*lp == 0) break;                   // Stop, end of input string
-      *lp = 0;                               // Set zero at the end of substring
-    }
-    lp++;
-  }
-  return nargs;
-}
 
 static const VNAShellCommand *VNAShell_parceLine(char *line){
   // Parse and execute line

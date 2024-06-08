@@ -26,6 +26,8 @@ static uint16_t browser_mode;
 
 // Buttons in browser
 enum {FILE_BUTTON_LEFT = 0, FILE_BUTTON_RIGHT, FILE_BUTTON_EXIT, FILE_BUTTON_DEL, FILE_BUTTON_FILE};
+
+#define SMALL_BUTTON_SIZE    (6 * FONT_WIDTH)
 // Button position on screen
 typedef struct  {
   uint16_t x;
@@ -35,12 +37,12 @@ typedef struct  {
   uint8_t  ofs;
 } browser_btn_t;
 static const browser_btn_t browser_btn[] = {
-  [FILE_BUTTON_LEFT] = {         0  + 40, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH/2 - 80, FILE_BOTTOM_HEIGHT, (LCD_WIDTH/2 - 80 - FONT_WIDTH)/2}, // < previous
-  [FILE_BUTTON_RIGHT]= {LCD_WIDTH/2 + 40, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH/2 - 80, FILE_BOTTOM_HEIGHT, (LCD_WIDTH/2 - 80 - FONT_WIDTH)/2}, // > next
-  [FILE_BUTTON_EXIT] = {LCD_WIDTH   - 40, LCD_HEIGHT - FILE_BOTTOM_HEIGHT,               40, FILE_BOTTOM_HEIGHT, (              40 - FONT_WIDTH)/2}, // X exit
-  [FILE_BUTTON_DEL]  = {         0  +  0, LCD_HEIGHT - FILE_BOTTOM_HEIGHT,               40, FILE_BOTTOM_HEIGHT, (            40 - 3*FONT_WIDTH)/2}, // DEL
+  [FILE_BUTTON_LEFT] = {         0  + SMALL_BUTTON_SIZE, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH/2 - 2*SMALL_BUTTON_SIZE, FILE_BOTTOM_HEIGHT, (LCD_WIDTH/2 - 2*SMALL_BUTTON_SIZE - FONT_WIDTH)/2}, // < previous
+  [FILE_BUTTON_RIGHT]= {LCD_WIDTH/2 + SMALL_BUTTON_SIZE, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH/2 - 2*SMALL_BUTTON_SIZE, FILE_BOTTOM_HEIGHT, (LCD_WIDTH/2 - 2*SMALL_BUTTON_SIZE - FONT_WIDTH)/2}, // > next
+  [FILE_BUTTON_EXIT] = {LCD_WIDTH   - SMALL_BUTTON_SIZE, LCD_HEIGHT - FILE_BOTTOM_HEIGHT,                 SMALL_BUTTON_SIZE, FILE_BOTTOM_HEIGHT, (                SMALL_BUTTON_SIZE - FONT_WIDTH)/2}, // X exit
+  [FILE_BUTTON_DEL]  = {         0  +                 0, LCD_HEIGHT - FILE_BOTTOM_HEIGHT,                 SMALL_BUTTON_SIZE, FILE_BOTTOM_HEIGHT, (              SMALL_BUTTON_SIZE - 3*FONT_WIDTH)/2}, // DEL
   // File button, only size and start position, must be idx = FILE_BUTTON_FILE
-  [FILE_BUTTON_FILE] = {               0,                               0, LCD_WIDTH/FILES_COLUMNS, FILE_BUTTON_HEIGHT,                          5},
+  [FILE_BUTTON_FILE] = {                              0,                               0,           LCD_WIDTH/FILES_COLUMNS, FILE_BUTTON_HEIGHT,                                   FONT_WIDTH/2 + 3},
 };
 
 static void browser_get_button_pos(int idx, browser_btn_t *b) {
@@ -71,20 +73,8 @@ static void browser_draw_button(int idx, const char *txt) {
   b.fg = LCD_MENU_TEXT_COLOR;
   b.border = (idx == selection) ? BROWSER_BUTTON_BORDER|BUTTON_BORDER_FALLING : BROWSER_BUTTON_BORDER|BUTTON_BORDER_RISE;
   if (txt == NULL) b.border|= BUTTON_BORDER_NO_FILL;
-  draw_button(btn.x, btn.y, btn.w, btn.h, &b);
+  ui_draw_button(btn.x, btn.y, btn.w, btn.h, &b);
   if (txt) lcd_printf(btn.x + btn.ofs, btn.y + (btn.h - FONT_STR_HEIGHT) / 2, txt);
-}
-
-static char to_lower(char c) {return (c >='A' && c <= 'Z') ? c - 'A' + 'a' : c;}
-
-static bool strcmpi(const char *t1, const char *t2) {
-  int i = 0;
-  while (1) {
-    char ch1 = to_lower(t1[i]), ch2 = to_lower(t2[i]);
-    if (ch1 != ch2) return false;
-    if (ch1 ==   0) return true;
-    i++;
-  }
 }
 
 static bool compare_ext(const char *name, const char *ext) {
@@ -278,7 +268,7 @@ finish:
   f_close(fs_file);
   if (error) {
     lcd_clear_screen();
-    drawMessageBox(error, fno.fname, leave_show ? 2000 : 10);
+    ui_message_box(error, fno.fname, leave_show ? 2000 : 10);
   }
   if (leave_show) return;
   // Process input
@@ -320,7 +310,7 @@ static void browser_draw_page(int page) {
   // Mount SD card and open directory
   if (f_mount(fs_volume, "", 1) != FR_OK ||
       sd_open_dir(&dj, "", file_ext[keypad_mode]) != FR_OK) {
-    drawMessageBox("ERROR", "NO CARD", 2000);
+    ui_message_box("ERROR", "NO CARD", 2000);
     ui_mode_normal();
     return;
   }
@@ -404,6 +394,19 @@ static int browser_get_max(void) {
   return max + FILE_BUTTON_FILE - 1;
 }
 
+void ui_mode_browser(int mode) {
+  if (ui_mode == UI_BROWSER)
+    return;
+  set_area_size(0, 0);
+  ui_mode = UI_BROWSER;
+  keypad_mode = mode;
+  current_page = 1;
+  file_count = 0;
+  selection = -1;
+  browser_mode = 0;
+  browser_draw_page(current_page);
+}
+
 // Process UI input for browser
 static void ui_browser_touch(int touch_x, int touch_y) {
   browser_btn_t btn;
@@ -440,17 +443,4 @@ static void ui_browser_lever(uint16_t status) {
     }
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
-}
-
-static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
-  if (ui_mode == UI_BROWSER)
-    return;
-  set_area_size(0, 0);
-  ui_mode = UI_BROWSER;
-  keypad_mode = fixScreenshotFormat(data);
-  current_page = 1;
-  file_count = 0;
-  selection = -1;
-  browser_mode = 0;
-  browser_draw_page(current_page);
 }

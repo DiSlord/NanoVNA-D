@@ -331,6 +331,8 @@ uint8_t get_smooth_factor(void);
 int32_t  my_atoi(const char *p);
 uint32_t my_atoui(const char *p);
 float    my_atof(const char *p);
+bool strcmpi(const char *t1, const char *t2);
+int get_str_index(const char *v, const char *list);
 int parse_line(char *line, char* args[], int max_cnt);
 
 void pause_sweep(void);
@@ -918,11 +920,10 @@ enum {
   VNA_MODE_TIFF,         // Save screenshot format (0: bmp, 1: tiff)
 #endif
 };
+
 // Update config._vna_mode flags function
-#define VNA_MODE_CLR     0
-#define VNA_MODE_SET     1
-#define VNA_MODE_TOGGLE  2
-void apply_VNA_mode(uint16_t idx, uint16_t value);
+typedef enum {VNA_MODE_CLR = 0, VNA_MODE_SET, VNA_MODE_TOGGLE} vna_mode_ops;
+void apply_VNA_mode(uint16_t idx, vna_mode_ops operation);
 
 #ifdef __VNA_MEASURE_MODULE__
 // Measure option mode
@@ -1378,7 +1379,7 @@ void ui_touch_cal_exec(void);
 void ui_touch_draw_test(void);
 void ui_enter_dfu(void);
 
-void drawMessageBox(const char *header, const char *text, uint32_t delay);
+void ui_message_box(const char *header, const char *text, uint32_t delay);
 
 // Irq operation process set
 #define OP_NONE       0x00
