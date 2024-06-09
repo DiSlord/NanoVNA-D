@@ -20,6 +20,7 @@
  */
 #include <stdint.h>
 #include <stdbool.h>
+#include "hal.h"
 
 // Use macro, std isdigit more big
 #define _isdigit(c) (c >= '0' && c <= '9')
@@ -173,4 +174,9 @@ int parse_line(char *line, char* args[], int max_cnt) {
     lp++;
   }
   return nargs;
+}
+
+void swap_bytes(uint16_t *buf, int size) {
+  for (int i = 0; i < size; i++)
+    buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
 }

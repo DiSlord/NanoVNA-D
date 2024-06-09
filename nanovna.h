@@ -18,6 +18,7 @@
  * the Free Software Foundation, Inc., 51 Franklin Street,
  * Boston, MA 02110-1301, USA.
  */
+#pragma once
 #include "ch.h"
 
 // Define LCD display driver and size
@@ -147,7 +148,7 @@
 // Frequency offset, depend from AUDIO_ADC_FREQ settings (need aligned table)
 // Use real time build table (undef for use constant, see comments)
 // Constant tables build only for AUDIO_SAMPLES_COUNT = 48
-//#define USE_VARIABLE_OFFSET
+#define USE_VARIABLE_OFFSET
 
 // Maximum sweep point count (limit by flash and RAM size)
 #define SWEEP_POINTS_MAX         101
@@ -334,6 +335,7 @@ float    my_atof(const char *p);
 bool strcmpi(const char *t1, const char *t2);
 int get_str_index(const char *v, const char *list);
 int parse_line(char *line, char* args[], int max_cnt);
+void swap_bytes(uint16_t *buf, int size);
 
 void pause_sweep(void);
 void toggle_sweep(void);

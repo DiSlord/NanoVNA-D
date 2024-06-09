@@ -19,11 +19,10 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#include "ch.h"
+#include "nanovna.h"
 #include "hal.h"
 #include "chprintf.h"
 #include <string.h>
-#include "nanovna.h"
 #include "si5351.h"
 
 // Use size optimization (UI not need fast speed, better have smallest size)
@@ -90,6 +89,24 @@ typedef struct {
   char label[32];
 } button_t;
 
+
+#ifdef __USE_SD_CARD__
+// Save/Load format enum
+enum {
+  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE,
+#ifdef __SD_CARD_DUMP_TIFF__
+  FMT_TIF_FILE,
+#endif
+  FMT_CAL_FILE,
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  FMT_BIN_FILE,
+#endif
+#ifdef __SD_CARD_LOAD__
+  FMT_CMD_FILE,
+#endif
+};
+#endif
+
 // Keypad structures
 // Enum for keypads_list
 enum {
@@ -115,9 +132,7 @@ enum {
   KM_RTC_CAL,
 #endif
 #ifdef __USE_SD_CARD__
-  KM_S1P_NAME,
-  KM_S2P_NAME,
-  KM_BMP_NAME,
+  KM_S1P_NAME, KM_S2P_NAME, KM_BMP_NAME, // Must be equal to Save/Load format enum (TODO fix this)
 #ifdef __SD_CARD_DUMP_TIFF__
   KM_TIF_NAME,
 #endif
@@ -144,14 +159,12 @@ typedef struct {
 typedef void (*keyboard_cb_t)(uint16_t data, button_t *b);
 #define UI_KEYBOARD_CALLBACK(ui_kb_function_name) void ui_kb_function_name(uint16_t data, button_t *b)
 
-#pragma pack(push, 2)
 typedef struct {
   uint8_t keypad_type;
   uint8_t data;
   const char *name;
   const keyboard_cb_t cb;
-} keypads_list;
-#pragma pack(pop)
+} __attribute__((packed)) keypads_list;
 
 // Max keyboard input length
 #define NUMINPUT_LEN 12
@@ -212,24 +225,23 @@ typedef void (*menuaction_acb_t)(uint16_t data, button_t *b);
 #define UI_FUNCTION_ADV_CALLBACK(ui_function_name) void ui_function_name(uint16_t data, button_t *b)
 
 // Set structure align as WORD (save flash memory)
-#pragma pack(push, 2)
 typedef struct {
   uint8_t type;
   uint8_t data;
   char *label;
   const void *reference;
-} menuitem_t;
-#pragma pack(pop)
+} __attribute__((packed)) menuitem_t;
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
 static void menu_draw(uint32_t mask);
 static void ui_mode_keypad(int mode);
-static void ui_keyboard_cb(uint16_t data, button_t *b);
-static void touch_position(int *x, int *y);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 static void menu_set_submenu(const menuitem_t *submenu);
+static void ui_keyboard_cb(uint16_t data, button_t *b);
+static void touch_position(int *x, int *y);
+
 // Icons for UI
 #include "icons_menu.c"
 
@@ -975,12 +987,10 @@ static UI_FUNCTION_ADV_CALLBACK(menu_bandwidth_acb) {
   set_bandwidth(data);
 }
 
-#pragma pack(push, 2)
 typedef struct {
   const char* text;
   uint16_t update_flag;
-} vna_mode_data_t;
-#pragma pack(pop)
+} __attribute__((packed)) vna_mode_data_t;
 
 const vna_mode_data_t vna_mode_data[] = {
 //                        text (if 0 use checkbox) Redraw flags on change
@@ -1359,41 +1369,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb) {
 //                                 SD card save / load functions
 //=====================================================================================================
 #ifdef __USE_SD_CARD__
-// Save/Load format enum
-enum {
-  FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE,
-#ifdef __SD_CARD_DUMP_TIFF__
-  FMT_TIF_FILE,
-#endif
-  FMT_CAL_FILE,
-#ifdef __SD_CARD_DUMP_FIRMWARE__
-  FMT_BIN_FILE,
-#endif
-#ifdef __SD_CARD_LOAD__
-  FMT_CMD_FILE,
-#endif
-};
+// Save file callback
+typedef FRESULT (*file_save_cb_t)(FIL *f, uint8_t format);
+#define FILE_SAVE_CALLBACK(save_function_name) FRESULT save_function_name(FIL *f, uint8_t format)
+// Load file callback
+typedef const char* (*file_load_cb_t)(FIL *f, FILINFO *fno, uint8_t format);
+#define FILE_LOAD_CALLBACK(load_function_name) const char* load_function_name(FIL *f, FILINFO *fno, uint8_t format)
 
-// Save/Load file extension
-static const char *file_ext[] = {
-  [FMT_S1P_FILE] = "s1p",
-  [FMT_S2P_FILE] = "s2p",
-  [FMT_BMP_FILE] = "bmp",
-#ifdef __SD_CARD_DUMP_TIFF__
-  [FMT_TIF_FILE] = "tif",
-#endif
-  [FMT_CAL_FILE] = "cal",
-#ifdef __SD_CARD_DUMP_FIRMWARE__
-  [FMT_BIN_FILE] = "bin",
-#endif
-#ifdef __SD_CARD_LOAD__
-  [FMT_CMD_FILE] = "cmd",
-#endif
-};
-
-//*******************************************************************************************
+//=====================================================================================================
 // S1P and S2P file headers, and data structures
-//*******************************************************************************************
+// Save touchstone file for VNA (use rev 1.1 format)
+// https://en.wikipedia.org/wiki/Touchstone_file
+//=====================================================================================================
 static const char s1_file_header[] =
   "!File created by NanoVNA\r\n"\
   "# Hz S RI R 50\r\n";
@@ -1407,6 +1394,76 @@ static const char s2_file_header[] =
 
 static const char s2_file_param[] =
   "%u % f % f % f % f 0 0 0 0\r\n";
+
+static FILE_SAVE_CALLBACK(save_snp) {
+  const char *s_file_format;
+  char *buf_8 = (char *)spi_buffer;
+  FRESULT res;
+  UINT size;
+  // Write SxP file
+  if (format == FMT_S1P_FILE){
+    s_file_format = s1_file_param;
+    // write sxp header (not write NULL terminate at end)
+    res = f_write(f, s1_file_header, sizeof(s1_file_header)-1, &size);
+  } else {
+    s_file_format = s2_file_param;
+    // Write s2p header (not write NULL terminate at end)
+    res = f_write(f, s2_file_header, sizeof(s2_file_header)-1, &size);
+  }
+  // Write all points data
+  for (int i = 0; i < sweep_points && res == FR_OK; i++) {
+    size = plot_printf(buf_8, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
+    res = f_write(f, buf_8, size, &size);
+  }
+  return res;
+}
+
+// Support only NanoVNA format: Hz S RI R 50
+static FILE_LOAD_CALLBACK(load_snp) {
+  (void)fno;
+  UINT size;
+  const int buffer_size = 256;
+  const int line_size = 128;
+  char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
+  char *line  = buf_8 + buffer_size;
+  uint16_t j = 0, i, count = 0;
+  freq_t start = 0, stop = 0, freq;
+  while (f_read(f, buf_8, buffer_size, &size) == FR_OK && size > 0) {
+    for (i = 0; i < size; i++) {
+      uint8_t c = buf_8[i];
+      if (c == '\r') {                                                     // New line (Enter)
+        line[j] = 0; j = 0;
+        char *args[16];
+        int nargs = parse_line(line, args, 16);                            // Parse line to 16 args
+        if (nargs < 2 || args[0][0] == '#' || args[0][0] == '!') continue; // No data or comment or settings
+        freq = my_atoui(args[0]);                                          // Get frequency
+        if (count >= SWEEP_POINTS_MAX || freq > FREQUENCY_MAX) return "Format err";
+        if (count == 0) start = freq;                                      // For index 0 set as start
+        stop  = freq;                                                      // last set as stop
+        measured[0][count][0] = my_atof(args[1]);
+        measured[0][count][1] = my_atof(args[2]);                          // get S11 data
+        if (format == FMT_S2P_FILE && nargs >= 4) {
+          measured[1][count][0] = my_atof(args[3]);
+          measured[1][count][1] = my_atof(args[4]);                        // get S11 data
+        } else {
+          measured[1][count][0] = 0.0f;
+          measured[1][count][1] = 0.0f;                                    // get S11 data
+        }
+        count++;
+      }
+      else if (c < 0x20) continue;                 // Others (skip)
+      else if (j < line_size) line[j++] = (char)c; // Store
+    }
+  }
+  if (count != 0) { // Points count not zero, so apply data to traces
+    pause_sweep();
+    current_props._sweep_points = count;
+    set_sweep_frequency(ST_START, start);
+    set_sweep_frequency(ST_STOP, stop);
+    request_to_redraw(REDRAW_PLOT);
+  }
+  return NULL;
+}
 
 //*******************************************************************************************
 // Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
@@ -1456,6 +1513,37 @@ static const uint8_t bmp_header_v4[BMP_H1_SIZE + BMP_V4_SIZE] = {
   BMP_UINT32(0),             // GammaGreen
   BMP_UINT32(0),             // GammaBlue
 };
+
+// Save bitmap file (use v4 format allow set RGB mask)
+static FILE_SAVE_CALLBACK(save_bmp) {
+  (void)format;
+  UINT size;
+  uint16_t *buf_16 = (uint16_t *)spi_buffer;
+  FRESULT res = f_write(f, bmp_header_v4, sizeof(bmp_header_v4), &size); // Write header struct
+  lcd_set_background(LCD_SWEEP_LINE_COLOR);
+  for (int y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
+    lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
+    swap_bytes(buf_16, LCD_WIDTH);
+    res = f_write(f, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
+    lcd_fill(LCD_WIDTH-1, y, 1, 1);
+  }
+  return res;
+}
+
+static FILE_LOAD_CALLBACK(load_bmp) {
+  (void)format;
+  UINT size;
+  uint16_t *buf_16 = (uint16_t *)spi_buffer; // prepare buffer
+  FRESULT res = f_read(f, (void *)buf_16, sizeof(bmp_header_v4), &size); // read header
+  if (res != FR_OK || buf_16[9] != LCD_WIDTH || buf_16[11] != LCD_HEIGHT || buf_16[14] != 16) return "Format err";
+  for (int y = LCD_HEIGHT-1; y >=0 && res == FR_OK; y--) {
+    res = f_read(f, (void *)buf_16, LCD_WIDTH * sizeof(uint16_t), &size);
+    swap_bytes(buf_16, LCD_WIDTH);
+    lcd_bulk(0, y, LCD_WIDTH, 1);
+  }
+  lcd_printf(0, LCD_HEIGHT - 3*FONT_STR_HEIGHT, fno->fname);
+  return NULL;
+}
 
 #ifdef __SD_CARD_DUMP_TIFF__
 //*******************************************************************************************
@@ -1553,16 +1641,173 @@ static int packbits(char *source, char *dest, int size) {
   }
   return pk;
 }
-#endif
 
-static void swap_bytes(uint16_t *buf, int size) {
-  for (int i = 0; i < size; i++)
-    buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)
+static FILE_SAVE_CALLBACK(save_tiff) {
+  (void)format;
+  UINT size;
+  uint16_t *buf_16 = (uint16_t *)spi_buffer;
+  char *buf_8;
+  FRESULT res = f_write(f, tif_header, sizeof(tif_header), &size); // Write header struct
+  lcd_set_background(LCD_SWEEP_LINE_COLOR);
+  for (int y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
+    // Use 128 bytes offset for RGB888 data
+    // Use 0 offset for compressed RLE (maximum need WIDTH * 4 + 128 bytes in spi_buffer)
+    buf_8 = (char *)buf_16 + 128;
+    // Read LCD line in RGB565 format (swapped bytes)
+    lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
+    // Convert to RGB888
+    for (int x = LCD_WIDTH - 1; x >= 0; x--) {
+      uint16_t color = (buf_16[x] << 8) | (buf_16[x] >> 8);
+      buf_8[3*x + 0] = (color>>8) & 0xF8;// if (buf_8[3*x + 0] < 0) buf_8[3*x + 0]+= 7;
+      buf_8[3*x + 1] = (color>>3) & 0xFC;// if (buf_8[3*x + 1] < 0) buf_8[3*x + 1]+= 3;
+      buf_8[3*x + 2] = (color<<3) & 0xF8;// if (buf_8[3*x + 2] < 0) buf_8[3*x + 2]+= 7;
+    }
+    size = packbits(buf_8, (char *)buf_16, LCD_WIDTH * 3);
+    res = f_write(f, buf_16, size, &size);
+    lcd_fill(LCD_WIDTH-1, y, 1, 1);
+  }
+  return res;
 }
 
+static FILE_LOAD_CALLBACK(load_tiff) {
+  (void)format;
+  UINT size;
+  uint8_t *buf_8 = (uint8_t *)spi_buffer; // prepare buffer
+  uint16_t *buf_16 = (uint16_t *)spi_buffer;
+  FRESULT res = f_read(f, (void *)buf_16, sizeof(tif_header), &size); // read header
+  // Quick check for valid (not parse TIFF, use hardcoded values, for less code size)
+  // Check header id, width, height, compression (pass only self saved images)
+  if (res != FR_OK ||
+        buf_16[0] != 0x4949 ||       // Check header ID
+        buf_16[9] != LCD_WIDTH ||    // Check Width
+        buf_16[15] != LCD_HEIGHT ||  // Check Height
+        buf_16[27] != TIFF_PACKBITS) return "Format err";
+  for (int y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
+    // Unpack RLE compression sequence
+    for (int x = 0; x < LCD_WIDTH * 3;) {
+      int8_t data[2]; res = f_read(f, data, 2, &size);  // Read count and value
+      int count = data[0];                                    // count
+      buf_8[x++] = data[1];                                   // copy first value
+      if (count > 0) {                                        // if count > 0 need read additional values
+        res = f_read(f, &buf_8[x], count, &size);
+        x+= count;
+      } else while (count++ < 0) buf_8[x++] = data[1];        // if count < 0 need repeat value -count times
+    }
+    // Convert from RGB888 to RGB565 and copy to screen
+    for (int x = 0; x < LCD_WIDTH; x++)
+      buf_16[x] = RGB565(buf_8[3 * x + 0], buf_8[3 * x + 1], buf_8[3 * x + 2]);
+    lcd_bulk(0, y, LCD_WIDTH, 1);
+  }
+  lcd_printf(0, LCD_HEIGHT - 3 * FONT_STR_HEIGHT,  fno->fname);
+  return NULL;
+}
+#endif
+
+//=====================================================================================================
+// Calibration save / load
+//=====================================================================================================
+static FILE_SAVE_CALLBACK(save_cal) {
+  (void)format;
+  UINT size;
+  const char *src = (char*)&current_props;
+  const uint32_t total = sizeof(current_props);
+  return f_write(f, src, total, &size);
+}
+
+static FILE_LOAD_CALLBACK(load_cal) {
+  (void)format;
+  UINT size;
+  uint32_t magic;
+  char *src = (char*)&current_props + sizeof(magic);
+  uint32_t total = sizeof(current_props) - sizeof(magic);
+  // Compare file size and try read magic header, if all OK load it
+  if (fno->fsize != sizeof(current_props) || f_read(f, &magic, sizeof(magic), &size) != FR_OK ||
+      magic != PROPERTIES_MAGIC || f_read(f, src, total, &size) != FR_OK)
+	  return "Format err";
+  load_properties(NO_SAVE_SLOT);
+  return NULL;
+}
+
+//=====================================================================================================
+// Dump firmware to SD card as bin file image
+//=====================================================================================================
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+static FILE_SAVE_CALLBACK(save_bin) {
+  (void)format;
+  UINT size;
+//  START_PROFILE
+  const char *src = (const char*)FLASH_START_ADDRESS;
+  const uint32_t total = FLASH_TOTAL_SIZE;
+  return f_write(f, src, total, &size);
+//  STOP_PROFILE
+}
+#endif
+
+//=====================================================================================================
+// Load command scripts
+//=====================================================================================================
+#ifdef __SD_CARD_LOAD__
+static FILE_LOAD_CALLBACK(load_cmd) {
+  (void)fno;
+  (void)format;
+  UINT size;
+  const int buffer_size = 256;
+  const int line_size = 128;
+  char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
+  char *line  = buf_8 + buffer_size;
+  uint16_t j = 0, i;
+  while (f_read(f, buf_8, buffer_size, &size) == FR_OK && size > 0) {
+    for (i = 0; i < size; i++) {
+      uint8_t c = buf_8[i];
+      if (c == '\r') {                             // New line (Enter)
+        line[j] = 0; j = 0;
+        VNAShell_executeCMDLine(line);
+      }
+      else if (c < 0x20) continue;                 // Others (skip)
+      else if (j < line_size) line[j++] = (char)c; // Store
+    }
+  }return NULL;
+}
+#endif
+
+//=====================================================================================================
+//                                 SD card save / load file options
+//=====================================================================================================
+#ifdef __SD_FILE_BROWSER__
+ #define FILE_OPTIONS(e, s, l, o) {e, s, l, o}
+#else
+ #define FILE_OPTIONS(e, s, l, o) {e, s, o}
+#endif
+
+#define FILE_OPT_REDRAW   (1<<0)       // need full screen update before save
+#define FILE_OPT_CONTINUE (1<<1)       // in browser mode use leveler left/right for see next/prev file
+
+// Save / Load file options
+const struct {
+  const char *ext;            // file extension
+  file_save_cb_t save;        // file save function
+#ifdef __SD_FILE_BROWSER__
+  file_load_cb_t load;        // file load function (use in browser)
+#endif
+  uint32_t opt;
+} file_opt[] = {
+  [FMT_S1P_FILE] = FILE_OPTIONS("s1p",  save_snp,  load_snp,                                   0),
+  [FMT_S2P_FILE] = FILE_OPTIONS("s2p",  save_snp,  load_snp,                                   0),
+  [FMT_BMP_FILE] = FILE_OPTIONS("bmp",  save_bmp,  load_bmp, FILE_OPT_REDRAW | FILE_OPT_CONTINUE),
+#ifdef __SD_CARD_DUMP_TIFF__
+  [FMT_TIF_FILE] = FILE_OPTIONS("tif", save_tiff, load_tiff, FILE_OPT_REDRAW | FILE_OPT_CONTINUE),
+#endif
+  [FMT_CAL_FILE] = FILE_OPTIONS("cal",  save_cal,  load_cal,                                   0),
+#ifdef __SD_CARD_DUMP_FIRMWARE__
+  [FMT_BIN_FILE] = FILE_OPTIONS("bin",  save_bin,      NULL,                                   0),
+#endif
+#ifdef __SD_CARD_LOAD__
+  [FMT_CMD_FILE] = FILE_OPTIONS("cmd",      NULL,  load_cmd,                                   0),
+#endif
+};
+
 // Create file name from current time
-static FRESULT vna_create_file(char *fs_filename)
-{
+static FRESULT ui_create_file(char *fs_filename) {
 //  shell_printf("S file\r\n");
   FRESULT res = f_mount(fs_volume, "", 1);
 //  shell_printf("Mount = %d\r\n", res);
@@ -1573,20 +1818,13 @@ static FRESULT vna_create_file(char *fs_filename)
   return res;
 }
 
-static void vna_save_file(char *name, uint8_t format)
-{
-  char *buf_8;
-  uint16_t *buf_16;
-  int i, y;
-  UINT size;
+static void ui_save_file(char *name, uint8_t format) {
   char fs_filename[FF_LFN_BUF];
+  file_save_cb_t save = file_opt[format].save;
+  if (save == NULL) return;
   // For screenshot need back to normal mode and redraw screen before capture!!
   // Redraw use spi_buffer so need do it before any file ops
-  if (ui_mode != UI_NORMAL && (format == FMT_BMP_FILE
-#ifdef __SD_CARD_DUMP_TIFF__
-    || format == FMT_TIF_FILE
-#endif
-      )) {
+  if (ui_mode != UI_NORMAL && (file_opt[format].opt & FILE_OPT_REDRAW)) {
     ui_mode_normal();
     draw_all();
   }
@@ -1596,126 +1834,28 @@ static void vna_save_file(char *name, uint8_t format)
 #if FF_USE_LFN >= 1
     uint32_t tr = rtc_get_tr_bcd(); // TR read first
     uint32_t dr = rtc_get_dr_bcd(); // DR read second
-    plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06x_%06x.%s", dr, tr, file_ext[format]);
+    plot_printf(fs_filename, FF_LFN_BUF, "VNA_%06x_%06x.%s", dr, tr, file_opt[format].ext);
 #else
-    plot_printf(fs_filename, FF_LFN_BUF, "%08x.%s", rtc_get_FAT(), file_ext[format]);
+    plot_printf(fs_filename, FF_LFN_BUF, "%08x.%s", rtc_get_FAT(), file_opt[format].ext);
 #endif
   }
   else
-    plot_printf(fs_filename, FF_LFN_BUF, "%s.%s", name, file_ext[format]);
+    plot_printf(fs_filename, FF_LFN_BUF, "%s.%s", name, file_opt[format].ext);
 
-//  UINT total_size = 0;
 //  systime_t time = chVTGetSystemTimeX();
-  // Prepare filename = .s1p / .s2p / .bmp .... and open for write
-  FRESULT res = vna_create_file(fs_filename);
+  FRESULT res = ui_create_file(fs_filename);
   if (res == FR_OK) {
-    const char *s_file_format;
-    switch(format) {
-      /*
-       *  Save touchstone file for VNA (use rev 1.1 format)
-       *  https://en.wikipedia.org/wiki/Touchstone_file
-       */
-      case FMT_S1P_FILE:
-      case FMT_S2P_FILE:
-      buf_8  = (char *)spi_buffer;
-      // Write SxP file
-      if (format == FMT_S1P_FILE){
-        s_file_format = s1_file_param;
-        // write sxp header (not write NULL terminate at end)
-        res = f_write(fs_file, s1_file_header, sizeof(s1_file_header)-1, &size);
-//        total_size+=size;
-      }
-      else {
-        s_file_format = s2_file_param;
-        // Write s2p header (not write NULL terminate at end)
-        res = f_write(fs_file, s2_file_header, sizeof(s2_file_header)-1, &size);
-//        total_size+=size;
-      }
-      // Write all points data
-      for (i = 0; i < sweep_points && res == FR_OK; i++) {
-        size = plot_printf(buf_8, 128, s_file_format, getFrequency(i), measured[0][i][0], measured[0][i][1], measured[1][i][0], measured[1][i][1]);
-//        total_size+=size;
-        res = f_write(fs_file, buf_8, size, &size);
-      }
-      break;
-      /*
-       *  Save bitmap file (use v4 format allow set RGB mask)
-       */
-      case FMT_BMP_FILE:
-      buf_16 = spi_buffer;
-      res = f_write(fs_file, bmp_header_v4, sizeof(bmp_header_v4), &size); // Write header struct
-//      total_size+=size;
-      lcd_set_background(LCD_SWEEP_LINE_COLOR);
-      for (y = LCD_HEIGHT-1; y >= 0 && res == FR_OK; y--) {
-        lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
-        swap_bytes(buf_16, LCD_WIDTH);
-        res = f_write(fs_file, buf_16, LCD_WIDTH*sizeof(uint16_t), &size);
-//        total_size+=size;
-        lcd_fill(LCD_WIDTH-1, y, 1, 1);
-      }
-      break;
-#ifdef __SD_CARD_DUMP_TIFF__
-      case FMT_TIF_FILE:
-          buf_16 = spi_buffer;
-          lcd_set_background(LCD_SWEEP_LINE_COLOR);
-          res = f_write(fs_file, tif_header, sizeof(tif_header), &size); // Write header struct
-          for (y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
-            // Use LCD_WIDTH + 128 bytes offset for RGB888 data
-            // Use 0 offset for compressed RLE (maximum need WIDTH * 4 + 128 bytes in spi_buffer)
-            buf_8 = (char *)spi_buffer + 128;
-            // Read LCD line in RGB565 format (swapped bytes)
-            lcd_read_memory(0, y, LCD_WIDTH, 1, buf_16);
-            // Convert to RGB888
-            for (int x = LCD_WIDTH - 1; x >= 0; x--) {
-              uint16_t color = (buf_16[x] << 8) | (buf_16[x] >> 8);
-              buf_8[3*x + 0] = (color>>8) & 0xF8;// if (buf_8[3*x + 0] < 0) buf_8[3*x + 0]+= 7;
-              buf_8[3*x + 1] = (color>>3) & 0xFC;// if (buf_8[3*x + 1] < 0) buf_8[3*x + 1]+= 3;
-              buf_8[3*x + 2] = (color<<3) & 0xF8;// if (buf_8[3*x + 2] < 0) buf_8[3*x + 2]+= 7;
-            }
-            size = packbits(buf_8, (char *)spi_buffer, LCD_WIDTH * 3);
-            res = f_write(fs_file, spi_buffer, size, &size);
-            lcd_fill(LCD_WIDTH-1, y, 1, 1);
-          }
-      break;
-#endif
-      /*
-       *  Save calibration
-       */
-      case FMT_CAL_FILE:
-      {
-        const char *src = (char*)&current_props;
-        const uint32_t total = sizeof(current_props);
-        res = f_write(fs_file, src, total, &size);
-      }
-      break;
-#ifdef __SD_CARD_DUMP_FIRMWARE__
-      /*
-       * Dump firmware to SD card as bin file image
-       */
-      case FMT_BIN_FILE:
-      {
-        const char *src = (const char*)FLASH_START_ADDRESS;
-        const uint32_t total = FLASH_TOTAL_SIZE;
-        res = f_write(fs_file, src, total, &size);
-      }
-      break;
-#endif
-    }
+    //  uint32_t t = getSystemTime();
+    res = save(fs_file, format);
+    //  log_printf("dump = %d\n", getSystemTime() - t);
     f_close(fs_file);
-//    shell_printf("Close = %d\r\n", res);
-//    testLog();
 //    time = chVTGetSystemTimeX() - time;
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
-
   ui_message_box("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
   ui_mode_normal();
 }
-
-#ifdef __SD_FILE_BROWSER__
-#include "vna_modules/vna_browser.c"
-#endif
 
 static uint16_t fixScreenshotFormat(uint16_t data) {
 #ifdef __SD_CARD_DUMP_TIFF__
@@ -1724,15 +1864,19 @@ static uint16_t fixScreenshotFormat(uint16_t data) {
   return data;
 }
 
+#ifdef __SD_FILE_BROWSER__
+#include "vna_modules/vna_browser.c"
+
 static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
   data = fixScreenshotFormat(data);
   ui_mode_browser(data);
 }
+#endif
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb) {
   data = fixScreenshotFormat(data);
   if (VNA_MODE(VNA_MODE_AUTO_NAME))
-    vna_save_file(NULL, data);
+    ui_save_file(NULL, data);
   else
     ui_mode_keypad(data + KM_S1P_NAME); // If no auto name, call text keyboard input
 }
@@ -2029,7 +2173,7 @@ const menuitem_t menu_display[] = {
   { MT_SUBMENU,      0, "DATA SMOOTH",                         menu_smooth_count },
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
-  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n " R_LINK_COLOR "50 " S_RARROW "%bF" S_OHM, menu_keyboard_acb},
+  { MT_ADV_CALLBACK, KM_Z_PORT, "PORT-Z\n " R_LINK_COLOR "50 " S_RARROW " %bF" S_OHM, menu_keyboard_acb},
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
@@ -2461,6 +2605,136 @@ static void menu_invoke(int item) {
     menu_draw(-1);
 }
 
+//
+// UI Menu functions
+//
+static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
+  int i;
+  int y = MENU_BUTTON_Y_OFFSET;
+  for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
+    if ((mask&(1<<i)) == 0) continue;
+    button_t button;
+    button.fg = LCD_MENU_TEXT_COLOR;
+    button.icon = BUTTON_ICON_NONE;
+    // focus only in MENU mode but not in KEYPAD mode
+    if (ui_mode == UI_MENU && i == selection){
+      button.bg = LCD_MENU_ACTIVE_COLOR;
+      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
+    } else{
+      button.bg = LCD_MENU_COLOR;
+      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
+    }
+    // Custom button, apply custom settings/label from callback
+    char *text;
+    uint16_t text_offs;
+    if (m->type == MT_ADV_CALLBACK) {
+      button.label[0] = 0;
+      if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
+      // Apply custom text, from button label and
+      if (button.label[0] == 0)
+        plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
+      text = button.label;
+    }
+    else
+      text = m->label;
+    // Draw button
+    ui_draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
+    // Draw icon if need (and add extra shift for text)
+    if (button.icon >= 0) {
+      lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET + ICON_SIZE;
+    } else
+      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_TEXT_OFFSET;
+    // Draw button text
+    int lines = get_lines_count(text);
+#if _USE_FONT_ != _USE_SMALL_FONT_
+    if (menu_button_height < lines * FONT_GET_HEIGHT + 2) {
+      lcd_set_font(FONT_SMALL);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_GET_HEIGHT - 1)/2, text);
+    }
+    else {
+      lcd_set_font(FONT_NORMAL);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+    }
+#else
+    lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+#endif
+  }
+  // Erase empty buttons
+  if (AREA_HEIGHT_NORMAL + OFFSETY > y) {
+    lcd_set_background(LCD_BG_COLOR);
+    lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
+  }
+  lcd_set_font(FONT_NORMAL);
+}
+
+static void menu_draw(uint32_t mask) {
+  menu_draw_buttons(menu_stack[menu_current_level], mask);
+}
+
+#if 0
+static void erase_menu_buttons(void) {
+  lcd_set_background(LCD_BG_COLOR);
+  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
+}
+#endif
+
+//  Menu mode processing
+static void ui_mode_menu(void) {
+  if (ui_mode == UI_MENU)
+    return;
+
+  ui_mode = UI_MENU;
+  // narrowen plotting area
+  set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
+  ensure_selection();
+  menu_draw(-1);
+}
+
+static void ui_menu_lever(uint16_t status) {
+  uint16_t count = current_menu_get_count();
+  if (status & EVT_BUTTON_SINGLE_CLICK) {
+    if ((uint16_t)selection >= count)
+      ui_mode_normal();
+    else
+      menu_invoke(selection);
+    return;
+  }
+
+  do {
+    uint32_t mask = 1<<selection;
+    if (status & EVT_UP  ) selection++;
+    if (status & EVT_DOWN) selection--;
+    // close menu if no menu item
+    if ((uint16_t)selection >= count){
+      ui_mode_normal();
+      return;
+    }
+    menu_draw(mask|(1<<selection));
+    chThdSleepMilliseconds(100);
+  } while ((status = btn_wait_release()) != 0);
+}
+
+static void ui_menu_touch(int touch_x, int touch_y) {
+  if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
+    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
+    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
+      uint32_t mask = (1<<i)|(1<<selection);
+      selection = i;
+      menu_draw(mask);
+      touch_wait_release();
+      selection = -1;
+      menu_invoke(i);
+      return;
+    }
+  }
+
+  touch_wait_release();
+  ui_mode_normal();
+}
+//====================================== end menu processing ==========================================
+
+
 //=====================================================================================================
 //                                  KEYBOARD macros, variables
 //=====================================================================================================
@@ -2829,7 +3103,7 @@ UI_KEYBOARD_CALLBACK(input_rtc_cal) {
 #ifdef __USE_SD_CARD__
 UI_KEYBOARD_CALLBACK(input_filename) {
   if (b) return;
-  vna_save_file(kp_buf, data);
+  ui_save_file(kp_buf, data);
 }
 #endif
 
@@ -3109,140 +3383,12 @@ static void ui_keypad_lever(uint16_t status) {
     chThdSleepMilliseconds(100);
   } while ((status = btn_wait_release()) != 0);
 }
-//========================== end keyboard input =======================
+//==================================== end keyboard input =============================================
 
-//
-// UI Menu functions
-//
-static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
-  int i;
-  int y = MENU_BUTTON_Y_OFFSET;
-  for (i = 0; i < MENU_BUTTON_MAX && m; i++, m = menu_next_item(m), y+=menu_button_height) {
-    if ((mask&(1<<i)) == 0) continue;
-    button_t button;
-    button.fg = LCD_MENU_TEXT_COLOR;
-    button.icon = BUTTON_ICON_NONE;
-    // focus only in MENU mode but not in KEYPAD mode
-    if (ui_mode == UI_MENU && i == selection){
-      button.bg = LCD_MENU_ACTIVE_COLOR;
-      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-    } else{
-      button.bg = LCD_MENU_COLOR;
-      button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
-    }
-    // Custom button, apply custom settings/label from callback
-    char *text;
-    uint16_t text_offs;
-    if (m->type == MT_ADV_CALLBACK) {
-      button.label[0] = 0;
-      if (m->reference) ((menuaction_acb_t)m->reference)(m->data, &button);
-      // Apply custom text, from button label and
-      if (button.label[0] == 0)
-        plot_printf(button.label, sizeof(button.label), m->label, button.p1.u);
-      text = button.label;
-    }
-    else
-      text = m->label;
-    // Draw button
-    ui_draw_button(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, menu_button_height, &button);
-    // Draw icon if need (and add extra shift for text)
-    if (button.icon >= 0) {
-      lcd_blitBitmap(LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET, y+(menu_button_height-ICON_HEIGHT)/2, ICON_WIDTH, ICON_HEIGHT, ICON_GET_DATA(button.icon));
-      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_ICON_OFFSET + ICON_SIZE;
-    } else
-      text_offs = LCD_WIDTH-MENU_BUTTON_WIDTH+MENU_BUTTON_BORDER + MENU_TEXT_OFFSET;
-    // Draw button text
-    int lines = get_lines_count(text);
-#if _USE_FONT_ != _USE_SMALL_FONT_
-    if (menu_button_height < lines * FONT_GET_HEIGHT + 2) {
-      lcd_set_font(FONT_SMALL);
-      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_GET_HEIGHT - 1)/2, text);
-    }
-    else {
-      lcd_set_font(FONT_NORMAL);
-      lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
-    }
-#else
-    lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
-#endif
-  }
-  // Erase empty buttons
-  if (AREA_HEIGHT_NORMAL + OFFSETY > y) {
-    lcd_set_background(LCD_BG_COLOR);
-    lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, y, MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL + OFFSETY - y);
-  }
-  lcd_set_font(FONT_NORMAL);
-}
 
-static void menu_draw(uint32_t mask) {
-  menu_draw_buttons(menu_stack[menu_current_level], mask);
-}
-
-#if 0
-static void erase_menu_buttons(void) {
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_fill(LCD_WIDTH-MENU_BUTTON_WIDTH, 0, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT*MENU_BUTTON_MAX);
-}
-#endif
-
-//  Menu mode processing
-static void ui_mode_menu(void) {
-  if (ui_mode == UI_MENU)
-    return;
-
-  ui_mode = UI_MENU;
-  // narrowen plotting area
-  set_area_size(AREA_WIDTH_NORMAL - MENU_BUTTON_WIDTH, AREA_HEIGHT_NORMAL);
-  ensure_selection();
-  menu_draw(-1);
-}
-
-static void ui_menu_lever(uint16_t status) {
-  uint16_t count = current_menu_get_count();
-  if (status & EVT_BUTTON_SINGLE_CLICK) {
-    if ((uint16_t)selection >= count)
-      ui_mode_normal();
-    else
-      menu_invoke(selection);
-    return;
-  }
-
-  do {
-    uint32_t mask = 1<<selection;
-    if (status & EVT_UP  ) selection++;
-    if (status & EVT_DOWN) selection--;
-    // close menu if no menu item
-    if ((uint16_t)selection >= count){
-      ui_mode_normal();
-      return;
-    }
-    menu_draw(mask|(1<<selection));
-    chThdSleepMilliseconds(100);
-  } while ((status = btn_wait_release()) != 0);
-}
-
-static void ui_menu_touch(int touch_x, int touch_y) {
-  if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
-    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
-    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
-      uint32_t mask = (1<<i)|(1<<selection);
-      selection = i;
-      menu_draw(mask);
-      touch_wait_release();
-      selection = -1;
-      menu_invoke(i);
-      return;
-    }
-  }
-
-  touch_wait_release();
-  ui_mode_normal();
-}
-//================== end menu processing =================================
-
-/*
- * Normal plot processing
- */
+//=====================================================================================================
+//                                 Normal plot functions
+//=====================================================================================================
 static void ui_mode_normal(void) {
   if (ui_mode == UI_NORMAL)
     return;
@@ -3460,7 +3606,7 @@ static void ui_normal_touch(int touch_x, int touch_y) {
   touch_wait_release();
   ui_mode_menu();
 }
-//========================== end normal plot input =======================
+//================================== end normal plot input ============================================
 
 static const struct {
   void (*button)(uint16_t status);
