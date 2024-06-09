@@ -101,176 +101,39 @@ static FRESULT sd_open_dir(DIR* dp, const TCHAR* path, const TCHAR* pattern) {
 
 static void browser_open_file(int sel) {
   FILINFO fno;
-  FRESULT res;
   DIR dj;
   int cnt;
   if ((uint16_t)sel >= file_count) return;
   if (f_mount(fs_volume, "", 1) != FR_OK) return;
 repeat:
   cnt = sel;
-  if (sd_open_dir(&dj, "", file_ext[keypad_mode]) != FR_OK) return;  // open dir
-  while (sd_findnext(&dj, &fno) == FR_OK && cnt != 0) cnt--;         // skip cnt files
+  if (sd_open_dir(&dj, "", file_opt[keypad_mode].ext) != FR_OK) return;  // open dir
+  while (sd_findnext(&dj, &fno) == FR_OK && cnt != 0) cnt--;             // skip cnt files
   f_closedir(&dj);
   if (cnt != 0) return;
 
   // Delete file if in delete mode
   if (browser_mode & BROWSER_DELETE) {f_unlink(fno.fname); return;}
 
-  const char *error = NULL;
-  bool leave_show = true;
-  UINT size;
-  if (f_open(fs_file, fno.fname, FA_READ) != FR_OK) return;
-
+  // Load file, get load function
+  file_load_cb_t load = file_opt[keypad_mode].load;
+  if (load == NULL) return;
+  //
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
-  switch (keypad_mode) {
-  /*
-   * S1P or S2P touchstone file loader
-   * Support only NanoVNA format: Hz S RI R 50
-   */
-  case FMT_S1P_FILE:
-  case FMT_S2P_FILE:
-  {
-    const int buffer_size = 256;
-    const int line_size = 128;
-    char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
-    char *line  = buf_8 + buffer_size;
-    uint16_t j = 0, i, count = 0;
-    freq_t start = 0, stop = 0, f;
-    while (f_read(fs_file, buf_8, buffer_size, &size) == FR_OK && size > 0) {
-      for (i = 0; i < size; i++) {
-        uint8_t c = buf_8[i];
-        if (c == '\r') {                                                     // New line (Enter)
-          line[j] = 0; j = 0;
-          char *args[16];
-          int nargs = parse_line(line, args, 16);                            // Parse line to 16 args
-          if (nargs < 2 || args[0][0] == '#' || args[0][0] == '!') continue; // No data or comment or settings
-          f = my_atoui(args[0]);                                             // Get frequency
-          if (count >= SWEEP_POINTS_MAX || f > FREQUENCY_MAX) {error = "Format err"; goto finish;}
-          if (count == 0) start = f;                                         // For index 0 set as start
-          stop  = f;                                                         // last set as stop
-          measured[0][count][0] = my_atof(args[1]);
-          measured[0][count][1] = my_atof(args[2]);                          // get S11 data
-          if (keypad_mode == FMT_S2P_FILE && nargs >= 4) {
-            measured[1][count][0] = my_atof(args[3]);
-            measured[1][count][1] = my_atof(args[4]);                        // get S11 data
-          } else {
-            measured[1][count][0] = 0.0f;
-            measured[1][count][1] = 0.0f;                                    // get S11 data
-          }
-         count++;
-        }
-        else if (c < 0x20) continue;                 // Others (skip)
-        else if (j < line_size) line[j++] = (char)c; // Store
-      }
-    }
-finish:
-    if (count != 0) { // Points count not zero, so apply data to traces
-      pause_sweep();
-      current_props._sweep_points = count;
-      set_sweep_frequency(ST_START, start);
-      set_sweep_frequency(ST_STOP, stop);
-      request_to_redraw(REDRAW_PLOT);
-    }
-    break;
-  }
-#ifdef __SD_CARD_LOAD__
-  case FMT_CMD_FILE:
-  {
-    const int buffer_size = 256;
-    const int line_size = 128;
-    char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
-    char *line  = buf_8 + buffer_size;
-    uint16_t j = 0, i;
-    while (f_read(fs_file, buf_8, buffer_size, &size) == FR_OK && size > 0) {
-      for (i = 0; i < size; i++) {
-        uint8_t c = buf_8[i];
-        if (c == '\r') {                             // New line (Enter)
-          line[j] = 0; j = 0;
-          VNAShell_executeCMDLine(line);
-        }
-        else if (c < 0x20) continue;                 // Others (skip)
-        else if (j < line_size) line[j++] = (char)c; // Store
-      }
-    }
-    break;
-  }
-#endif
-  /*
-   * BMP file load procedure, load only device screenshots
-   */
-  case FMT_BMP_FILE:
-  {
-    int y;
-    leave_show = false;      // allow step up/down load bitmap
-    uint16_t *buf_16 = spi_buffer; // prepare buffer
-    res = f_read(fs_file, (void *)buf_16, sizeof(bmp_header_v4), &size); // read header
-    if (res != FR_OK || buf_16[9] != LCD_WIDTH || buf_16[11] != LCD_HEIGHT || buf_16[14] != 16) {error = "Format err"; break;}
-    for (y = LCD_HEIGHT-1; y >=0 && res == FR_OK; y--) {
-      res = f_read(fs_file, (void *)buf_16, LCD_WIDTH * sizeof(uint16_t), &size);
-      swap_bytes(buf_16, LCD_WIDTH);
-      lcd_bulk(0, y, LCD_WIDTH, 1);
-    }
-    lcd_printf(0, LCD_HEIGHT - 3*FONT_STR_HEIGHT, fno.fname);
-  }
-  break;
-#ifdef __SD_CARD_DUMP_TIFF__
-  case FMT_TIF_FILE:
-  {
-    int x, y;
-    leave_show = false;      // allow step up/down load bitmap
-    uint8_t *buf_8 = (uint8_t *)spi_buffer; // prepare buffer
-    uint16_t *buf_16 = spi_buffer;
-    res = f_read(fs_file, (void *)buf_16, sizeof(tif_header), &size); // read header
-    // Quick check for valid (not parse TIFF, use hardcoded values, for less code size)
-    // Check header id, width, height, compression (pass only self saved images)
-    if (res != FR_OK ||
-            buf_16[0] != 0x4949 ||       // Check header ID
-            buf_16[9] != LCD_WIDTH ||    // Check Width
-            buf_16[15] != LCD_HEIGHT ||  // Check Height
-            buf_16[27] != TIFF_PACKBITS) {error = "Format err"; break;}
-    for (y = 0; y < LCD_HEIGHT && res == FR_OK; y++) {
-      // Unpack RLE compression sequence
-      for (x = 0; x < LCD_WIDTH * 3;) {
-        int8_t data[2]; res = f_read(fs_file, data, 2, &size);  // Read count and value
-        int count = data[0];                                    // count
-        buf_8[x++] = data[1];                                   // copy first value
-        if (count > 0) {                                        // if count > 0 need read additional values
-          res = f_read(fs_file, &buf_8[x], count, &size);
-          x+= count;
-        } else while (count++ < 0) buf_8[x++] = data[1];        // if count < 0 need repeat value -count times
-      }
-      // Convert from RGB888 to RGB565 and copy to screen
-      for (x = 0; x < LCD_WIDTH; x++)
-        buf_16[x] = RGB565(buf_8[3 * x + 0], buf_8[3 * x + 1], buf_8[3 * x + 2]);
-      lcd_bulk(0, y, LCD_WIDTH, 1);
-    }
-    lcd_printf(0, LCD_HEIGHT - 3 * FONT_STR_HEIGHT, fno.fname);
-  }
-  break;
-#endif
-  /*
-   *  Load calibration
-   */
-  case FMT_CAL_FILE:
-  {
-    uint32_t magic;
-    char *src = (char*)&current_props + sizeof(magic);
-    uint32_t total = sizeof(current_props) - sizeof(magic);
-    // Compare file size and try read magic header, if all OK load it
-    if (fno.fsize == sizeof(current_props) && f_read(fs_file, &magic, sizeof(magic), &size) == FR_OK &&
-        magic == PROPERTIES_MAGIC && f_read(fs_file, src, total, &size) == FR_OK)
-        load_properties(NO_SAVE_SLOT);
-    else error = "Format err";
-  }
-  break;
-  default: break;
-  }
+
+  if (f_open(fs_file, fno.fname, FA_READ) != FR_OK) return;
+  //  START_PROFILE;
+  const char *error = load(fs_file, &fno, keypad_mode);
   f_close(fs_file);
+  //  STOP_PROFILE;
+  // Check, need continue load next or previous file
+  bool need_continue = file_opt[keypad_mode].opt & FILE_OPT_CONTINUE;
   if (error) {
     lcd_clear_screen();
-    ui_message_box(error, fno.fname, leave_show ? 2000 : 10);
+    ui_message_box(error, fno.fname, need_continue ? 100 : 2000);
   }
-  if (leave_show) return;
+  if (!need_continue) return;
+
   // Process input
   while (1) {
     uint16_t status = btn_check();
@@ -309,7 +172,7 @@ static void browser_draw_page(int page) {
   DIR dj;
   // Mount SD card and open directory
   if (f_mount(fs_volume, "", 1) != FR_OK ||
-      sd_open_dir(&dj, "", file_ext[keypad_mode]) != FR_OK) {
+      sd_open_dir(&dj, "", file_opt[keypad_mode].ext) != FR_OK) {
     ui_message_box("ERROR", "NO CARD", 2000);
     ui_mode_normal();
     return;
