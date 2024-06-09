@@ -43,7 +43,7 @@ endif
 
 # Enable this if you want link time optimizations (LTO)
 ifeq ($(USE_LTO),)
-  USE_LTO = no
+  USE_LTO = yes
 endif
 
 # If enabled, this option allows to compile the application in THUMB mode.
@@ -158,7 +158,7 @@ CSRC = $(STARTUPSRC) \
        fonts/Font7x11b.c \
        fonts/Font11x14.c \
        usbcfg.c \
-       main.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c data_storage.c hardware.c vna_math.c
+       main.c common.c si5351.c tlv320aic3204.c dsp.c plot.c ui.c ili9341.c data_storage.c hardware.c vna_math.c
 
 # C++ sources that can be compiled in ARM or THUMB mode depending on the global
 # setting.
