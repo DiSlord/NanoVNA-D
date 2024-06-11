@@ -152,8 +152,11 @@ typedef struct {
 } keypad_pos_t;
 
 typedef struct {
-  uint8_t pos;
-  int8_t  c;
+  uint8_t size, type;
+  struct {
+   uint8_t pos;
+   uint8_t   c;
+  } buttons[];
 } keypads_t;
 
 typedef void (*keyboard_cb_t)(uint16_t data, button_t *b);
@@ -2771,7 +2774,7 @@ static const keypads_t keypads_freq[] = {
 };
 
 static const keypads_t keypads_ufloat[] = { //
-  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 13 + 3 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },           // 7 8 9
   { 0x02, KP_1 },           // 4 5 6
@@ -2784,11 +2787,14 @@ static const keypads_t keypads_ufloat[] = { //
   { 0x10, KP_8 },
   { 0x20, KP_9 },
   { 0x33, KP_ENTER },
-  { 0x23, KP_BS }
+  { 0x23, KP_BS },
+  { 0x30, KP_EMPTY },
+  { 0x31, KP_EMPTY },
+  { 0x32, KP_EMPTY },
 };
 
 static const keypads_t keypads_percent[] = { //
-  { 13, NUM_KEYBOARD },     // 13 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 13 + 3 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },           // 7 8 9
   { 0x02, KP_1 },           // 4 5 6
@@ -2801,11 +2807,14 @@ static const keypads_t keypads_percent[] = { //
   { 0x10, KP_8 },
   { 0x20, KP_9 },
   { 0x33, KP_PERCENT },
-  { 0x23, KP_BS }
+  { 0x23, KP_BS },
+  { 0x30, KP_EMPTY },
+  { 0x31, KP_EMPTY },
+  { 0x32, KP_EMPTY },
 };
 
 static const keypads_t keypads_float[] = {
-  { 14, NUM_KEYBOARD },     // 14 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 14 + 2 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },           // 7 8 9
   { 0x02, KP_1 },           // 4 5 6
@@ -2819,7 +2828,9 @@ static const keypads_t keypads_float[] = {
   { 0x20, KP_9 },
   { 0x32, KP_MINUS },
   { 0x33, KP_ENTER },
-  { 0x23, KP_BS }
+  { 0x23, KP_BS },
+  { 0x30, KP_EMPTY },
+  { 0x31, KP_EMPTY },
 };
 
 static const keypads_t keypads_mfloat[] = {
@@ -2843,7 +2854,7 @@ static const keypads_t keypads_mfloat[] = {
 };
 
 static const keypads_t keypads_mkufloat[] = {
-  { 15, NUM_KEYBOARD },     // 15 buttons NUM keyboard (4x4 size)
+  { 16, NUM_KEYBOARD },     // 15 + 1 buttons NUM keyboard (4x4 size)
   { 0x13, KP_PERIOD },
   { 0x03, KP_0 },           // 7 8 9
   { 0x02, KP_1 },           // 4 5 6 m
@@ -2858,7 +2869,8 @@ static const keypads_t keypads_mkufloat[] = {
   { 0x31, KP_m },
   { 0x32, KP_k },
   { 0x33, KP_ENTER },
-  { 0x23, KP_BS }
+  { 0x23, KP_BS },
+  { 0x30, KP_EMPTY },
 };
 
 static const keypads_t keypads_nfloat[] = {
@@ -3178,21 +3190,23 @@ static void keypad_draw_button(int id) {
     button.border = KEYBOARD_BUTTON_BORDER|BUTTON_BORDER_RISE;
   }
 
-  const keypad_pos_t *p = &key_pos[keypads[0].c];
-  int x = p->x_offs + (keypads[id+1].pos>> 4) * p->width;
-  int y = p->y_offs + (keypads[id+1].pos&0xF) * p->height;
+  const keypad_pos_t *p = &key_pos[keypads->type];
+  int x = p->x_offs + (keypads->buttons[id].pos>> 4) * p->width;
+  int y = p->y_offs + (keypads->buttons[id].pos&0xF) * p->height;
   ui_draw_button(x, y, p->width, p->height, &button);
-  if (keypads[0].c == NUM_KEYBOARD) {
-    lcd_drawfont(keypads[id+1].c,
+  uint8_t ch = keypads->buttons[id].c;
+  if (ch == KP_EMPTY) return; // Empty button
+  if (keypads->type == NUM_KEYBOARD) {
+    lcd_drawfont(ch,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
                      y + (KP_HEIGHT - NUM_FONT_GET_HEIGHT) / 2);
   } else {
 #if 0
-    lcd_drawchar(keypads[id+1].c,
+    lcd_drawchar(ch,
                      x + (KPF_WIDTH - FONT_WIDTH) / 2,
                      y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
 #else
-    lcd_drawchar_size(keypads[id+1].c,
+    lcd_drawchar_size(ch,
                      x + KPF_WIDTH/2 - FONT_WIDTH + 1,
                      y + KPF_HEIGHT/2 - FONT_GET_HEIGHT, 2);
 #endif
@@ -3200,7 +3214,7 @@ static void keypad_draw_button(int id) {
 }
 
 static void keypad_draw(void) {
-  for(int i = 0; i < keypads[0].pos; i++)
+  for(int i = 0; i < keypads->size; i++)
     keypad_draw_button(i);
 }
 
@@ -3324,22 +3338,22 @@ static int txt_keypad_click(int c, int kp_index) {
 static void ui_mode_keypad(int mode) {
   if (ui_mode == UI_KEYPAD)
     return;
+  ui_mode = UI_KEYPAD;
   set_area_size(0, 0);
   // keypads array
   keypad_mode = mode;
   keypads = keypad_type_list[keypads_mode_tbl[mode].keypad_type];
   selection = -1;
   kp_buf[0] = 0;
-  ui_mode = UI_KEYPAD;
-  menu_draw(-1);
+//menu_draw(-1);
   keypad_draw();
   draw_numeric_area_frame();
 }
 
 static void keypad_click(int key) {
-  int c = keypads[key+1].c;  // !!! Use key + 1 (zero key index used or size define)
+  int c = keypads->buttons[key].c;  // !!! Use key + 1 (zero key index used or size define)
   int index = strlen(kp_buf);
-  int result = keypads[0].c == NUM_KEYBOARD ? num_keypad_click(c, index) : txt_keypad_click(c, index);
+  int result = keypads->type == NUM_KEYBOARD ? num_keypad_click(c, index) : txt_keypad_click(c, index);
   if (result == K_DONE) ui_keyboard_cb(keypad_mode, NULL); // apply input done
   // Exit loop on done or cancel
   if (result != K_CONTINUE)
@@ -3347,14 +3361,15 @@ static void keypad_click(int key) {
 }
 
 static void ui_keypad_touch(int touch_x, int touch_y) {
-  const keypad_pos_t *p = &key_pos[keypads[0].c];
+  const keypad_pos_t *p = &key_pos[keypads->type];
   if (touch_x < p->x_offs || touch_y < p->y_offs) return;
   // Calculate key position from touch x and y
   touch_x-= p->x_offs; touch_x/= p->width;
   touch_y-= p->y_offs; touch_y/= p->height;
   uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
-  for (int i = 0; i < keypads[0].pos; i++) {
-    if (keypads[i+1].pos != pos) continue;
+  for (int i = 0; i < keypads->size; i++) {
+    if (keypads->buttons[i].pos != pos) continue;
+    if (keypads->buttons[i].c == KP_EMPTY) break; // Empty
     int old = selection;
     keypad_draw_button(selection = i);  // draw new focus
     keypad_draw_button(old);            // Erase old focus
@@ -3373,11 +3388,13 @@ static void ui_keypad_lever(uint16_t status) {
       keypad_click(selection);
     return;
   }
-  int keypads_last_index = keypads[0].pos - 1;
+  int keypads_last_index = keypads->size - 1;
   do {
     int old = selection;
-    if ((status & EVT_DOWN) && --selection < 0) selection = keypads_last_index;
-    if ((status & EVT_UP)   && ++selection > keypads_last_index) selection = 0;
+    do {
+      if ((status & EVT_DOWN) && --selection < 0) selection = keypads_last_index;
+      if ((status & EVT_UP)   && ++selection > keypads_last_index) selection = 0;
+    } while (keypads->buttons[selection].c == KP_EMPTY); // Skip empty
     keypad_draw_button(old);
     keypad_draw_button(selection);
     chThdSleepMilliseconds(100);

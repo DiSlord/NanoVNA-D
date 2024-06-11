@@ -751,8 +751,10 @@ enum {
   KP_PLUSMINUS,
   KP_KEYPAD,
   KP_SPACE,
-  KP_PLUS
+  KP_PLUS,
 #endif
+  // Special uint8_t buttons
+  KP_EMPTY = 255  // Empty button
 };
 
 /*
