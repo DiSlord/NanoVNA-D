@@ -750,6 +750,17 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb) {
   selection = c_list[data].next;
 }
 
+static UI_FUNCTION_ADV_CALLBACK(menu_cal_enh_acb) {
+  (void)data;
+  if (b) {
+    b->icon = (cal_status&CALSTAT_ENHANCED_RESPONSE) ? BUTTON_ICON_CHECK : BUTTON_ICON_NOCHECK;
+    return;
+  }
+  // toggle applying correction
+  cal_status ^= CALSTAT_ENHANCED_RESPONSE;
+  request_to_redraw(REDRAW_CAL_STATUS);
+}
+
 extern const menuitem_t menu_save[];
 static UI_FUNCTION_CALLBACK(menu_caldone_cb) {
   cal_done();
@@ -2018,6 +2029,7 @@ const menuitem_t menu_cal[] = {
   { MT_ADV_CALLBACK, 0, "RANGE",         menu_cal_range_acb },
   { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
+  { MT_ADV_CALLBACK, 0, "ENHANCED\nRESPONSE", menu_cal_enh_acb},
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 

@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.31"
+#define VERSION "1.2.32"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1795,12 +1795,21 @@ static void apply_CH0_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
 {
   // CAUTION: Et is inversed for efficiency
-  // S21a = (S21m - Ex) * Et
+  // S21a = (S21m - Ex) * Et`
   float s21mr = data[2] - c_data[ETERM_EX][0];
   float s21mi = data[3] - c_data[ETERM_EX][1];
   // Not made CH1 correction by CH0 data
   data[2] = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
   data[3] = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
+  if (cal_status & CALSTAT_ENHANCED_RESPONSE) {
+    // S21a = S21m * Et` * (1 - Es * S11a)
+    float esr = 1.0f - (c_data[ETERM_ES][0] * data[0] - c_data[ETERM_ES][1] * data[1]);
+    float esi = 0.0f - (c_data[ETERM_ES][1] * data[0] + c_data[ETERM_ES][0] * data[1]);
+    float re = data[2];
+    float im = data[3];
+    data[2] = esr * re - esi * im;
+    data[3] = esi * re + esr * im;
+  }
 }
 
 void

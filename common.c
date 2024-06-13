@@ -111,18 +111,6 @@ bool strcmpi(const char *t1, const char *t2) {
   }
 }
 
-static inline char* _strpbrk(char *s1, const char *s2) {
-  do {
-    const char *s = s2;
-    do {
-      if (*s == *s1) return s1;
-      s++;
-    } while (*s);
-    s1++;
-  } while(*s1);
-  return s1;
-}
-
 //
 // Function used for search substring v in list
 // Example need search parameter "center" in "start|stop|center|span|cw" getStringIndex return 2
@@ -155,6 +143,17 @@ int get_str_index(const char *v, const char *list) {
 }
 
 /*
+ * Search first symbols (s2) entry in string (s1)
+ */
+static inline char* _strpbrk(char *s1, const char *s2) {
+  do {
+    const char *s = s2;
+    while(*s) if (*s++ == *s1) return s1;
+  } while(*++s1);
+  return s1;
+}
+
+/*
  * Split line by arguments, return arguments count
  */
 int parse_line(char *line, char* args[], int max_cnt) {
@@ -176,6 +175,9 @@ int parse_line(char *line, char* args[], int max_cnt) {
   return nargs;
 }
 
+/*
+ * Swap byte order in uint16_t buffer
+ */
 void swap_bytes(uint16_t *buf, int size) {
   for (int i = 0; i < size; i++)
     buf[i] = __REVSH(buf[i]); // swap byte order (example 0x10FF to 0xFF10)

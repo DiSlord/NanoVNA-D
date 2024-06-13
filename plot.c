@@ -77,15 +77,6 @@ float2int(float v)
 }
 #endif
 
-static inline int
-circle_inout(int x, int y, int r)
-{
-  int d = x*x + y*y;
-  if (d < r*r - r) return  1; // in  circle
-  if (d > r*r + r) return -1; // out circle
-  return 0;                   // on  circle
-}
-
 static bool
 polar_grid(int x, int y)
 {
@@ -894,26 +885,20 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
 }
 #endif
 
-// Give a little speedup then draw rectangular plot (50 systick on all calls, all render req 700 systick)
+// Give a little speedup then draw rectangular plot
 // Write more difficult algorithm for search indexes not give speedup
-static int
-search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1)
-{
-  int i, j;
-  int head = 0;
-  int tail = sweep_points;
-  int idx_x;
-
+static int search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1) {
+  int i;
+  int head = 0, tail = sweep_points;
   // Search index point in cell
   while (1) {
-    i = (head + tail) / 2;
-    idx_x = index[i].x;
-    if (idx_x >= x2) { // index after cell
+    i = (head + tail)>>1;
+    if (index[i].x >= x2) { // index after cell
       if (tail == i)
         return false;
       tail = i;
     }
-    else if (idx_x < x1) {    // index before cell
+    else if (index[i].x < x1) {    // index before cell
       if (head == i)
         return false;
       head = i;
@@ -921,20 +906,9 @@ search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1)
     else  // index in cell (x =< idx_x < cell_end)
       break;
   }
-  j = i;
-  // Search index left from point
-  do {
-    if (j == 0) break;
-    j--;
-  } while (x1 <= index[j].x);
-  *i0 = j;
-  // Search index right from point
-  do {
-    if (i >=sweep_points-1) break;
-    i++;
-  } while (index[i].x < x2);
-  *i1 = i;
-
+  *i0 = *i1 = i;
+  while (*i0 >              0 && x1 <= index[--*i0].x); // Search index left from point
+  while (*i1 < sweep_points-1 && x2 >  index[++*i1].x); // Search index right from point
   return TRUE;
 }
 
@@ -1791,7 +1765,8 @@ draw_cal_status(void)
     {'S', 0, CALSTAT_ES},
     {'T', 0, CALSTAT_ET},
     {'t', 0, CALSTAT_THRU},
-    {'X', 0, CALSTAT_EX}
+    {'X', 0, CALSTAT_EX},
+    {'E', 0, CALSTAT_ENHANCED_RESPONSE}
   };
   for (i = 0; i < ARRAY_COUNT(calibration_text); i++)
     if (cal_status & calibration_text[i].mask)
