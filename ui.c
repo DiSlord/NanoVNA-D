@@ -185,7 +185,7 @@ static char    kp_buf[TXTINPUT_LEN+1];  // !!!!!! WARNING size must be + 2 from 
 static uint8_t ui_mode = UI_NORMAL;
 static const keypads_t *keypads;
 static uint8_t keypad_mode;
-//static uint8_t keyboard_temp;           // Use for custom keyboard processing
+static uint8_t keyboard_temp;           // Use for custom keyboard processing
 static uint8_t menu_current_level = 0;
 static int8_t  selection = -1;
 
@@ -1866,6 +1866,7 @@ static void ui_save_file(char *name, uint8_t format) {
 //    time = chVTGetSystemTimeX() - time;
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
   }
+  if (keyboard_temp == 1) toggle_sweep();
   ui_message_box("SD CARD SAVE", res == FR_OK ? fs_filename : "  Fail write  ", 2000);
   request_to_redraw(REDRAW_AREA|REDRAW_FREQUENCY);
   ui_mode_normal();
@@ -1888,6 +1889,8 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_browse_cb) {
 #endif
 
 static UI_FUNCTION_CALLBACK(menu_sdcard_cb) {
+  keyboard_temp = (sweep_mode & SWEEP_ENABLE) ? 1 : 0;
+  if (keyboard_temp) toggle_sweep();
   data = fixScreenshotFormat(data);
   if (VNA_MODE(VNA_MODE_AUTO_NAME))
     ui_save_file(NULL, data);
