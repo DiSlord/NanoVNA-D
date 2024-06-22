@@ -1301,7 +1301,7 @@ void testLog(void);        // debug log
  * flash.c
  */
 #define CONFIG_MAGIC      0x434f4e56 // Config magic value (allow reset on new config version)
-#define PROPERTIES_MAGIC  0x434f4e53 // Properties magic value (allow reset on new properties version)
+#define PROPERTIES_MAGIC  0x434f4e54 // Properties magic value (allow reset on new properties version)
 
 #define NO_SAVE_SLOT      ((uint16_t)(-1))
 extern uint16_t lastsaveid;
