@@ -125,6 +125,7 @@ enum {
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
   KM_Z_PORT,
+  KM_CAL_LOAD_R,
 #endif
 #ifdef __USE_RTC__
   KM_RTC_DATE,
@@ -2033,6 +2034,9 @@ const menuitem_t menu_cal[] = {
   { MT_CALLBACK,     0, "RESET",         menu_cal_reset_cb },
   { MT_ADV_CALLBACK, 0, "APPLY",         menu_cal_apply_acb },
   { MT_ADV_CALLBACK, 0, "ENHANCED\nRESPONSE", menu_cal_enh_acb},
+#ifdef __VNA_Z_RENORMALIZATION__
+  { MT_ADV_CALLBACK, KM_CAL_LOAD_R, "STANDARD\nLOAD R " R_LINK_COLOR "%bF" S_OHM, menu_keyboard_acb},
+#endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
 
@@ -3073,9 +3077,9 @@ UI_KEYBOARD_CALLBACK(input_measure_r) {
 
 #ifdef __VNA_Z_RENORMALIZATION__
 UI_KEYBOARD_CALLBACK(input_portz) {
-  (void)data;
-  if (b) {b->p1.f = current_props._portz; return;}
-  current_props._portz = keyboard_get_float();
+  if (b) {b->p1.f = data ? current_props._cal_load_r : current_props._portz; return;}
+  if (data) current_props._cal_load_r = keyboard_get_float();
+  else      current_props._portz = keyboard_get_float();
 }
 #endif
 
@@ -3166,6 +3170,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
 [KM_Z_PORT]          = {KEYPAD_UFLOAT, 0,             "PORT Z 50" S_RARROW, input_portz    }, // Port Z renormalization impedance
+[KM_CAL_LOAD_R]      = {KEYPAD_UFLOAT, 1,             "STANDARD\n LOAD R",  input_portz    }, // Calibration standard load R
 #endif
 #ifdef __USE_RTC__
 [KM_RTC_DATE]        = {KEYPAD_UFLOAT, KM_RTC_DATE,   "SET DATE\nYY MM DD", input_date_time}, // Date

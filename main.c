@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.33"
+#define VERSION "1.2.35"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -886,25 +886,26 @@ static void load_default_properties(void) {
   current_props._cal_frequency0   =     50000;    // calibration start =  50kHz
   current_props._cal_frequency1   = 900000000;    // calibration end   = 900MHz
   current_props._cal_sweep_points = POINTS_COUNT_DEFAULT; // Set calibration default points count
-  current_props._cal_status   = 0;
+  current_props._cal_status       = 0;
 //=============================================
   memcpy(current_props._trace, def_trace, sizeof(def_trace));
   memcpy(current_props._markers, def_markers, sizeof(def_markers));
 //=============================================
   current_props._electrical_delay[0] = 0.0f;
   current_props._electrical_delay[1] = 0.0f;
-  current_props._var_delay = 0.0f;
-  current_props._s21_offset       = 0.0f;
-  current_props._portz = 50.0f;
+  current_props._var_delay       = 0.0f;
+  current_props._s21_offset      = 0.0f;
+  current_props._portz           = 50.0f;
+  current_props._cal_load_r      = 50.0f;
   current_props._velocity_factor = 70;
   current_props._current_trace   = 0;
   current_props._active_marker   = 0;
   current_props._previous_marker = MARKER_INVALID;
   current_props._mode            = 0;
-  current_props._reserved = 0;
-  current_props._power     = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-  current_props._cal_power = SI5351_CLK_DRIVE_STRENGTH_AUTO;
-  current_props._measure   = 0;
+  current_props._reserved        = 0;
+  current_props._power           = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  current_props._cal_power       = SI5351_CLK_DRIVE_STRENGTH_AUTO;
+  current_props._measure         = 0;
 //This data not loaded by default
 //current_props._cal_data[5][POINTS_COUNT][2];
 //Checksum add on caldata_save
@@ -1071,7 +1072,7 @@ static uint16_t get_sweep_mask(void){
   ch_mask|= plot_get_measure_channels();
 #endif
 #ifdef __VNA_Z_RENORMALIZATION__
-  if (current_props._portz != 50.0f)
+  if (current_props._portz != cal_load_r)
     ch_mask|= SWEEP_USE_RENORMALIZATION;
 #endif
   if (cal_status & CALSTAT_APPLY)        ch_mask|= SWEEP_APPLY_CALIBRATION;

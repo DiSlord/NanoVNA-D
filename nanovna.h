@@ -1019,8 +1019,9 @@ typedef struct properties {
   float    _electrical_delay[2]; // delays for S11 and S21 traces in seconds
   float    _var_delay;           // electrical delay step by leveler
   float    _s21_offset;          // additional external attenuator for S21 measures
-  float    _portz;               // Used for port-z renormalisation
-  uint32_t _reserved1[8];
+  float    _portz;               // Used for port-z renormalization
+  float    _cal_load_r;          // Used as calibration standard LOAD R value (calculated in renormalization procedure)
+  uint32_t _reserved1[7];
   float    _cal_data[CAL_TYPE_COUNT][SWEEP_POINTS_MAX][2]; // Put at the end for faster access to others data from struct
   uint32_t checksum;
 } properties_t;
@@ -1324,6 +1325,11 @@ extern uint16_t lastsaveid;
 #define markers             current_props._markers
 #define active_marker       current_props._active_marker
 #define previous_marker     current_props._previous_marker
+#ifdef __VNA_Z_RENORMALIZATION__
+ #define cal_load_r         current_props._cal_load_r
+#else
+ #define cal_load_r         50.0f
+#endif
 
 #define props_mode          current_props._mode
 #define domain_window      (props_mode&TD_WINDOW)
