@@ -773,9 +773,10 @@ static UI_FUNCTION_CALLBACK(menu_caldone_cb) {
 static UI_FUNCTION_CALLBACK(menu_cal_reset_cb) {
   (void)data;
   // RESET
-  cal_status = 0;
+  cal_status&= CALSTAT_ENHANCED_RESPONSE; // leave ER state
   lastsaveid = NO_SAVE_SLOT;
-  set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
+  //set_power(SI5351_CLK_DRIVE_STRENGTH_AUTO);
+  request_to_redraw(REDRAW_CAL_STATUS);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb) {
