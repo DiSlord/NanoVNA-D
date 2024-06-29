@@ -173,12 +173,11 @@ static const uint8_t vcom_string2[] = {
 /*
  * Serial Number string.
  */
-static const uint8_t vcom_string3[] = {
-  USB_DESC_BYTE(8),                     /* bLength.                         */
-  USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
-  '0' + CH_KERNEL_MAJOR, 0,
-  '0' + CH_KERNEL_MINOR, 0,
-  '0' + CH_KERNEL_PATCH, 0
+#define USB_SIZ_STRING_SERIAL (2 + 24)
+static uint8_t vcom_string3[USB_SIZ_STRING_SERIAL] = {
+ USB_DESC_BYTE(USB_SIZ_STRING_SERIAL), /* bLength.                         */
+ USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
+ /* here goes the 12 char string encoded as UTF-16 (one ASCII, one 0x00)   */
 };
 
 /*
@@ -190,6 +189,45 @@ static const USBDescriptor vcom_strings[] = {
   {sizeof vcom_string2, vcom_string2},
   {sizeof vcom_string3, vcom_string3}
 };
+
+/**
+  * @brief  Convert Hex 32Bits value into char
+  * @param  value: value to convert
+  * @param  pbuf: pointer to the buffer
+  * @param  len: buffer length
+  * @retval None
+  */
+static void int_to_unicode(uint32_t value, uint8_t *pbuf, uint8_t len) {
+  uint8_t idx = 0;
+  for (idx = 0 ; idx < len ; idx ++) {
+    if (((value >> 28)) < 0xA) {
+      pbuf[ 2 * idx] = (value >> 28) + '0';
+    } else {
+      pbuf[2 * idx] = (value >> 28) + 'A' - 10;
+    }
+    value = value << 4;
+    pbuf[ 2 * idx + 1] = 0;
+  }
+}
+
+/**
+  * @brief  Create the serial number string descriptor
+  * @param  None
+  * @retval None
+  * format and algorithm inspired by:
+  * https://github.com/limbongofficial/STM32_Core-Arduino/blob/master/cores/arduino/stm32/usb/usbd_desc.c#L326-L370
+  */
+static void prepare_sernum_str(void) {
+  uint32_t deviceserial0, deviceserial1, deviceserial2;
+  deviceserial0 = *(uint32_t *)0x1FFFF7AC;
+  deviceserial1 = *(uint32_t *)0x1FFFF7B0;
+  deviceserial2 = *(uint32_t *)0x1FFFF7B4;
+  deviceserial0 += deviceserial2;
+  if (deviceserial0 != 0) {
+    int_to_unicode(deviceserial0, &vcom_string3[2], 8);
+    int_to_unicode(deviceserial1, &vcom_string3[18], 4);
+  }
+}
 
 /*
  * Handles the GET_DESCRIPTOR callback. All required descriptors must be
@@ -208,8 +246,11 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
   case USB_DESCRIPTOR_CONFIGURATION:
     return &vcom_configuration_descriptor;
   case USB_DESCRIPTOR_STRING:
-    if (dindex < 4)
+    if (dindex < 4) {
+      if ( dindex == 3 && vcom_string3[2] == 0 ) // not yet done
+        prepare_sernum_str();
       return &vcom_strings[dindex];
+    }
   }
   return NULL;
 }
