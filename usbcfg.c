@@ -15,6 +15,7 @@
 */
 
 #include "hal.h"
+#include "nanovna.h"
 
 /* Virtual serial port over USB.*/
 SerialUSBDriver SDU1;
@@ -171,14 +172,11 @@ static const uint8_t vcom_string2[] = {
 };
 
 /*
- * Serial Number string.
+ * Unique Serial Number string, 2 byte header + 12 utf-16 hex char
+ * create on request, put at end of spi buffer and return the string
  */
 #define USB_SIZ_STRING_SERIAL (2 + 24)
-static uint8_t vcom_string3[USB_SIZ_STRING_SERIAL] = {
- USB_DESC_BYTE(USB_SIZ_STRING_SERIAL), /* bLength.                         */
- USB_DESC_BYTE(USB_DESCRIPTOR_STRING), /* bDescriptorType.                 */
- /* here goes the 12 char string encoded as UTF-16 (one ASCII, one 0x00)   */
-};
+#define usb_ver_string (((uint8_t*)(&spi_buffer[SPI_BUFFER_SIZE])) - USB_SIZ_STRING_SERIAL)
 
 /*
  * Strings wrappers array.
@@ -187,26 +185,25 @@ static const USBDescriptor vcom_strings[] = {
   {sizeof vcom_string0, vcom_string0},
   {sizeof vcom_string1, vcom_string1},
   {sizeof vcom_string2, vcom_string2},
-  {sizeof vcom_string3, vcom_string3}
+  {USB_SIZ_STRING_SERIAL, usb_ver_string}
 };
 
 /**
-  * @brief  Convert Hex 32Bits value into char
+  * @brief  Convert Hex 32Bits value into utf-16 hex string
   * @param  value: value to convert
   * @param  pbuf: pointer to the buffer
   * @param  len: buffer length
   * @retval None
   */
-static void int_to_unicode(uint32_t value, uint8_t *pbuf, uint8_t len) {
+static void uint32_to_utf16_hex(uint32_t value, uint8_t *pbuf, uint8_t len) {
   uint8_t idx = 0;
   for (idx = 0 ; idx < len ; idx ++) {
-    if (((value >> 28)) < 0xA) {
-      pbuf[ 2 * idx] = (value >> 28) + '0';
-    } else {
-      pbuf[2 * idx] = (value >> 28) + 'A' - 10;
-    }
-    value = value << 4;
-    pbuf[ 2 * idx + 1] = 0;
+    if ((value >> 28) < 0xA)
+      *pbuf++ = (value >> 28) + '0';
+    else
+      *pbuf++ = (value >> 28) + 'A' - 10;
+    *pbuf++ = 0;
+    value <<= 4;
   }
 }
 
@@ -218,15 +215,10 @@ static void int_to_unicode(uint32_t value, uint8_t *pbuf, uint8_t len) {
   * https://github.com/limbongofficial/STM32_Core-Arduino/blob/master/cores/arduino/stm32/usb/usbd_desc.c#L326-L370
   */
 static void prepare_sernum_str(void) {
-  uint32_t deviceserial0, deviceserial1, deviceserial2;
-  deviceserial0 = *(uint32_t *)0x1FFFF7AC;
-  deviceserial1 = *(uint32_t *)0x1FFFF7B0;
-  deviceserial2 = *(uint32_t *)0x1FFFF7B4;
-  deviceserial0 += deviceserial2;
-  if (deviceserial0 != 0) {
-    int_to_unicode(deviceserial0, &vcom_string3[2], 8);
-    int_to_unicode(deviceserial1, &vcom_string3[18], 4);
-  }
+  usb_ver_string[0] = USB_DESC_BYTE(USB_SIZ_STRING_SERIAL); // bLength
+  usb_ver_string[1] = USB_DESC_BYTE(USB_DESCRIPTOR_STRING); // bDescriptorType
+  uint32_to_utf16_hex(*(uint32_t *)0x1FFFF7AC + *(uint32_t *)0x1FFFF7B4, &usb_ver_string[2], 8);
+  uint32_to_utf16_hex(*(uint32_t *)0x1FFFF7B0, &usb_ver_string[18], 4);
 }
 
 /*
@@ -247,7 +239,7 @@ static const USBDescriptor *get_descriptor(USBDriver *usbp,
     return &vcom_configuration_descriptor;
   case USB_DESCRIPTOR_STRING:
     if (dindex < 4) {
-      if ( dindex == 3 && vcom_string3[2] == 0 ) // not yet done
+      if ( dindex == 3 )
         prepare_sernum_str();
       return &vcom_strings[dindex];
     }
