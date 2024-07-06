@@ -677,6 +677,10 @@ static void ui_show_version(void) {
     do {shift>>=1; y+=5;} while (shift&1);
     lcd_drawstring(x, y+=str_height-5, info_about[i++]);
   }
+  uint32_t id0 = *(uint32_t *)0x1FFFF7AC; // MCU id0 address
+  uint32_t id1 = *(uint32_t *)0x1FFFF7B0; // MCU id1 address
+  uint32_t id2 = *(uint32_t *)0x1FFFF7B4; // MCU id2 address
+  lcd_printf(x, y+= str_height, "SN: %08x-%08x-%08x", id0, id1, id2);
   lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
   lcd_printf(LCD_WIDTH - 20*FONT_WIDTH, LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
   y+=str_height*2;
@@ -1031,6 +1035,9 @@ const vna_mode_data_t vna_mode_data[] = {
 #endif
 #ifdef __SD_CARD_DUMP_TIFF__
   [VNA_MODE_TIFF]        = {"BMP\0TIFF",           REDRAW_BACKUP},
+#endif
+#ifdef __USB_UID__
+  [VNA_MODE_USB_UID]      = {0,                    REDRAW_BACKUP},
 #endif
 };
 
@@ -2440,6 +2447,9 @@ const menuitem_t menu_device1[] = {
   { MT_ADV_CALLBACK, 0,                  "MODE\n " R_LINK_COLOR "%s",      menu_band_sel_acb },
 #ifdef __DIGIT_SEPARATOR__
   { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
+#endif
+#ifdef __USB_UID__
+  { MT_ADV_CALLBACK, VNA_MODE_USB_UID,   "USB DEVICE\n UID",               menu_vna_mode_acb},
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   { MT_CALLBACK, FMT_BIN_FILE,           "DUMP\nFIRMWARE",                 menu_sdcard_cb },
