@@ -2449,7 +2449,7 @@ const menuitem_t menu_device1[] = {
   { MT_ADV_CALLBACK, VNA_MODE_SEPARATOR, "SEPARATOR\n " R_LINK_COLOR "%s", menu_vna_mode_acb },
 #endif
 #ifdef __USB_UID__
-  { MT_ADV_CALLBACK, VNA_MODE_USB_UID,   "USB DEVICE\n UID",               menu_vna_mode_acb},
+  { MT_ADV_CALLBACK, VNA_MODE_USB_UID,   "USB DEVICE\nUID",                menu_vna_mode_acb},
 #endif
 #ifdef __SD_CARD_DUMP_FIRMWARE__
   { MT_CALLBACK, FMT_BIN_FILE,           "DUMP\nFIRMWARE",                 menu_sdcard_cb },
