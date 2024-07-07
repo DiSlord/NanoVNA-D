@@ -2772,25 +2772,18 @@ static FRESULT cmd_sd_card_mount(void){
 
 VNA_SHELL_FUNCTION(cmd_sd_list)
 {
-  (void)argc;
-  (void)argv;
-
   DIR dj;
   FILINFO fno;
-  FRESULT res;
   if (cmd_sd_card_mount() != FR_OK)
     return;
-  char *search;
-  switch (argc){
-    case 0: search =   "*.*";break;
-    case 1: search = argv[0];break;
+  switch (argc) {
+    case 0: dj.pat =   "*.*";break;
+    case 1: dj.pat = argv[0];break;
     default: shell_printf("usage: sd_list {pattern}" VNA_SHELL_NEWLINE_STR); return;
   }
-  res = f_findfirst(&dj, &fno, "", search);
-  while (res == FR_OK && fno.fname[0])
-  {
-    shell_printf("%s %u" VNA_SHELL_NEWLINE_STR, fno.fname, fno.fsize);
-    res = f_findnext(&dj, &fno);
+  if (f_opendir(&dj, "") == FR_OK) {
+    while (f_findnext(&dj, &fno) == FR_OK && fno.fname[0])
+      shell_printf("%s %u" VNA_SHELL_NEWLINE_STR, fno.fname, fno.fsize);
   }
   f_closedir(&dj);
 }
