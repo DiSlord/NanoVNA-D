@@ -204,14 +204,14 @@ static const USBDescriptor vcom_strings[] = {
 #define USB_SERIAL_STRING_SIZE  (64 / UID_RADIX)   // Result string size
 USBDescriptor *getSerialStringDescriptor(void) {
   uint16_t i;
-  uint16_t *buf    = ((uint16_t *)&spi_buffer[sizeof(spi_buffer)]) - USB_SERIAL_STRING_SIZE - 4; // 16 byte align
+  uint16_t *buf    = ((uint16_t *)&spi_buffer[ARRAY_COUNT(spi_buffer)]) - USB_SERIAL_STRING_SIZE - 4; // 16 byte align
   USBDescriptor *d = ((USBDescriptor *)buf) - 1;
   uint32_t id0 = *(uint32_t *)0x1FFFF7AC; // MCU id0 address
   uint32_t id1 = *(uint32_t *)0x1FFFF7B0; // MCU id1 address
   uint32_t id2 = *(uint32_t *)0x1FFFF7B4; // MCU id2 address
   uint64_t uid = id1;
   id0+= id2;
-  uid = id1 | (uid<<32);                  // generate unique 64bit ID
+  uid|= id0 | (uid<<32);                  // generate unique 64bit ID
   // Prepare serial string descriptor from 64 bit ID
   for(i = 1; i < USB_SERIAL_STRING_SIZE + 1; i++) {
     uint16_t c = uid & ((1<<UID_RADIX) - 1);
