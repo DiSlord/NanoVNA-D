@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.36"
+#define VERSION "1.2.37"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -2916,7 +2916,7 @@ static const VNAShellCommand commands[] =
 #endif
     {"touchcal"    , cmd_touchcal    , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
     {"touchtest"   , cmd_touchtest   , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP},
-    {"pause"       , cmd_pause       , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
+    {"pause"       , cmd_pause       , CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
     {"resume"      , cmd_resume      , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_UI|CMD_RUN_IN_LOAD},
 #ifdef __SD_CARD_LOAD__
     {"msg"         , cmd_msg         , CMD_WAIT_MUTEX|CMD_BREAK_SWEEP|CMD_RUN_IN_LOAD},
@@ -3174,10 +3174,11 @@ static void VNAShell_executeLine(char *line)
     uint16_t cmd_flag = scp->flags;
     // Skip wait mutex if process UI
     if ((cmd_flag & CMD_RUN_IN_UI) && (sweep_mode&SWEEP_UI_MODE)) cmd_flag&=~CMD_WAIT_MUTEX;
-    // Wait
+    // Break current sweep operation
+    if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
+    // Add function for run on sweep end or on break sweep
     if (cmd_flag & CMD_WAIT_MUTEX) {
       shell_function = scp->sc_function;
-      if (scp->flags & CMD_BREAK_SWEEP) operation_requested|=OP_CONSOLE;
       // Wait execute command in sweep thread
       osalThreadEnqueueTimeoutS(&shell_thread, TIME_INFINITE);
 //      do {
