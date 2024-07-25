@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.37"
+#define VERSION "1.2.38"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -754,26 +754,52 @@ usage:
   shell_printf("usage: data [array]" VNA_SHELL_NEWLINE_STR);
 }
 
+#ifdef __CAPTURE_RLE8__
+void capture_rle8(void) {
+  static const struct {
+    uint16_t header;
+    uint16_t width, height;
+    uint8_t  bit_per_pixel, compression;
+  } screenshot_header = {
+    0x4D42,
+    LCD_WIDTH, LCD_HEIGHT,
+    8, 1
+  };
+
+  uint16_t size = sizeof(config._lcd_palette);
+  shell_write(&screenshot_header, sizeof(screenshot_header));      // write header
+  shell_write(&size, sizeof(uint16_t));                            // write palette block size
+  shell_write(config._lcd_palette, size);                          // write palette block
+  uint16_t *data  = &spi_buffer[32];                               // most bad pack situation increase on 1 byte every 128, so put not compressed data on 64 byte offset
+  for (int y = 0, idx = 0; y < LCD_HEIGHT; y++) {
+    lcd_read_memory(0, y, LCD_WIDTH, 1, data);                     // read in 16bpp format
+    for (int x = 0; x < LCD_WIDTH; x++) {                          // convert to palette mode
+      if (config._lcd_palette[idx] != data[x]) {                   // search color in palette
+        for (idx = 0; idx < MAX_PALETTE && config._lcd_palette[idx] != data[x]; idx++);
+        if (idx >= MAX_PALETTE) idx = 0;
+      }
+      ((uint8_t*)data)[x] = idx;                                   // put palette index
+    }
+    spi_buffer[0] = packbits((char *)data, (char *)&spi_buffer[1], LCD_WIDTH); // pack
+    shell_write(spi_buffer, spi_buffer[0] + sizeof(uint16_t));
+  }
+}
+#endif
+
 VNA_SHELL_FUNCTION(cmd_capture)
 {
-// read pixel count at one time (PART*2 bytes required for read buffer)
   (void)argc;
   (void)argv;
-  int y;
+#ifdef __CAPTURE_RLE8__
+  if (argc > 0) { capture_rle8(); return; }
+#endif
 // Check buffer limits, if less possible reduce rows count
 #define READ_ROWS 2
 #if (SPI_BUFFER_SIZE*LCD_PIXEL_SIZE) < (LCD_RX_PIXEL_SIZE*LCD_WIDTH*READ_ROWS)
 #error "Low size of spi_buffer for cmd_capture"
 #endif
-  // Text on screenshot
-  if (argc > 0) {
-    lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
-    for (int i = 0; i < argc; i++)
-      lcd_printf(OFFSETX + CELLOFFSETX + 2, AREA_HEIGHT_NORMAL - (argc - i) * FONT_STR_HEIGHT - 2, argv[i]);
-    request_to_redraw(REDRAW_AREA);
-  }
   // read 2 row pixel time
-  for (y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
+  for (int y = 0; y < LCD_HEIGHT; y += READ_ROWS) {
     // use uint16_t spi_buffer[2048] (defined in ili9341) for read buffer
     lcd_read_memory(0, y, LCD_WIDTH, READ_ROWS, (uint16_t *)spi_buffer);
     shell_write(spi_buffer, READ_ROWS * LCD_WIDTH * sizeof(uint16_t));

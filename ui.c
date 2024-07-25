@@ -1647,24 +1647,6 @@ static const uint8_t tif_header[] = {
                                                           //   After Image data
 };
 
-// RLE packbits algorithm
-static int packbits(char *source, char *dest, int size) {
-  int i = 0, rle, l, pk = 0, sz = 0;
-  while ((l = size - i) > 0) {
-    if (l > 128) l = 128;                              // Limit search RLE block size to 128
-    char c = source[i++];                              // Get next byte and write to block
-    for (rle = 0; c == source[i + rle] && --l; rle++); // Calculate this byte RLE sequence size = rle + 1
-    if (sz && rle < 2) rle = 0;                        // Ignore (rle + 1) < 3 sequence on run non RLE input
-    else if (sz == 0 || rle > 0) sz = pk++;            // Reset state or RLE sequence found -> start new block
-    dest[pk++] = c;                                    // Write char to block
-    if (rle > 0) {i+= rle; dest[sz] = -rle;}           // Write RLE sequence size and go to new block
-    else if ((dest[sz] = pk - sz - 2) < 127)           // Continue write non RLE data while 1 + (non_rle + 1) < 127
-      continue;
-    sz = 0;                                            // Block complete
-  }
-  return pk;
-}
-
 static FILE_SAVE_CALLBACK(save_tiff) {
   (void)format;
   UINT size;

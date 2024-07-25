@@ -56,6 +56,8 @@
 #define __USE_GRID_VALUES__
 // Add remote desktop option
 #define __REMOTE_DESKTOP__
+// Add RLE8 compression capture image format
+#define __CAPTURE_RLE8__
 // Allow flip display
 #define __FLIP_DISPLAY__
 // Add shadow on text in plot area (improve readable, but little slowdown render)
@@ -339,6 +341,7 @@ bool strcmpi(const char *t1, const char *t2);
 int get_str_index(const char *v, const char *list);
 int parse_line(char *line, char* args[], int max_cnt);
 void swap_bytes(uint16_t *buf, int size);
+int packbits(char *source, char *dest, int size);
 
 void pause_sweep(void);
 void toggle_sweep(void);
