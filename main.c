@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2024, Dmitry (DiSlord) dislordlive@gmail.com
  * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
@@ -125,12 +125,12 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.38"
+#define VERSION "1.2.40"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
   "Board: " BOARD_NAME,
-  "2019-2023 Copyright @DiSlord (based on @edy555 source)",
+  "2019-2024 Copyright @DiSlord (based on @edy555 source)",
   "Licensed under GPL.",
   "  https://github.com/DiSlord/NanoVNA-D",
   "Donate support:",
@@ -2678,7 +2678,7 @@ VNA_SHELL_FUNCTION(cmd_lcd){
   if (argc == 0) return;
   for (int i=0;i<argc;i++)
     d[i] =  my_atoui(argv[i]);
-  uint32_t ret = lcd_send_command(d[0], argc-1, &d[1]);
+  uint32_t ret = lcd_send_register(d[0], argc-1, &d[1]);
   shell_printf("ret = 0x%08X" VNA_SHELL_NEWLINE_STR, ret);
   chThdSleepMilliseconds(5);
 }

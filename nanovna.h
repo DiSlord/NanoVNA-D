@@ -26,7 +26,9 @@
 #define LCD_DRIVER_ST7796S
 #define LCD_480x320
 #else
+// Used auto detect from ILI9341 or ST7789
 #define LCD_DRIVER_ILI9341
+#define LCD_DRIVER_ST7789
 #define LCD_320x240
 #endif
 
@@ -1109,7 +1111,7 @@ void marker_search_dir(int16_t from, int16_t dir);
 #endif
 
 // Custom display driver panel definitions for ILI9341
-#ifdef LCD_DRIVER_ILI9341
+#if defined(LCD_DRIVER_ILI9341) || defined(LCD_DRIVER_ST7789)
 // LCD touch settings
 #define DEFAULT_TOUCH_CONFIG {530, 795, 3460, 3350}    // 2.8 inch LCD panel
 // Define LCD pixel format (8 or 16 bit)
@@ -1284,7 +1286,7 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t* out);
 void lcd_line(int x0, int y0, int x1, int y1);
 void lcd_vector_draw(int x, int y, const vector_data *v);
 
-uint32_t lcd_send_command(uint8_t cmd, uint8_t len, const uint8_t *data);
+uint32_t lcd_send_register(uint8_t cmd, uint8_t len, const uint8_t *data);
 void     lcd_set_flip(bool flip);
 
 // SD Card support, discio functions for FatFS lib implemented in ili9341.c
