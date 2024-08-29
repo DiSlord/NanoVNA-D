@@ -374,8 +374,20 @@ enum {
 #define ST7796S_SPI         0xFB  // Read Control
 
 //******************************************************************************
-// Display driver functions
+// Low level Display driver functions
 //******************************************************************************
+// Used only in double buffer mode
+#ifndef lcd_get_cell_buffer
+#define LCD_BUFFER_1    0x01
+#define LCD_DMA_RUN     0x02
+static uint8_t LCD_dma_status = 0;
+
+// Return free buffer for render
+pixel_t *lcd_get_cell_buffer(void) {
+  return &spi_buffer[(LCD_dma_status&LCD_BUFFER_1) ? SPI_BUFFER_SIZE/2 : 0];
+}
+#endif
+
 // Disable inline for this function
 static void lcd_send_command(uint8_t cmd, uint16_t len, const uint8_t *data) {
 // Uncomment on low speed SPI (possible get here before previous tx complete)
@@ -392,15 +404,15 @@ static void lcd_send_command(uint8_t cmd, uint16_t len, const uint8_t *data) {
 }
 
 // Send command to LCD and read 32bit answer
+// LCD_RDDID command, need shift result right by 7 bit
+// 0x00858552 for ST7789V (9.1.3 RDDID (04h): Read Display ID)
+// 0x006BFFFF for ST7796S ?? no id description in datasheet
+// 0x00000000 for ili9341 ?? no id description in datasheet
 uint32_t lcd_send_register(uint8_t cmd, uint8_t len, const uint8_t *data) {
   lcd_bulk_finish();
-  // Set read speed (if need different)
-  SPI_BR_SET(LCD_SPI, SPI_BR_DIV16);
-  // Send
-  lcd_send_command(cmd, len, data);
-
-  // Skip data from rx buffer
-  spi_DropRx();
+  SPI_BR_SET(LCD_SPI, SPI_BR_DIV16);   // Set most safe read speed
+  lcd_send_command(cmd, len, data);    // Send command
+  spi_DropRx();                        // Skip data from rx buffer
   uint32_t ret;
   ret = spi_RxByte();ret<<=8;
   ret|= spi_RxByte();ret<<=8;
@@ -414,7 +426,6 @@ uint32_t lcd_send_register(uint8_t cmd, uint8_t len, const uint8_t *data) {
 //******************************************************************************
 // Display driver init sequence and hardware depend functions
 //******************************************************************************
-
 // ILI9341 and ST7789V Lcd init sequence + lcd depend image rotate function
 #if defined(LCD_DRIVER_ILI9341) || defined(LCD_DRIVER_ST7789)
 typedef enum {ili9341_type = 0, st7789v} lcd_type_t;
@@ -564,11 +575,6 @@ void lcd_setWindow(int x, int y, int w, int h, uint16_t cmd) {
   lcd_send_command(cmd, 0, NULL);
 }
 
-void lcd_set_flip(bool flip) {
-  dmaChannelWaitCompletionRxTx();
-  lcd_set_rotation(flip ? DISPLAY_ROTATION_180 : DISPLAY_ROTATION_0);
-}
-
 // Set DMA data size, depend from pixel size
 #define LCD_DMA_MODE (LCD_PIXEL_SIZE == 2 ? STM32_DMA_CR_HWORD : STM32_DMA_CR_BYTE)
 
@@ -580,13 +586,11 @@ void lcd_set_flip(bool flip) {
 void lcd_read_memory(int x, int y, int w, int h, uint16_t *out) {
   uint16_t len = w * h;
   lcd_setWindow(x, y, w, h, LCD_RAMRD);
-  // Skip data from rx buffer
-  spi_DropRx();
   // Set read speed (if different from write speed)
   if (lcd_type == st7789v && ST7789V_SPI_RX_SPEED != LCD_SPI_SPEED) SPI_BR_SET(LCD_SPI, ST7789V_SPI_RX_SPEED);
   else if (                  ILI9341_SPI_RX_SPEED != LCD_SPI_SPEED) SPI_BR_SET(LCD_SPI, ILI9341_SPI_RX_SPEED);
-  // require 8bit dummy clock
-  spi_RxByte();
+  spi_DropRx();                                       // Skip data from SPI rx buffer
+  spi_RxByte();                                       // require 8bit dummy clock
   uint8_t *rgbbuf = (uint8_t *)out;                   // receive pixel data to buffer
 #ifndef __USE_DISPLAY_DMA_RX__
   spi_RxBuffer(rgbbuf, len * LCD_RX_PIXEL_SIZE);
@@ -594,7 +598,7 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t *out) {
     *out++ = RGB565(rgbbuf[0], rgbbuf[1], rgbbuf[2]); // read data is always 18bit
     rgbbuf+= LCD_RX_PIXEL_SIZE;
   } while(--len);
-#else // 264
+#else
   len*= LCD_RX_PIXEL_SIZE;                     // Set data size for DMA read
   spi_DMARxBuffer(rgbbuf, len, false);         // Start DMA read, and not wait completion
   do {                                         // Parse received data to RGB565 format while data receive by DMA
@@ -606,22 +610,20 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t *out) {
       len   -= LCD_RX_PIXEL_SIZE;
     } while (left < len);
   } while(len);
+  dmaChannelWaitCompletionRxTx();              // Stop DMA transfer
 #endif
-  // restore speed
-  SPI_BR_SET(LCD_SPI, LCD_SPI_SPEED);
-  LCD_CS_HIGH;
+  SPI_BR_SET(LCD_SPI, LCD_SPI_SPEED);          // restore SPI speed
+  LCD_CS_HIGH;                                 // stop read
 }
 #elif defined(LCD_DRIVER_ST7796S)
-// ST7796S send data in RGB565 format, not need parse it
+// ST7796S send data in RGB565 format, not need parse
 void lcd_read_memory(int x, int y, int w, int h, uint16_t *out) {
   uint16_t len = w * h;
   lcd_setWindow(x, y, w, h, LCD_RAMRD);
-  // Skip data from rx buffer
-  spi_DropRx();
   // Set read speed (if need different)
   if (LCD_SPI_RX_SPEED != LCD_SPI_SPEED) SPI_BR_SET(LCD_SPI, LCD_SPI_RX_SPEED);
-  // require 8bit dummy clock
-  spi_RxByte();
+  spi_DropRx();         // Skip data from rx buffer
+  spi_RxByte();         // require 8bit dummy clock
   // receive pixel data to buffer
 #ifndef __USE_DISPLAY_DMA_RX__
   spi_RxBuffer((uint8_t *)out, len * 2);
@@ -634,46 +636,10 @@ void lcd_read_memory(int x, int y, int w, int h, uint16_t *out) {
 }
 #endif
 
-// Fill region by some color
-void lcd_fill(int x, int y, int w, int h) {
-  lcd_setWindow(x, y, w, h, LCD_RAMWR);
-  uint32_t len = w * h;
-#ifdef __USE_DISPLAY_DMA__
-  dmaChannelSetMemory(LCD_DMA_TX, &background_color);
-  while(len) {
-    uint32_t delta = len > 0xFFFF ? 0xFFFF : len; // DMA can send only 65535 data in one run
-    dmaChannelSetTransactionSize(LCD_DMA_TX, delta);
-    dmaChannelSetMode(LCD_DMA_TX, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_EN);
-    dmaChannelWaitCompletion(LCD_DMA_TX);
-    len-=delta;
-  }
-#else
-  do {
-    while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
-      ;
-    if (LCD_PIXEL_SIZE == 2) SPI_WRITE_16BIT(LCD_SPI, background_color);
-    else                     SPI_WRITE_8BIT(LCD_SPI,  background_color);
-  } while(--len);
-#endif
-
-#ifdef __REMOTE_DESKTOP__
-  if (sweep_mode & SWEEP_REMOTE) {
-    remote_region_t rd = {"fill\r\n", x, y, w, h};
-    send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
-  }
-#endif
+void lcd_set_flip(bool flip) {
+  dmaChannelWaitCompletionRxTx();
+  lcd_set_rotation(flip ? DISPLAY_ROTATION_180 : DISPLAY_ROTATION_0);
 }
-
-// Used only in double buffer mode
-#ifndef lcd_get_cell_buffer
-#define LCD_BUFFER_1    0x01
-#define LCD_DMA_RUN     0x02
-static uint8_t LCD_dma_status = 0;
-// Return free buffer for render
-pixel_t *lcd_get_cell_buffer(void) {
-  return &spi_buffer[(LCD_dma_status&LCD_BUFFER_1) ? SPI_BUFFER_SIZE/2 : 0];
-}
-#endif
 
 // Wait completion before next data send
 #ifndef lcd_bulk_finish
@@ -704,7 +670,6 @@ static void lcd_bulk_buffer(int x, int y, int w, int h, pixel_t *buffer) {
 // Copy part of spi_buffer to region, no wait completion after if buffer count !=1
 #ifndef lcd_bulk_continue
 void lcd_bulk_continue(int x, int y, int w, int h) {
-  lcd_bulk_finish();                                   // Wait DMA
   lcd_bulk_buffer(x, y, w, h, lcd_get_cell_buffer());  // Send new cell data
   LCD_dma_status^=LCD_BUFFER_1;                        // Switch buffer
 }
@@ -716,9 +681,42 @@ void lcd_bulk(int x, int y, int w, int h) {
   lcd_bulk_finish();                        // Wait
 }
 
+//******************************************************************************
+//   Display draw functions
+//******************************************************************************
+// Fill region by some color
+void lcd_fill(int x, int y, int w, int h) {
+  lcd_setWindow(x, y, w, h, LCD_RAMWR);
+  uint32_t len = w * h;
+#ifdef __USE_DISPLAY_DMA__
+  dmaChannelSetMemory(LCD_DMA_TX, &background_color);
+  while(len) {
+    uint32_t delta = len > 0xFFFF ? 0xFFFF : len; // DMA can send only 65535 data in one run
+    dmaChannelSetTransactionSize(LCD_DMA_TX, delta);
+    dmaChannelSetMode(LCD_DMA_TX, txdmamode | LCD_DMA_MODE | STM32_DMA_CR_EN);
+    dmaChannelWaitCompletion(LCD_DMA_TX);
+    len-=delta;
+  }
+#else
+  do {
+    while (SPI_TX_IS_NOT_EMPTY(LCD_SPI))
+      ;
+    if (LCD_PIXEL_SIZE == 2) SPI_WRITE_16BIT(LCD_SPI, background_color);
+    else                     SPI_WRITE_8BIT(LCD_SPI,  background_color);
+  } while(--len);
+#endif
+
+#ifdef __REMOTE_DESKTOP__
+  if (sweep_mode & SWEEP_REMOTE) {
+    remote_region_t rd = {"fill\r\n", x, y, w, h};
+    send_region(&rd, (uint8_t *)&background_color, sizeof(pixel_t));
+  }
+#endif
+}
+
 #if 0
 static void lcd_pixel(int x, int y, uint16_t color) {
-  lcd_setWindow(x0, y0, 1, 1, LCD_RAMWR);
+  lcd_setWindow(x, y, 1, 1, LCD_RAMWR);
   while (SPI_TX_IS_NOT_EMPTY(LCD_SPI));
   SPI_WRITE_16BIT(LCD_SPI, color);
 }
@@ -762,7 +760,7 @@ void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx) {
 }
 
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b) {
-#if 1 // Use this for remote desctop (in this case bulk operation send to remote)
+#if 1 // Use this for remote desktop (in this case bulk operation send to remote)
   pixel_t *buf = spi_buffer;
   uint8_t bits = 0;
   for (uint32_t c = 0; c < height; c++) {
@@ -808,10 +806,8 @@ void lcd_drawstring(int16_t x, int16_t y, const char *str)
 
 typedef struct {
   const void *vmt;
-  int16_t start_x;
-  int16_t start_y;
-  int16_t x;
-  int16_t y;
+  int16_t start_x, start_y;
+  int16_t x, y;
   uint16_t state;
 } lcdPrintStream;
 
