@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2024, Dmitry (DiSlord) dislordlive@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -138,6 +138,62 @@ static bool measure_get_value(uint16_t ch, freq_t f, float *data){
   data[1] = measured[ch][idx][1] * k0 + measured[ch][idx+1][1] * k1;
 #endif
   return true;
+}
+
+//================================================================================
+//                        Parabolic regression calculation:
+// all matrix points is SUMM(x^n)
+// N - points count, so SUMM(x^0) = N
+// | x^0  x^1  x^2 |   | a |   |x^0 * y|
+// | x^1  x^2  x^3 | * | b | = |x^1 * y|
+// | x^2  x^3  x^4 |   | c |   |x^2 * y|
+//
+// f(x) = a + b * x + c * x * x
+void parabolic_regression(int N, get_value_t getx, get_value_t gety, float *result) {
+  float x, y, xx, xy, xxy, xxx, xxxx, _x, _y, _xx, _xy;
+  x = y = xx = xy = xxy = xxx = xxxx = 0.0f;
+  for (int i = 0; i < N; ++i) {
+    _x   = getx(i); _y   = gety(i); // Get x and y
+    _xx  =   _x*_x; _xy  =   _x*_y;
+    x   +=      _x; y   +=      _y; // SUMM(x^1) and SUMM(x^0 * y)
+    xx  +=     _xx; xy  +=     _xy; // SUMM(x^2) and SUMM(x^1 * y)
+    xxx +=  _x*_xx; xxy +=  _x*_xy; // SUMM(x^3) and SUMM(x^2 * y)
+    xxxx+= _xx*_xx;                 // SUMM(x^4)
+  }
+  float xm  = x / N, ym  = y / N, xxm = xx / N, a, b, c;
+  xxxx-= xx*xxm;
+  xxx -= xx* xm; xxy -= xx* ym;
+  xx  -=  x* xm; xy  -=  x* ym;
+  c = (xx  *xxy - xxx* xy) / (xxxx*xx - xxx*xxx);
+  b = (xxxx* xy - xxx*xxy) / (xxxx*xx - xxx*xxx);
+  a = ym - b*xm - c*xxm;
+  result[0] = a;
+  result[1] = b;
+  result[2] = c;
+}
+
+//================================================================================
+//                        Linear regression calculation
+// all matrix points is SUMM(x^n)
+// N - points count, so SUMM(x^0) = N
+// | x^0  x^1 |   | a |   |x^0 * y|
+// | x^1  x^2 | * | b | = |x^1 * y|
+//
+// f(x) = a + b * x
+void linear_regression(int N, get_value_t getx, get_value_t gety, float *result) {
+  float x, y, xx, xy, _x, _y, _xx, _xy;
+  x = y = xx = xy = 0.0f;
+  for (int i = 0; i < N; ++i) {
+    _x   = getx(i); _y   = gety(i); // Get x and y
+    _xx  =   _x*_x; _xy  =   _x*_y;
+    x   +=      _x; y   +=      _y; // SUMM(x^1) and SUMM(x^0 * y)
+    xx  +=     _xx; xy  +=     _xy; // SUMM(x^2) and SUMM(x^1 * y)
+  }
+  float xm  = x / N, ym  = y / N, a, b;
+  b = (xy - x * ym) / (xx - x * xm);
+  a = ym - b * xm;
+  result[0] = a;
+  result[1] = b;
 }
 
 #ifdef __USE_LC_MATCHING__
@@ -578,9 +634,11 @@ static void prepare_filter(uint8_t type, uint8_t update_mask) {
 
 #ifdef __S11_CABLE_MEASURE__
 typedef struct {
+  float freq;
   float R;
   float len;
   float loss;
+  float mloss;
   float vf;
   float C0;
   float a, b, c;
@@ -590,6 +648,14 @@ float real_cable_len = 0.0f;
 
 static float s11imag(uint16_t i) {
   return measured[0][i][1];
+}
+
+static float s11loss(uint16_t i) {
+  return -0.5f * logmag(i, measured[0][i]);
+}
+
+static float s11index(uint16_t i) {
+  return vna_sqrtf(getFrequency(i) * 1e-9f);
 }
 
 static void draw_s11_cable(int xp, int yp){
@@ -602,7 +668,11 @@ static void draw_s11_cable(int xp, int yp){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF=%.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
   else if (s11_cable->len)
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (VF=%d%%)", s11_cable->len, velocity_factor);
-  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB, s11_cable->loss);
+//cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->loss, s11_cable->freq);
+  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->mloss, s11_cable->freq);
+  float l = s11_cable->vf ? real_cable_len : s11_cable->len;
+  if (l) cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (dB/100m): %F" S_dB " at %.4F" S_Hz, s11_cable->mloss * 100.0f / l, (float)s11_cable->freq);
+//  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "a: %.6F, b: %.6F, c: %.6F", s11_cable->a, s11_cable->b, s11_cable->c);
 }
 
 static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
@@ -624,14 +694,18 @@ static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
 //        s11_cable->C0 = velocity_factor / (100.0f * SPEED_OF_LIGHT * s11_cable->R);
       }
     }
+    parabolic_regression(sweep_points, s11index, s11loss, &s11_cable->a);
   }
   if ((update_mask & MEASURE_UPD_ALL) && active_marker != MARKER_INVALID) {
     int idx = markers[active_marker].index;
-    s11_cable->loss = vna_fabsf(logmag(idx, measured[0][idx]) / 2.0f);
+//  s11_cable->loss  = s11loss(idx);
+    s11_cable->freq = (float)getFrequency(idx);
+    float f = s11_cable->freq * 1e-9f;
+    s11_cable->mloss = s11_cable->a + s11_cable->b * vna_sqrtf(f) + s11_cable->c * f;
   }
   // Prepare for update
   invalidate_rect(STR_MEASURE_X                        , STR_MEASURE_Y,
-                  STR_MEASURE_X + 3 * STR_MEASURE_WIDTH, STR_MEASURE_Y + 4 * STR_MEASURE_HEIGHT);
+                  STR_MEASURE_X + 3 * STR_MEASURE_WIDTH, STR_MEASURE_Y + 6 * STR_MEASURE_HEIGHT);
 }
 
 #endif // __S11_CABLE_MEASURE__
