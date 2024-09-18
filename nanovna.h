@@ -344,6 +344,9 @@ int get_str_index(const char *v, const char *list);
 int parse_line(char *line, char* args[], int max_cnt);
 void swap_bytes(uint16_t *buf, int size);
 int packbits(char *source, char *dest, int size);
+void _delay_8t(uint32_t cycles);
+inline void delayMicroseconds(uint32_t us) {_delay_8t(us*STM32_CORE_CLOCK/8);}
+inline void delayMilliseconds(uint32_t ms) {_delay_8t(ms*125*STM32_CORE_CLOCK);}
 
 void pause_sweep(void);
 void toggle_sweep(void);

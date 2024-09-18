@@ -205,3 +205,23 @@ int packbits(char *source, char *dest, int size) {
   }
   return pk;
 }
+
+/*
+ * Delay 8 core tick function
+ */
+void _delay_8t(uint32_t cycles) {
+  if(cycles < 1) return;
+  __asm (
+    "1: \n"
+    " subs  %[cyc], %[cyc], #1 \n"  // 1 cycle
+    " nop             \n"  // 1 cycle
+    " nop             \n"  // 1 cycle
+    " nop             \n"  // 1 cycle
+    " nop             \n"  // 1 cycle
+    " nop             \n"  // 1 cycle
+    " bne  1b    \n"  // 2 if taken, 1 otherwise
+   : [cyc] "+l" (cycles)
+   : // no inputs
+   : // No memory
+  );
+}
