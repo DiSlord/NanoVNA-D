@@ -151,7 +151,8 @@ repeat:
       else                               key = 1;
       touch_wait_release();
     }
-    chThdSleepMilliseconds(100);
+    //chThdSleepMilliseconds(100); // Device hang after ~2min in this place, not switch thread back
+    delayMilliseconds(100);
     int old_sel = sel;
          if (key == 0) {if (--sel < 0) sel = file_count - 1;}
     else if (key == 1) {if (++sel > file_count - 1) sel = 0;}
