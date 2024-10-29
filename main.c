@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.40"
+#define VERSION "1.2.42"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -590,6 +590,7 @@ VNA_SHELL_FUNCTION(cmd_config) {
     "|lcshunt"   // Enable LC shunt measure option
     "|lcseries"  // Enable LC series  measure option
     "|xtal"      // Enable XTAL measure option
+    "|filter"    // Enable filter measure option
 #endif
 #ifdef __S11_CABLE_MEASURE__
     "|cable"     // Enable S11 cable measure option
@@ -990,9 +991,10 @@ static void load_settings(void) {
       lever_mode         = bk.leveler;
       config._vna_mode   = get_backup_data32(4) | (1<<VNA_MODE_BACKUP); // refresh backup settings
       set_bandwidth(bk.bw);
-    }
-  } else  // Try load 0 slot
-    caldata_recall(0);
+    } else
+      caldata_recall(0);   // Try load 0 slot
+  } else
+    caldata_recall(0);   // Try load 0 slot
   update_frequencies();
 #ifdef __VNA_MEASURE_MODULE__
   plot_set_measure_mode(current_props._measure);
@@ -1829,7 +1831,7 @@ static void apply_CH1_error_term(float data[4], float c_data[CAL_TYPE_COUNT][2])
   data[2] = s21mr * c_data[ETERM_ET][0] - s21mi * c_data[ETERM_ET][1];
   data[3] = s21mi * c_data[ETERM_ET][0] + s21mr * c_data[ETERM_ET][1];
   if (cal_status & CALSTAT_ENHANCED_RESPONSE) {
-    // S21a = S21m * Et` * (1 - Es * S11a)
+    // S21a*= 1 - Es * S11a
     float esr = 1.0f - (c_data[ETERM_ES][0] * data[0] - c_data[ETERM_ES][1] * data[1]);
     float esi = 0.0f - (c_data[ETERM_ES][1] * data[0] + c_data[ETERM_ES][0] * data[1]);
     float re = data[2];
@@ -1964,7 +1966,7 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
     idx = src_points;
     goto copy_point;
   }
-  // Search k1
+  // Calculate k for linear interpolation
   freq_t span = cal_frequency1 - cal_frequency0;
   idx = (uint64_t)(f - cal_frequency0) * (uint64_t)src_points / span;
   uint64_t v = (uint64_t)span * idx + src_points/2;
@@ -1975,7 +1977,7 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   // Not need interpolate
   if (f == src_f0) goto copy_point;
 
-  float k1 = (delta == 0) ? 0.0f : (float)(f - src_f0) / delta;
+  float k = (delta == 0) ? 0.0f : (float)(f - src_f0) / delta;
   // avoid glitch between freqs in different harmonics mode
   uint32_t hf0 = si5351_get_harmonic_lvl(src_f0);
   if (hf0 != si5351_get_harmonic_lvl(src_f1)) {
@@ -1983,20 +1985,19 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
     if (hf0 == si5351_get_harmonic_lvl(f)){
       if (idx < 1) goto copy_point; // point limit
       idx--;
-      k1+= 1.0f;
+      k+= 1.0f;
     }
     // f in next harmonic, need extrapolate from next 2 points
     else {
       if (idx >= src_points) goto copy_point; // point limit
       idx++;
-      k1-= 1.0f;
+      k-= 1.0f;
     }
   }
-  // Interpolate by k1
-  float k0 = 1.0f - k1;
+  // Interpolate by k
   for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
-    data[eterm][0] = cal_data[eterm][idx][0] * k0 + cal_data[eterm][idx+1][0] * k1;
-    data[eterm][1] = cal_data[eterm][idx][1] * k0 + cal_data[eterm][idx+1][1] * k1;
+    data[eterm][0] = cal_data[eterm][idx][0] + k * (cal_data[eterm][idx+1][0] - cal_data[eterm][idx][0]);
+    data[eterm][1] = cal_data[eterm][idx][1] + k * (cal_data[eterm][idx+1][1] - cal_data[eterm][idx][0]);
   }
   return;
   // Direct point copy
@@ -2589,6 +2590,13 @@ VNA_SHELL_FUNCTION(cmd_si5351time)
 #ifdef ENABLE_SI5351_REG_WRITE
 VNA_SHELL_FUNCTION(cmd_si5351reg)
 {
+#if 0
+  (void) argc;
+  uint32_t reg = my_atoui(argv[0]);
+  uint8_t buf[1] = {0xAA};
+  if (si5351_bulk_read(reg, buf, 1))
+    shell_printf("si reg[%d] = 0x%02x" VNA_SHELL_NEWLINE_STR, reg, buf[0]);
+#else
   if (argc != 2) {
     shell_printf("usage: si reg data" VNA_SHELL_NEWLINE_STR);
     return;
@@ -2597,6 +2605,7 @@ VNA_SHELL_FUNCTION(cmd_si5351reg)
   uint8_t dat = my_atoui(argv[1]);
   uint8_t buf[] = { reg, dat };
   si5351_bulk_write(buf, 2);
+#endif
 }
 #endif
 
@@ -3450,8 +3459,7 @@ void hard_fault_handler_c(uint32_t *sp)
   uint32_t psr = sp[7];
   int y = 0;
   int x = 20;
-  lcd_set_background(LCD_BG_COLOR);
-  lcd_set_foreground(LCD_FG_COLOR);
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_printf(x, y+=FONT_STR_HEIGHT, "SP  0x%08x",  (uint32_t)sp);
   lcd_printf(x, y+=FONT_STR_HEIGHT, "R0  0x%08x",  r0);
   lcd_printf(x, y+=FONT_STR_HEIGHT, "R1  0x%08x",  r1);

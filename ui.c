@@ -1892,11 +1892,16 @@ static UI_FUNCTION_CALLBACK(menu_sdcard_cb) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_band_sel_acb) {
   (void)data;
+  static const char* gen_names[] = {
+    "Si5351",
+    "MS5351",
+    "SWC5351"
+  };
   if (b) {
-    b->p1.text = config._band_mode == 0 ? "Si5351" : "MS5351";
+    b->p1.text = gen_names[config._band_mode];
     return;
   }
-  config._band_mode = config._band_mode == 0 ? 1 : 0;
+  if (++config._band_mode >= ARRAY_COUNT(gen_names)) config._band_mode = 0;
   si5351_set_band_mode(config._band_mode);
 }
 

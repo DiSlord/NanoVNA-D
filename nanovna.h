@@ -171,7 +171,7 @@
  * main.c
  */
 // Minimum frequency set
-#define FREQUENCY_MIN            800
+#define FREQUENCY_MIN            600
 // Maximum frequency set
 #define FREQUENCY_MAX            2700000000U
 // Frequency threshold (max frequency for si5351, harmonic mode after)
