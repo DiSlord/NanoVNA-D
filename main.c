@@ -1997,7 +1997,7 @@ static void cal_interpolate(int idx, freq_t f, float data[CAL_TYPE_COUNT][2]){
   // Interpolate by k
   for (eterm = 0; eterm < CAL_TYPE_COUNT; eterm++) {
     data[eterm][0] = cal_data[eterm][idx][0] + k * (cal_data[eterm][idx+1][0] - cal_data[eterm][idx][0]);
-    data[eterm][1] = cal_data[eterm][idx][1] + k * (cal_data[eterm][idx+1][1] - cal_data[eterm][idx][0]);
+    data[eterm][1] = cal_data[eterm][idx][1] + k * (cal_data[eterm][idx+1][1] - cal_data[eterm][idx][1]);
   }
   return;
   // Direct point copy
