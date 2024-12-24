@@ -1480,6 +1480,8 @@ static FILE_LOAD_CALLBACK(load_snp) {
   }
   if (count != 0) { // Points count not zero, so apply data to traces
     pause_sweep();
+    current_props._electrical_delay[0] = 0.0f; // Reset delays
+    current_props._electrical_delay[1] = 0.0f; // Reset delays
     current_props._sweep_points = count;
     set_sweep_frequency(ST_START, start);
     set_sweep_frequency(ST_STOP, stop);
