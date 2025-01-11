@@ -1230,7 +1230,6 @@ static UI_FUNCTION_ADV_CALLBACK(menu_marker_tracking_acb) {
 #ifdef __VNA_MEASURE_MODULE__
 extern const menuitem_t *menu_measure_list[];
 static UI_FUNCTION_ADV_CALLBACK(menu_measure_acb) {
-  (void)data;
   if (b) {
     b->icon = current_props._measure == data ? BUTTON_ICON_GROUP_CHECKED : BUTTON_ICON_GROUP;
     return;
@@ -2887,7 +2886,7 @@ static const keypads_t keypads_mkufloat[] = {
   { 0x20, KP_9 },
   { 0x31, KP_m },
   { 0x32, KP_k },
-  { 0x33, KP_ENTER },
+  { 0x33, KP_X1 },
   { 0x23, KP_BS },
   { 0x30, KP_EMPTY },
 };
