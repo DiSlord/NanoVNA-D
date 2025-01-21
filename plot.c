@@ -378,8 +378,7 @@ static float reactance(int i, const float *v) {
 static float mod_z(int i, const float *v) {
   (void) i;
   const float z0 = PORT_Z;
-  const float l = get_l(1.0f - v[0], v[1]);
-  return z0 * vna_sqrtf(4.0f * v[0] / l + 1.0f); // always >= 0
+  return z0 * vna_sqrtf(get_l(1.0f + v[0], v[1]) / get_l(1.0f - v[0], v[1])); // always >= 0
 }
 
 static float phase_z(int i, const float *v) {
