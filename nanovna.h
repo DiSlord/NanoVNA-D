@@ -405,7 +405,7 @@ extern const char *info_about[];
 // Generator ready delays, values in us
 #define DELAY_BAND_1_2           US2ST( 100)   // 0 Delay for bands 1-2
 #define DELAY_BAND_3_4           US2ST( 140)   // 1 Delay for bands 3-4
-#define DELAY_BANDCHANGE         US2ST( 800)   // 2 Band changes need set additional delay after reset PLL
+#define DELAY_BANDCHANGE         US2ST(5000)   // 2 Band changes need set additional delay after reset PLL
 #define DELAY_CHANNEL_CHANGE     US2ST( 100)   // 3 Switch channel delay
 #define DELAY_SWEEP_START        US2ST( 100)   // 4 Delay at sweep start
 // Delay after before/after set new PLL values in ms
