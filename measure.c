@@ -368,12 +368,12 @@ typedef struct {
   const char *header;
   freq_t freq;    // resonant frequency
   freq_t freq1;   // fp
+  uint32_t df;    // delta f = freq1 - freq
   float l;
   float c;
   float c1;       // capacitor parallel
   float r;
   float q;        // Q factor
-
 //  freq_t f1;
 //  freq_t f2;
 //  float tan45;
@@ -479,8 +479,9 @@ static void analysis_xtalseries(void) {
   freq_t freq1 = getFrequency(xp);
   if(freq1 < s21_measure->freq) return;
   s21_measure->freq1 = freq1;
+  s21_measure->df = s21_measure->freq1 - s21_measure->freq;
   // df = f * c / (2 * c1) => c1 = f * c / (2 * df)
-  s21_measure->c1 = s21_measure->c * s21_measure->freq / (2.0f * (s21_measure->freq1 - s21_measure->freq));
+  s21_measure->c1 = s21_measure->c * s21_measure->freq / (2.0f * s21_measure->df);
 }
 
 static void draw_serial_result(int xp, int yp) {
@@ -499,7 +500,7 @@ static void draw_serial_result(int xp, int yp) {
 //  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "F1=%q" S_Hz " F2=%q" S_Hz, s21_measure->f1, s21_measure->f2);
   }
   if (s21_measure->freq1){
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fp=%q" S_Hz, s21_measure->freq1);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Fp=%q" S_Hz "  " S_DELTA "F=%d", s21_measure->freq1, s21_measure->df);
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Cp=%F" S_FARAD, s21_measure->c1);
   }
 }
