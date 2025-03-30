@@ -424,7 +424,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
 #endif
       if (state & COMPLEX)
         *p++ = 'j';
-      if (value.f == INFINITY){
+      if (value.f == infinityf()){
         *p++ = 0x19; *p++ = ' ';
         break;
       }

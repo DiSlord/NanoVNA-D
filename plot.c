@@ -348,7 +348,7 @@ static float swr(int i, const float *v) {
   (void) i;
   float x = linear(i, v);
   if (x > 0.99f)
-    return INFINITY;
+    return infinityf();
   return (1 + x)/(1 - x);
 }
 
@@ -670,7 +670,7 @@ trace_into_index(int t) {
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
       if (c) v = c(i, &array[2*i]);         // Get value
-      if (v == INFINITY) {
+      if (v == infinityf()) {
         y = 0;
       } else {
         y = refpos - v * dscale;
@@ -724,7 +724,7 @@ trace_print_value_string(int xpos, int ypos, int t, int index, int index_ref)
   get_value_cb_t c = trace_info_list[type].get_value_cb;
   if (c){                                                               // Run standard get value function from table
     float v = c(index, coeff);                                          // Get value
-    if (index_ref >= 0 && v != INFINITY) v-=c(index, array[index_ref]); // Calculate delta value
+    if (index_ref >= 0 && v != infinityf()) v-=c(index, array[index_ref]); // Calculate delta value
     cell_printf(xpos, ypos, format, v, trace_info_list[type].symbol);
   }
   else { // Need custom marker format for SMITH / POLAR
