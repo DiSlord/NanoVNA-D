@@ -847,6 +847,8 @@ enum trace_type {
 #define ROUND_GRID_MASK       ((1<<TRC_POLAR)|(1<<TRC_SMITH))
 // Scale / Amplitude input in nano/pico values graph type
 #define NANO_TYPE_MASK        ((1<<TRC_DELAY)|(1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL))
+// Universal trace type for both channels
+#define S11_AND_S21_TYPE_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_POLAR)|(1<<TRC_SMITH))
 
 // Trace info description structure
 typedef float (*get_value_cb_t)(int idx, const float *v); // get value callback

@@ -951,7 +951,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb) {
     b->p1.text = ch == 0 ? "S11 (REFL)" : "S21 (THRU)";
     return;
   }
-  set_trace_channel(current_trace, ch^1);
+  // Change channel only if trace type available for this
+  if ((1<<(trace[current_trace].type)) & S11_AND_S21_TYPE_MASK)
+    set_trace_channel(current_trace, ch^1);
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb) {
