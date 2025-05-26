@@ -40,13 +40,13 @@ void adc_init(void)
   nvicEnableVector(ADC1_COMP_IRQn, STM32_EXT_EXTI21_22_IRQ_PRIORITY); // Shared vs GPIO handler
   VNA_ADC->CFGR1 = 0;
   /* Ensure flag states */
-  VNA_ADC->ISR = VNA_ADC->CR;                  // clear ISR
+  VNA_ADC->ISR = VNA_ADC->ISR;         // clear ISR
   VNA_ADC->IER = 0;
 
   /* Calibration procedure.*/
   if (VNA_ADC->CR & ADC_CR_ADEN) {
-    VNA_ADC->CR |= ~ADC_CR_ADDIS;      // Disable ADC
-    while (VNA_ADC->CR & ADC_CR_ADEN); // Wait completion
+    VNA_ADC->CR |= ADC_CR_ADDIS;        // Disable ADC
+    while (VNA_ADC->CR & ADC_CR_ADDIS); // Wait completion
   }
 
   VNA_ADC->CR |= ADC_CR_ADCAL;
