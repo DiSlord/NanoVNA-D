@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.44"
+#define VERSION "1.2.45"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -1170,8 +1170,6 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       (*sample_func)(&data[0]);             // calculate reflection coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)   // Apply calibration
         apply_CH0_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY_S11) // Apply e-delay
-        applyEDelay(electrical_delayS11 * frequency, &data[0]);
     }
     // CH1:TRANSMISSION, reset and begin measure
     if (mask & SWEEP_CH1_MEASURE) {
@@ -1187,21 +1185,20 @@ static bool sweep(bool break_on_operation, uint16_t mask)
       (*sample_func)(&data[2]);              // Measure transmission coefficient
       if (mask & SWEEP_APPLY_CALIBRATION)    // Apply calibration
         apply_CH1_error_term(data, c_data);
-      if (mask & SWEEP_APPLY_EDELAY_S21)     // Apply e-delay
-        applyEDelay(electrical_delayS21 * frequency, &data[2]);
-      if (mask & SWEEP_APPLY_S21_OFFSET)
-        applyOffset(&data[2], offset);
     }
 #ifdef __VNA_Z_RENORMALIZATION__
     if (mask & SWEEP_USE_RENORMALIZATION)
       apply_renormalization(data, mask);
 #endif
     if (p_sweep < SWEEP_POINTS_MAX){
-      if (mask & SWEEP_CH0_MEASURE){
+      if (mask & SWEEP_CH0_MEASURE) {
+        if (mask & SWEEP_APPLY_EDELAY_S11) applyEDelay(electrical_delayS11 * frequency, &data[0]); // Apply e-delay
         measured[0][p_sweep][0] = data[0];
         measured[0][p_sweep][1] = data[1];
       }
-      if (mask & SWEEP_CH1_MEASURE){
+      if (mask & SWEEP_CH1_MEASURE) {
+        if (mask & SWEEP_APPLY_EDELAY_S21) applyEDelay(electrical_delayS21 * frequency, &data[2]); // Apply e-delay
+        if (mask & SWEEP_APPLY_S21_OFFSET) applyOffset(&data[2], offset);
         measured[1][p_sweep][0] = data[2];
         measured[1][p_sweep][1] = data[3];
       }
