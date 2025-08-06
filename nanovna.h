@@ -56,6 +56,8 @@
 #define __USE_SERIAL_CONSOLE__
 // Add show y grid line values option
 #define __USE_GRID_VALUES__
+// Add amateur radio band indicator on rectangular grid
+#define __USE_HAM_BAND_INDICATOR__
 // Add remote desktop option
 #define __REMOTE_DESKTOP__
 // Add RLE8 compression capture image format
@@ -924,6 +926,9 @@ enum {
   VNA_MODE_SEARCH,       // Marker search mode (0: max, 1: min)
   VNA_MODE_SHOW_GRID,    // Show grid values
   VNA_MODE_DOT_GRID,     // Dotted grid lines
+#ifdef __USE_HAM_BAND_INDICATOR__
+  VNA_MODE_HAM_BAND,     // Show amateur radio band indicators
+#endif
 #ifdef __USE_BACKUP__
   VNA_MODE_BACKUP,       // Made backup settings (save some settings after power off)
 #endif

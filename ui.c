@@ -1026,6 +1026,9 @@ const vna_mode_data_t vna_mode_data[] = {
   [VNA_MODE_SEARCH]      = {"MAXIMUM\0MINIMUM",    REDRAW_BACKUP},
   [VNA_MODE_SHOW_GRID]   = {0,                     REDRAW_BACKUP | REDRAW_AREA},
   [VNA_MODE_DOT_GRID]    = {0,                     REDRAW_BACKUP | REDRAW_AREA},
+#ifdef __USE_HAM_BAND_INDICATOR__
+  [VNA_MODE_HAM_BAND]    = {0,                     REDRAW_BACKUP | REDRAW_AREA},
+#endif
 #ifdef __USE_BACKUP__
   [VNA_MODE_BACKUP]      = {0,                     REDRAW_BACKUP},
 #endif
@@ -2126,6 +2129,9 @@ const menuitem_t menu_scale[] = {
 #ifdef __USE_GRID_VALUES__
   { MT_ADV_CALLBACK, VNA_MODE_SHOW_GRID, "SHOW GRID\nVALUES", menu_vna_mode_acb },
   { MT_ADV_CALLBACK, VNA_MODE_DOT_GRID , "DOT GRID",          menu_vna_mode_acb },
+#endif
+#ifdef __USE_HAM_BAND_INDICATOR__
+  { MT_ADV_CALLBACK, VNA_MODE_HAM_BAND , "HAM BANDS",         menu_vna_mode_acb },
 #endif
   { MT_NEXT, 0, NULL, menu_back } // next-> menu_back
 };
