@@ -25,6 +25,38 @@
 #include "chprintf.h"
 #include "nanovna.h"
 
+#ifdef __USE_HAM_BAND_INDICATOR__
+// IARU Region 1 Amateur Radio Bands (in Hz)
+typedef struct {
+  freq_t start;
+  freq_t end;
+} ham_band_t;
+
+static const ham_band_t ham_bands[] = {
+  {135700,      137800},      // 2200m (135.7-137.8 kHz)
+  {472000,      479000},      // 630m (472-479 kHz)
+  {1810000,     2000000},     // 160m (1.810-2.000 MHz)
+  {3500000,     3800000},     // 80m (3.5-3.8 MHz)
+  {5351500,     5366500},     // 60m (5.3515-5.3665 MHz)
+  {7000000,     7200000},     // 40m (7.0-7.2 MHz)
+  {10100000,    10150000},    // 30m (10.100-10.150 MHz)
+  {14000000,    14350000},    // 20m (14.0-14.35 MHz)
+  {18068000,    18168000},    // 17m (18.068-18.168 MHz)
+  {21000000,    21450000},    // 15m (21.0-21.45 MHz)
+  {24890000,    24990000},    // 12m (24.89-24.99 MHz)
+  {28000000,    29700000},    // 10m (28.0-29.7 MHz)
+  {50000000,    52000000},    // 6m (50-52 MHz)
+  {70000000,    70500000},    // 4m (70.0-70.5 MHz)
+  {144000000,   146000000},   // 2m (144-146 MHz)
+  {430000000,   440000000},   // 70cm (430-440 MHz)
+  {1240000000,  1300000000},  // 23cm (1240-1300 MHz)
+};
+#define HAM_BAND_COUNT (sizeof(ham_bands)/sizeof(ham_bands[0]))
+
+static void cell_draw_ham_bands(int x0, int y0, int w, int h);
+static void cell_draw_ham_bands(int x0, int y0, int w, int h);
+#endif
+
 static void cell_draw_marker_info(int x0, int y0);
 static void draw_battery_status(void);
 static void draw_cal_status(void);
@@ -225,6 +257,71 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
     for (x = 0; x < w; x++)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
+
+#ifdef __USE_HAM_BAND_INDICATOR__
+/*
+ * Test function to draw a diagonal line across the chart
+ */
+static void
+cell_draw_ham_bands(int x0, int y0, int w, int h)
+{
+  if ((props_mode & DOMAIN_MODE) != DOMAIN_FREQ) return;
+  
+  int has_rectangular = 0;
+  for (int t = 0; t < TRACES_MAX; t++) {
+    if (trace[t].enabled && ((1 << trace[t].type) & RECTANGULAR_GRID_MASK)) {
+      has_rectangular = 1;
+      break;
+    }
+  }
+  if (!has_rectangular) return;
+  
+  freq_t fstart = get_sweep_frequency(ST_START);
+  freq_t fstop = get_sweep_frequency(ST_STOP);
+  
+  if (fstart >= fstop) return;
+  
+  pixel_t ham_color = GET_PALTETTE_COLOR(LCD_LINK_COLOR);
+
+  int grid_bottom = HEIGHT;
+  if (y0 > grid_bottom || y0 + h <= grid_bottom - 2) return; // Cells don't contain bottom pixels
+  
+  for (unsigned int i = 0; i < HAM_BAND_COUNT; i++) {
+    freq_t band_start = ham_bands[i].start;
+    freq_t band_end = ham_bands[i].end;
+    
+    if (band_end < fstart || band_start > fstop) continue;
+    
+    if (band_start < fstart) band_start = fstart;
+    if (band_end > fstop) band_end = fstop;
+    
+    freq_t fspan = fstop - fstart;
+    if (fspan == 0) continue;
+    
+    int x_start = (int)(((uint64_t)(band_start - fstart) * WIDTH) / fspan) + CELLOFFSETX - x0;
+    int x_end = (int)(((uint64_t)(band_end - fstart) * WIDTH) / fspan) + CELLOFFSETX - x0;
+
+    if (x_start < 0) x_start = 0;
+    if (x_end >= w) x_end = w - 1;
+    if (x_start > x_end) continue;
+    
+    int grid_bottom = HEIGHT;
+    int band_start_y = grid_bottom - 1 - y0; 
+    int band_end_y = grid_bottom - y0;
+
+    if (band_start_y < 0) band_start_y = 0;
+    if (band_end_y >= h) band_end_y = h - 1;
+    if (band_start_y > band_end_y) continue;
+    
+    for (int y = band_start_y; y <= band_end_y; y++) {
+      for (int x = x_start; x <= x_end; x++) {
+        cell_buffer[y * CELLWIDTH + x] = ham_color;
+      }
+    }
+  }
+}
+
+#endif
 
 void update_grid(freq_t fstart, freq_t fstop)
 {
@@ -1482,6 +1579,14 @@ draw_cell(int x0, int y0) {
         *dst++ = *src++;
   }
 #endif
+
+#ifdef __USE_HAM_BAND_INDICATOR__
+  // Draw amateur radio band indicators LAST - after all other drawing
+  if (VNA_MODE(VNA_MODE_HAM_BAND)) {
+      cell_draw_ham_bands(x0, y0, w, h);
+  }
+#endif
+
   // Draw cell (500 system ticks for all screen calls)
   lcd_bulk_continue(OFFSETX + x0, OFFSETY + y0, w, h);
 }
