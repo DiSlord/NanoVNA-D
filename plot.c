@@ -655,7 +655,7 @@ static void mark_set_index(index_t *index, uint16_t i, uint16_t x, uint16_t y) {
 static void
 trace_into_index(int t) {
   uint16_t start = 0, stop = sweep_points - 1, i;
-  float *array = &measured[trace[t].channel][0][0];
+  float (*array)[2] = measured[trace[t].channel];
   index_t *index = trace_index[t];
   uint32_t type    = 1<<trace[t].type;
   get_value_cb_t c = trace_info_list[trace[t].type].get_value_cb; // Get callback for value calculation
@@ -669,7 +669,7 @@ trace_into_index(int t) {
     int32_t y;
     for (i = start; i <= stop; i++, x+= dx) {
       float v = 0;
-      if (c) v = c(i, &array[2*i]);         // Get value
+      if (c) v = c(i, array[i]);         // Get value
       if (v == infinityf()) {
         y = 0;
       } else {
@@ -686,7 +686,7 @@ trace_into_index(int t) {
     const float rscale = P_RADIUS / scale;
     int16_t y, x;
     for (i = start; i <= stop; i++){
-      cartesian_scale(&array[2*i], &x, &y, rscale);
+      cartesian_scale(array[i], &x, &y, rscale);
       mark_set_index(index, i, x, y);
     }
     return;

@@ -1159,6 +1159,40 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb) {
   menu_keyboard_acb(data, b);
 }
 
+//
+// Auto scale active trace
+// Calculate reference and scale values depend from max and min trace values (aligning with 'beautiful' borders)
+//
+static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
+  (void)data;
+  if (current_trace == TRACE_INVALID) return;
+  get_value_cb_t c = trace_info_list[trace[current_trace].type].get_value_cb; // Get callback for value calculation
+  if (c == NULL) return;                                                      // No callback, skip
+  float (*array)[2] = measured[trace[current_trace].channel];
+  float min_val, max_val;                                         // search min and max trace values
+  for (int i = 0; i < sweep_points; i++) {
+    float v = c(i, array[i]);                                     // get trace value
+    if (v == infinityf()) return;                                 // prevent inf scale search
+    if (i == 0) min_val = max_val = v;                            // first point -> init min and max
+    else if (max_val < v) max_val = v;                            // set max
+    else if (min_val > v) min_val = v;                            // set min
+  }
+  const float N = NGRIDY;                                         // Grid count
+  float delta = max_val - min_val;                                // delta
+  float mid   = (max_val + min_val) * 0.5f;                       // middle point (align around it)
+       if (min_val != max_val) delta*= 1.0f;                      // if max != min not use margins
+  else if (min_val ==    0.0f) delta = 2.0f;                      // on zero use fixed delta
+  else                         delta = vna_fabsf(min_val) * 1.2f; // use 10% margin from value
+  float nice_step = 10.0f,  temp = delta;                         // Search best step
+  while (temp <   1.0f * N) {temp *= 10.0f; nice_step *=  0.1f;}
+  while (temp >= 10.0f * N) {temp *=  0.1f; nice_step *= 10.0f;}
+  delta*= 2.0f / 10.0f;
+  while (delta < nice_step) nice_step/= 2.0f;                     // Search substep (grid scale)
+  set_trace_scale(current_trace, nice_step);
+  set_trace_refpos(current_trace, (N / 2.0f) - ((int32_t)(mid / nice_step + 0.5f)));
+  ui_mode_normal();
+}
+
 static UI_FUNCTION_ADV_CALLBACK(menu_pause_acb) {
   (void)data;
   if (b) {
@@ -2117,6 +2151,7 @@ const menuitem_t menu_formatS11[] = {
 };
 
 const menuitem_t menu_scale[] = {
+  { MT_CALLBACK,     0,            "AUTO SCALE",          menu_auto_scale_cb },
   { MT_ADV_CALLBACK, KM_TOP,       "TOP",                 menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_BOTTOM,    "BOTTOM",              menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_SCALE,     "SCALE/DIV",           menu_scale_keyboard_acb },
