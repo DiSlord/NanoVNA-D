@@ -1180,13 +1180,13 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   const float N = NGRIDY;                                         // Grid count
   float delta = max_val - min_val;                                // delta
   float mid   = (max_val + min_val) * 0.5f;                       // middle point (align around it)
-       if (min_val != max_val) delta*= 1.0f;                      // if max != min not use margins
+       if (min_val != max_val) delta*= 1.2f;                      // if max != min use 10% margins
   else if (min_val ==    0.0f) delta = 2.0f;                      // on zero use fixed delta
   else                         delta = vna_fabsf(min_val) * 1.2f; // use 10% margin from value
-  float nice_step = 10.0f,  temp = delta;                         // Search best step
-  while (temp <   1.0f * N) {temp *= 10.0f; nice_step *=  0.1f;}
-  while (temp >= 10.0f * N) {temp *=  0.1f; nice_step *= 10.0f;}
-  delta*= 2.0f / 10.0f;
+  float nice_step = 1.0f, temp = delta;                           // Search best step
+  while (temp <   1.0f) {temp*= 10.0f; nice_step*=  0.1f;}
+  while (temp >= 10.0f) {temp*=  0.1f; nice_step*= 10.0f;}
+  delta*= 2.0f / N;
   while (delta < nice_step) nice_step/= 2.0f;                     // Search substep (grid scale)
   set_trace_scale(current_trace, nice_step);
   set_trace_refpos(current_trace, (N / 2.0f) - ((int32_t)(mid / nice_step + 0.5f)));
