@@ -824,8 +824,8 @@ enum trace_type {
   TRC_LOGMAG=0, TRC_PHASE, TRC_DELAY, TRC_SMITH, TRC_POLAR, TRC_LINEAR, TRC_SWR, TRC_REAL, TRC_IMAG,
   TRC_R, TRC_X, TRC_Z, TRC_ZPHASE,
   TRC_G, TRC_B, TRC_Y, TRC_Rp, TRC_Xp,
-  TRC_sC, TRC_sL,
-  TRC_pC, TRC_pL,
+  TRC_Cs, TRC_Ls,
+  TRC_Cp, TRC_Lp,
   TRC_Q,
   TRC_Rser, TRC_Xser, TRC_Zser,
   TRC_Rsh, TRC_Xsh, TRC_Zsh,
@@ -836,8 +836,8 @@ enum trace_type {
 #define RECTANGULAR_GRID_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_SWR)|(1<<TRC_REAL)|(1<<TRC_IMAG)\
                               |(1<<TRC_R)|(1<<TRC_X)|(1<<TRC_Z)|(1<<TRC_ZPHASE)\
                               |(1<<TRC_G)|(1<<TRC_B)|(1<<TRC_Y)|(1<<TRC_Rp)|(1<<TRC_Xp)\
-                              |(1<<TRC_sC)|(1<<TRC_sL)\
-                              |(1<<TRC_pC)|(1<<TRC_pL)\
+                              |(1<<TRC_Cs)|(1<<TRC_Ls)\
+                              |(1<<TRC_Cp)|(1<<TRC_Lp)\
                               |(1<<TRC_Q)\
                               |(1<<TRC_Rser)|(1<<TRC_Xser)|(1<<TRC_Zser)\
                               |(1<<TRC_Rsh)|(1<<TRC_Xsh)|(1<<TRC_Zsh)\
@@ -846,7 +846,7 @@ enum trace_type {
 // complex graph type (polar / smith / admit)
 #define ROUND_GRID_MASK       ((1<<TRC_POLAR)|(1<<TRC_SMITH))
 // Scale / Amplitude input in nano/pico values graph type
-#define NANO_TYPE_MASK        ((1<<TRC_DELAY)|(1<<TRC_sC)|(1<<TRC_sL)|(1<<TRC_pC)|(1<<TRC_pL))
+#define NANO_TYPE_MASK        ((1<<TRC_DELAY)|(1<<TRC_Cs)|(1<<TRC_Ls)|(1<<TRC_Cp)|(1<<TRC_Lp))
 // Universal trace type for both channels
 #define S11_AND_S21_TYPE_MASK ((1<<TRC_LOGMAG)|(1<<TRC_PHASE)|(1<<TRC_DELAY)|(1<<TRC_LINEAR)|(1<<TRC_REAL)|(1<<TRC_IMAG)|(1<<TRC_POLAR)|(1<<TRC_SMITH))
 
