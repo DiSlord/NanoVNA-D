@@ -2098,7 +2098,7 @@ void set_trace_type(int t, int type, int channel)
     set_trace_refpos(t, trace_info_list[type].refpos);
     // Set default trace scale
     set_trace_scale(t, trace_info_list[type].scale_unit);
-    request_to_redraw(REDRAW_AREA); // need for update grid
+    request_to_redraw(REDRAW_AREA | REDRAW_PLOT | REDRAW_BACKUP); // need for update grid
   }
   set_trace_channel(t, channel);
 }
