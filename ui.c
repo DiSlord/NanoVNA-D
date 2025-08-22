@@ -1180,7 +1180,7 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   const float N = NGRIDY;                                         // Grid count
   float delta = max_val - min_val;                                // delta
   float mid   = (max_val + min_val) * 0.5f;                       // middle point (align around it)
-       if (min_val != max_val) delta*= 1.2f;                      // if max != min use 10% margins
+       if (min_val != max_val) delta*= 1.1f;                      // if max != min use 5% margins
   else if (min_val ==    0.0f) delta = 2.0f;                      // on zero use fixed delta
   else                         delta = vna_fabsf(min_val) * 1.2f; // use 10% margin from value
   float nice_step = 1.0f, temp = delta;                           // Search best step
@@ -1208,7 +1208,6 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb) {
   freq_t freq = get_marker_frequency(active_marker);
   if (freq == 0)
     return; // no active marker
-
   switch (data) {
   case ST_START:
   case ST_STOP:
@@ -1232,9 +1231,7 @@ static UI_FUNCTION_CALLBACK(menu_marker_op_cb) {
     }
     break;
   case UI_MARKER_EDELAY:
-    {
-      if (current_trace == TRACE_INVALID)
-        break;
+    if (current_trace != TRACE_INVALID) {
       int ch = trace[current_trace].channel;
       float (*array)[2] = measured[ch];
       int index = markers[active_marker].index;
@@ -3285,7 +3282,7 @@ static void draw_numeric_area_frame(void) {
 }
 
 static void draw_numeric_input(const char *buf) {
-  uint16_t x = 14 + 10 * FONT_WIDTH;
+  uint16_t x = 14 + 12 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
   uint16_t xsim;
 #ifdef __USE_RTC__
