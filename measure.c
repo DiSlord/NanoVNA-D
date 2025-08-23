@@ -663,7 +663,7 @@ static void draw_s11_cable(int xp, int yp){
   cell_printf(xp, yp, "S11 CABLE");
   if (s11_cable->R){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Z0 = %F" S_OHM, s11_cable->R);
-//    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %F" S_FARAD, s11_cable->C0);
+//    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %F" S_FARAD "/" S_METRE, s11_cable->C0);
   }
   if (s11_cable->vf)
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF=%.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
@@ -671,9 +671,11 @@ static void draw_s11_cable(int xp, int yp){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (VF=%d%%)", s11_cable->len, velocity_factor);
 //cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->loss, s11_cable->freq);
   cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->mloss, s11_cable->freq);
-  float l = s11_cable->vf ? real_cable_len : s11_cable->len;
-  if (l) cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (dB/100m): %F" S_dB " at %.4F" S_Hz, s11_cable->mloss * 100.0f / l, (float)s11_cable->freq);
-//  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "a: %.6F, b: %.6F, c: %.6F", s11_cable->a, s11_cable->b, s11_cable->c);
+  if (s11_cable->len) {
+    float l = s11_cable->len;
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (" S_dB "/100" S_METRE "): %F" S_dB " at %.4F" S_Hz, s11_cable->mloss * 100.0f / l, s11_cable->freq);
+//    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "DC: %.6F, K1: %.6F, K2: %.6F", s11_cable->a / l, s11_cable->b / l, s11_cable->c / l);
+  }
 }
 
 static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
@@ -687,8 +689,10 @@ static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
     f1 = measure_search_value(&x,  0, s11imag, MEASURE_SEARCH_RIGHT, MARKER_INVALID);
     if (f1){
       float electric_lengh = (SPEED_OF_LIGHT / 400.0f) / f1;
-      s11_cable->len = velocity_factor * electric_lengh;
-      if (real_cable_len != 0.0f) s11_cable->vf = real_cable_len / electric_lengh;
+      if (real_cable_len != 0.0f) {
+        s11_cable->len = real_cable_len;
+        s11_cable->vf = real_cable_len / electric_lengh;
+      } else s11_cable->len = velocity_factor * electric_lengh;
       float data[2];
       if (measure_get_value(0, f1/2, data)){
         s11_cable->R = vna_fabsf(reactance(0, data));
