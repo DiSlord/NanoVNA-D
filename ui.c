@@ -1166,19 +1166,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb) {
 static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   (void)data;
   if (current_trace == TRACE_INVALID) return;
-  get_value_cb_t c = trace_info_list[trace[current_trace].type].get_value_cb; // Get callback for value calculation
-  if (c == NULL) return;                                                      // No callback, skip
+  int type = trace[current_trace].type;
+  get_value_cb_t c = trace_info_list[type].get_value_cb;          // Get callback for value calculation
+  if (c == NULL) return;                                          // No callback, skip                                                   // No callback, skip
   float (*array)[2] = measured[trace[current_trace].channel];
   float min_val, max_val;                                         // search min and max trace values
   for (int i = 0; i < sweep_points; i++) {
     float v = c(i, array[i]);                                     // get trace value
-    if (v == infinityf()) return;                                 // prevent inf scale search
     if (i == 0) min_val = max_val = v;                            // first point -> init min and max
     else if (max_val < v) max_val = v;                            // set max
     else if (min_val > v) min_val = v;                            // set min
   }
   const float N = NGRIDY;                                         // Grid count
   float delta = max_val - min_val;                                // delta
+  if (delta == infinityf()) return;                               // prevent inf scale search
   float mid   = (max_val + min_val) * 0.5f;                       // middle point (align around it)
        if (min_val != max_val) delta*= 1.1f;                      // if max != min use 5% margins
   else if (min_val ==    0.0f) delta = 2.0f;                      // on zero use fixed delta
@@ -1188,6 +1189,7 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   while (temp >= 10.0f) {temp*=  0.1f; nice_step*= 10.0f;}
   delta*= 2.0f / N;
   while (delta < nice_step) nice_step/= 2.0f;                     // Search substep (grid scale)
+  if (type == TRC_SWR) mid-= 1.0f;                                // Hack for SWR trace!
   set_trace_scale(current_trace, nice_step);
   set_trace_refpos(current_trace, (N / 2.0f) - ((int32_t)(mid / nice_step + 0.5f)));
   ui_mode_normal();
