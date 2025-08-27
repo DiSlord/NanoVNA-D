@@ -549,10 +549,10 @@ static inline void
 cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
   int16_t x = P_CENTER_X + float2int(v[0] * scale);
   int16_t y = P_CENTER_Y - float2int(v[1] * scale);
-  if      (x <      0) x = 0;
-  else if (x >  WIDTH) x = WIDTH;
-  if      (y <      0) y = 0;
-  else if (y > HEIGHT) y = HEIGHT;
+  if      (x < CELLOFFSETX        ) x = CELLOFFSETX;
+  else if (x > CELLOFFSETX + WIDTH) x = CELLOFFSETX + WIDTH;
+  if      (y < 0                  ) y = 0;
+  else if (y > HEIGHT             ) y = HEIGHT;
   *xp = x;
   *yp = y;
 }
