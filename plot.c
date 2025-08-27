@@ -842,14 +842,13 @@ markmap_upperarea(void) {
   invalidate_rect(0, 0, AREA_WIDTH_NORMAL, marker_area_max());
 }
 
-#ifdef __VNA_FAST_LINES__
+#ifdef __VNA_FAST_RENDER__
 // Little faster on easy traces, 2x faster if need lot of clipping and draw long lines
-#include "vna_modules/vna_lines.c"
+// Bitmaps draw, 2x faster, but limit width <= 32
+#include "vna_modules/vna_render.c"
 #else
 // Little slower on easy traces, but slow if need lot of clip and draw long lines
-static inline void
-cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
-{
+static inline void cell_drawline(int x0, int y0, int x1, int y1, pixel_t c) {
   if (x0 < 0 && x1 < 0) return;
   if (y0 < 0 && y1 < 0) return;
   if (x0 >= CELLWIDTH && x1 >= CELLWIDTH) return;
@@ -882,6 +881,51 @@ cell_drawline(int x0, int y0, int x1, int y1, pixel_t c)
     if (e2 < dy) { err-= dx; y0+=CELLWIDTH; if (y0>=CELLHEIGHT*CELLWIDTH) return;} // stop after cell bottom
   }
 }
+
+// Slower, but allow any width bitmaps
+static void cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
+  int16_t x1, y1;
+  if ((x1 = x + w) < 0 || (y1 = y + h) < 0) return;
+  if (y1 >= CELLHEIGHT) y1 = CELLHEIGHT;    // clip bottom
+  if (y < 0) {bmp-= y*((w+7)>>3); y = 0;}   // clip top
+  for (uint8_t bits = 0; y < y1; y++) {
+    for (int r = 0; r < w; r++, bits<<=1) {
+      if ((r&7)==0) bits = *bmp++;
+      if ((0x80 & bits) == 0) continue;            // no pixel
+      if ((uint32_t)(x+r) >= CELLWIDTH ) continue; // x+r < 0 || x+r >= CELLWIDTH
+      cell_buffer[y*CELLWIDTH + x + r] = foreground_color;
+    }
+  }
+}
+#endif
+
+#ifdef _USE_SHADOW_TEXT_
+static void cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
+  int i;
+  if (x + w < 0 || h + y < 0) return; // Clipping
+  // Prepare shadow bitmap
+  uint16_t dst[16], mask = 0xFFFF << (16 - w), p;
+  dst[0] = dst[1] = 0;
+  if (h > ARRAY_COUNT(dst) - 2) h = ARRAY_COUNT(dst) - 2;
+  for (i = 0; i < h; i++) {
+#if 1
+    p = (bmp[i]<<8) & mask;                    // extend from 8 bit width to 16 bit
+#else
+    p = (((bmp[2*i]<<8)|bmp[2*i+1]) & mask);   // extend from 16 bit width to 16 bit
+#endif
+    p|= (p>>1) | (p>>2);   // shadow horizontally
+    p = (p>>8) | (p<<8);   // swap bytes (render do by 8 bit)
+    dst[i+2] = p;          // shadow vertically
+    dst[i+1]|= dst[i+2];
+    dst[i  ]|= dst[i+1];
+  }
+  // Render shadow on cell
+  pixel_t t = foreground_color; // remember color
+  lcd_set_foreground(LCD_TXT_SHADOW_COLOR); // set shadow color
+  w+= 2; h+= 2;                 // Shadow size > by 2 pixel
+  cell_blit_bitmap(x-1, y-1, w < 9 ? 9 : w, h, (uint8_t *)dst);
+  foreground_color = t;         // restore color
+}
 #endif
 
 // Give a little speedup then draw rectangular plot
@@ -910,58 +954,6 @@ static int search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1
   while (*i1 < sweep_points-1 && x2 >  index[++*i1].x); // Search index right from point
   return TRUE;
 }
-
-static void
-cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp)
-{
-  if (x <= -w)
-    return;
-  int c = h + y;
-  if (c < 0) return;
-  if (c >= CELLHEIGHT) c = CELLHEIGHT;    // clip bottom if need
-  if (y < 0) {bmp-= y*((w+7)>>3); y = 0;} // Clip top if need
-  for (uint8_t bits = 0; y < c; y++) {
-    for (int r = 0; r < w; r++, bits<<=1) {
-      if ((r&7)==0) bits = *bmp++;
-      if ((0x80 & bits) == 0) continue;            // no pixel
-      if ((uint32_t)(x+r) >= CELLWIDTH ) continue; // x+r < 0 || x+r >= CELLWIDTH
-      cell_buffer[y*CELLWIDTH + x + r] = foreground_color;
-    }
-  }
-}
-
-#ifdef _USE_SHADOW_TEXT_
-static void
-cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
-  int i;
-  if (x + w < 0 || h + y < 0)  // Clipping
-    return;
-  // Prepare shadow bitmap
-  uint16_t dst[16];
-  uint16_t p0 = 0, p1 = 0, c = 16 - w;
-  uint16_t mask = (0xFFFF>>c)<<c;
-  if (h > ARRAY_COUNT(dst) - 2) h = ARRAY_COUNT(dst) - 2;
-  for (i = 0; i < h; i++) {
-#if 1
-    c = (bmp[i]<<8) & mask;                    // extend from 8 bit width to 16 bit
-#else
-    c = (((bmp[2*i]<<8)|bmp[2*i+1]) & mask);   // extend from 16 bit width to 16 bit
-#endif
-    c|= (c>>1) | (c>>2);      // shadow horizontally
-    c = (c>>8) | (c<<8);      // swap bytes (render do by 8 bit)
-    dst[i] = c | p0 | p1;     // shadow vertically
-    p0 = p1; p1 = c;          // shift data
-  }
-  dst[i  ] = p0 | p1;
-  dst[i+1] = p1;
-  // Render shadow on cell
-  pixel_t t = foreground_color; // remember color
-  lcd_set_foreground(LCD_TXT_SHADOW_COLOR); // set shadow color
-  w+= 2; h+= 2;                 // Shadow size > by 2 pixel
-  cell_blit_bitmap(x-1, y-1, w < 9 ? 9 : w, h, (uint8_t *)dst);
-  foreground_color = t;         // restore color
-}
-#endif
 
 typedef struct {
   const void *vmt;
