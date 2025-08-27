@@ -1171,12 +1171,13 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   if (c == NULL) return;                                          // No callback, skip                                                   // No callback, skip
   float (*array)[2] = measured[trace[current_trace].channel];
   float min_val, max_val;                                         // search min and max trace values
-  for (int i = 0; i < sweep_points; i++) {
+  int i = 0;
+  do {
     float v = c(i, array[i]);                                     // get trace value
-    if (i == 0) min_val = max_val = v;                            // first point -> init min and max
-    else if (max_val < v) max_val = v;                            // set max
-    else if (min_val > v) min_val = v;                            // set min
-  }
+    if (i == 0) {min_val = max_val = v; continue;}                // first point -> init min and max
+    if (max_val < v) max_val = v;                                 // set max
+    if (min_val > v) min_val = v;                                 // set min
+  } while (++i < sweep_points);
   const float N = NGRIDY;                                         // Grid count
   float delta = max_val - min_val;                                // delta
   if (delta == infinityf()) return;                               // prevent inf scale search
