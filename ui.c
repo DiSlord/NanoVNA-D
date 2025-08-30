@@ -1152,7 +1152,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb) {
   // Not apply amplitude / scale / ref for invalid or polar graph
   if (current_trace == TRACE_INVALID) return;
   uint32_t type_mask = 1<<trace[current_trace].type;
-  if (type_mask & ROUND_GRID_MASK) return;
+//  if (type_mask & ROUND_GRID_MASK) return;
   // Nano scale values
   uint32_t nano_keyb_type = (1<<KM_TOP) | (1<<KM_BOTTOM) | (1<<KM_SCALE);
   if ((type_mask & NANO_TYPE_MASK) && ((1<<data) & nano_keyb_type)) data++;
@@ -1174,13 +1174,13 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   int i = 0;
   do {
     float v = c(i, array[i]);                                     // get trace value
+    if (vna_fabsf(v) == infinityf())  return;                     // prevent inf scale search
     if (i == 0) {min_val = max_val = v; continue;}                // first point -> init min and max
     if (max_val < v) max_val = v;                                 // set max
     if (min_val > v) min_val = v;                                 // set min
   } while (++i < sweep_points);
   const float N = NGRIDY;                                         // Grid count
   float delta = max_val - min_val;                                // delta
-  if (delta == infinityf()) return;                               // prevent inf scale search
   float mid   = (max_val + min_val) * 0.5f;                       // middle point (align around it)
        if (min_val != max_val) delta*= 1.1f;                      // if max != min use 5% margins
   else if (min_val ==    0.0f) delta = 2.0f;                      // on zero use fixed delta
