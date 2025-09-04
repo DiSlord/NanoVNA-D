@@ -32,9 +32,6 @@ static void draw_frequencies(void);
 static int  cell_printf(int16_t x, int16_t y, const char *fmt, ...);
 static void markmap_all_markers(void);
 
-static int16_t grid_offset;
-static int16_t grid_width;
-
 static uint16_t redraw_request = 0; // contains REDRAW_XXX flags
 
 static uint16_t area_width  = AREA_WIDTH_NORMAL;
@@ -77,9 +74,10 @@ float2int(float v)
 }
 #endif
 
-static bool
-polar_grid(int x, int y)
-{
+//**************************************************************************************
+// Plot area draw grid functions
+//**************************************************************************************
+static int polar_grid(int x, int y) {
   uint32_t d = x*x + y*y;
 
   if (d > P_RADIUS*P_RADIUS + P_RADIUS) return 0;
@@ -106,9 +104,7 @@ polar_grid(int x, int y)
   return 0;
 }
 
-static void
-cell_polar_grid(int x0, int y0, int w, int h, pixel_t color)
-{
+static void cell_polar_grid(int x0, int y0, int w, int h, pixel_t color) {
   int x, y;
   // offset to center
   x0 -= P_CENTER_X;
@@ -121,9 +117,7 @@ cell_polar_grid(int x0, int y0, int w, int h, pixel_t color)
 /*
  * Render Smith grid (if mirror by x possible get Admittance grid)
  */
-static bool
-smith_grid(int x, int y)
-{
+static int smith_grid(int x, int y) {
 #if 0
   int d;
   // outer circle
@@ -202,9 +196,7 @@ smith_grid(int x, int y)
 #endif
 }
 
-static void
-cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
-{
+static void cell_smith_grid(int x0, int y0, int w, int h, pixel_t color) {
   int x, y;
   // offset to center
   x0-= P_CENTER_X;
@@ -214,9 +206,7 @@ cell_smith_grid(int x0, int y0, int w, int h, pixel_t color)
       if (smith_grid(x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
-static void
-cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
-{
+static void cell_admit_grid(int x0, int y0, int w, int h, pixel_t color) {
   int x, y;
   // offset to center
   x0 = P_CENTER_X - x0;
@@ -226,45 +216,36 @@ cell_admit_grid(int x0, int y0, int w, int h, pixel_t color)
       if (smith_grid(- x + x0, y + y0)) cell_buffer[y * CELLWIDTH + x] = color;
 }
 
-void update_grid(freq_t fstart, freq_t fstop)
-{
+#define GRID_BITS  7          // precision = 1 / 128
+static uint16_t grid_offset;  // .GRID_BITS fixed point value
+static uint16_t grid_width;   // .GRID_BITS fixed point value
+
+void update_grid(freq_t fstart, freq_t fstop) {
+  uint32_t k, N = 4;
   freq_t fspan = fstop - fstart;
-  freq_t grid;
-  if (fspan < 1000) {
-    grid_offset = 0;
-    grid_width = 0;
-  } else {
-    freq_t gdigit = 100000000;
-    while (gdigit > 100) {
-      grid = 5 * gdigit;
-      if (fspan / grid >= 4) break;
-      grid = 2 * gdigit;
-      if (fspan / grid >= 4) break;
-      grid = gdigit;
-      if (fspan / grid >= 4) break;
-      gdigit /= 10;
-    }
-    grid_offset = (WIDTH) * ((fstart % grid) / 100) / (fspan / 100);
-    grid_width = (WIDTH) * (grid / 100) / (fspan / 1000);
-  }
+  if (fspan == 0) {grid_offset = grid_width = 0; return; }
+  freq_t dgrid = 1000000000, grid; // Max grid step = pattern * 1GHz grid
+  do {                             // Find appropriate grid step (1, 2, 5 pattern)
+    grid = dgrid; k = fspan / grid;
+    if (k >= N * 5) {grid*= 5; break;}
+    if (k >= N * 2) {grid*= 2; break;}
+    if (k >= N * 1) {grid*= 1; break;}
+  } while(dgrid/= 10);
+  // Calculate offset and grid width in pixel (use .GRID_BITS fixed point values)
+  grid_offset = ((uint64_t)(fstart % grid) * (WIDTH << GRID_BITS)) / fspan;
+  grid_width  = ((uint64_t)          grid  * (WIDTH << GRID_BITS)) / fspan;
 }
 
-static inline int
-rectangular_grid_x(int x)
-{
+static inline int rectangular_grid_x(uint32_t x) {
   x -= CELLOFFSETX;
   if ((uint32_t)x > WIDTH) return 0;
-  if ((((x + grid_offset) * 10) % grid_width) < 10 || x == 0 || x == WIDTH)
-    return 1;
-  return 0;
+  if (x == 0 || x == WIDTH) return 1;
+  return (((x << GRID_BITS) + grid_offset) % grid_width) < (1<<GRID_BITS);
 }
 
-static inline int
-rectangular_grid_y(int y)
-{
-  if (y < 0 || (y % GRIDY))
-    return 0;
-  return 1;
+static inline int rectangular_grid_y(uint32_t y) {
+  if ((uint32_t)y > HEIGHT) return 0;
+  return (y % GRIDY) == 0;
 }
 
 //**************************************************************************************
