@@ -902,6 +902,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb) {
     set_trace_enable(data, !trace[data].enabled);   // toggle trace enable
 }
 
+extern const menuitem_t menu_trace[];
+static UI_FUNCTION_ADV_CALLBACK(menu_traces_acb) {
+  (void)data;
+  if (b) {
+    if (current_trace == TRACE_INVALID) return;
+    b->bg = LCD_TRACE_1_COLOR + current_trace;
+//    b->p1.u = current_trace;
+    return;
+  }
+  menu_push_submenu(menu_trace);
+}
+
 extern const menuitem_t menu_marker_s11smith[];
 extern const menuitem_t menu_marker_s21smith[];
 static uint8_t get_smith_format(void) {return (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;}
@@ -2217,7 +2229,7 @@ const menuitem_t menu_smooth_count[] = {
 #endif
 
 const menuitem_t menu_display[] = {
-  { MT_SUBMENU,      0, "TRACE",                               menu_trace },
+  { MT_ADV_CALLBACK, 0, "TRACE",                               menu_traces_acb },
   { MT_SUBMENU,      0, "FORMAT\n S11 (REFL)",                 menu_formatS11 },
   { MT_SUBMENU,      0, "FORMAT\n S21 (THRU)",                 menu_formatS21 },
   { MT_ADV_CALLBACK, 0, "CHANNEL\n " R_LINK_COLOR "%s",        menu_channel_acb },
