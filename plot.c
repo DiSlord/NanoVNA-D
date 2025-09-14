@@ -1575,7 +1575,7 @@ static void draw_all_cells(void) {
 #ifdef __VNA_MEASURE_MODULE__
   measure_prepare();
 #endif
-#if 0
+#if 1
 //  START_PROFILE
   for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++){
     map_t update_map = markmap[n];
