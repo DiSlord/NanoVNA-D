@@ -669,11 +669,11 @@ static void draw_s11_cable(int xp, int yp){
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF=%.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
   else if (s11_cable->len)
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (VF=%d%%)", s11_cable->len, velocity_factor);
-//cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->loss, s11_cable->freq);
-  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->mloss, s11_cable->freq);
+//cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " (%.4F" S_Hz ")", s11_cable->loss, s11_cable->freq);
+  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " (%.4F" S_Hz ")", s11_cable->mloss, s11_cable->freq);
   if (s11_cable->len) {
     float l = s11_cable->len;
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (" S_dB "/100" S_METRE "): %F" S_dB " at %.4F" S_Hz, s11_cable->mloss * 100.0f / l, s11_cable->freq);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (" S_dB "/100" S_METRE "): %F" S_dB " (%.4F" S_Hz ")", s11_cable->mloss * 100.0f / l, s11_cable->freq);
 //    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "DC: %.6F, K1: %.6F, K2: %.6F", s11_cable->a / l, s11_cable->b / l, s11_cable->c / l);
   }
 }

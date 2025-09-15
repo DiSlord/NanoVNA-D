@@ -48,6 +48,8 @@ typedef uint32_t map_t;
 static map_t markmap[MAX_MARKMAP_Y];
 
 // Trace data cache, for faster redraw cells
+#define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
+
 typedef struct {
   uint16_t x;
   uint16_t y;
@@ -1571,22 +1573,24 @@ void set_area_size(uint16_t w, uint16_t h) {
 }
 
 static void draw_all_cells(void) {
-  int m, n;
+  uint16_t m, n;
+  uint16_t w = (area_width  + CELLWIDTH  - 1) / CELLWIDTH;
+  uint16_t h = (area_height + CELLHEIGHT - 1) / CELLHEIGHT;
 #ifdef __VNA_MEASURE_MODULE__
   measure_prepare();
 #endif
 #if 1
 //  START_PROFILE
-  for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++){
+  for (n = 0; n < h; n++){
     map_t update_map = markmap[n];
-    for (m = 0; update_map; update_map>>=1, m++)
+    for (m = 0; update_map && m < w; update_map>>=1, m++)
       if (update_map & 1)
         draw_cell(m * CELLWIDTH, n * CELLHEIGHT);
   }
 #else
   START_PROFILE
-  for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++)
-    for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
+  for (n = 0; n < h; n++)
+    for (m = 0; m < w; m++)
       draw_cell(m * CELLWIDTH, n * CELLHEIGHT);
   lcd_bulk_finish();
   STOP_PROFILE
@@ -1594,8 +1598,8 @@ static void draw_all_cells(void) {
 
 #if 0
   lcd_bulk_finish();
-  for (m = 0; m < (area_width+CELLWIDTH-1) / CELLWIDTH; m++)
-    for (n = 0; n < (area_height+CELLHEIGHT-1) / CELLHEIGHT; n++) {
+  for (m = 0; m < w; m++)
+    for (n = 0; n < h; n++) {
       lcd_set_background((markmap[n] & (1 << m)) ? LCD_LOW_BAT_COLOR : LCD_NORMAL_BAT_COLOR);
       lcd_fill(m*CELLWIDTH+OFFSETX, n*CELLHEIGHT, 2, 2);
     }
@@ -1750,7 +1754,7 @@ void draw_all(void) {
 #endif
   if (redraw_request & REDRAW_PLOT) plot_into_index();
   if (area_width == 0) {redraw_request = 0; return;}
-  if (redraw_request & REDRAW_CLRSCR){
+  if (redraw_request & REDRAW_CLRSCR) {
     lcd_set_background(LCD_BG_COLOR);
     lcd_clear_screen();
   }

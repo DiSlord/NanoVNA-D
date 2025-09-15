@@ -970,7 +970,6 @@ enum {
 
 #define STORED_TRACES  1
 #define TRACES_MAX     4
-#define TRACE_INDEX_COUNT (TRACES_MAX+STORED_TRACES)
 
 typedef struct trace {
   uint8_t enabled;
