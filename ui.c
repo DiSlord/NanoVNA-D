@@ -2724,10 +2724,10 @@ static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
     }
     else {
       lcd_set_font(FONT_NORMAL);
-      lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+      lcd_printf(text_offs, y+(menu_button_height - lines * FONT_STR_HEIGHT + (FONT_STR_HEIGHT - FONT_GET_HEIGHT))/2, text);
     }
 #else
-    lcd_drawstring(text_offs, y+(menu_button_height - lines * FONT_GET_HEIGHT)/2, text);
+    lcd_printf(text_offs, y+(menu_button_height - lines * FONT_STR_HEIGHT + (FONT_STR_HEIGHT - FONT_GET_HEIGHT))/2, text);
 #endif
   }
   // Erase empty buttons
