@@ -37,14 +37,15 @@ static pixel_t *cell_buffer;
 #define MAX_MARKMAP_X    ((LCD_WIDTH+CELLWIDTH-1)/CELLWIDTH)
 #define MAX_MARKMAP_Y    ((LCD_HEIGHT+CELLHEIGHT-1)/CELLHEIGHT)
 // Define markmap mask size
-#if MAX_MARKMAP_X <= 8
-typedef uint8_t map_t;
+#if   MAX_MARKMAP_X <= 8
+ typedef uint8_t map_t;
 #elif MAX_MARKMAP_X <= 16
-typedef uint16_t map_t;
+ typedef uint16_t map_t;
 #elif MAX_MARKMAP_X <= 32
-typedef uint32_t map_t;
+ typedef uint32_t map_t;
 #endif
 
+// Mark cell to update here
 static map_t markmap[MAX_MARKMAP_Y];
 
 // Trace data cache, for faster redraw cells
@@ -60,9 +61,7 @@ static index_t trace_index[TRACE_INDEX_COUNT][SWEEP_POINTS_MAX];
 // All used in plot v > 0
 #define float2int(v) ((int)((v)+0.5f))
 #else
-static int
-float2int(float v)
-{
+static int float2int(float v) {
   if (v < 0) return v - 0.5;
   if (v > 0) return v + 0.5;
   return 0;
