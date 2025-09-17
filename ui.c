@@ -238,13 +238,12 @@ typedef struct {
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
-static void menu_draw(uint32_t mask);
 static void ui_mode_keypad(int mode);
+
+static void menu_draw(uint32_t mask);
 static void menu_move_back(bool leave_ui);
 static void menu_push_submenu(const menuitem_t *submenu);
 static void menu_set_submenu(const menuitem_t *submenu);
-static void ui_keyboard_cb(uint16_t data, button_t *b);
-static void touch_position(int *x, int *y);
 
 // Icons for UI
 #include "icons_menu.c"
@@ -258,11 +257,10 @@ static uint16_t get_buttons(void) {
   return cur_button;
 }
 
-static uint16_t btn_check(void)
-{
+static uint16_t btn_check(void) {
   systime_t ticks;
   // Debounce input
-  while(TRUE){
+  while(TRUE) {
     ticks = chVTGetSystemTimeX();
     if(ticks - last_button_down_ticks > BUTTON_DEBOUNCE_TICKS)
       break;
@@ -284,13 +282,12 @@ static uint16_t btn_check(void)
   return status;
 }
 
-static uint16_t btn_wait_release(void)
-{
+static uint16_t btn_wait_release(void) {
   while (TRUE) {
     systime_t ticks = chVTGetSystemTimeX();
     systime_t dt = ticks - last_button_down_ticks;
     // Debounce input
-//    if (dt < BUTTON_DEBOUNCE_TICKS){
+//    if (dt < BUTTON_DEBOUNCE_TICKS) {
 //      chThdSleepMilliseconds(10);
 //      continue;
 //    }
@@ -350,9 +347,7 @@ static void bubbleSort(uint16_t *v, int n) {
 // Software Touch module
 //*******************************************************************************
 #ifdef SOFTWARE_TOUCH
-static int
-touch_measure_y(void)
-{
+static int touch_measure_y(void) {
   // drive low to high on X line (At this state after touch_prepare_sense)
 //  palSetPadMode(GPIOB, GPIOB_XN, PAL_MODE_OUTPUT_PUSHPULL); //
 //  palSetPadMode(GPIOA, GPIOA_XP, PAL_MODE_OUTPUT_PUSHPULL); //
@@ -368,9 +363,7 @@ touch_measure_y(void)
   return adc_single_read(ADC_TOUCH_Y);
 }
 
-static int
-touch_measure_x(void)
-{
+static int touch_measure_x(void) {
   // drive high to low on Y line (coordinates from left to right)
   palSetPad(GPIOB, GPIOB_YN);
   palClearPad(GPIOA, GPIOA_YP);
@@ -390,9 +383,7 @@ touch_status(void)
   return adc_single_read(ADC_TOUCH_Y) > TOUCH_THRESHOLD;
 }
 
-static void
-touch_prepare_sense(void)
-{
+static void touch_prepare_sense(void) {
   // Set Y line as input
   palSetPadMode(GPIOB, GPIOB_YN, PAL_MODE_INPUT);          // Hi-z mode
   palSetPadMode(GPIOA, GPIOA_YP, PAL_MODE_INPUT_PULLDOWN); // Use pull
@@ -415,9 +406,7 @@ void remote_touch_set(uint16_t state, int16_t x, int16_t y) {
 }
 #endif
 
-static void
-touch_start_watchdog(void)
-{
+static void touch_start_watchdog(void) {
   if (touch_status_flag&TOUCH_INTERRUPT_ENABLED) return;
   touch_status_flag^=TOUCH_INTERRUPT_ENABLED;
   adc_start_analog_watchdog();
@@ -426,9 +415,7 @@ touch_start_watchdog(void)
 #endif
 }
 
-static void
-touch_stop_watchdog(void)
-{
+static void touch_stop_watchdog(void) {
   if (!(touch_status_flag&TOUCH_INTERRUPT_ENABLED)) return;
   touch_status_flag^=TOUCH_INTERRUPT_ENABLED;
   adc_stop_analog_watchdog();
@@ -442,6 +429,7 @@ static const GPTConfig gpt3cfg = {
   0x0020, // CR2:MMS=02 to output TRGO
   0
 };
+
 static void init_Timers(void) {
   gptStart(&GPTD3, &gpt3cfg);         // Init timer 3
   gptStartContinuous(&GPTD3, 10);     // Start timer 10ms period (use 1kHz clock)
@@ -456,7 +444,7 @@ static void init_Timers(void) {
 //
 // Touch init function init timer 3 trigger adc for check touch interrupt, and run measure
 //
-static void touch_init(void){
+static void touch_init(void) {
   // Prepare pin for measure touch event
   touch_prepare_sense();
   // Start touch interrupt, used timer_3 ADC check threshold:
@@ -467,9 +455,7 @@ static void touch_init(void){
 // Main software touch function, should:
 // set last_touch_x and last_touch_x
 // return touch status
-static int
-touch_check(void)
-{
+static int touch_check(void) {
   touch_stop_watchdog();
 
   int stat = touch_status();
@@ -580,29 +566,6 @@ void ui_touch_cal_exec(void) {
   getTouchPoint(x2, y2, "LOWER RIGHT", &config._touch_cal[p2]);
 }
 
-void ui_touch_draw_test(void) {
-  int x0, y0;
-  int x1, y1;
-  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
-  lcd_clear_screen();
-  lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
-
-  while (1) {
-    if (btn_check() & EVT_BUTTON_SINGLE_CLICK) break;
-    if (touch_check() == EVT_TOUCH_PRESSED){
-      touch_position(&x0, &y0);
-      do {
-        lcd_printf(10, 30, "%3d %3d ", x0, y0);
-        chThdSleepMilliseconds(50);
-        touch_position(&x1, &y1);
-        lcd_line(x0, y0, x1, y1);
-        x0 = x1;
-        y0 = y1;
-      } while (touch_check() != EVT_TOUCH_RELEASED);
-    }
-  }
-}
-
 static void touch_position(int *x, int *y) {
 #ifdef __REMOTE_DESKTOP__
   if (touch_remote != REMOTE_NONE) {
@@ -624,6 +587,29 @@ static void touch_position(int *x, int *y) {
 #endif
   *x = tx;
   *y = ty;
+}
+
+void ui_touch_draw_test(void) {
+  int x0, y0;
+  int x1, y1;
+  lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
+  lcd_clear_screen();
+  lcd_drawstring(OFFSETX, LCD_HEIGHT - FONT_GET_HEIGHT, "TOUCH TEST: DRAG PANEL, PRESS BUTTON TO FINISH");
+
+  while (1) {
+    if (btn_check() & EVT_BUTTON_SINGLE_CLICK) break;
+    if (touch_check() == EVT_TOUCH_PRESSED) {
+      touch_position(&x0, &y0);
+      do {
+        lcd_printf(10, 30, "%3d %3d ", x0, y0);
+        chThdSleepMilliseconds(50);
+        touch_position(&x1, &y1);
+        lcd_line(x0, y0, x1, y1);
+        x0 = x1;
+        y0 = y1;
+      } while (touch_check() != EVT_TOUCH_RELEASED);
+    }
+  }
 }
 
 #ifdef QR_CODE_DRAW
@@ -717,8 +703,7 @@ static void ui_show_version(void) {
 }
 
 #ifdef __DFU_SOFTWARE_MODE__
-void ui_enter_dfu(void)
-{
+void ui_enter_dfu(void) {
   touch_stop_watchdog();
   int x = 5, y = 20;
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
@@ -745,7 +730,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_calop_acb) {
      [CAL_THRU] = {CALSTAT_THRU,  6},
      [CAL_ISOLN]= {CALSTAT_ISOLN, 4},
   };
-  if (b){
+  if (b) {
     if (cal_status & c_list[data].mask) b->icon = BUTTON_ICON_CHECK;
     return;
   }
@@ -793,7 +778,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_cal_range_acb) {
     return;
   }
   // Reset range to calibration
-  if (cal_status & CALSTAT_INTERPOLATED){
+  if (cal_status & CALSTAT_INTERPOLATED) {
     reset_sweep_frequency();
     set_power(cal_power);
   }
@@ -886,7 +871,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_save_acb) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_trace_acb) {
   if (b) {
-    if (trace[data].enabled){
+    if (trace[data].enabled) {
       b->bg = LCD_TRACE_1_COLOR + data;
       if (data == selection) b->bg = LCD_MENU_ACTIVE_COLOR;
       if (current_trace == data)
@@ -970,12 +955,12 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb) {
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb) {
   char *text = "";
-  switch(props_mode & TD_WINDOW){
+  switch(props_mode & TD_WINDOW) {
     case TD_WINDOW_MINIMUM: text = "MINIMUM"; data = TD_WINDOW_NORMAL;  break;
     case TD_WINDOW_NORMAL:  text = "NORMAL";  data = TD_WINDOW_MAXIMUM; break;
     case TD_WINDOW_MAXIMUM: text = "MAXIMUM"; data = TD_WINDOW_MINIMUM; break;
   }
-  if(b){
+  if(b) {
     b->p1.text = text;
     return;
   }
@@ -1148,7 +1133,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_power_acb) {
 }
 
 // Process keyboard button callback, and run keyboard function
-extern const keypads_list keypads_mode_tbl[];
+static void ui_keyboard_cb(uint16_t data, button_t *b);
 static UI_FUNCTION_ADV_CALLBACK(menu_keyboard_acb) {
   if (data == KM_VAR && lever_mode == LM_EDELAY) // JOG STEP button auto set (e-delay or frequency step)
     data = KM_VAR_DELAY;
@@ -1300,7 +1285,7 @@ static void active_marker_check(void) {
       if (markers[i].enabled) active_marker = i;
   // Auto select previous marker if disabled
   if (previous_marker == active_marker) previous_marker = MARKER_INVALID;
-  if (previous_marker == MARKER_INVALID){
+  if (previous_marker == MARKER_INVALID) {
     for (i = 0; i < MARKERS_MAX; i++)
       if (markers[i].enabled && i != active_marker) previous_marker = i;
   }
@@ -1471,7 +1456,7 @@ static FILE_SAVE_CALLBACK(save_snp) {
   FRESULT res;
   UINT size;
   // Write SxP file
-  if (format == FMT_S1P_FILE){
+  if (format == FMT_S1P_FILE) {
     s_file_format = s1_file_param;
     // write sxp header (not write NULL terminate at end)
     res = f_write(f, s1_file_header, sizeof(s1_file_header)-1, &size);
@@ -2600,7 +2585,7 @@ static const menuitem_t *current_menu_item(int i) {
 static int current_menu_get_count(void) {
   int i = 0;
   const menuitem_t *m = menu_stack[menu_current_level];
-  while (m){m = menu_next_item(m); i++;}
+  while (m) {m = menu_next_item(m); i++;}
   return i;
 }
 
@@ -2687,7 +2672,7 @@ static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
     button.fg = LCD_MENU_TEXT_COLOR;
     button.icon = BUTTON_ICON_NONE;
     // focus only in MENU mode but not in KEYPAD mode
-    if (ui_mode == UI_MENU && i == selection){
+    if (ui_mode == UI_MENU && i == selection) {
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
     } else{
@@ -2776,7 +2761,7 @@ static void ui_menu_lever(uint16_t status) {
     if (status & EVT_UP  ) selection++;
     if (status & EVT_DOWN) selection--;
     // close menu if no menu item
-    if ((uint16_t)selection >= count){
+    if ((uint16_t)selection >= count) {
       ui_mode_normal();
       return;
     }
@@ -3309,8 +3294,8 @@ static void draw_numeric_input(const char *buf) {
   lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
   while(*buf) {
     int c = *buf++;
-         if (c == '.'){c = KP_PERIOD;xsim<<=4;}
-    else if (c == '-'){c = KP_MINUS; xsim&=~3;}
+         if (c == '.') {c = KP_PERIOD;xsim<<=4;}
+    else if (c == '-') {c = KP_MINUS; xsim&=~3;}
     else if (c >= '0' && c <= '9') c-= '0';
     else continue;
     // Add space before char

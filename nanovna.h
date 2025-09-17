@@ -667,7 +667,7 @@ extern const uint8_t x5x7_bits[];
 #define FONT_START_CHAR   0x16
 #define FONT_WIDTH           5
 #define FONT_GET_HEIGHT      7
-#define FONT_STR_WIDTH(n)    (n*FONT_WIDTH)
+#define FONT_STR_WIDTH(n)    ((n)*FONT_WIDTH)
 #define FONT_STR_HEIGHT      8
 #define FONT_GET_DATA(ch)    (  &x5x7_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT])
 #define FONT_GET_WIDTH(ch)   (8-(x5x7_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT]&0x7))
@@ -677,7 +677,7 @@ extern const uint8_t x6x10_bits[];
 #define FONT_START_CHAR   0x16
 #define FONT_WIDTH           6
 #define FONT_GET_HEIGHT     10
-#define FONT_STR_WIDTH(n)   (n*FONT_WIDTH)
+#define FONT_STR_WIDTH(n)   ((n)*FONT_WIDTH)
 #define FONT_STR_HEIGHT     11
 #define FONT_GET_DATA(ch)   (  &x6x10_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT])
 #define FONT_GET_WIDTH(ch)  (8-(x6x10_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT]&0x7))
@@ -687,7 +687,7 @@ extern const uint8_t x7x11b_bits[];
 #define FONT_START_CHAR   0x16
 #define FONT_WIDTH           7
 #define FONT_GET_HEIGHT     11
-#define FONT_STR_WIDTH(n)   (n*FONT_WIDTH)
+#define FONT_STR_WIDTH(n)   ((n)*FONT_WIDTH)
 #define FONT_STR_HEIGHT     11
 #define FONT_GET_DATA(ch)   (  &x7x11b_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT])
 #define FONT_GET_WIDTH(ch)  (8-(x7x11b_bits[(ch-FONT_START_CHAR)*FONT_GET_HEIGHT]&7))
@@ -697,7 +697,7 @@ extern const uint8_t x11x14_bits[];
 #define FONT_START_CHAR   0x16
 #define FONT_WIDTH          11
 #define FONT_GET_HEIGHT     14
-#define FONT_STR_WIDTH(n)   (n*FONT_WIDTH)
+#define FONT_STR_WIDTH(n)   ((n)*FONT_WIDTH)
 #define FONT_STR_HEIGHT     16
 #define FONT_GET_DATA(ch)   (   &x11x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT  ])
 #define FONT_GET_WIDTH(ch)  (14-(x11x14_bits[(ch-FONT_START_CHAR)*2*FONT_GET_HEIGHT+1]&0x7))
@@ -708,7 +708,7 @@ extern const uint8_t x5x7_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           5
 #define sFONT_GET_HEIGHT      7
-#define sFONT_STR_WIDTH(n)    (n*sFONT_WIDTH)
+#define sFONT_STR_WIDTH(n)    ((n)*FONT_WIDTH)
 #define sFONT_STR_HEIGHT      8
 #define sFONT_GET_DATA(ch)    (  &x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
 #define sFONT_GET_WIDTH(ch)   (8-(x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&0x7))
@@ -718,7 +718,7 @@ extern const uint8_t x6x10_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           6
 #define sFONT_GET_HEIGHT     10
-#define sFONT_STR_WIDTH(n)   (n*sFONT_WIDTH)
+#define sFONT_STR_WIDTH(n)   ((n)*sFONT_WIDTH)
 #define sFONT_STR_HEIGHT     11
 #define sFONT_GET_DATA(ch)   (  &x6x10_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
 #define sFONT_GET_WIDTH(ch)  (8-(x6x10_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&0x7))
@@ -728,7 +728,7 @@ extern const uint8_t x7x11b_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           7
 #define sFONT_GET_HEIGHT     11
-#define sFONT_STR_WIDTH(n)   (n*sFONT_WIDTH)
+#define sFONT_STR_WIDTH(n)   ((n)*sFONT_WIDTH)
 #define sFONT_STR_HEIGHT     11
 #define sFONT_GET_DATA(ch)   (  &x7x11b_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
 #define sFONT_GET_WIDTH(ch)  (8-(x7x11b_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&7))
@@ -738,7 +738,7 @@ extern const uint8_t x11x14_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH          11
 #define sFONT_GET_HEIGHT     14
-#define sFONT_STR_WIDTH(n)   (n*sFONT_WIDTH)
+#define sFONT_STR_WIDTH(n)   ((n)*sFONT_WIDTH)
 #define sFONT_STR_HEIGHT     16
 #define sFONT_GET_DATA(ch)   (   &x11x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT  ])
 #define sFONT_GET_WIDTH(ch)  (14-(x11x14_bits[(ch-sFONT_START_CHAR)*2*sFONT_GET_HEIGHT+1]&0x7))
