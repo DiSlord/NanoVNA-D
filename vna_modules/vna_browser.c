@@ -27,7 +27,7 @@ static uint16_t browser_mode;
 // Buttons in browser
 enum {FILE_BUTTON_LEFT = 0, FILE_BUTTON_RIGHT, FILE_BUTTON_EXIT, FILE_BUTTON_DEL, FILE_BUTTON_FILE};
 
-#define SMALL_BUTTON_SIZE    (6 * FONT_WIDTH)
+#define SMALL_BUTTON_SIZE    FONT_STR_WIDTH(6)
 // Button position on screen
 typedef struct  {
   uint16_t x;
@@ -214,7 +214,7 @@ static void browser_draw_page(int page) {
   lcd_fill(0, LCD_HEIGHT - FILE_BOTTOM_HEIGHT, LCD_WIDTH, FILE_BOTTOM_HEIGHT);
 
   browser_draw_buttons();
-  lcd_printf(LCD_WIDTH / 2 - 3 * FONT_WIDTH, LCD_HEIGHT - (FILE_BOTTOM_HEIGHT + FONT_STR_HEIGHT) / 2, "- %u | %u -", page, page_count);
+  lcd_printf((LCD_WIDTH - FONT_STR_WIDTH(6)) / 2, LCD_HEIGHT - (FILE_BOTTOM_HEIGHT + FONT_STR_HEIGHT) / 2, "- %u | %u -", page, page_count);
   return;
 }
 

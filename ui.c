@@ -560,7 +560,7 @@ static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *dat
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
   lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
-  lcd_printf((LCD_WIDTH-18*FONT_WIDTH)/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
+  lcd_printf((LCD_WIDTH-FONT_STR_WIDTH(18))/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
   // Wait release, and fill data
   touch_wait_release();
   data[0] = last_touch_x;
@@ -682,7 +682,7 @@ static void ui_show_version(void) {
   uint32_t id2 = *(uint32_t *)0x1FFFF7B4; // MCU id2 address
   lcd_printf(x, y+= str_height, "SN: %08x-%08x-%08x", id0, id1, id2);
   lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
-  lcd_printf(LCD_WIDTH - 20*FONT_WIDTH, LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
+  lcd_printf(LCD_WIDTH - FONT_STR_WIDTH(20), LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
   y+=str_height*2;
 #ifdef QR_CODE_DRAW
   lcd_blitBitmapScale(LCD_WIDTH - 32*3, 5, 31, 31, 3, qr_code_map);
@@ -3297,7 +3297,7 @@ static void draw_numeric_area_frame(void) {
 }
 
 static void draw_numeric_input(const char *buf) {
-  uint16_t x = 14 + 12 * FONT_WIDTH;
+  uint16_t x = 14 + FONT_STR_WIDTH(12);
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
   uint16_t xsim;
 #ifdef __USE_RTC__
@@ -3329,13 +3329,13 @@ static void draw_text_input(const char *buf) {
 #if 0
   uint16_t x = 14 + 5 * FONT_WIDTH;
   uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
-  lcd_fill(x, y, FONT_WIDTH * 20, FONT_GET_HEIGHT);
+  lcd_fill(x, y, FONT_STR_WIDTH(20), FONT_GET_HEIGHT);
   lcd_printf(x, y, buf);
 #else
   int n = 2;
-  uint16_t x = 14 + 5 * FONT_WIDTH;
+  uint16_t x = 14 + FONT_STR_WIDTH(5);
   uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT*n + NUM_INPUT_HEIGHT)/2;
-  lcd_fill(x, y, FONT_WIDTH * 20 * n, FONT_GET_HEIGHT*n);
+  lcd_fill(x, y, FONT_STR_WIDTH(20) * n, FONT_GET_HEIGHT*n);
   lcd_drawstring_size(buf, x, y, n);
 #endif
 }

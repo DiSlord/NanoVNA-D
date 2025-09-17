@@ -528,6 +528,7 @@ static const uint8_t ST7796S_init_seq[] = {               // ST7996s init sequen
 //0xE9,               1, 0x00,                            // Set Image Func
   LCD_WRDISBV,        1, 0xFF,                            // Set Brightness to Max
 //0xF7,               4, 0xA9, 0x51, 0x2C, 0x82,          // Adjust Control ??
+//LCD_INVON,          1, 0x01,                            // Inverse colors
   LCD_SLPOUT,         0,                                  // sleep out
   LCD_DISPON,         0,                                  // display on
   0                                                       // sentinel
