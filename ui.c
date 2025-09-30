@@ -668,7 +668,7 @@ static void ui_show_version(void) {
   uint32_t id2 = *(uint32_t *)0x1FFFF7B4; // MCU id2 address
   lcd_printf(x, y+= str_height, "SN: %08x-%08x-%08x", id0, id1, id2);
   lcd_printf(x, y+= str_height, "TCXO = %q" S_Hz, config._xtal_freq);
-  lcd_printf(LCD_WIDTH - FONT_STR_WIDTH(20), LCD_HEIGHT - FONT_STR_HEIGHT - 2, "\002\026" "In memory of Maya" "\002\001");
+  lcd_printf(LCD_WIDTH - FONT_STR_WIDTH(20), LCD_HEIGHT - FONT_STR_HEIGHT - 2, SET_FGCOLOR(x16) "In memory of Maya" SET_FGCOLOR(x01));
   y+=str_height*2;
 #ifdef QR_CODE_DRAW
   lcd_blitBitmapScale(LCD_WIDTH - 32*3, 5, 31, 31, 3, qr_code_map);

@@ -795,23 +795,26 @@ enum {
 #endif
 
 // Render control chars
-#define R_BGCOLOR  "\001"  // hex 0x01 set background color
-#define R_FGCOLOR  "\002"  // hex 0x02 set foreground color
+#define R_BGCOLOR  "\x01"  // hex 0x01 set background color
+#define R_FGCOLOR  "\x02"  // hex 0x02 set foreground color
+// Set BG / FG color string macros
+#define SET_BGCOLOR(idx)   R_BGCOLOR #idx
+#define SET_FGCOLOR(idx)   R_FGCOLOR #idx
 
-#define R_TEXT_COLOR "\002\001" // set  1 color index as foreground
-#define R_LINK_COLOR "\002\031" // set 25 color index as foreground
+#define R_TEXT_COLOR       SET_FGCOLOR(\x01)  // set  1 color index as foreground
+#define R_LINK_COLOR       SET_FGCOLOR(\x19)  // set 25 color index as foreground
 
 // Additional chars in fonts
-#define S_ENTER    "\026"  // hex 0x16
-#define S_DELTA    "\027"  // hex 0x17
-#define S_SARROW   "\030"  // hex 0x18
-#define S_INFINITY "\031"  // hex 0x19
-#define S_LARROW   "\032"  // hex 0x1A
-#define S_RARROW   "\033"  // hex 0x1B
-#define S_PI       "\034"  // hex 0x1C
-#define S_MICRO    '\035'  // hex 0x1D
-#define S_OHM      "\036"  // hex 0x1E
-#define S_DEGREE   "\037"  // hex 0x1F
+#define S_ENTER    "\x16"  // hex 0x16
+#define S_DELTA    "\x17"  // hex 0x17
+#define S_SARROW   "\x18"  // hex 0x18
+#define S_INFINITY "\x19"  // hex 0x19
+#define S_LARROW   "\x1A"  // hex 0x1A
+#define S_RARROW   "\x1B"  // hex 0x1B
+#define S_PI       "\x1C"  // hex 0x1C
+#define S_MICRO    "\x1D"  // hex 0x1D
+#define S_OHM      "\x1E"  // hex 0x1E
+#define S_DEGREE   "\x1F"  // hex 0x1F
 #define S_SIEMENS  "S"     //
 #define S_dB       "dB"    //
 #define S_Hz       "Hz"    //
