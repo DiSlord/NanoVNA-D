@@ -89,21 +89,20 @@ typedef struct {
   char label[32];
 } button_t;
 
-
+// Save/Load formats enum
 #ifdef __USE_SD_CARD__
-// Save/Load format enum
 enum {
   FMT_S1P_FILE=0, FMT_S2P_FILE, FMT_BMP_FILE,
-#ifdef __SD_CARD_DUMP_TIFF__
+  #ifdef __SD_CARD_DUMP_TIFF__
   FMT_TIF_FILE,
-#endif
+  #endif
   FMT_CAL_FILE,
-#ifdef __SD_CARD_DUMP_FIRMWARE__
+  #ifdef __SD_CARD_DUMP_FIRMWARE__
   FMT_BIN_FILE,
-#endif
-#ifdef __SD_CARD_LOAD__
+  #endif
+  #ifdef __SD_CARD_LOAD__
   FMT_CMD_FILE,
-#endif
+  #endif
 };
 #endif
 
@@ -232,13 +231,13 @@ typedef void (*menuaction_acb_t)(uint16_t data, button_t *b);
 typedef struct {
   uint8_t type;
   uint8_t data;
-  char *label;
+  const char *label;
   const void *reference;
 } __attribute__((packed)) menuitem_t;
 
 static void ui_mode_normal(void);
 static void ui_mode_menu(void);
-static void ui_mode_keypad(int mode);
+static void ui_mode_keypad(int _keypad_mode);
 
 static void menu_draw(uint32_t mask);
 static void menu_move_back(bool leave_ui);
@@ -519,7 +518,7 @@ void ui_message_box(const char *header, const char *text, uint32_t delay) {
   int x , y;
   b.bg = LCD_MENU_COLOR;
   b.fg = LCD_MENU_TEXT_COLOR;
-  b.border = BUTTON_BORDER_FLAT|1;
+  b.border = BUTTON_BORDER_FLAT;
   if (header) {// Draw header
     ui_draw_button((LCD_WIDTH-MESSAGE_BOX_WIDTH)/2, LCD_HEIGHT/2-40, MESSAGE_BOX_WIDTH, 60, &b);
     x = (LCD_WIDTH-MESSAGE_BOX_WIDTH)/2 + 10;
@@ -545,7 +544,7 @@ static void getTouchPoint(uint16_t x, uint16_t y, const char *name, int16_t *dat
   // Clear screen and ask for press
   lcd_set_colors(LCD_FG_COLOR, LCD_BG_COLOR);
   lcd_clear_screen();
-  lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, touch_bitmap);
+  lcd_blitBitmap(x, y, TOUCH_MARK_W, TOUCH_MARK_H, (const uint8_t*)touch_bitmap);
   lcd_printf((LCD_WIDTH-FONT_STR_WIDTH(18))/2, (LCD_HEIGHT-FONT_GET_HEIGHT)/2, "TOUCH %s *", name);
   // Wait release, and fill data
   touch_wait_release();
@@ -954,7 +953,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_channel_acb) {
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_transform_window_acb) {
-  char *text = "";
+  const char *text = "";
   switch(props_mode & TD_WINDOW) {
     case TD_WINDOW_MINIMUM: text = "MINIMUM"; data = TD_WINDOW_NORMAL;  break;
     case TD_WINDOW_NORMAL:  text = "NORMAL";  data = TD_WINDOW_MAXIMUM; break;
@@ -1149,7 +1148,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_scale_keyboard_acb) {
   // Not apply amplitude / scale / ref for invalid or polar graph
   if (current_trace == TRACE_INVALID) return;
   uint32_t type_mask = 1<<trace[current_trace].type;
-//  if (type_mask & ROUND_GRID_MASK) return;
+  if ((type_mask & ROUND_GRID_MASK) && data != KM_SCALE) return;
   // Nano scale values
   uint32_t nano_keyb_type = (1<<KM_TOP) | (1<<KM_BOTTOM) | (1<<KM_SCALE);
   if ((type_mask & NANO_TYPE_MASK) && ((1<<data) & nano_keyb_type)) data++;
@@ -1522,9 +1521,9 @@ static FILE_LOAD_CALLBACK(load_snp) {
   return NULL;
 }
 
-//*******************************************************************************************
+//=====================================================================================================
 // Bitmap file header for LCD_WIDTH x LCD_HEIGHT image 16bpp (v4 format allow set RGB mask)
-//*******************************************************************************************
+//=====================================================================================================
 #define BMP_UINT32(val)  ((val)>>0)&0xFF, ((val)>>8)&0xFF, ((val)>>16)&0xFF, ((val)>>24)&0xFF
 #define BMP_UINT16(val)  ((val)>>0)&0xFF, ((val)>>8)&0xFF
 #define BMP_H1_SIZE      (14)                        // BMP header 14 bytes
@@ -1602,10 +1601,10 @@ static FILE_LOAD_CALLBACK(load_bmp) {
   return NULL;
 }
 
-#ifdef __SD_CARD_DUMP_TIFF__
-//*******************************************************************************************
+//=====================================================================================================
 // TIFF header for LCD_WIDTH x LCD_HEIGHT image 24bpp and RLE compression (packbits)
-//*******************************************************************************************
+//=====================================================================================================
+#ifdef __SD_CARD_DUMP_TIFF__
 #define IFD_ENTRY(type, val_t, count, value) \
            BMP_UINT16(type), \
            BMP_UINT16(val_t), \
@@ -1880,7 +1879,7 @@ static void ui_save_file(char *name, uint8_t format) {
   }
   else
     plot_printf(fs_filename, FF_LFN_BUF, "%s.%s", name, file_opt[format].ext);
-
+  // Create file
 //  systime_t time = chVTGetSystemTimeX();
   FRESULT res = ui_create_file(fs_filename);
   if (res == FR_OK) {
@@ -2006,7 +2005,7 @@ const menuitem_t menu_save[] = {
 #ifdef __SD_FILE_BROWSER__
   { MT_CALLBACK, FMT_CAL_FILE, "SAVE TO\n SD CARD", menu_sdcard_cb },
 #endif
-  { MT_ADV_CALLBACK, 0, "Empty %d", menu_save_acb },//87632
+  { MT_ADV_CALLBACK, 0, "Empty %d", menu_save_acb },
   { MT_ADV_CALLBACK, 1, "Empty %d", menu_save_acb },
   { MT_ADV_CALLBACK, 2, "Empty %d", menu_save_acb },
 #if SAVEAREA_MAX > 3
@@ -2660,9 +2659,9 @@ static void menu_invoke(int item) {
     menu_draw(-1);
 }
 
-//
-// UI Menu functions
-//
+//=====================================================================================================
+//                                      UI Menu processing
+//=====================================================================================================
 static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
   int i;
   int y = MENU_BUTTON_Y_OFFSET;
@@ -2675,12 +2674,12 @@ static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
     if (ui_mode == UI_MENU && i == selection) {
       button.bg = LCD_MENU_ACTIVE_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_FALLING;
-    } else{
+    } else {
       button.bg = LCD_MENU_COLOR;
       button.border = MENU_BUTTON_BORDER|BUTTON_BORDER_RISE;
     }
     // Custom button, apply custom settings/label from callback
-    char *text;
+    const char *text;
     uint16_t text_offs;
     if (m->type == MT_ADV_CALLBACK) {
       button.label[0] = 0;
@@ -2705,7 +2704,7 @@ static void menu_draw_buttons(const menuitem_t *m, uint32_t mask) {
 #if _USE_FONT_ != _USE_SMALL_FONT_
     if (menu_button_height < lines * FONT_GET_HEIGHT + 2) {
       lcd_set_font(FONT_SMALL);
-      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_GET_HEIGHT - 1)/2, text);
+      lcd_drawstring(text_offs, y+(menu_button_height - lines * sFONT_STR_HEIGHT - 1)/2, text);
     }
     else {
       lcd_set_font(FONT_NORMAL);
@@ -2946,7 +2945,7 @@ static const keypads_t keypads_nfloat[] = {
 };
 
 #if 0
-//  ADCD keyboard
+//  ABCD keyboard
 static const keypads_t keypads_text[] = {
   {40, TXT_KEYBOARD },   // 40 buttons TXT keyboard (10x4 size)
   {0x00, '0'}, {0x10, '1'}, {0x20, '2'}, {0x30, '3'}, {0x40, '4'}, {0x50, '5'}, {0x60, '6'}, {0x70, '7'}, {0x80, '8'}, {0x90, '9'},
@@ -3248,7 +3247,7 @@ static void keypad_draw_button(int id) {
   int y = p->y_offs + (keypads->buttons[id].pos&0xF) * p->height;
   ui_draw_button(x, y, p->width, p->height, &button);
   uint8_t ch = keypads->buttons[id].c;
-  if (ch == KP_EMPTY) return; // Empty button
+  if (ch == KP_EMPTY) return;
   if (keypads->type == NUM_KEYBOARD) {
     lcd_drawfont(ch,
                      x + (KP_WIDTH - NUM_FONT_GET_WIDTH) / 2,
@@ -3266,7 +3265,7 @@ static void keypad_draw_button(int id) {
   }
 }
 
-static void keypad_draw(void) {
+static void draw_keypad(void) {
   for(int i = 0; i < keypads->size; i++)
     keypad_draw_button(i);
 }
@@ -3398,8 +3397,8 @@ static void ui_mode_keypad(int mode) {
   keypads = keypad_type_list[keypads_mode_tbl[mode].keypad_type];
   selection = -1;
   kp_buf[0] = 0;
-//menu_draw(-1);
-  keypad_draw();
+//  menu_draw(-1);
+  draw_keypad();
   draw_numeric_area_frame();
 }
 
@@ -3422,7 +3421,7 @@ static void ui_keypad_touch(int touch_x, int touch_y) {
   uint8_t pos = (touch_y & 0x0F) | (touch_x<<4);
   for (int i = 0; i < keypads->size; i++) {
     if (keypads->buttons[i].pos != pos) continue;
-    if (keypads->buttons[i].c == KP_EMPTY) break; // Empty
+    if (keypads->buttons[i].c == KP_EMPTY) break;
     int old = selection;
     keypad_draw_button(selection = i);  // draw new focus
     keypad_draw_button(old);            // Erase old focus
@@ -3462,6 +3461,7 @@ static void ui_keypad_lever(uint16_t status) {
 static void ui_mode_normal(void) {
   if (ui_mode == UI_NORMAL)
     return;
+
   set_area_size(AREA_WIDTH_NORMAL, AREA_HEIGHT_NORMAL);
   if (ui_mode == UI_MENU)
     request_to_draw_cells_behind_menu();
@@ -3640,7 +3640,7 @@ static bool touch_apply_ref_scale(int touch_x, int touch_y) {
   // do not scale invalid or smith chart
   if (t == TRACE_INVALID || trace[t].type == TRC_SMITH) return FALSE;
   if (touch_x < UI_SCALE_REF_X0 || touch_x > UI_SCALE_REF_X1 ||
-      touch_y < OFFSETY     || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
+      touch_y < OFFSETY         || touch_y > AREA_HEIGHT_NORMAL) return FALSE;
   float ref   = get_trace_refpos(t);
   float scale = get_trace_scale(t);
 
