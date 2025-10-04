@@ -425,7 +425,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
       if (state & COMPLEX)
         *p++ = 'j';
       if (value.f == infinityf()){
-        *p++ = 0x19; *p++ = ' ';
+        *p++ = S_INFINITY[0]; *p++ = ' ';
         break;
       }
       // Set default precision
