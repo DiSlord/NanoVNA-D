@@ -656,12 +656,6 @@ void tlv320aic3204_write_reg(uint8_t page, uint8_t reg, uint8_t data);
 #define KPF_Y_OFFSET             (LCD_HEIGHT - NUM_INPUT_HEIGHT - 4 * KPF_HEIGHT)  // text keypad Y offset
 #endif
 
-/*
- * Font size defines
- */
-#define FONT_SMALL           0
-#define FONT_NORMAL          1
-
 #if _USE_FONT_ == 0
 extern const uint8_t x5x7_bits[];
 #define FONT_START_CHAR   0x16
@@ -708,7 +702,7 @@ extern const uint8_t x5x7_bits[];
 #define sFONT_START_CHAR   0x16
 #define sFONT_WIDTH           5
 #define sFONT_GET_HEIGHT      7
-#define sFONT_STR_WIDTH(n)    ((n)*FONT_WIDTH)
+#define sFONT_STR_WIDTH(n)    ((n)*sFONT_WIDTH)
 #define sFONT_STR_HEIGHT      8
 #define sFONT_GET_DATA(ch)    (  &x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT])
 #define sFONT_GET_WIDTH(ch)   (8-(x5x7_bits[(ch-sFONT_START_CHAR)*sFONT_GET_HEIGHT]&0x7))
@@ -745,9 +739,11 @@ extern const uint8_t x11x14_bits[];
 #endif
 
 #if _USE_FONT_ != _USE_SMALL_FONT_
-void    lcd_set_font(int type);
+ // Font type defines
+ enum {FONT_SMALL = 0, FONT_NORMAL};
+ void    lcd_set_font(int type);
 #else
-#define lcd_set_font(type) {}
+ #define lcd_set_font(type) {}
 #endif
 
 extern const uint8_t numfont16x22[];
