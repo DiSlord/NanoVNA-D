@@ -843,7 +843,7 @@ static UI_FUNCTION_CALLBACK(menu_config_cb) {
 #endif
   }
   ui_mode_normal();
-  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_ALL);
 }
 
 #ifdef __DFU_SOFTWARE_MODE__
@@ -1026,7 +1026,7 @@ const vna_mode_data_t vna_mode_data[] = {
   [VNA_MODE_BACKUP]      = {0,                     REDRAW_BACKUP},
 #endif
 #ifdef __FLIP_DISPLAY__
-  [VNA_MODE_FLIP_DISPLAY]= {0,                     REDRAW_BACKUP | REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY},
+  [VNA_MODE_FLIP_DISPLAY]= {0,                     REDRAW_BACKUP | REDRAW_ALL},
 #endif
 #ifdef __DIGIT_SEPARATOR__
   [VNA_MODE_SEPARATOR]   = {"DOT '.'\0COMMA ','",  REDRAW_BACKUP | REDRAW_MARKER | REDRAW_FREQUENCY},
@@ -3467,10 +3467,10 @@ static void ui_mode_normal(void) {
     request_to_draw_cells_behind_menu();
 #ifdef __SD_FILE_BROWSER__
   if (ui_mode == UI_KEYPAD || ui_mode == UI_BROWSER)
-    request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+    request_to_redraw(REDRAW_ALL);
 #else
   if (ui_mode == UI_KEYPAD)
-    request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+    request_to_redraw(REDRAW_ALL);
 #endif
   ui_mode = UI_NORMAL;
 }

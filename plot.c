@@ -1785,6 +1785,6 @@ void request_to_redraw(uint16_t mask) {
 }
 
 void plot_init(void) {
-  request_to_redraw(REDRAW_AREA | REDRAW_PLOT | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_PLOT | REDRAW_ALL);
   draw_all();
 }

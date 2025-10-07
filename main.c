@@ -2332,7 +2332,7 @@ VNA_SHELL_FUNCTION(cmd_touchcal)
   shell_printf("done" VNA_SHELL_NEWLINE_STR \
                "touch cal params: %d %d %d %d" VNA_SHELL_NEWLINE_STR,
                config._touch_cal[0], config._touch_cal[1], config._touch_cal[2], config._touch_cal[3]);
-  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_BATTERY | REDRAW_CAL_STATUS | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_ALL);
 }
 
 VNA_SHELL_FUNCTION(cmd_touchtest)
@@ -2648,7 +2648,7 @@ VNA_SHELL_FUNCTION(cmd_color)
   color = RGBHEX(my_atoui(argv[1]));
   config._lcd_palette[i] = color;
   // Redraw all
-  request_to_redraw(REDRAW_CLRSCR | REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY);
+  request_to_redraw(REDRAW_ALL);
 }
 #endif
 

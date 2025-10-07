@@ -1094,18 +1094,21 @@ const char *get_smith_format_names(int m);
 void marker_search(void);
 void marker_search_dir(int16_t from, int16_t dir);
 
-// _request flag for update screen
-#define REDRAW_PLOT       (1<<0)
-#define REDRAW_FREQUENCY  (1<<1)
-#define REDRAW_CAL_STATUS (1<<2)
-#define REDRAW_MARKER     (1<<3)
-#define REDRAW_REFERENCE  (1<<4)
-#define REDRAW_GRID_VALUE (1<<5)
-#define REDRAW_BATTERY    (1<<6)
-#define REDRAW_AREA       (1<<7)
-#define REDRAW_CLRSCR     (1<<8)
-#define REDRAW_BACKUP     (1<<9)
-#define REDRAW_CELLS      (1<<10)
+// Plot Redraw flags.
+#define REDRAW_PLOT       (1<< 0) // Update all trace indexes in plot area
+#define REDRAW_AREA       (1<< 1) // Redraw all plot area
+#define REDRAW_CELLS      (1<< 2) // Redraw only updated cells
+#define REDRAW_FREQUENCY  (1<< 3) // Redraw Start/Stop/Center/Span frequency, points count, Avg/IFBW
+#define REDRAW_CAL_STATUS (1<< 4) // Redraw calibration status (left screen part)
+#define REDRAW_MARKER     (1<< 5) // Redraw marker plates and text
+#define REDRAW_REFERENCE  (1<< 6) // Redraw reference
+#define REDRAW_GRID_VALUE (1<< 7) // Redraw grid values
+#define REDRAW_BATTERY    (1<< 8) // Redraw battery state
+#define REDRAW_CLRSCR     (1<< 9) // Clear all screen before redraw
+#define REDRAW_BACKUP     (1<<10) // Update backup information
+
+// Set this if need update all screen
+#define REDRAW_ALL   (REDRAW_CLRSCR | REDRAW_AREA | REDRAW_CAL_STATUS | REDRAW_BATTERY | REDRAW_FREQUENCY)
 
 /*
  * ili9341.c
