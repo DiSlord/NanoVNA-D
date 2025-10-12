@@ -1394,9 +1394,9 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb) {
   }
   int16_t value = config._brightness;
   lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_MENU_COLOR);
-  lcd_fill(LCD_WIDTH/2-12*FONT_WIDTH, LCD_HEIGHT/2-20, 23*FONT_WIDTH, 40);
-  lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
-  lcd_printf(LCD_WIDTH/2-11*FONT_WIDTH, LCD_HEIGHT/2+2, S_LARROW " USE LEVELER BUTTON " S_RARROW);
+  lcd_fill(LCD_WIDTH/2-FONT_STR_WIDTH(12), LCD_HEIGHT/2-20, FONT_STR_WIDTH(23), 40);
+  lcd_printf(LCD_WIDTH/2-FONT_STR_WIDTH(8), LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
+  lcd_printf(LCD_WIDTH/2-FONT_STR_WIDTH(11), LCD_HEIGHT/2+2, S_LARROW " USE LEVELER BUTTON " S_RARROW);
   while (TRUE) {
     uint16_t status = btn_check();
     if (status & (EVT_UP|EVT_DOWN)) {
@@ -1405,7 +1405,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb) {
         if (status & EVT_DOWN) value-=5;
         if (value <   0) value =   0;
         if (value > 100) value = 100;
-        lcd_printf(LCD_WIDTH/2-8*FONT_WIDTH, LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
+        lcd_printf(LCD_WIDTH/2-FONT_STR_WIDTH(8), LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
         lcd_setBrightness(value);
         chThdSleepMilliseconds(200);
       } while ((status = btn_wait_release()) != 0);
@@ -3311,7 +3311,7 @@ static void draw_numeric_input(const char *buf) {
 static void draw_text_input(const char *buf) {
   lcd_set_colors(LCD_INPUT_TEXT_COLOR, LCD_INPUT_BG_COLOR);
 #if 0
-  uint16_t x = 14 + 5 * FONT_WIDTH;
+  uint16_t x = 14 + FONT_STR_WIDTH(5);
   uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT + NUM_INPUT_HEIGHT)/2;
   lcd_fill(x, y, FONT_STR_WIDTH(20), FONT_GET_HEIGHT);
   lcd_printf(x, y, buf);
