@@ -1018,6 +1018,7 @@ void ili9341_test(int mode) {
 // Definitions for MMC/SDC command
 #define CMD0     (0x40+0)     // GO_IDLE_STATE
 #define CMD1     (0x40+1)     // SEND_OP_COND
+#define CMD6     (0x40+6)     // SWITCH_FUNC
 #define CMD8     (0x40+8)     // SEND_IF_COND
 #define CMD9     (0x40+9)     // SEND_CSD
 #define CMD10    (0x40+10)    // SEND_CID
@@ -1036,11 +1037,12 @@ void ili9341_test(int mode) {
 #define ACMD41   (0xC0+41)    // SEND_OP_COND (ACMD)
 
 // MMC card type and status flags
-#define CT_MMC       0x01      // MMC v3
-#define CT_SD1       0x02      // SDv1
-#define CT_SD2       0x04      // SDv2
-#define CT_SDC       0x06      // SD
+#define CT_SD1       0x01      // SD Ver 1.X Standard Capacity
+#define CT_SD2       0x02      // SD Ver 2.0 and later Standard Capacity
+#define CT_MMC       0x03      // MMC
 #define CT_BLOCK     0x08      // Block addressing
+#define CT_HS50      0x10      // High Speed flag (50MHz)
+#define CT_CARD_IN   0x20      // Card in slot
 #define CT_WRPROTECT 0x40      // Write protect flag
 #define CT_POWER_ON  0x80      // Power ON flag
 
@@ -1407,6 +1409,15 @@ static uint8_t SD_SendCmd(uint8_t cmd, uint32_t arg) {
   return r1;
 }
 
+#if 0
+// Transmit command to SD and receive data
+static uint8_t SD_SendCmdData(uint8_t cmd, uint32_t arg, void *buff, int size) {
+  uint8_t sts = SD_SendCmd(cmd, arg);
+  if (sts) return sts;
+  return SD_RxDataBlock((uint8_t*)buff, size, SD_TOKEN_START_BLOCK) ? 0 : 1;
+}
+#endif
+
 //*******************************************************
 //       diskio.c functions for file system library
 //*******************************************************
@@ -1465,13 +1476,6 @@ DSTATUS disk_initialize(BYTE pdrv) {
 #if defined(SD_USE_COMMAND_CRC) && defined(SD_USE_DATA_CRC)
       SD_SendCmd(CMD59, 1); // Enable CRC check on card
 #endif
-//      uint8_t csd[16];
-//      if (SD_SendCmd(CMD9, 0) == 0 && SD_RxDataBlock(csd, 16, SD_TOKEN_START_BLOCK)){
-//        DEBUG_PRINT(" CSD =");
-//        for (int i = 0; i<16; i++)
-//          DEBUG_PRINT(" %02x", csd[i]);
-//        DEBUG_PRINT("\r\n");
-//      }
     } else { // SDC V1 or MMC
       uint8_t cmd = (SD_SendCmd(ACMD41, 0) <= 1) ? ACMD41 : CMD1; // cmd for idle state
       DEBUG_PRINT(" CMD8 Fail, cmd = 0x%02x\r\n", cmd);
@@ -1481,6 +1485,39 @@ DSTATUS disk_initialize(BYTE pdrv) {
         type = cmd == ACMD41 ? CT_SD1 : CT_MMC;
       DEBUG_PRINT(" CMD16 %d %d\r\n", cnt, type);
     }
+#if 0 // Switch to High Speed mode (Allow run up to 50MHz, default speed up to 25MHz)
+    // CMD6 group 1 access mode (speed)
+    //      group 2 command system
+    //      group 3 driver strength
+    //      group 4 power limit
+    //      group 5 and 6 reserved
+    uint8_t buff[16*4];
+    uint32_t group = 1, speed = 1, argument = 0x00FFFFFF;
+    argument &= ~(0xF << ((group - 1) * 4));
+    argument |= speed << ((group - 1) * 4);
+    if (SD_SendCmdData(CMD6, (1 << 31) | argument, buff, 16*4) == 0) {
+      if ((buff[16] & 0x0F) == speed) CardStatus|= CT_HS50;
+      for (int i = 0; i < 16*4; i++) {DEBUG_PRINT(" %02x", buff[i]); if ((i&0xF) == 0xF) DEBUG_PRINT("\r\n");}
+    }
+#endif
+#if 0
+    uint8_t csd[16];
+    if (SD_SendCmdData(CMD9, 0, csd, 16) == 0) {
+      // Read CSD, and detect card sectors count
+   	  DEBUG_PRINT(" CSD =");
+      for (int i = 0; i < 16; i++) {DEBUG_PRINT(" %02x", csd[i]);} DEBUG_PRINT("\r\n");
+      uint32_t n, csize;
+      if ((csd[0] >> 6) == 1)  {                                                           // SDHC or SDEC V2 format
+        csize = ((uint32_t)csd[7]<<16)|((uint32_t)csd[8]<< 8)|((uint32_t)csd[9]<< 0);      //  C_SIZE [69:48] (on V2 additional 6 bits reserved and = 0)
+        n = 10;                                                                            //  Mult = 1<<10
+      }
+      else {                                                                               // MMC or SDC V1
+        csize = ((uint32_t)(csd[6]&0x3)<<10)|((uint32_t)csd[7]<<2)|((uint32_t)csd[8]>>6);  //  C_SIZE [73:62]
+        n = (csd[5]&0x0F) + (((csd[9]&0x3)<<1)|(csd[10]>>7)) + 2 - 9;                      //  Mult = 1<<(READ_BL_LEN[83:80] + C_SIZE_MULT[49:47] + 2 - 9)
+      }
+      CardSectors = (csize+1)<<n;
+    }
+#endif
   }
   SD_Unselect_SPI();
   DEBUG_PRINT("CardType %d\r\n", type);
@@ -1629,22 +1666,8 @@ DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff) {
     // This command is used by f_mkfs and f_fdisk function to determine the size of volume/partition to be created.
     // It is required when FF_USE_MKFS == 1.
     case GET_SECTOR_COUNT:
-    {
-      // SEND_CSD
-      uint8_t csd[16];
-      if ((SD_SendCmd(CMD9, 0) == 0) && SD_RxDataBlock(csd, 16, SD_TOKEN_START_BLOCK)) {
-        uint32_t n, csize;
-        if ((csd[0] >> 6) == 1)  {  // SDC V2
-          csize = ((uint32_t)csd[7]<<16)|((uint32_t)csd[8]<< 8)|((uint32_t)csd[9]<< 0);
-          n = 10;
-        }
-        else {                      // MMC or SDC V1
-          csize = ((uint32_t)csd[8]>>6)+((uint32_t)csd[7]<<2)+((uint32_t)(csd[6]&0x03)<<10);
-          n = (csd[5]&0x0F)+((csd[10]&0x80)>>7)+((csd[9]&0x03)<<1) + 2 - 9;
-        }
-        *(uint32_t*)buff = (csize+1)<<n;
-        res = RES_OK;
-      }
+      *(uint32_t*)buff = CardSectors;
+      res = RES_OK;
     }
     break;
 #endif
