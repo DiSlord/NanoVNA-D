@@ -1084,9 +1084,7 @@ static uint8_t data_update = 0;
 #define MEASURE_UPD_ALL    (MEASURE_UPD_SWEEP | MEASURE_UPD_FREQ)
 
 // Include measure functions
-#ifdef __VNA_MEASURE_MODULE__
-  #include "measure.c"
-#endif
+#include "measure.c"
 
 static const struct {
   uint8_t option;
@@ -1116,6 +1114,12 @@ static inline void measure_set_flag(uint8_t flag) {
   data_update|= flag;
 }
 
+static inline bool measure_enable(void) {
+  if (current_props._measure >= MEASURE_END) return false;     // Wrong mode
+  if ((props_mode & DOMAIN_MODE) == DOMAIN_TIME) return false; // Not in TDR mode
+  return true;
+}
+
 void plot_set_measure_mode(uint8_t mode) {
   if (mode >= MEASURE_END) return;
   current_props._measure = mode;
@@ -1128,7 +1132,7 @@ uint16_t plot_get_measure_channels(void) {
 }
 
 static void measure_prepare(void) {
-  if (current_props._measure >= MEASURE_END) return;
+  if (!measure_enable()) return;
   measure_prepare_cb_t measure_cb = measure[current_props._measure].measure_prepare;
   // Do measure and cache data only if update flags some
   if (measure_cb && (data_update & measure[current_props._measure].update))
@@ -1137,7 +1141,7 @@ static void measure_prepare(void) {
 }
 
 static void cell_draw_measure(int x0, int y0) {
-  if (current_props._measure >= MEASURE_END) return;
+  if (!measure_enable()) return;
   measure_cell_cb_t measure_draw_cb = measure[current_props._measure].measure_cell;
   if (measure_draw_cb) {
     lcd_set_colors(LCD_MEASURE_COLOR, LCD_BG_COLOR);
