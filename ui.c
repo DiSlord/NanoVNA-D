@@ -1883,9 +1883,9 @@ static void ui_save_file(char *name, uint8_t format) {
 //  systime_t time = chVTGetSystemTimeX();
   FRESULT res = ui_create_file(fs_filename);
   if (res == FR_OK) {
-    //  uint32_t t = getSystemTime();
+//    systime_t t = chVTGetSystemTimeX();
     res = save(fs_file, format);
-    //  log_printf("dump = %d\n", getSystemTime() - t);
+//    lcd_printfV(1, 1, "%d\n", chVTGetSystemTimeX() - t);
     f_close(fs_file);
 //    time = chVTGetSystemTimeX() - time;
 //    shell_printf("Total time: %dms (write %d byte/sec)\r\n", time/10, total_size*10000/time);
