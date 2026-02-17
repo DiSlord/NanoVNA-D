@@ -480,7 +480,7 @@ static float logmag(int i, const float *v) {
 //**************************************************************************************
 static float phase(int i, const float *v) {
   (void) i;
-  return (180.0f / VNA_PI) * vna_atan2f(v[1], v[0]);
+  return vna_atan2f_deg(v[1], v[0]);
 }
 
 //**************************************************************************************
@@ -491,9 +491,9 @@ static float groupdelay(const float *v, const float *w, uint32_t deltaf) {
   // atan(w)-atan(v) = atan((w-v)/(1+wv)), for complex v and w result q = v / w
   float r = w[0]*v[0] + w[1]*v[1];
   float i = w[0]*v[1] - w[1]*v[0];
-  return vna_atan2f(i, r) / (2 * VNA_PI * deltaf);
+  return vna_atan2f_deg(i, r) / (360.0f * deltaf);
 #else
-  return (vna_atan2f(w[0], w[1]) - vna_atan2f(v[0], v[1])) / (2 * VNA_PI * deltaf);
+  return (vna_atan2f_deg(w[0], w[1]) - vna_atan2f_deg(v[0], v[1])) / (360.0f * deltaf);
 #endif
 }
 
@@ -557,7 +557,7 @@ static float phase_z(int i, const float *v) {
   (void) i;
   const float r = 1.0f - get_l(v[0], v[1]);
   const float x = 2.0f * v[1];
-  return (180.0f / VNA_PI) * vna_atan2f(x, r);
+  return vna_atan2f_deg(x, r);
 }
 
 //**************************************************************************************
@@ -739,7 +739,7 @@ const trace_info_t trace_info_list[MAX_TRACE_TYPE] = {
 [TRC_DELAY]  = {"DELAY",  "%.4F%s",         "%.4F%s", S_SECOND, NGRIDY/2,  1e-9f, groupdelay_from_array},
 [TRC_SMITH]  = {"SMITH",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
 [TRC_POLAR]  = {"POLAR",      NULL,             NULL, "",              0,  1.00f, NULL                 }, // Custom
-[TRC_LINEAR] = {"LINEAR", "%.6f%s", S_DELTA "%.5f%s", "",              0, 0.125f, linear               },
+[TRC_LINEAR] = {"LINEAR", "%.4F%s", S_DELTA "%.4F%s", "",              0, 0.125f, linear               },
 [TRC_SWR]    = {"SWR",    "%.3f%s", S_DELTA "%.3f%s", "",              0,  0.25f, swr                  },
 [TRC_REAL]   = {"REAL",   "%.6f%s", S_DELTA "%.5f%s", "",       NGRIDY/2,  0.25f, real                 },
 [TRC_IMAG]   = {"IMAG",   "%.6fj%s",S_DELTA "%.5fj%s","",       NGRIDY/2,  0.25f, imag                 },
