@@ -250,10 +250,6 @@
 // Speed of light const
 #define SPEED_OF_LIGHT           299792458
 
-// pi const
-#define VNA_PI                   3.14159265358979323846f
-#define VNA_TWOPI                6.28318530717958647692f
-
 // Define frequency range (can be unsigned)
 typedef uint32_t freq_t;
 

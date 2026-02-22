@@ -198,7 +198,7 @@ static uint32_t reverse_bits(uint32_t x, int n) {
    __asm volatile ("rbit %0, %1" : "=r" (result) : "r" (x) );
   return result>>(32-n); // made shift for correct result
 }
-#elif 1 // Use shifts
+#elif 0 // Use shifts
 static uint32_t reverse_bits(uint32_t x, int n) { // up to 16 bit
   x = ((x & 0x5555) << 1) | ((x & 0xAAAA) >> 1);
   x = ((x & 0x3333) << 2) | ((x & 0xCCCC) >> 2);
@@ -679,16 +679,13 @@ float vna_atan2f (float y, float x) {
   r = (ay < ax) ? ay / ax : ax / ay;
   s = r * r;
   // Polynomial approximation to atan(a) on [0,1]
-#if 0
-  // give 0.31 degree error
+#if 0   // give 0.31 degree error
   r*= 0.970562748477141f - 0.189514164974601f * s;
   //r*= vna_fmaf(s, -0.189514164974601f, 0.970562748477141f);
-#elif 0
-  // give 0.04 degree error
+#elif 0 // give 0.04 degree error
   r*= 0.994949366116654f + s * (-0.287060635532652f + 0.078037176446441f * s);
   //r*= vna_fmaf(s, vna_fmaf(s, 0.078037176446441f, -0.287060635532652f), 0.994949366116654f);
-#else
-  // give 0.005 degree error
+#else   // give 0.005 degree error
   r*= 0.999133448222780f + s * (-0.320533292381664f + s * (0.144982490144465f + s * -0.038254464970299f));
   //r*= vna_fmaf(s, vna_fmaf(s, vna_fmaf(s, -0.038254464970299f, 0.144982490144465f), -0.320533292381664f), 0.999133448222780f);
 #endif
@@ -743,8 +740,8 @@ float vna_expf(float x) {
   int32_t m = (v.i >> 7) & 0xFFFF;  // copy mantissa
 #if 0  // cubic spline approximation, empirical values for small maximum relative error (8.34e-5):
   v.i += ((((((((1277*m) >> 14) + 14825)*m) >> 14) - 79749)*m) >> 11) - 626;
-#else  // quartic spline approximation, empirical values for small maximum relative error (1.21e-5):
-  v.i += (((((((((((3537*m) >> 16) + 13668)*m) >> 18) + 15817)*m) >> 14) - 80470)*m) >> 11);
+#else  // quartic spline approximation, empirical values for small maximum relative error (1e-5):
+  v.i += (((((((((((903*m) >> 14) + 13521)*m) >> 18) + 15838)*m) >> 14) - 80482)*m) >> 11);
 #endif
   return v.f;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2021, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2026, Dmitry (DiSlord) dislordlive@gmail.com
  * All rights reserved.
  * 
  * This is free software; you can redistribute it and/or modify
@@ -25,9 +25,9 @@
 #ifndef __FPU_PRESENT
 #define __FPU_PRESENT  0
 #endif
-#ifndef __FPU_USED
-#define __FPU_USED     0
-#endif
+
+#define VNA_PI                   3.14159265358979323846f
+#define VNA_TWOPI                6.28318530717958647692f
 
 // VNA math used library
 #ifdef __USE_VNA_MATH__
@@ -52,7 +52,7 @@ float vna_log10f_x_10(float x);
 float vna_expf(float x);
 // atan
 float vna_atanf(float x);
-float vna_atan2f(float x, float y);
+float vna_atan2f(float y, float x);
 //#define vna_atan2f_deg(y,x) (vna_atan2f(y,x) * (180.0f / VNA_PI))
 float vna_atan2f_deg(float y, float x);
 // modff
