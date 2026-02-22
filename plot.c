@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
- * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
+ * Copyright (c) 2019-2026, Dmitry (DiSlord) dislordlive@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -198,7 +197,7 @@ static uint16_t grid_offset;  // .GRID_BITS fixed point value
 static uint16_t grid_width;   // .GRID_BITS fixed point value
 
 void update_grid(freq_t fstart, freq_t fstop) {
-  uint32_t k, N = 4;
+  uint32_t k, N = 4;               // N - minimum segments count
   freq_t fspan = fstop - fstart;
   if (fspan == 0) {grid_offset = grid_width = 0; return; }
   freq_t dgrid = 1000000000, grid; // Max grid step = pattern * 1GHz grid
@@ -229,7 +228,7 @@ static inline int rectangular_grid_y(uint32_t y) {
 // Cell render functions
 //**************************************************************************************
 #ifdef __VNA_FAST_RENDER__
-// Little faster on easy traces, 2x faster if need lot of clipping and draw long lines
+// Little faster on easy traces, 8x faster if need lot of clipping and draw long lines
 // Bitmaps draw, 2x faster, but limit width <= 32
 #include "vna_modules/vna_render.c"
 #else
@@ -889,29 +888,21 @@ static bool needProcessTrace(uint16_t idx) {
 // Give a little speedup then draw rectangular plot
 // Write more difficult algorithm for search indexes not give speedup
 //**************************************************************************************
-static int search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1) {
-  int i;
-  int head = 0, tail = sweep_points;
-  // Search index point in cell
-  while (1) {
-    i = (head + tail)>>1;
-    if (index[i].x >= x2) { // index after cell
-      if (tail == i)
-        return false;
-      tail = i;
-    }
-    else if (index[i].x < x1) {    // index before cell
-      if (head == i)
-        return false;
-      head = i;
-    }
-    else  // index in cell (x =< idx_x < cell_end)
-      break;
-  }
-  *i0 = *i1 = i;
-  while (*i0 >              0 && x1 <= index[--*i0].x); // Search index left from point
-  while (*i1 < sweep_points-1 && x2 >  index[++*i1].x); // Search index right from point
-  return TRUE;
+static void search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1) {
+  int lo = 0, hi = sweep_points-1, mid;
+  do { // search first index[hi].x >= x2
+    mid = (lo + hi) >> 1;
+    if (index[mid].x >= x2) hi = mid;
+    else                    lo = mid;
+  } while (lo + 1 < hi);
+  *i1 = hi;
+  lo = 0;
+  do { // search last index[lo].x < x1
+    mid = (lo + hi) >> 1;
+    if (index[mid].x < x1) lo = mid;
+    else                   hi = mid;
+  } while (lo + 1 < hi);
+  *i0 = lo;
 }
 
 //**************************************************************************************
@@ -1481,7 +1472,7 @@ static void draw_cell(int x0, int y0) {
     index_t *index = trace_index[t];
     int i0 = 0, i1 = 0;
     // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace && sweep_points > 30){
+    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace){
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
     } else { // draw polar plot (check all points)
       i1 = sweep_points - 1;

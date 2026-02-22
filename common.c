@@ -149,10 +149,11 @@ int get_str_index(const char *v, const char *list) {
  * Search first symbols (s2) entry in string (s1)
  */
 static inline char* _strpbrk(char *s1, const char *s2) {
-  do {
+  while(*s1) {
     const char *s = s2;
     while(*s) if (*s++ == *s1) return s1;
-  } while(*++s1);
+    s1++;
+  }
   return s1;
 }
 
@@ -191,10 +192,10 @@ void swap_bytes(uint16_t *buf, int size) {
  */
 int packbits(char *source, char *dest, int size) {
   int i = 0, rle, l, pk = 0, sz = 0;
-  while ((l = size - i) > 0) {
-    if (l > 128) l = 128;                              // Limit search RLE block size to 128
+  while (i < size) {
+    l = size - i; if (l > 128) l = 128;                // Limit search RLE block size to 128
     char c = source[i++];                              // Get next byte and write to block
-    for (rle = 0; c == source[i + rle] && --l; rle++); // Calculate this byte RLE sequence size = rle + 1
+    for (rle = 0; --l && c == source[i + rle];) rle++; // Calculate this byte RLE sequence size = rle + 1
     if (sz && rle < 2) rle = 0;                        // Ignore (rle + 1) < 3 sequence on run non RLE input
     else if (sz == 0 || rle > 0) sz = pk++;            // Reset state or RLE sequence found -> start new block
     dest[pk++] = c;                                    // Write char to block
