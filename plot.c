@@ -110,7 +110,7 @@ static int circle_inout(int x, int y, int r) {
   return 0;                 // draw circle area
 }
 
-static int smith_grid3(int x, int y) {
+static int smith_grid(int x, int y) {
   int r = P_RADIUS;
   int d = circle_inout(x, y, r);
   if (d <  0) return 0;               // outer area
@@ -197,7 +197,7 @@ static uint16_t grid_offset;  // .GRID_BITS fixed point value
 static uint16_t grid_width;   // .GRID_BITS fixed point value
 
 void update_grid(freq_t fstart, freq_t fstop) {
-  uint32_t k, N = 4;               // N - minimum segments count
+  uint32_t k, N = 4;
   freq_t fspan = fstop - fstart;
   if (fspan == 0) {grid_offset = grid_width = 0; return; }
   freq_t dgrid = 1000000000, grid; // Max grid step = pattern * 1GHz grid
@@ -356,7 +356,7 @@ static msg_t cellPut(void *ip, uint8_t ch) {
 }
 
 // Simple print in buffer function
-static int cell_printf(int x, int y, const char *fmt, ...) {
+static int cell_printf(int32_t x, int32_t y, const char *fmt, ...) {
   static const struct lcd_printStreamVMT {
     _base_sequential_stream_methods
   } cell_vmt = {NULL, NULL, cellPut, NULL};
@@ -441,7 +441,7 @@ static void invalidate_rect_func(int x0, int y0, int x1, int y1) {
 #endif
 // Help functions
 static float get_l(float re, float im) {return (re*re + im*im);}
-static float get_w(int i) {return 2 * VNA_PI * getFrequency(i);}
+static float get_w(int i) {return 2.0f * VNA_PI * getFrequency(i);}
 static float get_s11_r(float re, float im, float z) {return vna_fabsf(2.0f * z * re / get_l(re, im) - z);}
 static float get_s21_r(float re, float im, float z) {return  1.0f * z * re / get_l(re, im) - z;}
 static float get_s11_x(float re, float im, float z) {return -2.0f * z * im / get_l(re, im);}
@@ -1378,7 +1378,7 @@ static void draw_cell(int x0, int y0) {
 #if 0
   // use memset 350 system ticks for all screen calls
   // as understand it use 8 bit set, slow down on 32 bit systems
-  memset(spi_buffer, GET_PALTETTE_COLOR(LCD_BG_COLOR), (h*CELLWIDTH)*sizeof(uint16_t));
+  memset(cell_buffer, GET_PALTETTE_COLOR(LCD_BG_COLOR), (h*CELLWIDTH)*sizeof(uint16_t));
 #else
   // use direct set  35 system ticks for all screen calls
 #if CELLWIDTH%8 != 0
@@ -1426,7 +1426,7 @@ static void draw_cell(int x0, int y0) {
     }
   }
   c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
-  // Draw rectangular plot (40 system ticks for all screen calls)
+  // Draw rectangular plot
   if (trace_type & RECTANGULAR_GRID_MASK) {
     const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
     for (x = 0; x < w; x++) {
@@ -1548,7 +1548,6 @@ static void draw_cell(int x0, int y0) {
         *dst++ = *src++;
   }
 #endif
-  // Draw cell (500 system ticks for all screen calls)
   lcd_bulk_continue(OFFSETX + x0, OFFSETY + y0, w, h);
 }
 
@@ -1566,7 +1565,7 @@ static void draw_all_cells(void) {
 #endif
 #if 1
 //  START_PROFILE
-  for (n = 0; n < h; n++){
+  for (n = 0; n < h; n++) {
     map_t update_map = markmap[n];
     for (m = 0; update_map && m < w; update_map>>=1, m++)
       if (update_map & 1)
