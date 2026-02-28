@@ -786,41 +786,36 @@ void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, con
 #endif
 }
 
-void lcd_drawchar(uint8_t ch, int x, int y) {
-  lcd_blitBitmap(x, y, FONT_GET_WIDTH(ch), FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+//********************************************************************
+//          Draw symbol functions
+//********************************************************************
+int lcd_drawchar(uint8_t ch, int x, int y) {
+  uint16_t w = FONT_GET_WIDTH(ch);
+  uint16_t step = FONT_WIDTH > 8 && w <= 8 ? 9 : w; // fix small char width
+  lcd_blitBitmap(x, y, step, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  return w;
 }
 
-#ifndef lcd_drawstring
-void lcd_drawstring(int16_t x, int16_t y, const char *str)
-{
-  int x_pos = x;
-  while (*str) {
-    uint8_t ch = *str++;
-    if (ch == '\n') {x = x_pos; y+=FONT_STR_HEIGHT; continue;}
-    const uint8_t *char_buf = FONT_GET_DATA(ch);
-    uint16_t w = FONT_GET_WIDTH(ch);
-    lcd_blitBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
-    x += w;
-  }
+int lcd_draw_smallchar(uint8_t ch, int x, int y) {
+  uint16_t w = sFONT_GET_WIDTH(ch);
+  uint16_t step = sFONT_WIDTH > 8 && w <= 8 ? 9 : w; // fix small char width
+  lcd_blitBitmap(x, y, step, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+  return w;
 }
-#endif
 
+//********************************************************************
+//          printf function
+//********************************************************************
 typedef struct {
   const void *vmt;
-  int16_t start_x, start_y;
-  int16_t x, y;
+  int start_x, start_y;
+  int x, y;
   uint16_t state;
 } lcdPrintStream;
 
 static void put_normal(lcdPrintStream *ps, uint8_t ch) {
   if (ch == '\n') {ps->x = ps->start_x; ps->y+=FONT_STR_HEIGHT; return;}
-  uint16_t w = FONT_GET_WIDTH(ch);
-#if _USE_FONT_ < 3
-  lcd_blitBitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
-#else
-  lcd_blitBitmap(ps->x, ps->y, w < 9 ? 9 : w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
-#endif
-  ps->x+= w;
+  ps->x+= lcd_drawchar(ch, ps->x, ps->y);
 }
 
 #if _USE_FONT_ != _USE_SMALL_FONT_
@@ -828,13 +823,7 @@ typedef void (*font_put_t)(lcdPrintStream *ps, uint8_t ch);
 static font_put_t put_char = put_normal;
 static void put_small(lcdPrintStream *ps, uint8_t ch) {
   if (ch == '\n') {ps->x = ps->start_x; ps->y+=sFONT_STR_HEIGHT; return;}
-  uint16_t w = sFONT_GET_WIDTH(ch);
-#if _USE_SMALL_FONT_ < 3
-  lcd_blitBitmap(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
-#else
-  lcd_blitBitmap(ps->x, ps->y, w < 9 ? 9 : w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
-#endif
-  ps->x+= w;
+  ps->x+= lcd_draw_smallchar(ch, ps->x, ps->y);
 }
 void lcd_set_font(int type) {put_char = type == FONT_SMALL ? put_small : put_normal;}
 
@@ -858,7 +847,7 @@ static msg_t lcd_put(void *ip, uint8_t ch) {
 }
 
 // Simple print in buffer function
-int lcd_printf(int16_t x, int16_t y, const char *fmt, ...) {
+int lcd_printf(int x, int y, const char *fmt, ...) {
   // Init small lcd print stream
   struct lcd_printStreamVMT {
     _base_sequential_stream_methods
@@ -873,7 +862,7 @@ int lcd_printf(int16_t x, int16_t y, const char *fmt, ...) {
   return retval;
 }
 
-int lcd_printfV(int16_t x, int16_t y, const char *fmt, ...) {
+int lcd_printfV(int x, int y, const char *fmt, ...) {
   // Init small lcd print stream
   struct lcd_printStreamVMT {
     _base_sequential_stream_methods
@@ -891,6 +880,20 @@ int lcd_printfV(int16_t x, int16_t y, const char *fmt, ...) {
   // Return number of bytes that would have been written.
   return retval;
 }
+
+#ifndef lcd_drawstring
+void lcd_drawstring(int16_t x, int16_t y, const char *str) {
+  int x_pos = x;
+  while (*str) {
+    uint8_t ch = *str++;
+    if (ch == '\n') {x = x_pos; y+=FONT_STR_HEIGHT; continue;}
+    const uint8_t *char_buf = FONT_GET_DATA(ch);
+    uint16_t w = FONT_GET_WIDTH(ch);
+    lcd_blitBitmap(x, y, w, FONT_GET_HEIGHT, char_buf);
+    x += w;
+  }
+}
+#endif
 
 void lcd_blitBitmapScale(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t size, const uint8_t *b) {
   lcd_setWindow(x, y, w * size, h * size, LCD_RAMWR);

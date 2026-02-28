@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2020, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2026, Dmitry (DiSlord) dislordlive@gmail.com
  * Based on TAKAHASHI Tomohiro (TTRFTECH) edy555@gmail.com
  * All rights reserved.
  *
@@ -1280,15 +1280,15 @@ void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx);
 void lcd_clear_screen(void);
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *bitmap);
 void lcd_blitBitmapScale(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t size, const uint8_t *b);
-void lcd_drawchar(uint8_t ch, int x, int y);
+int  lcd_drawchar(uint8_t ch, int x, int y);
 #if 0
 void lcd_drawstring(int16_t x, int16_t y, const char *str);
 #else
 // use printf for draw string
 #define lcd_drawstring lcd_printf
 #endif
-int  lcd_printf(int16_t x, int16_t y, const char *fmt, ...);
-int  lcd_printfV(int16_t x, int16_t y, const char *fmt, ...);
+int  lcd_printf(int x, int y, const char *fmt, ...);
+int  lcd_printfV(int x, int y, const char *fmt, ...);
 int  lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
 void lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
 void lcd_drawfont(uint8_t ch, int x, int y);

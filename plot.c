@@ -268,8 +268,8 @@ static inline void cell_drawline(int x0, int y0, int x1, int y1, pixel_t c) {
 }
 
 // Slower, but allow any width bitmaps
-static void cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
-  int16_t x1, y1;
+static void cell_blit_bitmap(int32_t x, int32_t y, uint32_t w, uint32_t h, const uint8_t *bmp) {
+  int32_t x1, y1;
   if ((x1 = x + w) < 0 || (y1 = y + h) < 0) return;
   if (y1 >= CELLHEIGHT) y1 = CELLHEIGHT;    // clip bottom
   if (y < 0) {bmp-= y*((w+7)>>3); y = 0;}   // clip top
@@ -285,31 +285,27 @@ static void cell_blit_bitmap(int16_t x, int16_t y, uint16_t w, uint16_t h, const
 #endif
 
 #ifdef _USE_SHADOW_TEXT_
-static void cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h, const uint8_t *bmp) {
-  int i;
-  if (x + w < 0 || h + y < 0) return; // Clipping
-  // Prepare shadow bitmap
-  uint16_t dst[16], mask = 0xFFFF << (16 - w), p;
-  dst[0] = dst[1] = 0;
-  if (h > ARRAY_COUNT(dst) - 2) h = ARRAY_COUNT(dst) - 2;
-  for (i = 0; i < h; i++) {
-#if 1
-    p = (bmp[i]<<8) & mask;                    // extend from 8 bit width to 16 bit
-#else
-    p = (((bmp[2*i]<<8)|bmp[2*i+1]) & mask);   // extend from 16 bit width to 16 bit
-#endif
-    p|= (p>>1) | (p>>2);   // shadow horizontally
-    p = (p>>8) | (p<<8);   // swap bytes (render do by 8 bit)
-    dst[i+2] = p;          // shadow vertically
-    dst[i+1]|= dst[i+2];
-    dst[i  ]|= dst[i+1];
+static void cell_blit_bitmap_shadow(int32_t x, int32_t y, uint32_t w, uint32_t h, const uint8_t *bmp) {
+  int32_t x1, y1;
+  if ((x1 = x + w + 2) < 0 || (y1 = y + h + 2) < 0) return;
+  uint32_t bmp_w = (w+7)>>3, bmp_off = 0;  // Bitmap step in bytes
+  uint32_t mask = 0xFFFFFFFF << (32 - w);  // Bitmap data mask
+  uint32_t sh0, sh1 = 0, sh2 = 0;          // Shadow and image data
+  if (x < 0) {bmp_off = -x; x = 0;}        // clip left
+  for (; y < y1 && y < CELLHEIGHT; y++, bmp+= bmp_w) {
+    sh0 = sh1;
+    sh1 = sh2;
+    sh2 = (y < y1-2) ? ((bmp[0]<<24) | (bmp[1]<<16) | (bmp[2]<<8) | (bmp[3]<<0)) & mask : 0;
+    if (y < 0) continue;
+    uint32_t b = sh1>>1;                           // Bitmap data (shift to 0 position)
+    sh0|= sh1 | sh2; sh0|= (sh0>>1)|(sh0>>2);      // Create shadow (use OR on -1, 0, 1 rows and -1, 0, 1 columns)
+    if (bmp_off) {b<<= bmp_off; sh0<<= bmp_off;}   // Clip left
+    pixel_t* p = &cell_buffer[y*CELLWIDTH+x];
+    for (int j = CELLWIDTH - x; j && sh0; j--, sh0<<= 1, b<<= 1, p++) {
+           if (b   & (1<<31)) *p = foreground_color;
+      else if (sh0 & (1<<31)) *p = GET_PALTETTE_COLOR(LCD_TXT_SHADOW_COLOR);
+    }
   }
-  // Render shadow on cell
-  pixel_t t = foreground_color; // remember color
-  lcd_set_foreground(LCD_TXT_SHADOW_COLOR); // set shadow color
-  w+= 2; h+= 2;                 // Shadow size > by 2 pixel
-  cell_blit_bitmap(x-1, y-1, w < 9 ? 9 : w, h, (uint8_t *)dst);
-  foreground_color = t;         // restore color
 }
 #endif
 
@@ -318,37 +314,32 @@ static void cell_blit_bitmap_shadow(int16_t x, int16_t y, uint16_t w, uint16_t h
 //**************************************************************************************
 typedef struct {
   const void *vmt;
-  int16_t x;
-  int16_t y;
+  int32_t x, y;
 } cellPrintStream;
 
-static void put_normal(cellPrintStream *ps, uint8_t ch) {
-  uint16_t w = FONT_GET_WIDTH(ch);
+static int32_t put_normal(int x, int y, uint8_t ch) {
+  uint32_t w = FONT_GET_WIDTH(ch);
+  uint32_t step = FONT_WIDTH > 8 && w <= 8 ? 9 : w;
 #ifdef _USE_SHADOW_TEXT_
-  cell_blit_bitmap_shadow(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
-#endif
-#if _USE_FONT_ < 3
-  cell_blit_bitmap(ps->x, ps->y, w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  cell_blit_bitmap_shadow(x-1, y-1, step, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
 #else
-  cell_blit_bitmap(ps->x, ps->y, w < 9 ? 9 : w, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
+  cell_blit_bitmap(x, y, step, FONT_GET_HEIGHT, FONT_GET_DATA(ch));
 #endif
-  ps->x+= w;
+  return w;
 }
 
 #if _USE_FONT_ != _USE_SMALL_FONT_
-typedef void (*font_put_t)(cellPrintStream *ps, uint8_t ch);
+typedef int32_t (*font_put_t)(int x, int y, uint8_t ch);
 static font_put_t put_char = put_normal;
-static void put_small(cellPrintStream *ps, uint8_t ch) {
-  uint16_t w = sFONT_GET_WIDTH(ch);
+static int32_t put_small(int x, int y, uint8_t ch) {
+  uint32_t w = sFONT_GET_WIDTH(ch);
+  uint32_t step = sFONT_WIDTH > 8 && w <= 8 ? 9 : w;
 #ifdef _USE_SHADOW_TEXT_
-  cell_blit_bitmap_shadow(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
-#endif
-#if _USE_SMALL_FONT_ < 3
-  cell_blit_bitmap(ps->x, ps->y, w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+  cell_blit_bitmap_shadow(x-1, y-1, step, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
 #else
-  cell_blit_bitmap(ps->x, ps->y, w < 9 ? 9 : w, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
+  cell_blit_bitmap(x, y, step, sFONT_GET_HEIGHT, sFONT_GET_DATA(ch));
 #endif
-  ps->x+= w;
+  return w;
 }
 static inline void cell_set_font(int type) {put_char = type == FONT_SMALL ? put_small : put_normal;}
 
@@ -359,13 +350,13 @@ static inline void cell_set_font(int type) {put_char = type == FONT_SMALL ? put_
 
 static msg_t cellPut(void *ip, uint8_t ch) {
   cellPrintStream *ps = ip;
-  if (ps->x < CELLWIDTH && ps->y < CELLHEIGHT)
-    put_char(ps, ch);
+  if (ps->x >= CELLWIDTH) return MSG_OK;
+  ps->x+= put_char(ps->x, ps->y, ch);
   return MSG_OK;
 }
 
 // Simple print in buffer function
-static int cell_printf(int16_t x, int16_t y, const char *fmt, ...) {
+static int cell_printf(int x, int y, const char *fmt, ...) {
   static const struct lcd_printStreamVMT {
     _base_sequential_stream_methods
   } cell_vmt = {NULL, NULL, cellPut, NULL};
