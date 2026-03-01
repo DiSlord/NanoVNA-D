@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024, Dmitry (DiSlord) dislordlive@gmail.com
+ * Copyright (c) 2019-2026, Dmitry (DiSlord) dislordlive@gmail.com
  * All rights reserved.
  *
  * This is free software; you can redistribute it and/or modify
@@ -45,7 +45,7 @@ static void match_quadratic_equation(float a, float b, float c, float *x) {
 typedef float (*get_value_t)(uint16_t idx);
 
 // Search point get_value(x) = y
-// Used bilinear interpolation, return value = frequency of this point
+// Used parabolic interpolation, return value = frequency of this point
 #define MEASURE_SEARCH_LEFT  -1
 #define MEASURE_SEARCH_RIGHT  1
 static float measure_search_value(uint16_t *idx, float y, get_value_t get, int16_t mode, int16_t marker_idx) {
@@ -76,7 +76,7 @@ static float measure_search_value(uint16_t *idx, float y, get_value_t get, int16
   return getFrequency(x) + getFrequencyStep() * res;
 }
 
-// Peak search, use bilinear interpolation for peak detect
+// Peak search, use parabolic interpolation for peak detect
 #define MEASURE_SEARCH_MIN 0
 #define MEASURE_SEARCH_MAX 1
 static bool _greaterf(float x, float y) { return x > y; }
@@ -96,46 +96,49 @@ static float search_peak_value(uint16_t *xp, get_value_t get, bool mode) {
   float y1 = get(x-1);
   float y3 = get(x+1);
   if (y1 == y3) return y2;
-//  const float a = 0.5f * (y1 + y3) - y2;
-//  const float b = 0.5f * (y3 - y1);
-//  const float c = y2;
-//  return c - b*b/(4*a);
+#if 0
+  const float a = 0.5f * (y1 + y3) - y2;
+  const float b = 0.5f * (y3 - y1);
+  const float c = y2;
+  return c - b*b/(4*a);
+#else
   const float a = 8.0f * (y1 - 2.0f * y2 + y3);
   const float b = y3 - y1;
   const float c = y2;
   return c - b * b / a;
+#endif
 }
 
-static float bilinear_interpolation(float y1, float y2, float y3, float x) {
+float parabolic_interpolation(float y1, float y2, float y3, float x) {
   const float a = 0.5f * (y1 + y3) - y2;
   const float b = 0.5f * (y3 - y1);
   const float c = y2;
   return a * x * x + b * x + c;
 }
 
-static bool measure_get_value(uint16_t ch, freq_t f, float *data){
+float linear_interpolation(float y1, float y2, float x) {
+  return y1 + (y2 - y1) * x;
+}
+
+static bool measure_get_value(uint16_t ch, freq_t f, float *data) {
   if (f < frequency0 || f > frequency1)
     return false;
   // Search k1
-  uint16_t _points = sweep_points - 1;
+  uint32_t _points = sweep_points - 1;
   freq_t span = frequency1 - frequency0;
   uint32_t idx = (uint64_t)(f - frequency0) * (uint64_t)_points / span;
-  if (idx < 1 && idx > _points)
-    return false;
+  if ((uint32_t)(idx - 1) > _points - 2) return false;  // Need 0 < idx < _points
   uint64_t v = (uint64_t)span * idx + _points/2;
   freq_t src_f0 = frequency0 + (v       ) / _points;
   freq_t src_f1 = frequency0 + (v + span) / _points;
   freq_t delta = src_f1 - src_f0;
   float k1 = (delta == 0) ? 0.0f : (float)(f - src_f0) / delta;
-#if 1
-  // Bilinear interpolation by k1
-  data[0] = bilinear_interpolation(measured[ch][idx-1][0], measured[ch][idx  ][0], measured[ch][idx+1][0],k1);
-  data[1] = bilinear_interpolation(measured[ch][idx-1][1], measured[ch][idx  ][1], measured[ch][idx+1][1],k1);
-#else
-  // Linear Interpolate by k1
-  float k0 = 1.0 - k1;
-  data[0] = measured[ch][idx][0] * k0 + measured[ch][idx+1][0] * k1;
-  data[1] = measured[ch][idx][1] * k0 + measured[ch][idx+1][1] * k1;
+#if 1 // Parabolic interpolation by k1
+  data[0] = parabolic_interpolation(measured[ch][idx-1][0], measured[ch][idx][0], measured[ch][idx+1][0], k1);
+  data[1] = parabolic_interpolation(measured[ch][idx-1][1], measured[ch][idx][1], measured[ch][idx+1][1], k1);
+#else // Linear Interpolate by k1
+  data[0] = linear_interpolation(measured[ch][idx][0], measured[ch][idx+1][0], k1);
+  data[1] = linear_interpolation(measured[ch][idx][1], measured[ch][idx+1][1], k1);
 #endif
   return true;
 }
@@ -556,7 +559,7 @@ static void draw_s21_pass(int xp, int yp, s21_pass *p, const char *name) {
 }
 
 #define S21_MEASURE_FILTER_THRESHOLD   -50.0f
-static void draw_filter_result(int xp, int yp){
+static void draw_filter_result(int xp, int yp) {
   cell_printf(xp, yp, "S21 FILTER");
   if (s21_filter->vmax < S21_MEASURE_FILTER_THRESHOLD) return;
   yp+= STR_MEASURE_HEIGHT;
@@ -661,19 +664,19 @@ static float s11index(uint16_t i) {
 
 static void draw_s11_cable(int xp, int yp){
   cell_printf(xp, yp, "S11 CABLE");
-  if (s11_cable->R){
+  if (s11_cable->R) {
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Z0 = %F" S_OHM, s11_cable->R);
 //    cell_printf(xp, yp+=FONT_STR_HEIGHT, "C0 = %F" S_FARAD "/" S_METRE, s11_cable->C0);
   }
   if (s11_cable->vf)
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF=%.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "VF = %.2f%% (Length = %F" S_METRE ")", s11_cable->vf, real_cable_len);
   else if (s11_cable->len)
     cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Length = %F" S_METRE " (VF=%d%%)", s11_cable->len, velocity_factor);
-//cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " (%.4F" S_Hz ")", s11_cable->loss, s11_cable->freq);
-  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " (%.4F" S_Hz ")", s11_cable->mloss, s11_cable->freq);
+//cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->loss, s11_cable->freq);
+  cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Loss = %F" S_dB " at %.4F" S_Hz, s11_cable->mloss, s11_cable->freq);
   if (s11_cable->len) {
     float l = s11_cable->len;
-    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att (" S_dB "/100" S_METRE "): %F" S_dB " (%.4F" S_Hz ")", s11_cable->mloss * 100.0f / l, s11_cable->freq);
+    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "Att = %F" S_dB "/100" S_METRE " at %.4F" S_Hz, s11_cable->mloss * 100.0f / l, s11_cable->freq);
 //    cell_printf(xp, yp+=STR_MEASURE_HEIGHT, "DC: %.6F, K1: %.6F, K2: %.6F", s11_cable->a / l, s11_cable->b / l, s11_cable->c / l);
   }
 }
@@ -687,7 +690,7 @@ static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
     s11_cable->vf = 0.0f;
     uint16_t x = 0;
     f1 = measure_search_value(&x,  0, s11imag, MEASURE_SEARCH_RIGHT, MARKER_INVALID);
-    if (f1){
+    if (f1) {
       float electric_lengh = (SPEED_OF_LIGHT / 400.0f) / f1;
       if (real_cable_len != 0.0f) {
         s11_cable->len = real_cable_len;
@@ -696,7 +699,7 @@ static void prepare_s11_cable(uint8_t type, uint8_t update_mask) {
       float data[2];
       if (measure_get_value(0, f1/2, data)){
         s11_cable->R = vna_fabsf(reactance(0, data));
-//        s11_cable->C0 = velocity_factor / (100.0f * SPEED_OF_LIGHT * s11_cable->R);
+//        s11_cable->C0 = (100.0f / SPEED_OF_LIGHT) / (velocity_factor * s11_cable->R);
       }
     }
     parabolic_regression(sweep_points, s11index, s11loss, &s11_cable->a);
