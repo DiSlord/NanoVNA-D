@@ -267,12 +267,12 @@ static inline void cell_drawline(int x0, int y0, int x1, int y1, pixel_t c) {
   }
 }
 
-// Slower, but allow any width bitmaps
+// Universal but slow
 static void cell_blit_bitmap(int32_t x, int32_t y, uint32_t w, uint32_t h, const uint8_t *bmp) {
   int32_t x1, y1;
   if ((x1 = x + w) < 0 || (y1 = y + h) < 0) return;
-  if (y1 >= CELLHEIGHT) y1 = CELLHEIGHT;    // clip bottom
-  if (y < 0) {bmp-= y*((w+7)>>3); y = 0;}   // clip top
+  if (y1 >= CELLHEIGHT) y1 = CELLHEIGHT;           // clip bottom
+  if (y < 0) {bmp-= y*((w+7)>>3); y = 0;}          // clip top
   for (uint8_t bits = 0; y < y1; y++) {
     for (int r = 0; r < w; r++, bits<<=1) {
       if ((r&7)==0) bits = *bmp++;
@@ -710,10 +710,8 @@ float groupdelay_from_array(int i, const float *v) {
 static inline void cartesian_scale(const float *v, int16_t *xp, int16_t *yp, float scale) {
   int16_t x = P_CENTER_X + float2int(v[0] * scale);
   int16_t y = P_CENTER_Y - float2int(v[1] * scale);
-  if      (x < CELLOFFSETX        ) x = CELLOFFSETX;
-  else if (x > CELLOFFSETX + WIDTH) x = CELLOFFSETX + WIDTH;
-  if      (y < 0                  ) y = 0;
-  else if (y > HEIGHT             ) y = HEIGHT;
+  if ((uint16_t)(x - CELLOFFSETX) > WIDTH ) x = x < CELLOFFSETX ? CELLOFFSETX : CELLOFFSETX + WIDTH;
+  if ((uint16_t)(y -           0) > HEIGHT) y = y <           0 ?           0 :           0 + HEIGHT;
   *xp = x;
   *yp = y;
 }
@@ -845,15 +843,17 @@ static float distance_of_index(int idx) {
 //**************************************************************************************
 #if STORED_TRACES > 0
 static uint8_t enabled_store_trace = 0;
-void toogleStoredTrace(int idx) {
-  uint8_t mask = 1<<idx;
+static uint16_t stored_traces_points[TRACE_INDEX_COUNT - TRACES_MAX] = {0};
+void toogleStoredTrace(int t) {
+  uint32_t mask = 1<<t;
   if (enabled_store_trace & mask) {
     enabled_store_trace&= ~mask;
     request_to_redraw(REDRAW_AREA);
     return;
   }
   if (current_trace == TRACE_INVALID) return;
-  memcpy(trace_index[TRACES_MAX + idx], trace_index[current_trace], sizeof(trace_index[0]));
+  stored_traces_points[t] = sweep_points;
+  memcpy(trace_index[TRACES_MAX + t], trace_index[current_trace], sizeof(trace_index[0]));
   enabled_store_trace|= mask;
 }
 
@@ -861,17 +861,23 @@ uint8_t getStoredTraces(void) {
   return enabled_store_trace;
 }
 
-static bool needProcessTrace(uint16_t idx) {
-  if (idx < TRACES_MAX)
-    return trace[idx].enabled;
-  else if (idx < TRACE_INDEX_COUNT)
-    return enabled_store_trace & (1<<(idx-TRACES_MAX));
-  return false;
+static int getTracesPoints(int t) {
+  if (t < TRACES_MAX)
+    return trace[t].enabled ? sweep_points - 1 : 0;
+  if (t < TRACE_INDEX_COUNT)
+    return (enabled_store_trace & (1<<(t-TRACES_MAX))) ? stored_traces_points[t-TRACES_MAX] - 1 : 0;
+  return 0;
 }
+
+void plot_debug_data(int t, int point, int y) {
+  trace_index[TRACES_MAX + t][point].x = CELLOFFSETX + (point-1) * WIDTH / (sweep_points-1);
+  trace_index[TRACES_MAX + t][point].y = y;
+  redraw_request|= REDRAW_AREA;
+}
+
 #else
-#define enabled_store_trace 0
-static bool needProcessTrace(uint16_t idx) {
-  return trace[idx].enabled;
+static int getTracesPoints(int t) {
+  return trace[t].enabled ? sweep_points - 1 : 0;
 }
 #endif
 
@@ -880,14 +886,14 @@ static bool needProcessTrace(uint16_t idx) {
 // Write more difficult algorithm for search indexes not give speedup
 //**************************************************************************************
 static void search_index_range_x(int x1, int x2, index_t *index, int *i0, int *i1) {
-  int lo = 0, hi = sweep_points-1, mid;
+  int lo = *i0, hi = *i1, mid;
   do { // search first index[hi].x >= x2
     mid = (lo + hi) >> 1;
     if (index[mid].x >= x2) hi = mid;
     else                    lo = mid;
   } while (lo + 1 < hi);
   *i1 = hi;
-  lo = 0;
+  lo = *i0;
   do { // search last index[lo].x < x1
     mid = (lo + hi) >> 1;
     if (index[mid].x < x1) lo = mid;
@@ -1372,7 +1378,7 @@ static void draw_cell(int x0, int y0) {
     h = area_height - y0;
   if (w <= 0 || h <= 0)
     return;
-//  PULSE;
+
   cell_buffer = lcd_get_cell_buffer();
   // Clear buffer ("0 : height" lines)
 #if 0
@@ -1442,32 +1448,27 @@ static void draw_cell(int x0, int y0) {
       }
     }
   }
-  // Smith greed line (1000 system ticks for all screen calls)
+  // Smith greed
   if (trace_type & (1 << TRC_SMITH)) {
     if (use_smith)
       cell_smith_grid(x0, y0, w, h, c);
     else
       cell_admit_grid(x0, y0, w, h, c);
   }
-  // Polar greed line (800 system ticks for all screen calls)
+  // Polar greed
   else if (trace_type & (1 << TRC_POLAR))
     cell_polar_grid(x0, y0, w, h, c);
 #endif
 
-// Draw traces
-#if 1
-  for (t = TRACE_INDEX_COUNT-1; t >= 0; t--) {
-    if (!needProcessTrace(t))
-      continue;
-    c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
+  // Draw traces
+  for (t = TRACE_INDEX_COUNT-1; t >=0; t--) {
+    int i0 = 0, i1 = getTracesPoints(t); // Get points count in trace t
+    if (i1 == 0) continue;
     index_t *index = trace_index[t];
-    int i0 = 0, i1 = 0;
-    // draw rectangular plot (search index range in cell, save 50-70 system ticks for all screen calls)
-    if (((1 << trace[t].type) & RECTANGULAR_GRID_MASK) && !enabled_store_trace){
+    // On draw rectangular plot search index range in cell
+    if (t < TRACES_MAX && ((1 << trace[t].type) & RECTANGULAR_GRID_MASK))
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
-    } else { // draw polar plot (check all points)
-      i1 = sweep_points - 1;
-    }
+    c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
     for (int i = i0; i < i1; i++) {
       int x1 = index[i].x - x0;
       int y1 = index[i].y - y0;
@@ -1476,21 +1477,16 @@ static void draw_cell(int x0, int y0) {
       cell_drawline(x1, y1, x2, y2, c);
     }
   }
-#else
-  for (x = 0; x < area_width; x += 6)
-    cell_drawline(x - x0, 0 - y0, area_width - x - x0, area_height - y0,
-                                GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR));
-#endif
-//  PULSE;
 
 #ifdef __USE_GRID_VALUES__
-  // Only right cells
+  // Draw grid values (only right cells)
   if (VNA_MODE(VNA_MODE_SHOW_GRID) && x0 > (GRID_X_TEXT - CELLWIDTH))
     cell_draw_grid_values(x0, y0);
 #endif
 
-  // draw marker symbols on each trace (<10 system ticks for all screen calls)
+
 #if 1
+  // draw marker symbols on each trace
   for (int i = 0; i < MARKERS_MAX; i++) {
     if (!markers[i].enabled)
       continue;
@@ -1525,21 +1521,21 @@ static void draw_cell(int x0, int y0) {
 #endif
 
 #if 1
-  // Draw trace and marker info on the top
+  // Draw trace and marker info (on the top)
   if (y0 <= marker_area_max())
     cell_draw_marker_info(x0, y0);
 #endif
 
-// Measure data output
+  // Measure data output
 #ifdef __VNA_MEASURE_MODULE__
   cell_draw_measure(x0, y0);
 #endif
 
-  // Draw reference position (<10 system ticks for all screen calls)
+  // Draw reference position
   cell_draw_all_refpos(x0, y0);
 
-// Need right clip cell render (25 system ticks for all screen calls)
 #if 1
+  // Need right clip cell render
   if (w < CELLWIDTH) {
     pixel_t *src = cell_buffer + CELLWIDTH;
     pixel_t *dst = cell_buffer + w;
@@ -1548,6 +1544,7 @@ static void draw_cell(int x0, int y0) {
         *dst++ = *src++;
   }
 #endif
+  // Draw cell on LCD
   lcd_bulk_continue(OFFSETX + x0, OFFSETY + y0, w, h);
 }
 
