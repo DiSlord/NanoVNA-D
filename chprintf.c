@@ -84,7 +84,7 @@ static char *long_to_string_with_divisor(char *p,
   char *b = q;
   // convert to string from end buffer to begin
   do {
-    uint8_t c = num % radix;
+    uint32_t c = num % radix;
     num /= radix;
     *--q = c + ((c > 9) ? ('A'-10) : '0');
   }while((precision && --precision) || num);
@@ -102,9 +102,7 @@ static char *long_to_string_with_divisor(char *p,
 #define FREQ_PSET            1
 #define FREQ_PREFIX_SPACE    2
 
-static char *
-ulong_freq(char *p, pfreq_t freq, int precision)
-{
+static char *ulong_freq(char *p, pfreq_t freq, int precision) {
   uint8_t flag = FREQ_PSET;
   if (precision == 0)
     flag|=FREQ_PREFIX_SPACE;

@@ -463,6 +463,8 @@ static const uint8_t ili9341_init_seq[] = {               // ILI9341 init sequen
 
 // ST7789 LCD_RDDID read return 0x42C2A97F (need shift right by 7 bit, so ID1 = 0x85, ID2 = 0x85, ID3 = 0x52)
 #define ST7789V_ID        0x858552
+// ST7789P3 LCD_RDDID read
+#define ST7789P3_ID       0x8181B3
 static const uint8_t ST7789V_init_seq[] = {               // ST7789V init sequence
   // cmd,           len, data...,
   LCD_SWRESET,        0,                                  // SW reset
@@ -485,7 +487,7 @@ static const uint8_t ST7789V_init_seq[] = {               // ST7789V init sequen
 // Read display ID and detect type
 static const uint8_t *get_lcd_init(void) {
   uint32_t id = lcd_send_register(LCD_RDDID, 0, 0) >> 7;
-  if (id == ST7789V_ID) lcd_type = st7789v;
+  if (id == ST7789V_ID || id == ST7789P3_ID) lcd_type = st7789v;
   return lcd_type == ili9341_type ? ili9341_init_seq : ST7789V_init_seq;
 }
 
@@ -763,7 +765,7 @@ void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx) {
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b) {
 #if 1 // Use this for remote desktop (in this case bulk operation send to remote)
   pixel_t *buf = spi_buffer;
-  uint8_t bits = 0;
+  uint32_t bits = 0;
   for (uint32_t c = 0; c < height; c++) {
     for (uint32_t r = 0; r < width; r++) {
       if ((r&7) == 0) bits = *b++;
@@ -773,7 +775,7 @@ void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, con
   }
   lcd_bulk(x, y, width, height);
 #else
-  uint8_t bits = 0;
+  uint32_t bits = 0;
   lcd_setWindow(x, y, width, height, LCD_RAMWR);
   for (uint32_t c = 0; c < height; c++) {
     for (uint32_t r = 0; r < width; r++) {

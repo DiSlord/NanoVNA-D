@@ -922,17 +922,15 @@ static UI_FUNCTION_ADV_CALLBACK(menu_format_acb) {
   if (b) {
     if (trace[current_trace].type == format && trace[current_trace].channel == channel)
       b->icon = BUTTON_ICON_CHECK;
+    uint32_t marker_smith_format = get_smith_format();
+    b->p1.text = get_trace_typename(format, marker_smith_format);
     if (format == TRC_SMITH) {
-      uint8_t marker_smith_format = get_smith_format();
       if ((channel == 0 && !S11_SMITH_VALUE(marker_smith_format)) ||
           (channel == 1 && !S21_SMITH_VALUE(marker_smith_format))) return;
-      plot_printf(b->label, sizeof(b->label), "%s\n" R_LINK_COLOR "%s", get_trace_typename(TRC_SMITH, marker_smith_format), get_smith_format_names(marker_smith_format));
+      plot_printf(b->label, sizeof(b->label), "%s\n" R_LINK_COLOR "%s", b->p1.text, get_smith_format_names(marker_smith_format));
     }
-    else
-      b->p1.text = get_trace_typename(format, -1);
     return;
   }
-
   if (format == TRC_SMITH && trace[current_trace].type == TRC_SMITH && trace[current_trace].channel == channel)
     menu_push_submenu(channel == 0 ? menu_marker_s11smith : menu_marker_s21smith);
   else
@@ -1040,8 +1038,8 @@ const vna_mode_data_t vna_mode_data[] = {
 };
 
 void apply_VNA_mode(uint16_t idx, vna_mode_ops operation) {
-  uint16_t m = 1<<idx;
-  uint16_t old = config._vna_mode;
+  uint32_t m = 1<<idx;
+  uint32_t old = config._vna_mode;
        if (operation == VNA_MODE_CLR) config._vna_mode&=~m; // clear
   else if (operation == VNA_MODE_SET) config._vna_mode|= m; // set
   else                                config._vna_mode^= m; // toggle
@@ -1392,7 +1390,7 @@ static UI_FUNCTION_ADV_CALLBACK(menu_brightness_acb) {
     b->p1.u = config._brightness;
     return;
   }
-  int16_t value = config._brightness;
+  int value = config._brightness;
   lcd_set_colors(LCD_MENU_TEXT_COLOR, LCD_MENU_COLOR);
   lcd_fill(LCD_WIDTH/2-FONT_STR_WIDTH(12), LCD_HEIGHT/2-20, FONT_STR_WIDTH(23), 40);
   lcd_printf(LCD_WIDTH/2-FONT_STR_WIDTH(8), LCD_HEIGHT/2-13, "BRIGHTNESS %3d%% ", value);
@@ -1788,12 +1786,11 @@ static FILE_SAVE_CALLBACK(save_bin) {
 static FILE_LOAD_CALLBACK(load_cmd) {
   (void)fno;
   (void)format;
-  UINT size;
+  UINT size, i, j = 0;
   const int buffer_size = 256;
   const int line_size = 128;
   char *buf_8 = (char *)spi_buffer; // must be greater then buffer_size + line_size
   char *line  = buf_8 + buffer_size;
-  uint16_t j = 0, i;
   while (f_read(f, buf_8, buffer_size, &size) == FR_OK && size > 0) {
     for (i = 0; i < size; i++) {
       uint8_t c = buf_8[i];
@@ -2771,8 +2768,8 @@ static void ui_menu_lever(uint16_t status) {
 
 static void ui_menu_touch(int touch_x, int touch_y) {
   if (LCD_WIDTH-MENU_BUTTON_WIDTH < touch_x) {
-    int16_t i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
-    if ((uint16_t)i < (uint16_t)current_menu_get_count()) {
+    int i = (touch_y - MENU_BUTTON_Y_OFFSET) / menu_button_height;
+    if ((uint32_t)i < (uint32_t)current_menu_get_count()) {
       uint32_t mask = (1<<i)|(1<<selection);
       selection = i;
       menu_draw(mask);
@@ -2782,7 +2779,6 @@ static void ui_menu_touch(int touch_x, int touch_y) {
       return;
     }
   }
-
   touch_wait_release();
   ui_mode_normal();
 }
@@ -3133,7 +3129,7 @@ UI_KEYBOARD_CALLBACK(input_date_time) {
          if (kp_buf[1] <    1) kp_buf[1] =    1;
     else if (kp_buf[1] > 0x12) kp_buf[1] = 0x12;
     // Day limit (depend from month):
-    uint8_t day_max = 28 + ((0b11101100000000000010111110111011001100>>(kp_buf[1]<<1))&3);
+    int day_max = 28 + ((0b11101100000000000010111110111011001100>>(kp_buf[1]<<1))&3);
     day_max = ((day_max/10)<<4)|(day_max%10); // to BCD
          if (kp_buf[2] <  1)      kp_buf[2] = 1;
     else if (kp_buf[2] > day_max) kp_buf[2] = day_max;
@@ -3283,7 +3279,7 @@ static void draw_numeric_area_frame(void) {
 static void draw_numeric_input(const char *buf) {
   uint16_t x = 14 + FONT_STR_WIDTH(12), space;
   uint16_t y = LCD_HEIGHT-(NUM_FONT_GET_HEIGHT+NUM_INPUT_HEIGHT)/2;
-  uint16_t xsim;
+  uint32_t xsim;
 #ifdef __USE_RTC__
   if ((1<<keypad_mode)&((1<<KM_RTC_DATE)|(1<<KM_RTC_TIME)))
     xsim = 0b01010100;
