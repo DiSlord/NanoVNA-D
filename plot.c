@@ -1260,12 +1260,12 @@ static const struct {uint16_t x, y;} marker_pos[MARKERS_MAX] = {
 
 static void cell_draw_marker_info(int x0, int y0) {
   int t, mk, xpos, ypos;
-  if (active_marker == MARKER_INVALID)
+  if (active_marker == MARKER_INVALID || current_trace == TRACE_INVALID) // No markers or no traces
     return;
   int active_marker_idx = markers[active_marker].index;
   int j = 0;
-  // Marker (for current selected trace) display mode (selected more then 1 marker, and minimum one trace)
-  if (previous_marker != MARKER_INVALID && current_trace != TRACE_INVALID) {
+  // Marker (for current selected trace) display mode (selected more then 1 marker)
+  if (previous_marker != MARKER_INVALID) {
     t = current_trace;
     for (mk = 0; mk < MARKERS_MAX; mk++) {
       if (!markers[mk].enabled)
@@ -1378,15 +1378,10 @@ static void draw_cell(int x0, int y0) {
     h = area_height - y0;
   if (w <= 0 || h <= 0)
     return;
-
+  // Get cell buffer
   cell_buffer = lcd_get_cell_buffer();
+
   // Clear buffer ("0 : height" lines)
-#if 0
-  // use memset 350 system ticks for all screen calls
-  // as understand it use 8 bit set, slow down on 32 bit systems
-  memset(cell_buffer, GET_PALTETTE_COLOR(LCD_BG_COLOR), (h*CELLWIDTH)*sizeof(uint16_t));
-#else
-  // use direct set  35 system ticks for all screen calls
 #if CELLWIDTH%8 != 0
 #error "CELLWIDTH % 8 should be == 0 for speed, or need rewrite cell cleanup"
 #endif
@@ -1418,17 +1413,15 @@ static void draw_cell(int x0, int y0) {
 #else
 #error "Write cell fill for different  LCD_PIXEL_SIZE"
 #endif
-#endif
 
 // Draw grid
 #if 1
   // Generate grid type list
   uint32_t trace_type = 0;
-  bool use_smith = false;
   for (t = 0; t < TRACES_MAX; t++) {
     if (trace[t].enabled) {
       trace_type |= (1 << trace[t].type);
-      if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) use_smith = true;
+      if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) trace_type|= (1<<31);
     }
   }
   c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
@@ -1450,7 +1443,7 @@ static void draw_cell(int x0, int y0) {
   }
   // Smith greed
   if (trace_type & (1 << TRC_SMITH)) {
-    if (use_smith)
+    if (trace_type & (1<<31))
       cell_smith_grid(x0, y0, w, h, c);
     else
       cell_admit_grid(x0, y0, w, h, c);
