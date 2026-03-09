@@ -20,6 +20,10 @@ USE_OPT = -O2 -fno-inline-small-functions -ggdb -fomit-frame-pointer -falign-fun
 endif
 # additional options, use math optimisations
 USE_OPT+= -ffast-math -fsingle-precision-constant
+# additional size optimisations (also give small speedup)
+USE_OPT+= -fno-reorder-blocks
+# small size optimisations (slowdown code)
+#USE_OPT+= -fno-jump-tables -fno-move-loop-invariants
 
 # C specific options here (added to USE_OPT).
 ifeq ($(USE_COPT),)
