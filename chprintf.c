@@ -422,7 +422,7 @@ int chvprintf(BaseSequentialStream *chp, const char *fmt, va_list ap) {
 #endif
       if (state & COMPLEX)
         *p++ = 'j';
-      if (value.f == infinityf()){
+      if (vna_isinff(value.f)) {
         *p++ = S_INFINITY[0]; *p++ = ' ';
         break;
       }

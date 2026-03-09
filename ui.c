@@ -1168,7 +1168,7 @@ static UI_FUNCTION_CALLBACK(menu_auto_scale_cb) {
   int i = 0;
   do {
     float v = c(i, array[i]);                                     // get trace value
-    if (vna_fabsf(v) == infinityf())  return;                     // prevent inf scale search
+    if (vna_isinff(v)) return;                                    // prevent inf scale search
     if (i == 0) {min_val = max_val = v; continue;}                // first point -> init min and max
     if (max_val < v) max_val = v;                                 // set max
     if (min_val > v) min_val = v;                                 // set min

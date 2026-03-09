@@ -44,6 +44,8 @@ __attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, 
 // square root
 float vna_sqrtf(float x);
 #endif
+// float infinity check
+static inline int vna_isinff(float x) {union {float f; uint32_t u;} u = {x}; return (u.u & 0x7FFFFFFF) == 0x7F800000;}
 // cube root
 float vna_cbrtf(float x);
 // log
@@ -59,6 +61,7 @@ float vna_atan2f_deg(float y, float x);
 float vna_modff(float x, float *iptr);
 #else
 // Use defaults math functions
+#define vna_isinff(x)    ((x) == infinityf())
 #define vna_fabsf        fabsf
 #define vna_sqrtf        sqrtf
 #define vna_cbrtf        cbrtf
