@@ -125,7 +125,7 @@ static uint16_t p_sweep = 0;
 float measured[2][SWEEP_POINTS_MAX][2];
 
 #undef VERSION
-#define VERSION "1.2.50"
+#define VERSION "1.2.51"
 
 // Version text, displayed in Config->Version menu, also send by info command
 const char *info_about[]={
@@ -307,13 +307,16 @@ toggle_sweep(void)
 //       z^n         z    z^2   z^3   z^4    z^5              z^n
 // 1 + ------ = 1 + --- + --- + --- + --- + -----  ...... + ------
 //     (n!)^2        1     4     36   576   14400           (n!)^2
-float bessel_I0_ext(float z) {
+//    or
+//       z^n            1        1        1        1         1                  1
+// 1 + ------ = 1 + z*(--- + z*(--- + z*(--- + z*(--- + z*(-----  ...... + z*(------
+//     (n!)^2           1        4       36       576      14400              (n!)^2
+static float bessel_I0_ext(float z) {
 // Set calculated elements count, more size - less error but longer (bigger beta also need more size for less error)
 // Use BESSEL_SIZE = 12 (last used n = 12), use constant size faster then check every time limits in float
 // For beta =  6 and BESSEL_SIZE = 12 max error 4.2e-7
 // For beta = 13 and BESSEL_SIZE = 12 max error 2.5e-4
 #define BESSEL_SIZE     12
-  int i = BESSEL_SIZE - 1;
   // Precalculated multipliers: 1 / (n!^2)
   static const float besseli0_k[BESSEL_SIZE - 1] = {
 //  1.0000000000000000000000000000000e+00,    // 1 / ( 1!^2)
@@ -334,9 +337,17 @@ float bessel_I0_ext(float z) {
 //  2.2843403570804836719862048117689e-27,    // 1 / (16!^2)
 //  7.9042918930120542283259682068128e-30,    // 1 / (17!^2)
   };
+#if 0
+  int i = BESSEL_SIZE - 1;
   float term = z, ret =  1.0f + z;
   do {ret += (term*= z) * besseli0_k[BESSEL_SIZE - 1 - i];} while(--i);
   return ret;
+#else
+  int i = BESSEL_SIZE - 3;
+  float ret = besseli0_k[BESSEL_SIZE - 2];
+  do {ret = vna_fmaf(ret, z, besseli0_k[i]);} while (i--); // acc = besseli0_k[i] + z * (acc ...
+  return z * (z * ret + 1.0f) + 1.0f;
+#endif
 }
 //                        Kaiser window
 //           bessel_I0(beta*sqrt(1 - (2*k/N - 1)^2))
@@ -2636,7 +2647,7 @@ VNA_SHELL_FUNCTION(cmd_color)
   if (argc != 2) {
     shell_printf("usage: color {id} {rgb24}" VNA_SHELL_NEWLINE_STR);
     for (i=0; i < MAX_PALETTE; i++) {
-      color = GET_PALTETTE_COLOR(i);
+      color = GET_PALETTE_COLOR(i);
       color = HEXRGB(color);
       shell_printf(" %2d: 0x%06x" VNA_SHELL_NEWLINE_STR, i, color);
     }

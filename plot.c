@@ -303,7 +303,7 @@ static void cell_blit_bitmap_shadow(int32_t x, int32_t y, uint32_t w, uint32_t h
     pixel_t* p = &cell_buffer[y*CELLWIDTH+x];
     for (int j = CELLWIDTH - x; j && sh0; j--, sh0<<= 1, b<<= 1, p++) {
            if (b   & (1<<31)) *p = foreground_color;
-      else if (sh0 & (1<<31)) *p = GET_PALTETTE_COLOR(LCD_TXT_SHADOW_COLOR);
+      else if (sh0 & (1<<31)) *p = GET_PALETTE_COLOR(LCD_TXT_SHADOW_COLOR);
     }
   }
 }
@@ -1389,7 +1389,7 @@ static void draw_cell(int x0, int y0) {
   // Set DEFAULT_BG_COLOR for 8 pixels in one cycle
   int count = h*CELLWIDTH / 8;
   uint32_t *p = (uint32_t *)cell_buffer;
-  uint32_t clr = GET_PALTETTE_COLOR(LCD_BG_COLOR) | (GET_PALTETTE_COLOR(LCD_BG_COLOR) << 16);
+  uint32_t clr = GET_PALETTE_COLOR(LCD_BG_COLOR) | (GET_PALETTE_COLOR(LCD_BG_COLOR) << 16);
   do {
     p[0] = clr;
     p[1] = clr;
@@ -1401,8 +1401,8 @@ static void draw_cell(int x0, int y0) {
   // Set DEFAULT_BG_COLOR for 16 pixels in one cycle
   int count = h*CELLWIDTH / 16;
   uint32_t *p = (uint32_t *)cell_buffer;
-  uint32_t clr = (GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 0)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<< 8) |
-                 (GET_PALTETTE_COLOR(LCD_BG_COLOR)<<16)|(GET_PALTETTE_COLOR(LCD_BG_COLOR)<<24);
+  uint32_t clr = (GET_PALETTE_COLOR(LCD_BG_COLOR)<< 0)|(GET_PALETTE_COLOR(LCD_BG_COLOR)<< 8) |
+                 (GET_PALETTE_COLOR(LCD_BG_COLOR)<<16)|(GET_PALETTE_COLOR(LCD_BG_COLOR)<<24);
   do {
     p[0] = clr;
     p[1] = clr;
@@ -1424,7 +1424,7 @@ static void draw_cell(int x0, int y0) {
       if (trace[t].type == TRC_SMITH && !ADMIT_MARKER_VALUE(trace[t].smith_format)) trace_type|= (1<<31);
     }
   }
-  c = GET_PALTETTE_COLOR(LCD_GRID_COLOR);
+  c = GET_PALETTE_COLOR(LCD_GRID_COLOR);
   // Draw rectangular plot
   if (trace_type & RECTANGULAR_GRID_MASK) {
     const int step = VNA_MODE(VNA_MODE_DOT_GRID) ? 2 : 1;
@@ -1461,7 +1461,7 @@ static void draw_cell(int x0, int y0) {
     // On draw rectangular plot search index range in cell
     if (t < TRACES_MAX && ((1 << trace[t].type) & RECTANGULAR_GRID_MASK))
       search_index_range_x(x0, x0 + w, index, &i0, &i1);
-    c = GET_PALTETTE_COLOR(LCD_TRACE_1_COLOR + t);
+    c = GET_PALETTE_COLOR(LCD_TRACE_1_COLOR + t);
     for (int i = i0; i < i1; i++) {
       int x1 = index[i].x - x0;
       int y1 = index[i].y - y0;
@@ -1547,12 +1547,12 @@ void set_area_size(uint16_t w, uint16_t h) {
 }
 
 static void draw_all_cells(void) {
-  uint16_t m, n;
-  uint16_t w = (area_width  + CELLWIDTH  - 1) / CELLWIDTH;
-  uint16_t h = (area_height + CELLHEIGHT - 1) / CELLHEIGHT;
 #ifdef __VNA_MEASURE_MODULE__
   measure_prepare();
 #endif
+  uint16_t m, n;
+  uint16_t w = (area_width  + CELLWIDTH  - 1) / CELLWIDTH;
+  uint16_t h = (area_height + CELLHEIGHT - 1) / CELLHEIGHT;
 #if 1
 //  START_PROFILE
   for (n = 0; n < h; n++) {

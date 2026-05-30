@@ -1241,7 +1241,7 @@ enum {
 [LCD_TXT_SHADOW_COLOR ] = RGB565(  0,  0,  0), \
 }
 
-#define GET_PALTETTE_COLOR(idx)  config._lcd_palette[idx]
+#define GET_PALETTE_COLOR(idx)  config._lcd_palette[idx]
 
 extern pixel_t foreground_color;
 extern pixel_t background_color;

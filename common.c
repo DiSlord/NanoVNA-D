@@ -127,22 +127,18 @@ int get_str_index(const char *v, const char *list) {
       char c = *list;
       if (c == '|') c = 0;
       if (c == *p++) {
-        // Found, return index
-        if (c == 0) return i;
-        list++;    // Compare next symbol
+        if (c == 0) return i; // Found, return index
+        list++;               // Compare next symbol
         continue;
       }
       break;  // Not equal, break
     }
     // Set new substring ptr
-    while (1) {
-      // End of string, not found
-      if (*list == 0) return -1;
-      if (*list++ == '|') break;
-    }
+    do {
+      if (*list == 0) return -1; // End of string, not found
+    } while(*list++ != '|');
     i++;
   }
-  return -1;
 }
 
 /*

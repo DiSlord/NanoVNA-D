@@ -750,16 +750,16 @@ void lcd_clear_screen(void) {
 }
 
 void lcd_set_foreground(uint16_t fg_idx) {
-  foreground_color = GET_PALTETTE_COLOR(fg_idx);
+  foreground_color = GET_PALETTE_COLOR(fg_idx);
 }
 
 void lcd_set_background(uint16_t bg_idx) {
-  background_color = GET_PALTETTE_COLOR(bg_idx);
+  background_color = GET_PALETTE_COLOR(bg_idx);
 }
 
 void lcd_set_colors(uint16_t fg_idx, uint16_t bg_idx) {
-  foreground_color = GET_PALTETTE_COLOR(fg_idx);
-  background_color = GET_PALTETTE_COLOR(bg_idx);
+  foreground_color = GET_PALETTE_COLOR(fg_idx);
+  background_color = GET_PALETTE_COLOR(bg_idx);
 }
 
 void lcd_blitBitmap(uint16_t x, uint16_t y, uint16_t width, uint16_t height, const uint8_t *b) {
