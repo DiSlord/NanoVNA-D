@@ -35,12 +35,17 @@
 #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
 __attribute__((always_inline)) __STATIC_INLINE float vna_fabsf(float x){__asm__ ("vabs.f32 %0, %1" : "=t"(x) : "t"(x)); return x;}
 __attribute__((always_inline)) __STATIC_INLINE float vna_sqrtf(float x){__asm__ ("vsqrt.f32 %0, %1" : "=t"(x) : "t"(x)); return x;}
-__attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, float z){__asm__ ("vfma.f32 %0, %1, %2" : "+t"(z) : "t"(x), "t"(y)); return z;}
-
+__attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, float z) {__asm__ ( "vfma.f32 %0, %1, %2" : "+t"(z) : "t"(x), "t"(y)); return z;} //  z + x*y
+__attribute__((always_inline)) __STATIC_INLINE float vna_fmsf(float x, float y, float z) {__asm__ ( "vfms.f32 %0, %1, %2" : "+t"(z) : "t"(x), "t"(y)); return z;} //  z - x*y
+__attribute__((always_inline)) __STATIC_INLINE float vna_fnmaf(float x, float y, float z){__asm__ ("vfnma.f32 %0, %1, %2" : "+t"(z) : "t"(x), "t"(y)); return z;} //-(z + x*y)
+__attribute__((always_inline)) __STATIC_INLINE float vna_fnmsf(float x, float y, float z){__asm__ ("vfnms.f32 %0, %1, %2" : "+t"(z) : "t"(x), "t"(y)); return z;} //-(z - x*y)
 #else
 // Define inline functions
 __attribute__((always_inline)) __STATIC_INLINE float vna_fabsf(float x){union {float f; uint32_t i;} u = {x}; u.i &= 0x7fffffff; return u.f;}
-__attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, float z){return z+x*y;}
+__attribute__((always_inline)) __STATIC_INLINE float vna_fmaf(float x, float y, float z) {return  (z + x*y);}
+__attribute__((always_inline)) __STATIC_INLINE float vna_fmsf(float x, float y, float z) {return  (z - x*y);}
+__attribute__((always_inline)) __STATIC_INLINE float vna_fnmaf(float x, float y, float z){return -(z + x*y);}
+__attribute__((always_inline)) __STATIC_INLINE float vna_fnmsf(float x, float y, float z){return -(z - x*y);}
 // square root
 float vna_sqrtf(float x);
 #endif
