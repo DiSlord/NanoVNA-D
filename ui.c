@@ -899,17 +899,18 @@ static UI_FUNCTION_ADV_CALLBACK(menu_traces_acb) {
 }
 
 static UI_FUNCTION_ADV_CALLBACK(menu_atrace_acb) {
-  data = current_trace;
-  if (data == TRACE_INVALID) return;
+  (void)data;
+  int t = current_trace;
+  if (t == TRACE_INVALID) return;
   if (b) {
     b->bg = LCD_TRACE_1_COLOR + data;
-    plot_printf(b->label, sizeof(b->label), "TRACE %d", data);
+    plot_printf(b->label, sizeof(b->label), "TRACE %d", t);
     return;
   }
   do {
-    if (++data == TRACES_MAX) data = 0;
-    if (trace[data].enabled) {set_active_trace(data); break;}
-  } while (data != current_trace);
+    if (++t == TRACES_MAX) data = 0;
+    if (trace[data].enabled) {set_active_trace(t); break;}
+  } while (t != current_trace);
 }
 
 extern const menuitem_t menu_marker_s11smith[];
