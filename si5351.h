@@ -36,7 +36,7 @@
 #define SI5351_CLK_INPUT_MASK               (3<<2)
 #define SI5351_CLK_INPUT_XTAL               (0<<2)
 #define SI5351_CLK_INPUT_CLKIN              (1<<2)
-#define SI5351_CLK_INPUT_MULTISYNTH_0_4     (2<<2)
+#define SI5351_CLK_INPUT_MULTISYNTH_0       (2<<2)
 #define SI5351_CLK_INPUT_MULTISYNTH_N       (3<<2)
 #define SI5351_CLK_DRIVE_STRENGTH_MASK      (3<<0)
 #define SI5351_CLK_DRIVE_STRENGTH_2MA       (0<<0)
@@ -61,6 +61,8 @@
 #define SI5351_R_DIV_64     (6<<4)
 #define SI5351_R_DIV_128    (7<<4)
 #define SI5351_R_DIV(n)     ((n)<<4)
+
+#define SI5352_DIVBY2       (3<<2)
 
 #define SI5351_REG_177_PLL_RESET    177
 #define SI5351_PLL_RESET_B          (1<<7)

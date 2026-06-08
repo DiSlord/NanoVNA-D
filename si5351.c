@@ -71,27 +71,24 @@ inline void si5351_set_timing(int i, int v) {timings[i]=US2ST(v);}
 #define DELAY_RESET_PLL_AFTER     timings[6]
 #endif
 
-uint32_t si5351_get_frequency(void)
-{
+uint32_t si5351_get_frequency(void) {
   return current_freq;
 }
 
 #ifdef USE_VARIABLE_OFFSET
-void si5351_set_frequency_offset(int32_t offset)
-{
+void si5351_set_frequency_offset(int32_t offset) {
   si5351_reset_cache();
   generate_DSP_Table(offset);
   IF_OFFSET = offset;
 }
 #endif
 
-void si5351_set_power(uint8_t drive_strength){
+void si5351_set_power(uint8_t drive_strength) {
   if (drive_strength == current_power) return;
   si5351_set_frequency(current_freq, drive_strength);
 }
 
-void si5351_bulk_write(const uint8_t *buf, int len)
-{
+void si5351_bulk_write(const uint8_t *buf, int len) {
   i2c_transfer(SI5351_I2C_ADDR, buf, len);
 }
 
@@ -102,8 +99,7 @@ bool si5351_bulk_read(uint8_t reg, uint8_t* buf, int len) {
 #endif
 
 #if 0
-static void si5351_wait_pll_lock(void)
-{
+static void si5351_wait_pll_lock(void) {
   uint8_t status;
   int count = 100;
   do{
@@ -115,9 +111,7 @@ static void si5351_wait_pll_lock(void)
 }
 #endif
 
-static inline void
-si5351_write(uint8_t reg, uint8_t dat)
-{
+static inline void si5351_write(uint8_t reg, uint8_t dat) {
   uint8_t buf[] = { reg, dat };
   si5351_bulk_write(buf, 2);
 }
@@ -142,9 +136,7 @@ const uint8_t si5351_configs[] = {
   0 // sentinel
 };
 
-void
-si5351_init(void)
-{
+void si5351_init(void) {
   const uint8_t *p = si5351_configs;
   while (*p) {
     uint8_t len = *p++;
@@ -171,52 +163,46 @@ static const uint8_t msreg_base[] = {
 };
 
 // Reset PLL need then band changes
-static void si5351_reset_pll(uint8_t mask)
-{
+static void si5351_reset_pll(uint8_t mask) {
   // Writing a 1<<5 will reset PLLA, 1<<7 reset PLLB, this is a self clearing bits.
   si5351_write(SI5351_REG_177_PLL_RESET, mask | 0x0C);
 }
 
-void si5351_disable_output(void)
-{
+void si5351_disable_output(void) {
   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN);
   si5351_bulk_write(disable_output, sizeof(disable_output));
   si5351_reset_cache();
 }
 
-void si5351_enable_output(void)
-{
+void si5351_enable_output(void) {
   si5351_write(SI5351_REG_3_OUTPUT_ENABLE_CONTROL, ~(SI5351_CLK0_EN|SI5351_CLK1_EN|SI5351_CLK2_EN));
 //si5351_reset_pll(SI5351_PLL_RESET_A | SI5351_PLL_RESET_B);
   si5351_reset_cache();
 }
 
-void si5351_set_tcxo(uint32_t xtal){
+void si5351_set_tcxo(uint32_t xtal) {
   if (xtal < XTALFREQ - 2000000 ||
       xtal > XTALFREQ + 2000000) xtal = XTALFREQ;
   config._xtal_freq = xtal;
   si5351_reset_cache();
 }
 
-// Set PLL freq = XTALFREQ * (mult + num/denom)
-static void si5351_setupPLL(uint8_t   pllSource,  /* SI5351_REG_PLL_A or SI5351_REG_PLL_B */
+static void si5351_setupPLL(uint8_t   pllSource,  // SI5351_REG_PLL_A or SI5351_REG_PLL_B
                             uint32_t  mult,
                             uint32_t  num,
                             uint32_t  denom)
 {
-  /* Feedback Multisynth Divider Equation
-   * where: a = mult, b = num and c = denom
-   * P1 register is an 18-bit value using following formula:
-   *    P1[17:0] = 128 * mult + int((128*num)/denom) - 512
-   * P2 register is a 20-bit value using the following formula:
-   *    P2[19:0] = (128 * num) % denom
-   * P3 register is a 20-bit value using the following formula:
-   *    P3[19:0] = denom
-   */
-  /* Set the main PLL config registers */
-  uint32_t P1 = mult - 512;
+  // PLL frequency equations
+  // P1 register is an 18-bit value
+  // P2 register is a 20-bit value
+  // P3 register is a 20-bit value
+  //                               P2
+  // PLL = XTAL * (4 * 128 + P1 + ----) / 128
+  //                               P3
+  // Set the main PLL config registers
+  uint32_t P1 = mult - 4 * 128;
   uint32_t P2 = num;
-  uint32_t P3 = num ? denom : 1;
+  uint32_t P3 = denom;
   // Pll MSN(A|B) registers Datasheet
   uint8_t reg[9];
   reg[0] = pllSource;                                       // SI5351_REG_PLL_A or SI5351_REG_PLL_B
@@ -231,7 +217,6 @@ static void si5351_setupPLL(uint8_t   pllSource,  /* SI5351_REG_PLL_A or SI5351_
   si5351_bulk_write(reg, 9);
 }
 
-// Set Multisynth divider = (div + num/denom) * rdiv
 static void
 si5351_setupMultisynth(uint32_t  channel,
                        uint32_t  div,    // 4,6,8, 8+ ~ 900
@@ -240,23 +225,21 @@ si5351_setupMultisynth(uint32_t  channel,
                        uint32_t  rdiv,   // SI5351_R_DIV_1~128
                        uint8_t   chctrl) // SI5351_REG_16_CLKX_CONTROL settings
 {
-  /* Output Multisynth Divider Equations
-   * where: a = div, b = num and c = denom
-   * P1 register is an 18-bit value using following formula:
-   *   P1[17:0] = 128 * a + int((128*b)/c) - 512
-   * P2 register is a 20-bit value using the following formula:
-   *   P2[19:0] = (128 * b) % c
-   * P3 register is a 20-bit value using the following formula:
-   *   P3[19:0] = c
-   */
-  /* Set the main PLL config registers */
+  // Multisynth Divider Equation
+  // P1 register is an 18-bit value
+  // P2 register is a 20-bit value
+  // P3 register is a 20-bit value
+  //                                  P2
+  // f = PLL * 128 / (4 * 128 + P1 + ----) / (1<<R)
+  //                                  P3
+  // Set the main Multisynth config registers
   uint32_t P1 = div - 4 * 128;
   uint32_t P2 = num;
-  uint32_t P3 = num ? denom : 1;
+  uint32_t P3 = denom;
   rdiv = SI5351_R_DIV(rdiv);
   if (P1 == 0)
     rdiv|= SI5351_DIVBY4;
-  /* Set the MSx config registers */
+  // Set the MSx config registers
   uint8_t reg[9];
   reg[0] = msreg_base[channel];                       // SI5351_REG_42_MULTISYNTH0, SI5351_REG_50_MULTISYNTH1, SI5351_REG_58_MULTISYNTH2
   reg[1] = (P3 & 0x0FF00)>>8;                         // MSx_P3[15: 8]
@@ -269,7 +252,7 @@ si5351_setupMultisynth(uint32_t  channel,
   reg[8] = (P2 & 0x000FF);                            // MSx_P2[ 7: 0]
   si5351_bulk_write(reg, 9);
 
-  /* Configure the clk control and enable the output */
+  // Configure the clk control and enable the output
   chctrl|= SI5351_CLK_INPUT_MULTISYNTH_N;
   if (num == 0)
     chctrl|= SI5351_CLK_INTEGER_MODE;
@@ -279,45 +262,30 @@ si5351_setupMultisynth(uint32_t  channel,
   }
 }
 
-// Find better approximate values for n/d
+// Find better approximate values for n/d there d <= max (for values close to max, can return 1/1)
 #define MAX_DENOMINATOR ((1 << 20) - 1)
-static void approximate_fraction(uint32_t *n, uint32_t *d)
-{
-#if 1
-  // cf. https://github.com/python/cpython/blob/master/Lib/fractions.py#L227
-  uint32_t denom = *d;
-  if (denom > MAX_DENOMINATOR) {
-    uint32_t num = *n;
-    uint32_t p0 = 0, q0 = 1, p1 = 1, q1 = 0;
-    while (denom != 0) {
-      uint32_t a = num / denom;
-      uint32_t b = num % denom;
-      uint32_t q2 = q0 + a*q1;
-      if (q2 > MAX_DENOMINATOR)
-        break;
-      uint32_t p2 = p0 + a*p1;
-      p0 = p1; q0 = q1; p1 = p2; q1 = q2;
-      num = denom; denom = b;
-    }
-    *n = p1;
-    *d = q1;
+static void approximate_fraction(uint32_t *n, uint32_t *d, uint32_t max) {
+//  if (*d <= max) return;
+  uint32_t denom = *d, num = *n, a;
+  uint32_t p0 = 0, q0 = 1, p1 = 1, q1 = 0;
+  while (1) {
+    if (  num == 0 || (q1+= (a = denom / num) * q0) > max) {*n = p0; *d = q0; return;}
+    denom-= a * num;
+    p1+= a * p0;
+    if (denom == 0 || (q0+= (a = num / denom) * q1) > max) {*n = p1; *d = q1; return;}
+    num-= a * denom;
+    p0+= a * p1;
   }
-#else
-  while (*d >= MAX_DENOMINATOR) {
-    *n >>= 1;
-    *d >>= 1;
-  }
-#endif
 }
 
 // Setup Multisynth divider for get correct output freq if fixed PLL = pllfreq
-static void
-si5351_set_frequency_fixedpll(uint32_t channel, uint64_t pllfreq, uint32_t freq, uint32_t rdiv, uint8_t chctrl) {
+static void si5351_set_frequency_fixedpll(uint32_t channel, uint64_t pllfreq, uint32_t freq, uint32_t rdiv, uint8_t chctrl) {
   pllfreq<<= (7 - rdiv);
   uint32_t div = pllfreq / freq; // range: 8 ~ 1800 * 128
   uint32_t num = pllfreq % freq;
   uint32_t denom = freq;
-  approximate_fraction(&num, &denom);
+  approximate_fraction(&num, &denom, MAX_DENOMINATOR);
+  if (num == denom) {num = 0; div++;} // possible situation then after approximate_fraction result: num == denom == 1
   si5351_setupMultisynth(channel, div, num, denom, rdiv, chctrl);
 }
 
@@ -328,32 +296,10 @@ static void si5351_setupPLL_freq(uint32_t pllSource, uint64_t pllfreq, uint32_t 
   uint32_t multi = pllfreq / xtal;
   uint32_t num   = pllfreq % xtal;
   uint32_t denom = xtal;
-  approximate_fraction(&num, &denom);
+  approximate_fraction(&num, &denom, MAX_DENOMINATOR);
+  if (num == denom) {num = 0; multi++;} // possible situation then after approximate_fraction result: num == denom == 1
   si5351_setupPLL(pllSource, multi, num, denom);
 }
-
-#if 0
-static void
-si5351_set_frequency_fixeddiv(uint8_t channel, uint32_t pll, uint32_t freq, uint32_t div,
-                              uint8_t chctrl, uint32_t mul)
-{
-  si5351_setupPLL_freq(pll, (uint64_t)freq * div, mul);
-  si5351_setupMultisynth(channel, div<<7, 0, 1, 0, chctrl);
-}
-
-void
-si5351_set_frequency(int channel, uint32_t freq, uint8_t drive_strength)
-{
-  if (freq <= 100000000) {
-    si5351_setupPLL(SI5351_PLL_B, 32, 0, 1);
-    si5351_set_frequency_fixedpll(channel, SI5351_PLL_B, PLLFREQ, freq, 0, drive_strength, 1);
-  } else if (freq < 150000000) {
-    si5351_set_frequency_fixeddiv(channel, SI5351_PLL_B, freq, 6, drive_strength, 1);
-  } else {
-    si5351_set_frequency_fixeddiv(channel, SI5351_PLL_B, freq, 4, drive_strength, 1);
-  }
-}
-#endif
 
 typedef struct {
  uint32_t freq;
@@ -547,7 +493,7 @@ si5351_set_frequency(uint32_t freq, uint8_t drive_strength)
   }
 #endif
   // Check current power settings
-  if (current_power != drive_strength){
+  if (current_power != drive_strength) {
     si5351_reset_cache();
     current_power = drive_strength;
   }
