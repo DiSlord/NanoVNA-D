@@ -898,6 +898,20 @@ static UI_FUNCTION_ADV_CALLBACK(menu_traces_acb) {
   menu_push_submenu(menu_trace);
 }
 
+static UI_FUNCTION_ADV_CALLBACK(menu_atrace_acb) {
+  data = current_trace;
+  if (data == TRACE_INVALID) return;
+  if (b) {
+    b->bg = LCD_TRACE_1_COLOR + data;
+    plot_printf(b->label, sizeof(b->label), "TRACE %d", data);
+    return;
+  }
+  do {
+    if (++data == TRACES_MAX) data = 0;
+    if (trace[data].enabled) {set_active_trace(data); break;}
+  } while (data != current_trace);
+}
+
 extern const menuitem_t menu_marker_s11smith[];
 extern const menuitem_t menu_marker_s21smith[];
 static uint8_t get_smith_format(void) {return (current_trace != TRACE_INVALID) ? trace[current_trace].smith_format : 0;}
@@ -2144,6 +2158,7 @@ const menuitem_t menu_formatS11[] = {
 };
 
 const menuitem_t menu_scale[] = {
+  { MT_ADV_CALLBACK, 0,            "TRACE",               menu_atrace_acb },
   { MT_CALLBACK,     0,            "AUTO SCALE",          menu_auto_scale_cb },
   { MT_ADV_CALLBACK, KM_TOP,       "TOP",                 menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_BOTTOM,    "BOTTOM",              menu_scale_keyboard_acb },
@@ -3024,9 +3039,9 @@ UI_KEYBOARD_CALLBACK(input_amplitude) {
   if (data == 0) top = value;        // top value input
   else           bot = value;        // bottom value input
   scale = (top - bot) / NGRIDY;
-  ref = (top == bot) ? -value : -bot / scale;
+  ref = (top == bot) ? value : bot / scale;
   set_trace_scale(current_trace, scale);
-  set_trace_refpos(current_trace, ref);
+  set_trace_refpos(current_trace, -ref);
 }
 
 UI_KEYBOARD_CALLBACK(input_scale) {
@@ -3043,8 +3058,7 @@ UI_KEYBOARD_CALLBACK(input_ref) {
 
 UI_KEYBOARD_CALLBACK(input_edelay) {
   (void)data;
-  if (current_trace == TRACE_INVALID) return;
-  int ch = trace[current_trace].channel;
+  int ch = current_trace == TRACE_INVALID ? 0 : trace[current_trace].channel;
   if (b) {
     plot_printf(b->label, sizeof(b->label), "E-DELAY S%d1\n " R_LINK_COLOR "%.7F" S_SECOND, ch + 1, current_props._electrical_delay[ch]);
     return;
