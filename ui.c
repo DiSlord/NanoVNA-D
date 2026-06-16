@@ -1774,7 +1774,7 @@ static FILE_LOAD_CALLBACK(load_cal) {
   // Compare file size and try read magic header, if all OK load it
   if (fno->fsize != sizeof(current_props) || f_read(f, &magic, sizeof(magic), &size) != FR_OK ||
       magic != PROPERTIES_MAGIC || f_read(f, src, total, &size) != FR_OK)
-	  return "Format err";
+      return "Format err";
   load_properties(NO_SAVE_SLOT);
   return NULL;
 }
@@ -2163,8 +2163,8 @@ const menuitem_t menu_scale[] = {
   { MT_CALLBACK,     0,            "AUTO SCALE",          menu_auto_scale_cb },
   { MT_ADV_CALLBACK, KM_TOP,       "TOP",                 menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_BOTTOM,    "BOTTOM",              menu_scale_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_SCALE,     "SCALE/DIV",           menu_scale_keyboard_acb },
-  { MT_ADV_CALLBACK, KM_REFPOS,    "REFERENCE\nPOSITION", menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_SCALE,     "SCALE",               menu_scale_keyboard_acb },
+  { MT_ADV_CALLBACK, KM_REFPOS,    "REF POSITION",        menu_scale_keyboard_acb },
   { MT_ADV_CALLBACK, KM_EDELAY,    "E-DELAY",             menu_keyboard_acb },
   { MT_ADV_CALLBACK, KM_S21OFFSET, "S21 OFFSET\n " R_LINK_COLOR "%b.3F" S_dB,  menu_keyboard_acb },
 #ifdef __USE_GRID_VALUES__
@@ -3047,13 +3047,20 @@ UI_KEYBOARD_CALLBACK(input_amplitude) {
 
 UI_KEYBOARD_CALLBACK(input_scale) {
   (void)data;
-  if (b) return;
+  int type = trace[current_trace].type;
+  if (b) {
+    plot_printf(b->label, sizeof(b->label), "%s\n " R_LINK_COLOR "%.4F%s/Div", "SCALE", get_trace_scale(current_trace), trace_info_list[type].symbol);
+    return;
+  }
   set_trace_scale(current_trace, keyboard_get_float());
 }
 
 UI_KEYBOARD_CALLBACK(input_ref) {
   (void)data;
-  if (b) return;
+  if (b) {
+    plot_printf(b->label, sizeof(b->label), "%s\n " R_LINK_COLOR "%.4F", "REF POSITION", get_trace_refpos(current_trace));
+    return;
+  }
   set_trace_refpos(current_trace, keyboard_get_float());
 }
 
@@ -3197,7 +3204,7 @@ const keypads_list keypads_mode_tbl[KM_NONE] = {
 [KM_nBOTTOM]         = {KEYPAD_NFLOAT, 1,             "BOTTOM",             input_amplitude}, // bottom graph value
 [KM_SCALE]           = {KEYPAD_UFLOAT, KM_SCALE,      "SCALE",              input_scale    }, // scale
 [KM_nSCALE]          = {KEYPAD_NFLOAT, KM_nSCALE,     "SCALE",              input_scale    }, // nano / pico scale value
-[KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REFPOS",             input_ref      }, // refpos
+[KM_REFPOS]          = {KEYPAD_FLOAT,  0,             "REF POSITION",       input_ref      }, // refpos
 [KM_EDELAY]          = {KEYPAD_NFLOAT, 0,             "E-DELAY",            input_edelay   }, // electrical delay
 [KM_VAR_DELAY]       = {KEYPAD_NFLOAT, 0,             "JOG STEP",           input_var_delay}, // VAR electrical delay
 [KM_S21OFFSET]       = {KEYPAD_FLOAT,  0,             "S21 OFFSET",         input_s21_offset},// S21 level offset
@@ -3268,10 +3275,15 @@ static void keypad_draw_button(int id) {
     lcd_drawchar(ch,
                      x + (KPF_WIDTH - FONT_WIDTH) / 2,
                      y + (KPF_HEIGHT - FONT_GET_HEIGHT) / 2);
-#else
+#elif 1
     lcd_drawchar_size(ch,
                      x + KPF_WIDTH/2 - FONT_WIDTH + 1,
                      y + KPF_HEIGHT/2 - FONT_GET_HEIGHT, 2);
+#else
+    int w = bFONT_GET_WIDTH(ch);
+    lcd_blitBitmap(x + (KPF_WIDTH - w) / 2 + 2,
+                   y + (KPF_HEIGHT - bFONT_GET_HEIGHT) / 2,
+                   w, bFONT_GET_HEIGHT, bFONT_GET_DATA(ch));
 #endif
   }
 }
