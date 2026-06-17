@@ -2999,7 +2999,7 @@ UI_KEYBOARD_CALLBACK(input_freq) {
   if (b) {
     if (data == ST_VAR && var_freq)
       plot_printf(b->label, sizeof(b->label), "JOG STEP\n " R_LINK_COLOR "%.3q" S_Hz, var_freq);
-    if (data == ST_STEP) b->p1.f = (float)get_sweep_frequency(ST_SPAN) / (sweep_points - 1);
+    if (data == ST_STEP) b->p1.f = (float)get_sweep_frequency(ST_STEP);
     return;
   }
   set_sweep_frequency(data, keyboard_get_freq());

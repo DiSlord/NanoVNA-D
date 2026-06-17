@@ -312,7 +312,7 @@ void cal_done(void);
 
 #define MAX_FREQ_TYPE 5
 enum stimulus_type {
-  ST_START=0, ST_STOP, ST_CENTER, ST_CW, ST_SPAN, ST_STEP, ST_VAR
+  ST_START=0, ST_STOP, ST_CENTER, ST_SPAN, ST_CW, ST_STEP, ST_VAR
 };
 
 freq_t getFrequency(uint16_t idx);
@@ -1373,7 +1373,7 @@ extern uint16_t lastsaveid;
 #define DIGIT_SEPARATOR      '.'
 #endif
 
-inline freq_t
+static inline freq_t
 get_sweep_frequency(uint16_t type)
 {
   switch (type) {
@@ -1382,6 +1382,8 @@ get_sweep_frequency(uint16_t type)
     case ST_CENTER: return (frequency0>>1) + (frequency1>>1) + (frequency0&1);
     case ST_SPAN:   return frequency1 - frequency0;
     case ST_CW:     return frequency0;
+    case ST_STEP:   return (frequency1 - frequency0) / (sweep_points - 1);
+    case ST_VAR:    return var_freq;
   }
   return 0;
 }
