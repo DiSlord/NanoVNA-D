@@ -1709,9 +1709,9 @@ static FILE_SAVE_CALLBACK(save_tiff) {
     // Convert to RGB888
     for (int x = LCD_WIDTH - 1; x >= 0; x--) {
       uint16_t color = (buf_16[x] << 8) | (buf_16[x] >> 8);
-      buf_8[3*x + 0] = (color>>8) & 0xF8;// if (buf_8[3*x + 0] < 0) buf_8[3*x + 0]+= 7;
-      buf_8[3*x + 1] = (color>>3) & 0xFC;// if (buf_8[3*x + 1] < 0) buf_8[3*x + 1]+= 3;
-      buf_8[3*x + 2] = (color<<3) & 0xF8;// if (buf_8[3*x + 2] < 0) buf_8[3*x + 2]+= 7;
+      uint8_t r = (color>>8) & 0xF8; if (r > 128) r|= 7; buf_8[3*x + 0] = r; // Align color from 5 to 8 bit
+      uint8_t g = (color>>3) & 0xFC; if (g > 128) g|= 3; buf_8[3*x + 1] = g; // Align color from 6 to 8 bit
+      uint8_t b = (color<<3) & 0xF8; if (b > 128) b|= 7; buf_8[3*x + 2] = b; // Align color from 5 to 8 bit
     }
     size = packbits(buf_8, (char *)buf_16, LCD_WIDTH * 3);
     res = f_write(f, buf_16, size, &size);
