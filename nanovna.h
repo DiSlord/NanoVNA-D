@@ -1290,7 +1290,7 @@ void lcd_drawstring(int16_t x, int16_t y, const char *str);
 int  lcd_printf(int x, int y, const char *fmt, ...);
 int  lcd_printfV(int x, int y, const char *fmt, ...);
 int  lcd_drawchar_size(uint8_t ch, int x, int y, uint8_t size);
-void lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
+int  lcd_drawstring_size(const char *str, int x, int y, uint8_t size);
 void lcd_drawfont(uint8_t ch, int x, int y);
 void lcd_read_memory(int x, int y, int w, int h, uint16_t* out);
 void lcd_line(int x0, int y0, int x1, int y1);

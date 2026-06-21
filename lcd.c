@@ -949,9 +949,10 @@ void lcd_drawfont(uint8_t ch, int x, int y) {
   lcd_blitBitmap(x, y, NUM_FONT_GET_WIDTH, NUM_FONT_GET_HEIGHT, NUM_FONT_GET_DATA(ch));
 }
 
-void lcd_drawstring_size(const char *str, int x, int y, uint8_t size) {
+int lcd_drawstring_size(const char *str, int x, int y, uint8_t size) {
   while (*str)
     x += lcd_drawchar_size(*str++, x, y, size);
+  return x;
 }
 
 void lcd_vector_draw(int x, int y, const vector_data *v) {

@@ -3340,10 +3340,10 @@ static void draw_text_input(const char *buf) {
   lcd_printf(x, y, buf);
 #else
   int n = 2;
-  uint16_t x = 14 + FONT_STR_WIDTH(5);
-  uint16_t y = LCD_HEIGHT-(FONT_GET_HEIGHT*n + NUM_INPUT_HEIGHT)/2;
-  lcd_fill(x, y, FONT_STR_WIDTH(20) * n, FONT_GET_HEIGHT*n);
-  lcd_drawstring_size(buf, x, y, n);
+  int x = 14 + FONT_STR_WIDTH(5);
+  int y = LCD_HEIGHT - (FONT_GET_HEIGHT * n + NUM_INPUT_HEIGHT)/2;
+  x = lcd_drawstring_size(buf, x, y, n);
+  lcd_fill(x, y, FONT_WIDTH * n, FONT_GET_HEIGHT * n);
 #endif
 }
 
